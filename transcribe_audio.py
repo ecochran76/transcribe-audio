@@ -6,12 +6,19 @@ import subprocess
 import configparser
 import pkg_resources
 from pathlib import Path
+import argparse
+import torch
+from tqdm import tqdm
+import soundfile as sf
 
-# Define required packages
+# Define required packages with their exact install names
 REQUIRED_PACKAGES = {
-    "whisper": "openai-whisper",
+    "openai-whisper": "openai-whisper",
     "assemblyai": "assemblyai",
-    "soundfile": "soundfile",  # For audio handling
+    "soundfile": "soundfile",
+    "tqdm": "tqdm",
+    "torch-directml": "torch-directml",  # Added for AMD GPU support
+    # "pyannote.audio": "pyannote-audio"  # Uncomment for speaker diarization
 }
 
 # Configuration file setup
@@ -23,8 +30,8 @@ def check_and_install_dependencies():
     missing = []
     for pkg, install_name in REQUIRED_PACKAGES.items():
         try:
-            pkg_resources.require(pkg)
-        except (pkg_resources.DistributionNotFound, pkg_resources.VersionConflict):
+            pkg_resources.get_distribution(pkg)
+        except pkg_resources.DistributionNotFound:
             missing.append(install_name)
     
     if missing:
@@ -35,6 +42,8 @@ def check_and_install_dependencies():
         except subprocess.CalledProcessError as e:
             print(f"Failed to install dependencies: {e}")
             sys.exit(1)
+    else:
+        print("All dependencies are already installed.")
 
 def load_or_create_config():
     """Load existing config or create a new one."""
@@ -56,16 +65,32 @@ def setup_whisper():
     try:
         import whisper
         model_name = CONFIG['whisper'].get('model', 'base')
-        print(f"Loading Whisper model: {model_name}")
-        model = whisper.load_model(model_name)
-        print("Whisper is set up successfully.")
+        
+        # Device selection logic
+        if torch.cuda.is_available():
+            device = "cuda"  # NVIDIA GPU
+            device_name = torch.cuda.get_device_name(0)
+        else:
+            try:
+                import torch_directml
+                dml_device = torch_directml.device()  # AMD GPU via DirectML
+                device = dml_device  # Pass the DirectML device object directly
+                device_name = "DirectML (AMD GPU)"  # Simplified name for logging
+            except ImportError:
+                device = "cpu"
+                device_name = "CPU"
+        
+        print(f"Loading Whisper model: {model_name} on {device_name}")
+        # Load model with weights_only=True to address FutureWarning
+        model = whisper.load_model(model_name, device=device, weights_only=True)
+        print(f"Whisper is set up successfully on {device_name}.")
         return model
-    except ImportError:
-        print("Whisper is not installed correctly despite dependency check.")
+    except ImportError as e:
+        print(f"Required module not installed: {e}")
         sys.exit(1)
     except Exception as e:
         print(f"Error setting up Whisper: {e}")
-        print("Ensure you have sufficient disk space and a compatible GPU (optional) for faster processing.")
+        print("Ensure you have sufficient disk space and compatible hardware.")
         sys.exit(1)
 
 def setup_assemblyai():
@@ -79,10 +104,9 @@ def setup_assemblyai():
         try:
             import assemblyai as aai
             aai.settings.api_key = api_key
-            # Test the key
-            test_transcriber = aai.Transcriber()
             print("Testing API key...")
-            test_transcriber.transcribe("https://example.com/test.wav")  # Dummy test; will fail gracefully
+            test_transcriber = aai.Transcriber()
+            test_transcriber.transcribe("https://example.com/test.wav")  # Dummy test
             CONFIG['DEFAULT']['assemblyai_api_key'] = api_key
             save_config()
             print("API key validated and saved.")
@@ -95,14 +119,57 @@ def setup_assemblyai():
         aai.settings.api_key = api_key
     return True
 
-def transcribe_with_whisper(audio_file, model):
-    """Transcribe audio using Whisper."""
+def get_audio_duration(audio_file):
+    """Get audio duration in seconds using soundfile."""
+    try:
+        with sf.SoundFile(audio_file) as f:
+            return len(f) / f.samplerate
+    except Exception as e:
+        print(f"Could not determine audio duration: {e}")
+        return None
+
+def transcribe_with_whisper(audio_file, model, with_speaker_ids=False):
+    """Transcribe audio using Whisper with progress, timestamps, and optional speaker IDs."""
     if not os.path.exists(audio_file):
         print(f"Audio file {audio_file} not found.")
         return None
+    
     try:
-        result = model.transcribe(audio_file)
-        return result["text"]
+        duration = get_audio_duration(audio_file)
+        if duration:
+            print(f"Audio duration: {duration:.2f} seconds")
+        
+        with tqdm(total=100, desc="Transcribing", unit="%") as pbar:
+            result = model.transcribe(audio_file, verbose=False, word_timestamps=True)
+            pbar.update(100)
+
+        output = []
+        for segment in result["segments"]:
+            start = segment["start"]
+            end = segment["end"]
+            text = segment["text"].strip()
+            output.append(f"[{start:.2f}s - {end:.2f}s] {text}")
+
+        if with_speaker_ids:
+            try:
+                from pyannote.audio import Pipeline
+                pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token="YOUR_HF_TOKEN")
+                pipeline.to(model.device)
+                diarization = pipeline(audio_file)
+                
+                for i, segment in enumerate(result["segments"]):
+                    start, end = segment["start"], segment["end"]
+                    speakers = set()
+                    for turn, _, speaker in diarization.crop((start, end)):
+                        speakers.add(speaker)
+                    speaker_label = "Unknown" if not speakers else "/".join(sorted(speakers))
+                    output[i] = f"[{start:.2f}s - {end:.2f}s] Speaker {speaker_label}: {segment['text'].strip()}"
+            except ImportError:
+                print("Speaker diarization requires 'pyannote-audio'. Install it and provide a Hugging Face token.")
+            except Exception as e:
+                print(f"Speaker diarization failed: {e}")
+
+        return "\n".join(output)
     except Exception as e:
         print(f"Whisper transcription failed: {e}")
         return None
@@ -124,39 +191,61 @@ def transcribe_with_assemblyai(audio_file):
         print(f"AssemblyAI transcription failed: {e}")
         return None
 
+def save_to_file(text, output_file):
+    """Save transcription text to a file."""
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(text)
+        print(f"Transcription saved to {output_file}")
+    except Exception as e:
+        print(f"Failed to save transcription to {output_file}: {e}")
+
 def main():
     """Main script logic."""
-    # Check dependencies and config
+    parser = argparse.ArgumentParser(
+        description="Transcribe audio files using Whisper or AssemblyAI.",
+        epilog="Example: python transcribe_audio.py audio.mp3 --method whisper --speakers -o output.txt"
+    )
+    parser.add_argument("audio_file", help="Path to the audio file to transcribe")
+    parser.add_argument(
+        "--method",
+        choices=["whisper", "assemblyai"],
+        default=None,
+        help="Transcription method (default: from config, typically 'whisper')"
+    )
+    parser.add_argument(
+        "--speakers",
+        action="store_true",
+        help="Enable speaker identification (Whisper only, requires pyannote-audio)"
+    )
+    parser.add_argument(
+        "-o", "--output",
+        help="Output transcription to specified file (e.g., output.txt)"
+    )
+    args = parser.parse_args()
+
     check_and_install_dependencies()
     load_or_create_config()
 
-    # Parse command-line arguments
-    if len(sys.argv) < 2:
-        print("Usage: python transcribe_audio.py <audio_file> [--method whisper|assemblyai]")
-        sys.exit(1)
+    method = args.method if args.method else CONFIG['DEFAULT'].get('method', 'whisper')
 
-    audio_file = sys.argv[1]
-    method = CONFIG['DEFAULT'].get('method', 'whisper')
-    if len(sys.argv) > 2 and sys.argv[2] == "--method":
-        method = sys.argv[3].lower()
-
-    # Set up and transcribe
     if method == "whisper":
         model = setup_whisper()
-        print(f"Transcribing {audio_file} with Whisper...")
-        text = transcribe_with_whisper(audio_file, model)
+        print(f"Transcribing {args.audio_file} with Whisper...")
+        text = transcribe_with_whisper(args.audio_file, model, with_speaker_ids=args.speakers)
     elif method == "assemblyai":
         setup_assemblyai()
-        print(f"Transcribing {audio_file} with AssemblyAI...")
-        text = transcribe_with_assemblyai(audio_file)
+        print(f"Transcribing {args.audio_file} with AssemblyAI...")
+        text = transcribe_with_assemblyai(args.audio_file)
     else:
         print(f"Unknown method '{method}'. Use 'whisper' or 'assemblyai'.")
         sys.exit(1)
 
-    # Output result
     if text:
         print("\nTranscription Result:")
         print(text)
+        if args.output:
+            save_to_file(text, args.output)
     else:
         print("Transcription failed.")
 
