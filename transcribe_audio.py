@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+# ./transcribe_audio.py audio.mp3 --method whisper --speakers --model small -o output.txt
 import os
 import sys
 import subprocess
