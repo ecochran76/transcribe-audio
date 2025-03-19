@@ -1,4 +1,5 @@
 transcribe_env/
 out.txt
 *.ini
-api_keys.json
+*.json
+*.wav

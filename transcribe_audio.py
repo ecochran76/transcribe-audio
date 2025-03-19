@@ -9,11 +9,14 @@ from pathlib import Path
 import argparse
 import json
 import logging
+import tempfile
+import time
 import torch
 from tqdm import tqdm
 import soundfile as sf
 from pydub import AudioSegment
 from pyannote.core import Segment
+from mutagen import File
 
 # Define required packages with their exact install names
 REQUIRED_PACKAGES = {
@@ -24,27 +27,25 @@ REQUIRED_PACKAGES = {
     "torch": "torch",
     "pyannote.audio": "pyannote-audio",
     "pydub": "pydub",
+    "mutagen": "mutagen",
 }
 
 # Configuration file setup
 CONFIG_FILE = Path(__file__).parent / "transcription_config.ini"
 CONFIG = configparser.ConfigParser()
 
-# Set up logging
+# Set up logging with detailed format and file output
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] [%(threadName)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("transcription.log", encoding='utf-8')
+    ]
 )
 logger = logging.getLogger(__name__)
 
 def check_and_install_dependencies():
-    """
-    Check for required packages and install them if missing.
-
-    Returns:
-        None; exits with status 1 if installation fails.
-    """
     missing = []
     installed = []
     for pkg, install_name in REQUIRED_PACKAGES.items():
@@ -54,11 +55,11 @@ def check_and_install_dependencies():
         except pkg_resources.DistributionNotFound:
             missing.append(install_name)
     
+    logger.debug(f"Checking dependencies: installed={installed}, missing={missing}")
     if missing:
-        logger.info(f"Installed packages: {', '.join(installed)}")
         logger.info(f"Missing dependencies: {', '.join(missing)}. Installing...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
+            subprocess.check_call([sys.executable, "-m", "pip", "install", *missing], text=True)
             logger.info("Dependencies installed successfully.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to install dependencies: {e}")
@@ -67,21 +68,15 @@ def check_and_install_dependencies():
         logger.info("All dependencies are already installed.")
 
 def load_or_create_config():
-    """
-    Load existing config or create a new one with default values.
-
-    Returns:
-        None; exits with status 1 if config file is malformed.
-    """
     try:
         if CONFIG_FILE.exists():
             CONFIG.read(CONFIG_FILE)
-            # Validate config structure
             if 'DEFAULT' not in CONFIG or 'whisper' not in CONFIG:
                 raise configparser.Error("Config file missing required sections.")
+            logger.debug(f"Loaded config from {CONFIG_FILE}")
         else:
             CONFIG['DEFAULT'] = {'method': 'whisper', 'assemblyai_api_key': '', 'hf_token': ''}
-            CONFIG['whisper'] = {'model': 'base', 'temp_dir': str(Path.cwd())}
+            CONFIG['whisper'] = {'model': 'base'}
             save_config()
             logger.info(f"Created new configuration file at {CONFIG_FILE}")
     except configparser.Error as e:
@@ -89,34 +84,25 @@ def load_or_create_config():
         sys.exit(1)
 
 def save_config():
-    """Save the current configuration to file."""
     try:
-        with open(CONFIG_FILE, 'w') as configfile:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as configfile:
             CONFIG.write(configfile)
+        logger.debug(f"Saved config to {CONFIG_FILE}")
     except Exception as e:
         logger.error(f"Failed to save config file {CONFIG_FILE}: {e}")
 
 def setup_whisper(device, model_name):
-    """
-    Bootstrap Whisper installation and configuration.
-
-    Args:
-        device (str): Device to use ('cuda' or 'cpu').
-        model_name (str): Whisper model size (e.g., 'base', 'small').
-
-    Returns:
-        whisper.Model: Loaded Whisper model instance.
-    """
     try:
         import whisper
         device_name = torch.cuda.get_device_name(0) if device == "cuda" else "CPU"
         logger.info(f"Loading Whisper model: {model_name} on {device_name}")
+        start_time = time.time()
         try:
             model = whisper.load_model(model_name, device=device, weights_only=True)
         except TypeError:
             logger.warning("This version of openai-whisper does not support 'weights_only'. Loading without it.")
             model = whisper.load_model(model_name, device=device)
-        logger.info(f"Whisper is set up successfully on {device_name}.")
+        logger.info(f"Whisper setup completed on {device_name} in {time.time() - start_time:.2f} seconds.")
         return model
     except ImportError as e:
         logger.error(f"Required module not installed: {e}")
@@ -127,12 +113,6 @@ def setup_whisper(device, model_name):
         sys.exit(1)
 
 def setup_assemblyai():
-    """
-    Guide user to set up AssemblyAI and store API key.
-
-    Returns:
-        bool: True if setup is successful.
-    """
     api_key = CONFIG['DEFAULT'].get('assemblyai_api_key', '')
     if not api_key:
         logger.info("AssemblyAI requires an API key.")
@@ -158,12 +138,6 @@ def setup_assemblyai():
     return True
 
 def get_hf_token():
-    """
-    Get Hugging Face token from config or user input with detailed guidance.
-
-    Returns:
-        str: Hugging Face access token.
-    """
     hf_token = CONFIG['DEFAULT'].get('hf_token', '')
     if not hf_token:
         logger.info("\nPyannote-audio requires a Hugging Face access token and model permissions.")
@@ -187,68 +161,76 @@ def get_hf_token():
     return hf_token
 
 def get_audio_duration(audio_file):
-    """
-    Get audio duration in seconds using soundfile, fall back to pydub if needed.
-
-    Args:
-        audio_file (str): Path to the audio file.
-
-    Returns:
-        float: Duration in seconds, or None if calculation fails.
-    """
     try:
         with sf.SoundFile(audio_file) as f:
-            return len(f) / f.samplerate
+            duration = len(f) / f.samplerate
+            logger.debug(f"Calculated duration with soundfile: {duration:.2f} seconds")
+            return duration
     except Exception as e:
         logger.debug(f"Could not open {audio_file} with soundfile: {e}")
-        logger.info("Attempting conversion to .wav with pydub...")
+        logger.info("Attempting conversion to .wav with pydub for duration...")
         try:
             audio = AudioSegment.from_file(audio_file)
-            duration = len(audio) / 1000.0  # pydub returns milliseconds
+            duration = len(audio) / 1000.0
+            logger.debug(f"Calculated duration with pydub: {duration:.2f} seconds")
             return duration
         except Exception as e:
             logger.error(f"Failed to convert {audio_file} with pydub: {e}")
             logger.error("Ensure FFmpeg is installed and in PATH.")
             return None
 
+def get_audio_timestamp(audio_file):
+    """Extract timestamp from audio file metadata or fallback to file modified time."""
+    try:
+        audio = File(audio_file)
+        if audio and 'date' in audio.tags:
+            date_str = audio.tags['date'][0]
+            try:
+                # Try parsing common date formats
+                for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y"):
+                    try:
+                        return time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(date_str, fmt))
+                    except ValueError:
+                        continue
+                logger.warning(f"Invalid date format in audio metadata: {date_str}")
+            except Exception as e:
+                logger.warning(f"Error parsing audio metadata date: {e}")
+    except Exception as e:
+        logger.warning(f"Could not extract timestamp from audio metadata: {e}")
+    
+    # Fallback to file modified time
+    timestamp = os.path.getmtime(audio_file)
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+
 def transcribe_with_whisper(audio_file, model, device, with_speaker_ids=False, temp_dir=None):
-    """
-    Transcribe audio using Whisper with progress, timestamps, and optional speaker IDs.
-
-    Args:
-        audio_file (str): Path to the audio file.
-        model (whisper.Model): Loaded Whisper model instance.
-        device (str): Device to use ('cuda' or 'cpu').
-        with_speaker_ids (bool): Whether to perform speaker diarization.
-        temp_dir (str, optional): Directory for temporary files.
-
-    Returns:
-        str: Formatted transcription text, or None if failed.
-    """
     if not os.path.exists(audio_file):
         logger.error(f"Audio file {audio_file} not found.")
-        return None
+        return None, None
     
-    temp_dir = temp_dir or CONFIG['whisper'].get('temp_dir', str(Path.cwd()))
-    os.makedirs(temp_dir, exist_ok=True)
+    if temp_dir is None:
+        temp_dir = tempfile.mkdtemp(prefix="transcribe_")
+        logger.debug(f"Generated temporary directory: {temp_dir}")
+    else:
+        os.makedirs(temp_dir, exist_ok=True)
+        logger.debug(f"Using specified temporary directory: {temp_dir}")
 
     try:
-        # Try opening with soundfile, convert to wav if it fails
         temp_wav = None
         try:
             with sf.SoundFile(audio_file):
                 pass
             process_file = str(audio_file)
+            logger.debug(f"Using original file: {process_file}")
         except Exception as e:
             logger.debug(f"Soundfile failed to open {audio_file}: {e}")
             logger.info("Converting to .wav with pydub for processing...")
+            start_time = time.time()
             audio = AudioSegment.from_file(audio_file)
-            temp_wav = Path(temp_dir) / f"{Path(audio_file).stem}.wav"
+            temp_wav = Path(temp_dir) / f"{Path(audio_file).stem}_{int(time.time())}.wav"
             audio.export(temp_wav, format="wav")
             process_file = str(temp_wav)
-            logger.info(f"Converted to {process_file}")
+            logger.info(f"Converted to {process_file} in {time.time() - start_time:.2f} seconds")
 
-        # Log audio file properties
         try:
             with sf.SoundFile(process_file) as f:
                 logger.info(f"Audio properties: sample_rate={f.samplerate}, channels={f.channels}, frames={len(f)}")
@@ -258,10 +240,15 @@ def transcribe_with_whisper(audio_file, model, device, with_speaker_ids=False, t
         duration = get_audio_duration(process_file)
         if duration:
             logger.info(f"Audio duration: {duration:.2f} seconds")
-        
-        with tqdm(total=100, desc="Transcribing audio", unit="%") as pbar:
+        else:
+            logger.warning("Could not determine audio duration; proceeding without it.")
+
+        logger.info(f"Starting transcription for {process_file}...")
+        start_time = time.time()
+        with tqdm(total=100, desc="Transcribing audio", unit="%", leave=True) as pbar:
             result = model.transcribe(process_file, verbose=False, word_timestamps=True)
             pbar.update(100)
+        logger.info(f"Transcription completed in {time.time() - start_time:.2f} seconds.")
 
         output = []
         for segment in result["segments"]:
@@ -275,14 +262,19 @@ def transcribe_with_whisper(audio_file, model, device, with_speaker_ids=False, t
                 from pyannote.audio import Pipeline
                 hf_token = get_hf_token()
                 logger.info(f"Loading speaker diarization pipeline with token: {hf_token[:6]}...")
+                start_time = time.time()
                 pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=hf_token)
                 if pipeline is None:
                     raise ValueError("Failed to load speaker diarization pipeline.")
                 
                 pipeline.to(torch.device(device))
-                with tqdm(total=100, desc="Diarizing speakers", unit="%") as pbar:
+                logger.info(f"Diarization pipeline loaded in {time.time() - start_time:.2f} seconds.")
+                
+                start_time = time.time()
+                with tqdm(total=100, desc="Diarizing speakers", unit="%", leave=True) as pbar:
                     diarization = pipeline(process_file)
                     pbar.update(100)
+                logger.info(f"Diarization completed in {time.time() - start_time:.2f} seconds.")
                 
                 if diarization is None:
                     logger.warning("Diarization returned no results. Speaker IDs will not be added.")
@@ -304,18 +296,19 @@ def transcribe_with_whisper(audio_file, model, device, with_speaker_ids=False, t
                 logger.error(f"Speaker diarization encountered an issue: {e}")
                 logger.info("Continuing with transcription only, without speaker IDs.")
 
-        # Clean up temporary wav file if created
         if temp_wav and os.path.exists(temp_wav):
             os.remove(temp_wav)
             logger.info(f"Cleaned up temporary file: {temp_wav}")
 
-        # Format output as text or JSON
-        text_output = "\n".join(
+        # Get audio timestamp and prepend it to the transcript
+        timestamp = get_audio_timestamp(audio_file)
+        text_output = f"Date and Time: {timestamp}\n\n" + "\n".join(
             f"[{seg['start']:.2f}s - {seg['end']:.2f}s] "
             f"{'Speaker ' + seg.get('speaker', 'Unknown') + ': ' if 'speaker' in seg else ''}"
             f"{seg['text']}"
             for seg in output
         )
+        logger.info(f"Transcription processing completed successfully for {audio_file}.")
         return text_output, output
 
     except Exception as e:
@@ -323,41 +316,30 @@ def transcribe_with_whisper(audio_file, model, device, with_speaker_ids=False, t
         return None, None
 
 def transcribe_with_assemblyai(audio_file):
-    """
-    Transcribe audio using AssemblyAI.
-
-    Args:
-        audio_file (str): Path to the audio file.
-
-    Returns:
-        str: Transcription text, or None if failed.
-    """
     if not os.path.exists(audio_file):
         logger.error(f"Audio file {audio_file} not found.")
         return None
     try:
         import assemblyai as aai
+        logger.info(f"Starting AssemblyAI transcription for {audio_file}...")
+        start_time = time.time()
         transcriber = aai.Transcriber()
         transcript = transcriber.transcribe(audio_file)
         if transcript.status == aai.TranscriptStatus.error:
             logger.error(f"AssemblyAI error: {transcript.error}")
             return None
-        return transcript.text
+        logger.info(f"AssemblyAI transcription completed in {time.time() - start_time:.2f} seconds.")
+        # Get audio timestamp and prepend it to the transcript
+        timestamp = get_audio_timestamp(audio_file)
+        text_output = f"Date and Time: {timestamp}\n\n{transcript.text}"
+        return text_output
     except Exception as e:
         logger.error(f"AssemblyAI transcription failed: {e}")
         return None
 
 def save_to_file(text, output_file, json_output=False, json_data=None):
-    """
-    Save transcription text or JSON to a file.
-
-    Args:
-        text (str): Transcription text to save.
-        output_file (str): Path to the output file.
-        json_output (bool): Whether to save as JSON instead of text.
-        json_data (list): List of segment dictionaries for JSON output.
-    """
     try:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
         if json_output and json_data:
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(json_data, f, indent=2, ensure_ascii=False)
@@ -369,7 +351,6 @@ def save_to_file(text, output_file, json_output=False, json_data=None):
         logger.error(f"Failed to save transcription to {output_file}: {e}")
 
 def main():
-    """Main script logic with command-line argument parsing."""
     parser = argparse.ArgumentParser(
         description="Transcribe audio files using Whisper or AssemblyAI.",
         epilog="Example: python transcribe_audio.py audio.mp3 --method whisper --speakers --model small -o output.txt"
@@ -394,7 +375,7 @@ def main():
     parser.add_argument(
         "--temp-dir",
         default=None,
-        help="Directory for temporary files; defaults to config or current directory"
+        help="Directory for temporary files; auto-generated if not specified"
     )
     parser.add_argument(
         "-o", "--output",
@@ -415,21 +396,24 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_name = args.model or CONFIG['whisper'].get('model', 'base')
-    temp_dir = args.temp_dir or CONFIG['whisper'].get('temp_dir', str(Path.cwd()))
 
     method = args.method or CONFIG['DEFAULT'].get('method', 'whisper')
 
     if method == "whisper":
         model = setup_whisper(device, model_name)
-        logger.info(f"Transcribing {args.audio_file} with Whisper...")
+        logger.info(f"Transcribing {args.audio_file} to {args.output or Path(args.audio_file).stem + ('.json' if args.json else '.txt')}...")
+        start_time = time.time()
         text, json_data = transcribe_with_whisper(
-            args.audio_file, model, device, with_speaker_ids=args.speakers, temp_dir=temp_dir
+            args.audio_file, model, device, with_speaker_ids=args.speakers, temp_dir=args.temp_dir
         )
+        logger.info(f"Transcription finished for {args.audio_file} in {time.time() - start_time:.2f} seconds.")
     elif method == "assemblyai":
         setup_assemblyai()
         logger.info(f"Transcribing {args.audio_file} with AssemblyAI...")
+        start_time = time.time()
         text = transcribe_with_assemblyai(args.audio_file)
-        json_data = None  # AssemblyAI doesn't support JSON output in this script
+        json_data = None
+        logger.info(f"Transcription finished for {args.audio_file} in {time.time() - start_time:.2f} seconds.")
     else:
         logger.error(f"Unknown method '{method}'. Use 'whisper' or 'assemblyai'.")
         sys.exit(1)
@@ -438,10 +422,10 @@ def main():
         transcript_lines = text.splitlines()
         logger.info("\nTranscription Result (first 10 lines):")
         for line in transcript_lines[:10]:
-            print(line)  # Keep console output simple for user
+            print(line)
         
         if args.output:
-            output_file = Path(args.audio_file).stem + (".json" if args.json else ".txt") if args.output is True else args.output
+            output_file = Path(args.audio_file).stem + (" Transcript.json" if args.json else " Transcript.txt") if args.output is True else args.output
             save_to_file(text, output_file, json_output=args.json, json_data=json_data)
     else:
         logger.error("Transcription failed.")
