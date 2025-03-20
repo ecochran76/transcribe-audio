@@ -64,7 +64,7 @@ AVAILABLE_MODELS = {
         "price": "Input: $15.00, Cached: $7.50, Output: $60.00 per 1M tokens",
         "description": "High-quality o1 model for advanced tasks."
     },
-    "o3-mini": {
+    "o3-mini-2025-01-31": {
         "price": "Input: $1.10, Cached: $0.55, Output: $4.40 per 1M tokens",
         "description": "Compact and efficient o3-mini model."
     },

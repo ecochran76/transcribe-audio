@@ -170,28 +170,74 @@ class AudioFileHandler(FileSystemEventHandler):
         self.output_folder = output_folder
         self.move_after = move_after
         self.config = config
+        self.valid_extensions = {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"}
+        # Include browser-specific temporary extensions
+        self.temp_patterns = [
+            r"\.tmp$",           # General temporary files
+            r"~syncthing~.*",    # SyncThing temps
+            r"\.part$",          # Firefox
+            r"\.crdownload$",    # Chrome/Edge
+            r"\.download$"       # Safari
+        ]
+        self.pending_files = {}  # Track files with timestamps to debounce
+
+    def is_valid_audio_file(self, file_path: Path):
+        """Check if a file is a valid audio file and not a temporary file."""
+        # Check extension
+        if file_path.suffix.lower() not in self.valid_extensions:
+            return False
+        # Check for temporary file patterns
+        file_name = file_path.name
+        if any(re.search(pattern, file_name, re.IGNORECASE) for pattern in self.temp_patterns):
+            return False
+        # Ensure file is fully written (size stable for 1 second)
+        try:
+            initial_size = file_path.stat().st_size
+            time.sleep(1)
+            final_size = file_path.stat().st_size
+            return initial_size == final_size and initial_size > 0
+        except OSError:
+            return False
 
     def process(self, file_path: Path):
-        # Wait briefly to ensure file is fully written
-        time.sleep(1)
-        if not file_path.is_file():
+        """Process a file if it’s a valid audio file."""
+        if not self.is_valid_audio_file(file_path):
+            logger.info(f"Skipping {file_path}: not a valid audio file or still being written.")
             return
         if self.regex and not self.regex.search(file_path.name):
             logger.info(f"File {file_path} does not match regex; skipping.")
             return
-
-        valid_extensions = [".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"]
-        if file_path.suffix.lower() not in valid_extensions:
-            logger.info(f"File {file_path} is not a recognized audio file; skipping.")
-            return
-
+        logger.info(f"Processing audio file: {file_path}")
         process_audio_file(file_path, self.config, self.output_folder, self.move_after)
 
     def on_created(self, event):
+        """Handle file creation events."""
         if event.is_directory:
             return
         file_path = Path(event.src_path)
         logger.info(f"Detected new file: {file_path}")
+        self.pending_files[file_path] = time.time()
+        # Defer processing to on_modified or on_moved for stability
+
+    def on_modified(self, event):
+        """Handle file modification events to debounce writes."""
+        if event.is_directory:
+            return
+        file_path = Path(event.src_path)
+        if file_path in self.pending_files:
+            # Wait 2 seconds after last modification to ensure file is stable
+            if time.time() - self.pending_files[file_path] >= 2:
+                self.process(file_path)
+                del self.pending_files[file_path]
+
+    def on_moved(self, event):
+        """Handle file rename events (e.g., browser finalizing a download)."""
+        if event.is_directory:
+            return
+        file_path = Path(event.dest_path)
+        logger.info(f"Detected renamed file: {file_path}")
+        if file_path in self.pending_files:
+            del self.pending_files[file_path]  # Clear pending status
         self.process(file_path)
 
 def process_existing_files(input_folder: Path, regex_pattern: str, output_folder: Path, move_after: bool, config: configparser.ConfigParser):
