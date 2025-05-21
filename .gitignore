@@ -1,3 +1,7 @@
-transcribe_env/
+transcribe_env*/
 out.txt
 *.ini
+*.json
+*.wav
+*.log
+
