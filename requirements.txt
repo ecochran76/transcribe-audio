@@ -4,7 +4,10 @@ configparser>=7.1.0  # For reading .ini config files
 pathlib2>=2.3.7.post1  # For cross-platform path handling (alternative to built-in pathlib)
 
 # Dependencies for transcribe_audio.py
-openai-whisper>=20240930  # Whisper for transcription
+#git+https://github.com/openai/whisper.git  # Whisper for transcription
+#setuptools<81,>=60.0.0  # Setuptools for package management
+faster-whisper>=0.10.0
+ctranslate2>=3.17.0
 assemblyai>=0.33.0  # AssemblyAI for transcription
 soundfile>=0.12.1  # For audio file handling
 tqdm>=4.66.5  # For progress bars

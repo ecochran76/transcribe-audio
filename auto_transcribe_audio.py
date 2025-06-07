@@ -11,7 +11,8 @@ from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import configparser
-from threading import Thread, Event
+
+from threading import Thread, Event, Lock
 
 # Set up logging
 logging.basicConfig(
@@ -32,7 +33,7 @@ class AudioFileHandler(FileSystemEventHandler):
         self.move_after = move_after
         self.config = config
         self.valid_audio_extensions = {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"}
-        self.valid_video_extensions = {".mp4", ".avi", ".mov", ".mkv"}
+        self.valid_video_extensions = {".mp4", ".avi", ".mov", ".mkv", "*.webm", "*.webp"}
         self.temp_patterns = [
             r"\.tmp$", r"~syncthing~.*", r"\.part$", r"\.crdownload$", r"\.download$"
         ]
@@ -44,7 +45,6 @@ class AudioFileHandler(FileSystemEventHandler):
 
     def check_stable_files(self):
         while not self.stop_event.is_set():
-            time.sleep(60)
             current_time = time.time()
             files_to_process = []
             for file_path, last_mod_time in list(self.pending_files.items()):
@@ -160,6 +160,7 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
         logger.error(f"Transcription script {transcribe_script} not found.")
         return
 
+    # Build transcription command
     transcribe_cmd = [
         sys.executable,
         str(transcribe_script),
@@ -176,6 +177,7 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
     if transcript_ext == 'json':
         transcribe_cmd.append("--json")
 
+    # Run transcription
     logger.info(f"Transcribing {audio_file} to {transcript_path}")
     try:
         result = subprocess.run(transcribe_cmd, capture_output=True, text=True)
@@ -195,6 +197,7 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
         logger.error(f"Failed to transcribe {audio_file}: {e}")
         return
 
+    # Check for summarize_transcript.py
     summarize_script = Path(__file__).parent / "summarize_transcript.py"
     if not summarize_script.exists():
         logger.error(f"Summarization script {summarize_script} not found.")
@@ -220,6 +223,7 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
     if rename_from_context:
         summarize_cmd.append("--rename-from-context")
 
+    # Run summarization and capture output to determine renamed files
     logger.info(f"Generating summary for {transcript_path} to {summary_path}")
     try:
         result = subprocess.run(summarize_cmd, capture_output=True, text=True)
@@ -242,6 +246,8 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
                     renamed_base = latest_context.stem.replace("-context", "")
                     summary_path = output_dir / f"{renamed_base}.{summary_ext}"
                     logger.info(f"Determined renamed base from context file: {renamed_base}")
+                else:
+                    logger.warning("Could not parse summary path from stdout. Falling back to latest context file.")
             if not renamed_base:
                 logger.warning("Could not determine renamed base name; using default.")
                 renamed_base = f"{source_file.stem} Summary"
@@ -274,6 +280,7 @@ def process_audio_file(audio_file: Path, config: configparser.ConfigParser, outp
                 if context_path.exists() and context_path.parent != output_folder:
                     context_dest = output_folder / context_path.name
                     shutil.move(str(context_path), str(context_dest))
+                    context_path = context_dest
                     logger.info(f"Moved context {context_path} to {context_dest}")
 
                 # Verify all files exist before deleting original
@@ -332,6 +339,7 @@ def main():
         logger.error("The --move option requires an --output-folder.")
         sys.exit(1)
 
+    # Load configuration
     config = configparser.ConfigParser()
     if not config.read(args.config):
         logger.warning(f"Config file {args.config} not found. Creating with defaults.")
@@ -339,7 +347,7 @@ def main():
             'method': 'whisper',
             'speakers': 'True',
             'model': 'base',
-            'temp_dir': '',
+            'temp_dir': '',  # Empty means None
             'transcript_output_format': 'txt'
         }
         config['Summarization'] = {
