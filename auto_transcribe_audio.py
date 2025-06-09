@@ -1,385 +1,299 @@
 #!/usr/bin/env python3
+"""auto_transcribe_audio.py
+
+High‑level features
+-------------------
+* **Config‑driven defaults** – if not supplied on the CLI, the watcher will
+  monitor `[Downloads]` and emit results in
+  `[Documents]/Sound Recordings/transcribed` (Windows‑style known folders).
+* **Special‑folder tokens** – strings like `[Downloads]` or
+  `[Documents]/Subdir` are expanded to the current user’s known locations on
+  Windows and sensible fall‑backs (`~/Downloads`, `~/Documents`, …) on other
+  platforms.
+* **Single‑shot mode** – if every positional argument resolves to a file (or
+  glob) the script processes the files once and exits.  Otherwise it starts a
+  Watchdog observer.
+
+Usage examples
+--------------
+Single file::
+
+    python auto_transcribe_audio.py "~/Downloads/meeting.m4a"
+
+All M4As in Downloads (no watcher)::
+
+    python auto_transcribe_audio.py "[Downloads]/*.m4a" --move
+
+Continuous folder watch (uses config defaults)::
+
+    python auto_transcribe_audio.py --process-existing --move
+"""
+from __future__ import annotations
+
+import argparse
+import configparser
+import ctypes
+import logging
 import os
+import re
+import shutil
+import subprocess
 import sys
 import time
-import re
-import argparse
-import logging
-import subprocess
-import shutil
+import uuid
 from pathlib import Path
-from watchdog.observers import Observer
+from threading import Event, Lock, Thread
+from typing import Dict, List
+
 from watchdog.events import FileSystemEventHandler
-import configparser
+from watchdog.observers import Observer
 
-from threading import Thread, Event, Lock
-
-# Set up logging
+# ──────────────────────────────  logging  ──────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
-# Globals for thread-safe file processing
+# ─────────────────────────  known‑folder helpers  ───────────────────────
+_KNOWN_FOLDER_GUIDS: Dict[str, str] = {
+    "downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
+    "documents": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}",
+    "music":     "{4BD8D571-6D19-48D3-BE97-422220080E43}",
+    "pictures":  "{33E28130-4E1E-4676-835A-98395C3BC3BB}",
+    "videos":    "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}",
+}
+
+class _GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", ctypes.c_uint32),
+        ("Data2", ctypes.c_uint16),
+        ("Data3", ctypes.c_uint16),
+        ("Data4", ctypes.c_uint8 * 8),
+    ]
+
+def _guid_from_str(guid_str: str) -> _GUID:
+    u = uuid.UUID(guid_str)
+    g = _GUID()
+    ctypes.memmove(ctypes.byref(g), u.bytes_le, 16)
+    return g
+
+def _win_known_folder(guid_str: str) -> Path:
+    shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
+    shell32.SHGetKnownFolderPath.argtypes = [
+        ctypes.POINTER(_GUID), ctypes.c_uint32, ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    ]
+    path_ptr = ctypes.c_wchar_p()
+    if shell32.SHGetKnownFolderPath(_guid_from_str(guid_str), 0, None, ctypes.byref(path_ptr)):
+        raise OSError("Failed to retrieve known folder")
+    return Path(path_ptr.value)
+
+def _fallback(folder_name: str) -> Path:
+    """Return ~/FolderName as a cross‑platform fallback."""
+    return Path.home() / folder_name.capitalize()
+
+def get_special_folder(name: str) -> Path:
+    name_lc = name.lower()
+    if os.name == "nt" and name_lc in _KNOWN_FOLDER_GUIDS:
+        try:
+            return _win_known_folder(_KNOWN_FOLDER_GUIDS[name_lc])
+        except Exception as exc:
+            logger.warning("Failed to get Windows known folder '%s': %s", name, exc)
+    return _fallback(name_lc)
+
+_SPECIAL_PATTERN = re.compile(r"^\[(downloads|documents|videos|music|pictures)\](.*)$", re.IGNORECASE)
+
+def resolve_path(token: str) -> Path:
+    """Expand special tokens like "[Downloads]/sub" into actual paths."""
+    m = _SPECIAL_PATTERN.match(token)
+    if m:
+        base = get_special_folder(m.group(1))
+        rest = m.group(2).lstrip("/\\")
+        return base if not rest else base / rest
+    return Path(token).expanduser()
+
+# ──────────────────────────────  globals  ──────────────────────────────
 process_lock = Lock()
-processed_files = set()
+processed_files: set[Path] = set()
 
+# ──────────────────────────────  handler  ──────────────────────────────
 class AudioFileHandler(FileSystemEventHandler):
-    def __init__(self, regex_pattern: str, output_folder: Path, move_after: bool, config):
-        self.regex = re.compile(regex_pattern) if regex_pattern else None
-        self.output_folder = output_folder
-        self.move_after = move_after
-        self.config = config
-        self.valid_audio_extensions = {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"}
-        self.valid_video_extensions = {".mp4", ".avi", ".mov", ".mkv", "*.webm", "*.webp"}
-        self.temp_patterns = [
-            r"\.tmp$", r"~syncthing~.*", r"\.part$", r"\.crdownload$", r"\.download$"
-        ]
-        self.stability_seconds = int(config['Watcher'].get('stability_seconds', 30))
-        self.pending_files = {}  # file_path: last_mod_time
+    """Watchdog handler that defers heavy work to helper functions."""
+
+    valid_audio_ext = {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"}
+    valid_video_ext = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".webp"}
+
+    def __init__(self, regex: str | None, out_dir: Path | None, move: bool, cfg: configparser.ConfigParser):
+        super().__init__()
+        self.regex = re.compile(regex) if regex else None
+        self.out_dir = out_dir
+        self.move = move
+        self.cfg = cfg
+        self.stability = int(cfg["Watcher"].get("stability_seconds", 30))
+        self.temp_patterns = [r"\.tmp$", r"~syncthing~.*", r"\.part$", r"\.crdownload$", r"\.download$"]
+        self.pending: dict[Path, float] = {}
         self.stop_event = Event()
-        self.check_thread = Thread(target=self.check_stable_files, daemon=True)
-        self.check_thread.start()
+        Thread(target=self._scan_pending, daemon=True).start()
 
-    def check_stable_files(self):
-        while not self.stop_event.is_set():
-            current_time = time.time()
-            files_to_process = []
-            for file_path, last_mod_time in list(self.pending_files.items()):
-                if current_time - last_mod_time > 600:
-                    if self.is_valid_file(file_path):
-                        files_to_process.append(file_path)
-                    else:
-                        logging.info(f"File {file_path} still not valid; continuing to monitor.")
-            for file_path in files_to_process:
-                self.process_file(file_path)
-                del self.pending_files[file_path]
-            time.sleep(60)
-
-    def is_valid_file(self, file_path: Path):
-        suffix = file_path.suffix.lower()
-        if suffix not in self.valid_audio_extensions and suffix not in self.valid_video_extensions:
+    # ────────────────────  stability / validation helpers  ────────────────────
+    def _is_valid(self, f: Path) -> bool:
+        if f.suffix.lower() not in (self.valid_audio_ext | self.valid_video_ext):
             return False
-        file_name = file_path.name
-        if any(re.search(pattern, file_name, re.IGNORECASE) for pattern in self.temp_patterns):
+        if any(re.search(p, f.name, re.IGNORECASE) for p in self.temp_patterns):
             return False
         try:
-            initial_size = file_path.stat().st_size
-            time.sleep(self.stability_seconds)
-            final_size = file_path.stat().st_size
-            return initial_size == final_size and initial_size > 0
+            size0 = f.stat().st_size
+            time.sleep(self.stability)
+            return size0 == f.stat().st_size and size0 > 0
         except OSError:
             return False
 
-    def process_file(self, file_path: Path):
-        with process_lock:
-            if file_path in processed_files:
-                return
-            processed_files.add(file_path)
-        self._process_file_inner(file_path)
+    def _scan_pending(self) -> None:
+        while not self.stop_event.is_set():
+            now = time.time()
+            for fp, ts in list(self.pending.items()):
+                if now - ts > 600 and self._is_valid(fp):
+                    self._handle(fp)
+                    self.pending.pop(fp, None)
+            time.sleep(60)
 
-    def _process_file_inner(self, file_path: Path):
-        if not self.is_valid_file(file_path):
-            logging.info(f"Skipping {file_path}: not a valid file or still being written.")
+    # ──────────────────────────────  core  ──────────────────────────────
+    def _handle(self, f: Path):
+        with process_lock:
+            if f in processed_files:
+                return
+            processed_files.add(f)
+        if not self._is_valid(f):
             return
-        if self.regex and not self.regex.search(file_path.name):
-            logging.info(f"File {file_path} does not match regex; skipping.")
+        if self.regex and not self.regex.search(f.name):
             return
-        logging.info(f"Processing file: {file_path}")
-        if file_path.suffix.lower() in self.valid_video_extensions:
-            audio_file = file_path.parent / f"{file_path.stem}_temp.wav"
-            extract_cmd = [
-                'ffmpeg', '-y', '-nostdin', '-i', str(file_path),
-                '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', str(audio_file)
+        from auto_transcribe_audio_helpers import process_audio_file  # local helper
+        logger.info("Processing %s", f)
+        if f.suffix.lower() in self.valid_video_ext:
+            tmp_wav = f.with_suffix("_temp.wav")
+            cmd = [
+                "ffmpeg", "-y", "-nostdin", "-i", str(f),
+                "-vn", "-acodec", "pcm_s16le", "-ar", "44100", str(tmp_wav),
             ]
             try:
-                subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
-                logging.info(f"Extracted audio from {file_path} to {audio_file}")
-                process_audio_file(audio_file, self.config, self.output_folder, self.move_after, source_file=file_path)
-                if audio_file.exists():
-                    audio_file.unlink()
-                    logging.info(f"Deleted temporary audio file: {audio_file}")
-            except subprocess.CalledProcessError as e:
-                logging.error(f"Failed to extract audio from {file_path}: {e.stderr}")
-            except Exception as e:
-                logging.error(f"Unexpected error processing {file_path}: {e}")
+                subprocess.run(cmd, check=True, capture_output=True)
+                process_audio_file(tmp_wav, self.cfg, self.out_dir, self.move, source_file=f)
+            finally:
+                tmp_wav.unlink(missing_ok=True)
         else:
-            process_audio_file(file_path, self.config, self.output_folder, self.move_after, source_file=file_path)
+            process_audio_file(f, self.cfg, self.out_dir, self.move, source_file=f)
 
+    # ────────────────────  watchdog event overrides  ────────────────────
     def on_created(self, event):
-        if event.is_directory:
-            return
-        file_path = Path(event.src_path)
-        logging.info(f"Detected new file: {file_path}")
-        self.pending_files[file_path] = time.time()
+        if not event.is_directory:
+            self.pending[Path(event.src_path)] = time.time()
 
     def on_modified(self, event):
-        if event.is_directory:
-            return
-        file_path = Path(event.src_path)
-        if file_path in self.pending_files:
-            self.pending_files[file_path] = time.time()
+        if not event.is_directory and Path(event.src_path) in self.pending:
+            self.pending[Path(event.src_path)] = time.time()
 
     def on_moved(self, event):
-        if event.is_directory:
-            return
-        file_path = Path(event.dest_path)
-        logging.info(f"Detected renamed file: {file_path}")
-        if self.is_valid_file(file_path):
-            self.process_file(file_path)
-        else:
-            self.pending_files[file_path] = time.time()
+        if not event.is_directory:
+            dest = Path(event.dest_path)
+            if self._is_valid(dest):
+                self._handle(dest)
+            else:
+                self.pending[dest] = time.time()
 
     def stop(self):
         self.stop_event.set()
-        self.check_thread.join()
 
-def process_audio_file(audio_file: Path, config: configparser.ConfigParser, output_folder: Path, move_after: bool, source_file: Path):
-    """
-    Transcribe the audio file and generate a summary, saving both to the output folder (if provided)
-    or the input folder. Move audio, transcript, summary, and context files if --move is set.
-    Ensure source file is not deleted if processing fails.
+# ──────────────────────────  one‑shot processing  ─────────────────────────
 
-    Args:
-        audio_file (Path): Path to the audio file to transcribe (may be temporary for videos).
-        config (configparser.ConfigParser): Configuration settings.
-        output_folder (Path): Destination folder for output files.
-        move_after (bool): Whether to move files to output folder.
-        source_file (Path): Original audio or video file (not deleted until success).
-    """
-    transcript_ext = config['Transcription'].get('transcript_output_format', 'txt').split(';')[0].strip()
-    if transcript_ext != 'txt':
-        logger.warning("Transcript output format is not 'txt'. Summarization may fail if not text.")
-    transcript_filename = f"{source_file.stem}.{transcript_ext}"
-    transcript_path = output_folder / transcript_filename if output_folder else source_file.parent / transcript_filename
+def process_files_once(files: List[Path], cfg: configparser.ConfigParser, out_dir: Path | None, move: bool):
+    """Process a finite list of files and exit."""
+    from auto_transcribe_audio_helpers import process_audio_file  # local helper
+    for f in files:
+        logger.info("Single‑shot: processing %s", f)
+        process_audio_file(f, cfg, out_dir, move, source_file=f)
+    logger.info("Processed %d file(s) in single‑shot mode.", len(files))
 
-    transcribe_script = Path(__file__).parent / "transcribe_audio.py"
-    if not transcribe_script.exists():
-        logger.error(f"Transcription script {transcribe_script} not found.")
-        return
+# ───────────────────────────────  main  ────────────────────────────────
 
-    # Build transcription command
-    transcribe_cmd = [
-        sys.executable,
-        str(transcribe_script),
-        str(audio_file),
-        "--method", config['Transcription'].get('method', 'whisper').split(';')[0].strip(),
-        "--model", config['Transcription'].get('model', 'base').split(';')[0].strip(),
-        "-o", str(transcript_path),
-    ]
-    temp_dir = config['Transcription'].get('temp_dir', '').split(';')[0].strip()
-    if temp_dir:
-        transcribe_cmd.extend(["--temp-dir", temp_dir])
-    if config['Transcription'].getboolean('speakers', False):
-        transcribe_cmd.append("--speakers")
-    if transcript_ext == 'json':
-        transcribe_cmd.append("--json")
+def main():  # pylint: disable=too-many-branches,too-many-locals
+    p = argparse.ArgumentParser("Transcribe & summarise audio/video")
+    p.add_argument("paths", nargs="*", help="Files, globs or directory token [Downloads] …")
+    p.add_argument("--regex")
+    p.add_argument("--output-folder")
+    p.add_argument("--move", action="store_true", help="Copy/move outputs and delete source when complete")
+    p.add_argument("--process-existing", action="store_true", help="Process files already present in watch folder before starting observer")
+    p.add_argument("--config", default="transcription_config.ini", help="INI file with Transcription/Summarization/Watcher sections")
+    args = p.parse_args()
 
-    # Run transcription
-    logger.info(f"Transcribing {audio_file} to {transcript_path}")
-    try:
-        result = subprocess.run(transcribe_cmd, capture_output=True, text=True)
-        logger.info(f"Transcription finished for {audio_file}.\n{result.stdout}")
-        if result.stderr:
-            logger.error(f"Errors during transcription of {audio_file}:\n{result.stderr}")
-        if not transcript_path.exists():
-            logger.error(f"Transcription failed: {transcript_path} was not created.")
-            return
-        # Check if transcript is empty or only contains timestamp
-        with open(transcript_path, 'r', encoding='utf-8') as f:
-            transcript_content = f.read().strip()
-        if not transcript_content or (transcript_content.startswith("Date and Time:") and len(transcript_content.splitlines()) <= 2):
-            logger.warning(f"Transcript {transcript_path} is empty or contains only timestamp. Skipping summarization.")
-            return
-    except Exception as e:
-        logger.error(f"Failed to transcribe {audio_file}: {e}")
-        return
+    # ─────────────  configuration  ─────────────
+    cfg = configparser.ConfigParser()
+    cfg.read(args.config)
 
-    # Check for summarize_transcript.py
-    summarize_script = Path(__file__).parent / "summarize_transcript.py"
-    if not summarize_script.exists():
-        logger.error(f"Summarization script {summarize_script} not found.")
-        return
+    # Ensure required sections exist
+    for section in ("Watcher", "Transcription", "Summarization"):
+        if section not in cfg:
+            cfg[section] = {}
 
-    summary_ext = config['Summarization'].get('summary_output_format', 'docx').split(';')[0].strip()
-    rename_from_context = config['Summarization'].getboolean('rename_from_context', False)
-    summary_filename = f"{source_file.stem} Summary.{summary_ext}"
-    summary_path = output_folder / summary_filename if output_folder else source_file.parent / summary_filename
+    watcher_cfg = cfg["Watcher"]
+    watcher_cfg.setdefault("input_folder", "[Downloads]")
+    watcher_cfg.setdefault("output_folder", "[Documents]/Sound Recordings/transcribed")
+    watcher_cfg.setdefault("stability_seconds", "30")
+    watcher_cfg.setdefault("move_default", "false")
 
-    summarize_cmd = [
-        sys.executable,
-        str(summarize_script),
-        str(transcript_path),
-        "--model", config['Summarization'].get('model', 'gpt-4o-mini').split(';')[0].strip(),
-        "--api-key-file", config['Summarization'].get('api_key_file', 'api_keys.json').split(';')[0].strip(),
-        "--output-format", summary_ext,
-        "--output-file", str(summary_path),
-    ]
-    speaker_hints = config['Summarization'].get('speaker_hints', '').split(';')[0].strip()
-    if speaker_hints:
-        summarize_cmd.extend(["--speaker-hints", speaker_hints])
-    if rename_from_context:
-        summarize_cmd.append("--rename-from-context")
+    # Resolve output folder
+    out_dir: Path | None = None
+    if args.move or watcher_cfg.getboolean("move_default", fallback=False):
+        out_dir = resolve_path(args.output_folder or watcher_cfg["output_folder"])
+        out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Run summarization and capture output to determine renamed files
-    logger.info(f"Generating summary for {transcript_path} to {summary_path}")
-    try:
-        result = subprocess.run(summarize_cmd, capture_output=True, text=True)
-        logger.info(f"Summarization finished for {transcript_path}.\n{result.stdout}")
-        if result.stderr:
-            logger.error(f"Errors during summarization of {transcript_path}:\n{result.stderr}")
+    move_after = args.move or watcher_cfg.getboolean("move_default", fallback=False)
 
-        renamed_base = None
-        if rename_from_context:
-            output_dir = output_folder if output_folder else source_file.parent
-            for line in result.stdout.splitlines():
-                if "Summary saved to" in line:
-                    summary_path = Path(line.split("Summary saved to ")[1].strip())
-                    renamed_base = summary_path.stem
-                    break
-            if not renamed_base:
-                context_files = list(output_dir.glob("*-context.json"))
-                if context_files:
-                    latest_context = max(context_files, key=os.path.getmtime)
-                    renamed_base = latest_context.stem.replace("-context", "")
-                    summary_path = output_dir / f"{renamed_base}.{summary_ext}"
-                    logger.info(f"Determined renamed base from context file: {renamed_base}")
-                else:
-                    logger.warning("Could not parse summary path from stdout. Falling back to latest context file.")
-            if not renamed_base:
-                logger.warning("Could not determine renamed base name; using default.")
-                renamed_base = f"{source_file.stem} Summary"
-            context_filename = f"{renamed_base}-context.json"
-            context_path = output_dir / context_filename
+    # Expand positional arguments into paths/globs (strip quotes first)
+    tokens = args.paths or [watcher_cfg["input_folder"]]
+    expanded: List[Path] = []
+    for tok in tokens:
+        tok = tok.strip("'\"")  # remove leading/trailing single/double quotes
+        if any(ch in tok for ch in "*?"):
+            base = resolve_path(Path(tok).parent.as_posix())
+            expanded.extend(base.glob(Path(tok).name))
         else:
-            context_filename = f"{source_file.stem}-context.json"
-            context_path = output_dir / context_filename
+            expanded.append(resolve_path(tok))
 
-        # Only move files if all outputs are successfully created
-        if move_after and output_folder:
-            try:
-                # Copy source file instead of moving to preserve original
-                audio_dest = output_folder / (f"{renamed_base}{source_file.suffix}" if rename_from_context else source_file.name)
-                shutil.copy2(str(source_file), str(audio_dest))
-                logger.info(f"Copied source file {source_file} to {audio_dest}")
+    # Determine mode: single‑shot if every expanded item is a file
+    if expanded and all(fp.is_file() for fp in expanded):
+        process_files_once(expanded, cfg, out_dir, move_after)
+        return
 
-                if transcript_path.exists():
-                    transcript_dest = output_folder / (f"{renamed_base}.{transcript_ext}" if rename_from_context else transcript_filename)
-                    shutil.move(str(transcript_path), str(transcript_dest))
-                    logger.info(f"Moved transcript {transcript_path} to {transcript_dest}")
-                    transcript_path = transcript_dest
-
-                if summary_path.exists() and summary_path.parent != output_folder:
-                    summary_dest = output_folder / summary_path.name
-                    shutil.move(str(summary_path), str(summary_dest))
-                    logger.info(f"Moved summary {summary_path} to {summary_dest}")
-                    summary_path = summary_dest
-
-                if context_path.exists() and context_path.parent != output_folder:
-                    context_dest = output_folder / context_path.name
-                    shutil.move(str(context_path), str(context_dest))
-                    context_path = context_dest
-                    logger.info(f"Moved context {context_path} to {context_dest}")
-
-                # Verify all files exist before deleting original
-                if all(p.exists() for p in [audio_dest, transcript_path, summary_path, context_path]):
-                    source_file.unlink()
-                    logger.info(f"Deleted original source file {source_file} after successful processing.")
-                else:
-                    logger.warning(f"Not deleting {source_file}: not all output files were created successfully.")
-            except Exception as e:
-                logger.error(f"Failed to move/copy files to {output_folder}: {e}")
-                logger.warning(f"Preserving original source file {source_file} due to error.")
-
-    except Exception as e:
-        logger.error(f"Failed to summarize {transcript_path}: {e}")
-        logger.warning(f"Preserving original source file {source_file} due to summarization failure.")
-
-def process_existing_files(input_folder: Path, regex_pattern: str, output_folder: Path, move_after: bool, config: configparser.ConfigParser):
-    logger.info("Processing existing files in folder.")
-    regex_compiled = re.compile(regex_pattern) if regex_pattern else None
-    valid_extensions = [".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".mp4", ".avi", ".mov", ".mkv"]
-    for file in input_folder.iterdir():
-        if file.is_file() and file.suffix.lower() in valid_extensions:
-            if regex_compiled and not regex_compiled.search(file.name):
-                continue
-            logger.info(f"Processing existing file: {file}")
-            handler = AudioFileHandler(regex_pattern, output_folder, move_after, config)
-            handler.process_file(file)
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Watch a folder for audio and video files, extract audio from videos, transcribe them, and generate summaries."
-    )
-    parser.add_argument("input_folder", nargs="?", default=".", help="Folder to watch for audio and video files")
-    parser.add_argument("--regex", type=str, help="Regex pattern to match filenames")
-    parser.add_argument("--output-folder", type=str, help="Folder for transcripts and summaries")
-    parser.add_argument("--move", action="store_true", help="Move audio, transcript, and summary files to output folder after processing")
-    parser.add_argument("--process-existing", action="store_true", help="Process existing files at startup")
-    parser.add_argument("--config", type=str, default="auto_transcribe_config.ini", help="Path to config file")
-    args = parser.parse_args()
-
-    input_folder = Path(args.input_folder).resolve()
-    if not input_folder.exists():
-        logger.error(f"Input folder {input_folder} does not exist.")
+    watch_dir = expanded[0]
+    if not watch_dir.exists():
+        logger.error("Watch directory '%s' does not exist", watch_dir)
+        sys.exit(1)
+    if not watch_dir.is_dir():
+        logger.error("'%s' is not a directory (did you forget quotes around glob?)", watch_dir)
         sys.exit(1)
 
-    output_folder = Path(args.output_folder).resolve() if args.output_folder else None
-    if output_folder and not output_folder.exists():
-        try:
-            output_folder.mkdir(parents=True)
-            logger.info(f"Created output folder {output_folder}")
-        except Exception as e:
-            logger.error(f"Failed to create output folder {output_folder}: {e}")
-            sys.exit(1)
-
-    if args.move and not output_folder:
-        logger.error("The --move option requires an --output-folder.")
-        sys.exit(1)
-
-    # Load configuration
-    config = configparser.ConfigParser()
-    if not config.read(args.config):
-        logger.warning(f"Config file {args.config} not found. Creating with defaults.")
-        config['Transcription'] = {
-            'method': 'whisper',
-            'speakers': 'True',
-            'model': 'base',
-            'temp_dir': '',  # Empty means None
-            'transcript_output_format': 'txt'
-        }
-        config['Summarization'] = {
-            'model': 'gpt-4o-mini',
-            'api_key_file': 'api_keys.json',
-            'summary_output_format': 'docx',
-            'speaker_hints': ''
-        }
-        with open(args.config, 'w') as configfile:
-            config.write(configfile)
-        logger.info(f"Created default config file at {args.config}")
-
-    if 'Transcription' not in config or 'Summarization' not in config:
-        logger.error(f"Config file {args.config} missing required sections.")
-        sys.exit(1)
-
+    # Optionally process existing files before starting observer
     if args.process_existing:
-        process_existing_files(input_folder, args.regex, output_folder, args.move, config)
+        from auto_transcribe_audio_helpers import process_existing_files
+        process_existing_files(watch_dir, args.regex, out_dir, move_after, cfg)
 
-    event_handler = AudioFileHandler(args.regex, output_folder, args.move, config)
+    # ─────  start watchdog observer  ─────
+    handler = AudioFileHandler(args.regex, out_dir, move_after, cfg)
     observer = Observer()
-    observer.schedule(event_handler, str(input_folder), recursive=False)
+    observer.schedule(handler, str(watch_dir), recursive=False)
     observer.start()
-    logger.info(f"Watching folder: {input_folder} for new audio and video files.")
+    logger.info("Watching %s … (Ctrl‑C to quit)", watch_dir)
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        logger.info("Stopping observer…")
+        handler.stop()
         observer.stop()
-        event_handler.stop()
-        logger.info("Stopping folder watcher.")
     observer.join()
 
-if __name__ == "__main__":
+
+if __name__ == "__main__":  # pragma: no cover
     main()
