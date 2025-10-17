@@ -15,15 +15,15 @@ API keys are read from, in order of precedence:
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
+import re
 import sys
 import time
-from pathlib import Path
-# Standard library
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Generator, Iterable, Optional
-import re
 
 import requests
 from docx import Document
@@ -37,6 +37,7 @@ DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 SCRIPT_DIR = Path(__file__).resolve().parent
+WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
 
 
 class AssemblyAIError(RuntimeError):
@@ -245,9 +246,44 @@ def rename_audio_with_event(audio_path: Path, event_info: dict[str, Any], create
         audio_path = audio_path.rename(target_path)
     return audio_path, base_name
 
+
+def expand_audio_inputs(inputs: Iterable[str]) -> list[Path]:
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+    for raw in inputs:
+        expanded = Path(raw).expanduser()
+        matches: list[str] = []
+        if WILDCARD_PATTERN.search(str(raw)):
+            matches = glob.glob(str(expanded), recursive=True)
+        else:
+            if expanded.exists():
+                matches = [str(expanded)]
+            else:
+                matches = glob.glob(str(expanded), recursive=True)
+
+        if not matches:
+            print(f"Warning: no files matched '{raw}'", file=sys.stderr)
+            continue
+
+        for match in matches:
+            match_path = Path(match).expanduser().resolve()
+            if not match_path.is_file():
+                print(f"Skipping non-file match: {match_path}", file=sys.stderr)
+                continue
+            if match_path in seen:
+                continue
+            seen.add(match_path)
+            resolved.append(match_path)
+
+    return resolved
+
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("audio_file", help="Path to the audio file to transcribe.")
+    parser.add_argument(
+        "audio_inputs",
+        nargs="+",
+        help="Audio file(s) or glob patterns to transcribe.",
+    )
 
     parser.add_argument(
         "--api-key",
@@ -510,54 +546,62 @@ def ensure_output_dir(path: Optional[Path], audio_path: Path) -> Path:
     return path
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
-    args = parse_args(argv)
-    audio_path = Path(args.audio_file).expanduser().resolve()
-
-    if not audio_path.exists():
-        print(f"Error: audio file not found: {audio_path}", file=sys.stderr)
-        return 1
-
-    try:
-        api_key = resolve_api_key(args)
-    except AssemblyAIError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-
+def process_audio_file(
+    audio_path: Path,
+    args: argparse.Namespace,
+    api_key: str,
+    calendar_service,
+) -> bool:
+    working_path = audio_path
     event_info: Optional[dict[str, Any]] = None
     base_name_override: Optional[str] = None
-    if args.use_calendar:
-        try:
-            created_at = get_file_creation_time(audio_path)
-            service = build_calendar_service(
-                args.calendar_credentials,
-                args.calendar_token,
-                fallback_client_path=args.calendar_client_secrets,
-            )
-            event = find_closest_event(service, args.calendar_id, created_at, args.calendar_window)
-            if event:
-                event_info = extract_event_metadata(event)
-                audio_path, base_name_override = rename_audio_with_event(audio_path, event_info, created_at)
-                print(f"Matched calendar event '{event_info['summary']}' and renamed file to {audio_path.name}")
-            else:
-                print("No calendar event found near the file timestamp; continuing without rename.")
-        except Exception as exc:
-            print(f"Warning: calendar lookup failed ({exc}); continuing without calendar metadata.", file=sys.stderr)
 
-    output_dir = ensure_output_dir(args.output_dir, audio_path)
-    base_name = base_name_override or audio_path.stem
+    if args.use_calendar:
+        if calendar_service is None:
+            print("Warning: calendar service unavailable; skipping event lookup.", file=sys.stderr)
+        else:
+            try:
+                created_at = get_file_creation_time(working_path)
+                event = find_closest_event(
+                    calendar_service,
+                    args.calendar_id,
+                    created_at,
+                    args.calendar_window,
+                )
+                if event:
+                    event_info = extract_event_metadata(event)
+                    try:
+                        working_path, base_name_override = rename_audio_with_event(working_path, event_info, created_at)
+                        print(
+                            f"Matched calendar event '{event_info['summary']}' and renamed file to {working_path.name}"
+                        )
+                    except OSError as exc:
+                        print(
+                            f"Warning: failed to rename {working_path.name} ({exc}); continuing without rename.",
+                            file=sys.stderr,
+                        )
+                else:
+                    print("No calendar event found near the file timestamp; continuing without rename.")
+            except Exception as exc:
+                print(
+                    f"Warning: calendar lookup failed ({exc}); continuing without calendar metadata.",
+                    file=sys.stderr,
+                )
+
+    output_dir = ensure_output_dir(args.output_dir, working_path)
+    base_name = base_name_override or working_path.stem
     docx_path = output_dir / f"{base_name} Transcript.docx"
     text_path = output_dir / f"{base_name} Transcript.txt"
 
     session = requests.Session()
     session.headers.update({"authorization": api_key, "user-agent": "assembly-transcribe-cli"})
 
-    print(f"Uploading {audio_path} to AssemblyAI...")
+    print(f"Uploading {working_path} to AssemblyAI...")
     try:
-        audio_url = upload_audio(session, audio_path)
+        audio_url = upload_audio(session, working_path)
     except (requests.RequestException, AssemblyAIError) as exc:
         print(f"Upload failed: {exc}", file=sys.stderr)
-        return 1
+        return False
 
     print("Starting transcription job...")
     try:
@@ -569,7 +613,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         )
     except (requests.RequestException, AssemblyAIError) as exc:
         print(f"Transcription request failed: {exc}", file=sys.stderr)
-        return 1
+        return False
 
     print(f"Polling transcript {transcript_id}...")
     try:
@@ -580,7 +624,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         )
     except (requests.RequestException, AssemblyAIError) as exc:
         print(f"Polling failed: {exc}", file=sys.stderr)
-        return 1
+        return False
 
     utterances = transcript_payload.get("utterances") or []
     if not utterances:
@@ -596,7 +640,45 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         write_text(utterances, text_path, event_info=event_info)
 
     print("Completed successfully.")
-    return 0
+    return True
+
+
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    args = parse_args(argv)
+    audio_paths = expand_audio_inputs(args.audio_inputs)
+
+    if not audio_paths:
+        print("Error: no audio files matched the provided inputs.", file=sys.stderr)
+        return 1
+
+    try:
+        api_key = resolve_api_key(args)
+    except AssemblyAIError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    calendar_service = None
+    if args.use_calendar:
+        try:
+            calendar_service = build_calendar_service(
+                args.calendar_credentials,
+                args.calendar_token,
+                fallback_client_path=args.calendar_client_secrets,
+            )
+        except Exception as exc:
+            print(
+                f"Warning: calendar service initialization failed ({exc}); continuing without calendar metadata.",
+                file=sys.stderr,
+            )
+            calendar_service = None
+
+    any_failures = False
+    for path in audio_paths:
+        success = process_audio_file(path, args, api_key, calendar_service)
+        if not success:
+            any_failures = True
+
+    return 0 if not any_failures else 1
 
 
 if __name__ == "__main__":

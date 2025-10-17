@@ -8,7 +8,7 @@
 ## Build, Test, and Development Commands
 - Create a virtual environment: `python -m venv .venv && source .venv/bin/activate` (Windows: `.venv\Scripts\activate`).
 - Install deps with `pip install -r requirements.txt`; this pulls in `requests`, `python-docx`, and Google Calendar client libraries needed for optional calendar metadata.
-- Exercise the CLI via `python assembly_transcribe.py demo.wav --text-output` and, when testing calendar integration, add `--use-calendar` and confirm artifacts rename correctly.
+- Exercise the CLI via `python assembly_transcribe.py demo.wav --text-output` (add `--use-calendar` for calendar tests) and note that patterns such as `python assembly_transcribe.py "~/Downloads/*.m4a"` or `python assembly_transcribe.py "C:\\Calls\\*.mp3"` are expanded by the script itself.
 
 ## Coding Style & Naming Conventions
 - Follow PEP 8 with 4-space indentation and snake_case identifiers; continue using postponed annotations and pathlib for filesystem work.

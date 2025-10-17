@@ -69,6 +69,20 @@ python assembly_transcribe.py ~/Downloads/board_meeting.mp4 \
 
 If no event is found within the search window, the script continues without renaming or event metadata.
 
+### Batch Processing & Wildcards
+
+You can pass multiple files or glob patterns. The CLI expands patterns itself, so wildcards work even in environments (like PowerShell) that do not expand them automatically.
+
+```bash
+# POSIX shell
+python assembly_transcribe.py ~/Downloads/*.m4a --text-output
+
+# PowerShell
+python assembly_transcribe.py "C:\\Recordings\\*.mp4" --text-output
+```
+
+Each matching file is processed sequentially with the same CLI options.
+
 ## Development Notes
 
 - Python 3.9+ is recommended (the CLI relies on postponed annotations).
