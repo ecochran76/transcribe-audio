@@ -51,11 +51,12 @@ Key options:
 
 The CLI can rename audio and transcript outputs to align with a matching Google Calendar event and prepend the transcript with event details and attendees. The pattern used is `YYYY-mm-dd HH-MM <event name> <original base>` (colons are replaced with dashes for cross-platform compatibility).
 
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create an OAuth client ID (Desktop app) and download the `credentials.json` file into the repository root.
-2. Run the CLI with `--use-calendar`. The first invocation opens a browser window for Google authorization and stores a token in `token.json` for reuse.
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create an OAuth client ID (Desktop or Web app) and download the secrets file (commonly `credentials.json` or `client_secrets.json`). Place it alongside `assembly_transcribe.py`; the script searches this directory even when invoked from elsewhere.
+2. Run the CLI with `--use-calendar`. The first invocation opens a browser window for Google authorization and stores a token in `token.json` (also next to the script) for reuse.
 3. Optional flags:
    - `--calendar-id` to query a non-primary calendar.
    - `--calendar-credentials` / `--calendar-token` to override file locations.
+   - `--calendar-client-secrets` to point at a specific secrets file if you keep multiple credentials around.
    - `--calendar-window` to expand or shrink the search window (hours either side of the file timestamp).
 
 Example:

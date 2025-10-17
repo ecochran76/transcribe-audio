@@ -19,8 +19,9 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+# Standard library
+from datetime import datetime, timedelta, timezone
 from typing import Any, Generator, Iterable, Optional
 import re
 
@@ -35,6 +36,7 @@ from googleapiclient.discovery import build
 DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class AssemblyAIError(RuntimeError):
@@ -54,11 +56,76 @@ def get_file_creation_time(path: Path) -> datetime:
     return datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc)
 
 
-def build_calendar_service(credentials_path: Path, token_path: Path):
-    if not credentials_path.exists():
+def load_client_config(credentials_path: Path) -> dict[str, Any]:
+    with credentials_path.open("r", encoding="utf-8") as handle:
+        config = json.load(handle)
+    if "installed" in config:
+        return config
+    if "web" in config:
+        # Convert web client credentials into installed-style config accepted by InstalledAppFlow.
+        web_config = config["web"]
+        # Installed flow expects redirect URIs with localhost and urn scheme.
+        installed_config = {
+            "installed": {
+                "client_id": web_config.get("client_id"),
+                "project_id": web_config.get("project_id"),
+                "auth_uri": web_config.get("auth_uri"),
+                "token_uri": web_config.get("token_uri"),
+                "auth_provider_x509_cert_url": web_config.get("auth_provider_x509_cert_url"),
+                "client_secret": web_config.get("client_secret"),
+                "redirect_uris": web_config.get(
+                    "redirect_uris",
+                    ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
+                ),
+            }
+        }
+        return installed_config
+    raise AssemblyAIError(
+        f"Unsupported Google client secrets structure in {credentials_path}. Expected 'installed' or 'web'."
+    )
+
+
+def build_calendar_service(credentials_path: Path, token_path: Path, fallback_client_path: Optional[Path] = None):
+    client_config: Optional[dict[str, Any]] = None
+    chosen_config_path: Optional[Path] = None
+
+    candidate_paths = [credentials_path]
+    if fallback_client_path:
+        candidate_paths.append(fallback_client_path)
+    candidate_paths.extend(
+        [
+            credentials_path.with_name("client_secrets.json"),
+            Path("client_secrets.json"),
+            SCRIPT_DIR / "credentials.json",
+            SCRIPT_DIR / "client_secrets.json",
+        ]
+    )
+
+    unique_candidates: list[Path] = []
+    seen_paths: set[Path] = set()
+    for candidate in candidate_paths:
+        if not candidate:
+            continue
+        resolved = candidate.expanduser().resolve()
+        if resolved in seen_paths:
+            continue
+        seen_paths.add(resolved)
+        unique_candidates.append(resolved)
+
+    for candidate in unique_candidates:
+        if not candidate.exists():
+            continue
+        try:
+            client_config = load_client_config(candidate)
+            chosen_config_path = candidate
+            break
+        except AssemblyAIError:
+            continue
+
+    if not client_config or not chosen_config_path:
         raise AssemblyAIError(
-            f"Google credentials file not found: {credentials_path}. "
-            "Download OAuth client credentials from Google Cloud Console."
+            "Google client secrets not found or invalid. Provide --calendar-credentials pointing to a "
+            "client secret JSON downloaded from Google Cloud Console."
         )
 
     creds: Optional[Credentials] = None
@@ -69,7 +136,7 @@ def build_calendar_service(credentials_path: Path, token_path: Path):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), CALENDAR_SCOPES)
+            flow = InstalledAppFlow.from_client_config(client_config, CALENDAR_SCOPES)
             creds = flow.run_local_server(port=0)
         token_path.parent.mkdir(parents=True, exist_ok=True)
         token_path.write_text(creds.to_json(), encoding="utf-8")
@@ -226,13 +293,20 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--calendar-credentials",
         type=Path,
-        default=Path("credentials.json"),
-        help="Path to Google OAuth client credentials when using --use-calendar (default: %(default)s).",
+        default=SCRIPT_DIR / "credentials.json",
+        help="Path to Google OAuth client credentials when using --use-calendar (default: %(default)s). "
+        "If this file contains legacy tokens, the script will look for client secrets nearby.",
+    )
+    parser.add_argument(
+        "--calendar-client-secrets",
+        type=Path,
+        default=SCRIPT_DIR / "client_secrets.json",
+        help="Optional explicit path to Google client secrets (used when --calendar-credentials contains tokens).",
     )
     parser.add_argument(
         "--calendar-token",
         type=Path,
-        default=Path("token.json"),
+        default=SCRIPT_DIR / "token.json",
         help="Path to store Google OAuth tokens when using --use-calendar (default: %(default)s).",
     )
     parser.add_argument(
@@ -455,7 +529,11 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if args.use_calendar:
         try:
             created_at = get_file_creation_time(audio_path)
-            service = build_calendar_service(args.calendar_credentials, args.calendar_token)
+            service = build_calendar_service(
+                args.calendar_credentials,
+                args.calendar_token,
+                fallback_client_path=args.calendar_client_secrets,
+            )
             event = find_closest_event(service, args.calendar_id, created_at, args.calendar_window)
             if event:
                 event_info = extract_event_metadata(event)
