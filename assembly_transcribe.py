@@ -210,13 +210,35 @@ def find_closest_event(service, calendar_id: str, target_time: datetime, window_
     if not events:
         return None
 
-    def event_distance(event: dict) -> float:
-        event_start = parse_event_datetime(event.get("start", {}))
-        if not event_start:
-            return float("inf")
-        return abs((event_start - target_time).total_seconds())
+    best_event: Optional[dict] = None
+    best_score: tuple[int, float] = (1, float("inf"))
 
-    return min(events, key=event_distance)
+    for event in events:
+        event_start = parse_event_datetime(event.get("start", {}))
+        event_end = parse_event_datetime(event.get("end", {}))
+        if not event_start:
+            continue
+
+        contains_flag = 1
+        distance = float("inf")
+
+        if event_end and event_start <= target_time <= event_end:
+            contains_flag = 0
+            distance = 0.0
+        else:
+            start_delta = abs((event_start - target_time).total_seconds())
+            if event_end:
+                end_delta = abs((event_end - target_time).total_seconds())
+                distance = min(start_delta, end_delta)
+            else:
+                distance = start_delta
+
+        score = (contains_flag, distance)
+        if score < best_score:
+            best_score = score
+            best_event = event
+
+    return best_event
 
 
 def sanitize_filename_part(value: str) -> str:
