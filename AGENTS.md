@@ -7,8 +7,8 @@
 
 ## Build, Test, and Development Commands
 - Create a virtual environment: `python -m venv .venv && source .venv/bin/activate` (Windows: `.venv\Scripts\activate`).
-- Install deps with `pip install -r requirements.txt`; keep the list minimal unless an AssemblyAI feature mandates more.
-- Exercise the CLI locally via `python assembly_transcribe.py demo.wav --text-output` and inspect both terminal output and artifacts before altering command signatures.
+- Install deps with `pip install -r requirements.txt`; this pulls in `requests`, `python-docx`, and Google Calendar client libraries needed for optional calendar metadata.
+- Exercise the CLI via `python assembly_transcribe.py demo.wav --text-output` and, when testing calendar integration, add `--use-calendar` and confirm artifacts rename correctly.
 
 ## Coding Style & Naming Conventions
 - Follow PEP 8 with 4-space indentation and snake_case identifiers; continue using postponed annotations and pathlib for filesystem work.
@@ -26,5 +26,6 @@
 - When formatting changes, drop before/after snippets or DOCX screenshots so reviewers can spot regressions.
 
 ## Configuration & Secrets
-- Store secrets in env vars or `api_keys.json` (ignored). Mirror any new fields in `api_keys.json.sample` and document them in the README to prevent drift.
+- Store AssemblyAI keys in env vars or `api_keys.json` (ignored). Mirror any new fields in `api_keys.json.sample` and document them in the README to prevent drift.
+- Google Calendar access uses `credentials.json` (OAuth client) and a generated `token.json`; both are ignored by Git. Document any new scopes or calendar-related flags when they change.
 - Prefer CLI flags for behavior tweaks; add config files only when options multiply, and describe resolution order clearly in documentation.

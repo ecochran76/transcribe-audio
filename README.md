@@ -12,6 +12,8 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 export ASSEMBLYAI_API_KEY=your_api_key  # or store it in api_keys.json
 python assembly_transcribe.py path/to/audio.wav --text-output
+# (Optional) Include calendar metadata:
+# python assembly_transcribe.py meeting.mp3 --use-calendar --text-output
 ```
 
 - The script supports most common audio/video formats accepted by AssemblyAI.
@@ -43,11 +45,33 @@ Key options:
 - `--speaker-labels` / `--no-speaker-labels`: toggle diarization (enabled by default).
 - `--text-output`: also writes a `.txt` transcript alongside the DOCX export.
 - `--poll-interval`: adjust polling cadence to balance speed and API quota usage.
+- `--use-calendar`: match the file timestamp to a Google Calendar event, rename artifacts, and embed event metadata.
+
+## Calendar-Aware Renaming (Optional)
+
+The CLI can rename audio and transcript outputs to align with a matching Google Calendar event and prepend the transcript with event details and attendees. The pattern used is `YYYY-mm-dd HH-MM <event name> <original base>` (colons are replaced with dashes for cross-platform compatibility).
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create an OAuth client ID (Desktop app) and download the `credentials.json` file into the repository root.
+2. Run the CLI with `--use-calendar`. The first invocation opens a browser window for Google authorization and stores a token in `token.json` for reuse.
+3. Optional flags:
+   - `--calendar-id` to query a non-primary calendar.
+   - `--calendar-credentials` / `--calendar-token` to override file locations.
+   - `--calendar-window` to expand or shrink the search window (hours either side of the file timestamp).
+
+Example:
+
+```bash
+python assembly_transcribe.py ~/Downloads/board_meeting.mp4 \
+  --use-calendar \
+  --text-output
+```
+
+If no event is found within the search window, the script continues without renaming or event metadata.
 
 ## Development Notes
 
 - Python 3.9+ is recommended (the CLI relies on postponed annotations).
-- Dependencies are limited to `requests` and `python-docx`; install with `pip install -r requirements.txt`.
+- Dependencies are kept lightweight (`requests`, `python-docx`, and the Google Calendar client libraries); install with `pip install -r requirements.txt`.
 - Contributions should target AssemblyAI-specific enhancements such as richer formatting, metadata decoration, or integration hooks for downstream tooling.
 
 ## Legacy Pipeline

@@ -19,20 +19,164 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Generator, Iterable, Optional
+from typing import Any, Generator, Iterable, Optional
+import re
 
 import requests
 from docx import Document
 from docx.shared import Pt
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
+CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
 class AssemblyAIError(RuntimeError):
     """Raised when AssemblyAI returns an error payload."""
 
+
+def to_rfc3339(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def get_file_creation_time(path: Path) -> datetime:
+    stats = path.stat()
+    if hasattr(stats, "st_birthtime"):
+        return datetime.fromtimestamp(stats.st_birthtime, tz=timezone.utc)
+    if os.name == "nt":
+        return datetime.fromtimestamp(stats.st_ctime, tz=timezone.utc)
+    return datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc)
+
+
+def build_calendar_service(credentials_path: Path, token_path: Path):
+    if not credentials_path.exists():
+        raise AssemblyAIError(
+            f"Google credentials file not found: {credentials_path}. "
+            "Download OAuth client credentials from Google Cloud Console."
+        )
+
+    creds: Optional[Credentials] = None
+    if token_path.exists():
+        creds = Credentials.from_authorized_user_file(str(token_path), CALENDAR_SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), CALENDAR_SCOPES)
+            creds = flow.run_local_server(port=0)
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        token_path.write_text(creds.to_json(), encoding="utf-8")
+
+    return build("calendar", "v3", credentials=creds, cache_discovery=False)
+
+
+def parse_event_datetime(event_time: dict) -> Optional[datetime]:
+    if not event_time:
+        return None
+    raw = event_time.get("dateTime") or event_time.get("date")
+    if not raw:
+        return None
+    if len(raw) == 10:
+        raw = f"{raw}T00:00:00+00:00"
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    if "T" in raw and "+" not in raw[10:] and "-" not in raw[10:]:
+        raw = f"{raw}+00:00"
+    return datetime.fromisoformat(raw)
+
+
+def format_event_datetime(dt_value: Optional[datetime]) -> Optional[str]:
+    if not dt_value:
+        return None
+    return dt_value.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+
+
+def extract_event_metadata(event: dict) -> dict[str, Any]:
+    start_dt = parse_event_datetime(event.get("start", {}))
+    end_dt = parse_event_datetime(event.get("end", {}))
+    attendees = []
+    for attendee in event.get("attendees", []):
+        if attendee.get("responseStatus") == "declined":
+            continue
+        name = attendee.get("displayName")
+        email = attendee.get("email")
+        if name and email:
+            attendees.append(f"{name} <{email}>")
+        elif name:
+            attendees.append(name)
+        elif email:
+            attendees.append(email)
+    return {
+        "summary": event.get("summary") or "Untitled Event",
+        "start": start_dt,
+        "end": end_dt,
+        "location": event.get("location"),
+        "attendees": attendees,
+        "hangoutLink": event.get("hangoutLink"),
+    }
+
+
+def find_closest_event(service, calendar_id: str, target_time: datetime, window_hours: float) -> Optional[dict]:
+    time_min = to_rfc3339(target_time - timedelta(hours=window_hours))
+    time_max = to_rfc3339(target_time + timedelta(hours=window_hours))
+    result = (
+        service.events()
+        .list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            maxResults=50,
+            orderBy="startTime",
+        )
+        .execute()
+    )
+    events = result.get("items", [])
+    if not events:
+        return None
+
+    def event_distance(event: dict) -> float:
+        event_start = parse_event_datetime(event.get("start", {}))
+        if not event_start:
+            return float("inf")
+        return abs((event_start - target_time).total_seconds())
+
+    return min(events, key=event_distance)
+
+
+def sanitize_filename_part(value: str) -> str:
+    cleaned = re.sub(r"[\\/:*?\"<>|]", " ", value)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def unique_path(base_path: Path) -> Path:
+    counter = 1
+    candidate = base_path
+    while candidate.exists():
+        candidate = base_path.with_name(f"{base_path.stem} ({counter}){base_path.suffix}")
+        counter += 1
+    return candidate
+
+
+def rename_audio_with_event(audio_path: Path, event_info: dict[str, Any], created_at: datetime) -> tuple[Path, str]:
+    timestamp_str = created_at.astimezone().strftime("%Y-%m-%d %H-%M")
+    event_summary = sanitize_filename_part(event_info.get("summary", "Untitled Event"))
+    original_base = sanitize_filename_part(audio_path.stem)
+    parts = [timestamp_str, event_summary, original_base]
+    base_name = " ".join(part for part in parts if part)
+    target_path = audio_path.with_name(f"{base_name}{audio_path.suffix}")
+    target_path = unique_path(target_path)
+    if target_path != audio_path:
+        audio_path = audio_path.rename(target_path)
+    return audio_path, base_name
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -68,6 +212,34 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--text-output",
         action="store_true",
         help="Also emit a plain-text transcript alongside the DOCX file.",
+    )
+    parser.add_argument(
+        "--use-calendar",
+        action="store_true",
+        help="Match the audio file to a Google Calendar event and include metadata.",
+    )
+    parser.add_argument(
+        "--calendar-id",
+        default="primary",
+        help="Google Calendar ID to query when --use-calendar is set (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--calendar-credentials",
+        type=Path,
+        default=Path("credentials.json"),
+        help="Path to Google OAuth client credentials when using --use-calendar (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--calendar-token",
+        type=Path,
+        default=Path("token.json"),
+        help="Path to store Google OAuth tokens when using --use-calendar (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--calendar-window",
+        type=float,
+        default=24.0,
+        help="Hours on either side of the file timestamp to search for matching events (default: %(default)s).",
     )
     speaker_group = parser.add_mutually_exclusive_group()
     speaker_group.add_argument(
@@ -187,9 +359,39 @@ def format_utterance(utterance: dict) -> str:
     return f"{speaker} [{start:0.2f}s - {end:0.2f}s]: {text}"
 
 
-def write_docx(utterances: list[dict], output_path: Path) -> None:
+def add_event_metadata_to_doc(document: Document, event_info: dict[str, Any]) -> None:
+    document.add_heading("Event Details", level=2)
+    document.add_paragraph(f"Event: {event_info['summary']}")
+
+    start_str = format_event_datetime(event_info.get("start"))
+    end_str = format_event_datetime(event_info.get("end"))
+    if start_str:
+        document.add_paragraph(f"Start: {start_str}")
+    if end_str:
+        document.add_paragraph(f"End: {end_str}")
+    if event_info.get("location"):
+        document.add_paragraph(f"Location: {event_info['location']}")
+    if event_info.get("hangoutLink"):
+        document.add_paragraph(f"Meeting Link: {event_info['hangoutLink']}")
+
+    attendees = event_info.get("attendees") or []
+    if attendees:
+        document.add_paragraph("Attendees:")
+        for attendee in attendees:
+            document.add_paragraph(attendee, style="List Bullet")
+    document.add_paragraph("")
+
+
+def write_docx(
+    utterances: list[dict],
+    output_path: Path,
+    *,
+    event_info: Optional[dict[str, Any]] = None,
+) -> None:
     document = Document()
     document.add_heading("AssemblyAI Transcript", level=1)
+    if event_info:
+        add_event_metadata_to_doc(document, event_info)
     for utterance in utterances:
         paragraph = document.add_paragraph()
         run = paragraph.add_run(format_utterance(utterance))
@@ -197,8 +399,31 @@ def write_docx(utterances: list[dict], output_path: Path) -> None:
     document.save(output_path)
 
 
-def write_text(utterances: list[dict], output_path: Path) -> None:
+def write_text(
+    utterances: list[dict],
+    output_path: Path,
+    *,
+    event_info: Optional[dict[str, Any]] = None,
+) -> None:
     with output_path.open("w", encoding="utf-8") as handle:
+        if event_info:
+            handle.write(f"Event: {event_info['summary']}\n")
+            start_str = format_event_datetime(event_info.get("start"))
+            end_str = format_event_datetime(event_info.get("end"))
+            if start_str:
+                handle.write(f"Start: {start_str}\n")
+            if end_str:
+                handle.write(f"End: {end_str}\n")
+            if event_info.get("location"):
+                handle.write(f"Location: {event_info['location']}\n")
+            if event_info.get("hangoutLink"):
+                handle.write(f"Meeting Link: {event_info['hangoutLink']}\n")
+            attendees = event_info.get("attendees") or []
+            if attendees:
+                handle.write("Attendees:\n")
+                for attendee in attendees:
+                    handle.write(f" - {attendee}\n")
+            handle.write("\n")
         for utterance in utterances:
             handle.write(format_utterance(utterance))
             handle.write("\n")
@@ -225,10 +450,26 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    event_info: Optional[dict[str, Any]] = None
+    base_name_override: Optional[str] = None
+    if args.use_calendar:
+        try:
+            created_at = get_file_creation_time(audio_path)
+            service = build_calendar_service(args.calendar_credentials, args.calendar_token)
+            event = find_closest_event(service, args.calendar_id, created_at, args.calendar_window)
+            if event:
+                event_info = extract_event_metadata(event)
+                audio_path, base_name_override = rename_audio_with_event(audio_path, event_info, created_at)
+                print(f"Matched calendar event '{event_info['summary']}' and renamed file to {audio_path.name}")
+            else:
+                print("No calendar event found near the file timestamp; continuing without rename.")
+        except Exception as exc:
+            print(f"Warning: calendar lookup failed ({exc}); continuing without calendar metadata.", file=sys.stderr)
+
     output_dir = ensure_output_dir(args.output_dir, audio_path)
-    base_name = audio_path.stem
-    docx_path = output_dir / f"{base_name}_transcript.docx"
-    text_path = output_dir / f"{base_name}_transcript.txt"
+    base_name = base_name_override or audio_path.stem
+    docx_path = output_dir / f"{base_name} Transcript.docx"
+    text_path = output_dir / f"{base_name} Transcript.txt"
 
     session = requests.Session()
     session.headers.update({"authorization": api_key, "user-agent": "assembly-transcribe-cli"})
@@ -270,11 +511,11 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         utterances = [{"speaker": "Speaker", "start": 0, "end": 0, "text": text}]
 
     print(f"Writing DOCX transcript to {docx_path}...")
-    write_docx(utterances, docx_path)
+    write_docx(utterances, docx_path, event_info=event_info)
 
     if args.text_output:
         print(f"Writing plain-text transcript to {text_path}...")
-        write_text(utterances, text_path)
+        write_text(utterances, text_path, event_info=event_info)
 
     print("Completed successfully.")
     return 0
