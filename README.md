@@ -1,6 +1,6 @@
 # AssemblyAI Transcription Toolkit
 
-This repository now focuses exclusively on a lightweight AssemblyAI-powered transcription workflow. Supply an audio file, and the helper script uploads it to AssemblyAI, polls until the transcript is ready, and emits a diarized DOCX transcript (with optional plain text).
+This repository now focuses exclusively on a lightweight AssemblyAI-powered transcription workflow. Supply an audio file, and the helper script uploads it to AssemblyAI, polls until the transcript is ready, and emits a diarized DOCX transcript (with optional plain text or subtitles).
 
 The former local Whisper/LLM automation has been archived under the `legacy-whisper-pipeline` Git tag for future reference.
 
@@ -12,6 +12,10 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 export ASSEMBLYAI_API_KEY=your_api_key  # or store it in api_keys.json
 python assembly_transcribe.py path/to/audio.wav --text-output
+# (Optional) Generate subtitles instead of DOCX:
+# python assembly_transcribe.py path/to/video.mp4 --srt-output
+# (Optional) Burn subtitles into the media (requires ffmpeg):
+# python assembly_transcribe.py path/to/video.mp4 --embed-subtitles
 # (Optional) Include calendar metadata:
 # python assembly_transcribe.py meeting.mp3 --use-calendar --text-output
 ```
@@ -25,7 +29,7 @@ The CLI discovers the AssemblyAI key in this priority order:
 
 1. `--api-key` command-line argument.
 2. `ASSEMBLYAI_API_KEY` environment variable.
-3. `assemblyai_api_key` entry inside `api_keys.json` (default path is the repo root).
+3. `assemblyai_api_key` entry inside `api_keys.json`. The script first looks relative to your current working directory and then alongside `assembly_transcribe.py`, so you can keep `api_keys.json` next to the script even when invoking it from elsewhere.
 
 Keep `api_keys.json` out of version control—copy `api_keys.json.sample` or use environment variables for local development.
 
@@ -43,9 +47,20 @@ Key options:
 
 - `--model`: AssemblyAI speech model (defaults to `universal`).
 - `--speaker-labels` / `--no-speaker-labels`: toggle diarization (enabled by default).
-- `--text-output`: also writes a `.txt` transcript alongside the DOCX export.
+- `--text-output`: also writes a `.txt` transcript alongside the primary export.
+- `--srt-output`: emits an `.srt` subtitle file instead of a DOCX transcript.
+- `--embed-subtitles`: muxes subtitles back into the source media (requires ffmpeg and supports MP4/MOV/M4V/MKV).
 - `--poll-interval`: adjust polling cadence to balance speed and API quota usage.
 - `--use-calendar`: match the file timestamp to a Google Calendar event, rename artifacts, and embed event metadata.
+
+### Subtitle Outputs
+
+Subtitles can be generated as standalone `.srt` files or embedded directly into supported media containers:
+
+- Use `--srt-output` to create subtitles broken into single-sentence cues. Speaker names are automatically omitted when AssemblyAI reports only one speaker.
+- Use `--embed-subtitles` to write a new media file named `<original> subtitled.<ext>` that contains the subtitles track. This command relies on `ffmpeg` being available on `PATH` and works with MP4/M4V/MOV (text subtitles) and MKV (SRT subtitles).
+
+`--embed-subtitles` implicitly generates an internal SRT, so you do not need to pass `--srt-output` unless you also want the `.srt` file saved alongside the media.
 
 ## Calendar-Aware Renaming (Optional)
 
