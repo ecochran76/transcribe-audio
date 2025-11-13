@@ -7,6 +7,7 @@ transcription.log
 api_keys.json
 credentials.json
 token.json
+client_secrets.json
 download_google_doc.pyw
 __pycache__/
 *.pyc
