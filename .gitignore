@@ -7,5 +7,16 @@ transcription.log
 api_keys.json
 credentials.json
 token.json
+download_google_doc.pyw
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.cache/
+.coverage
+.coverage.*
