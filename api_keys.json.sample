@@ -1,3 +1,5 @@
 {
-  "assemblyai_api_key": "replace-with-your-key"
+  "assemblyai_api_key": "replace-with-your-assemblyai-key",
+  "openai_api_key": "replace-with-your-openai-api-key",
+  "grok_api_key": "replace-with-your-grok-api-key"
 }
