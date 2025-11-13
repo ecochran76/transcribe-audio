@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Command-line helper for AssemblyAI transcription with speaker diarization.
+AssemblyAI transcription CLI for producing DOCX, TXT, or subtitle outputs with optional diarization.
 
-Key features:
-* Streams large audio uploads using the AssemblyAI upload endpoint.
-* Polls the transcript job until completion with progress feedback.
-* Emits a DOCX transcript (and optional plain-text transcript), or SRT subtitles when requested.
-* Can embed generated subtitles into the source media via ffmpeg.
+Quick start:
+1. python -m venv .venv
+2. source .venv/bin/activate  (Windows: .venv\\Scripts\\activate)
+3. pip install -r requirements.txt
+4. export ASSEMBLYAI_API_KEY=your_key  (or copy api_keys.json.sample to api_keys.json)
+5. python assembly_transcribe.py demo.wav --text-output
 
-API keys are read from, in order of precedence:
+API keys are read in this order:
 1. The `--api-key` argument.
 2. The `ASSEMBLYAI_API_KEY` environment variable.
 3. The `assemblyai_api_key` field inside a JSON file (default `api_keys.json`).
@@ -24,6 +25,7 @@ import sys
 import subprocess
 import time
 import tempfile
+import textwrap
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterable, Optional
@@ -45,6 +47,21 @@ WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
 EVENT_WINDOW_BUFFER_SECONDS = 5 * 60
 SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
 MIN_SRT_CUE_DURATION = 0.5
+CLI_DESCRIPTION = textwrap.dedent(
+    """
+    Upload one or more audio/video files to AssemblyAI, wait for completion, and export DOCX, TXT,
+    or SRT outputs. Glob patterns are expanded by the script, and optional Google Calendar and
+    ffmpeg integrations can enrich or embed the transcript.
+    """
+)
+CLI_EPILOG = textwrap.dedent(
+    """Examples:
+      python assembly_transcribe.py meeting.m4a
+      python assembly_transcribe.py meeting.m4a --text-output --output-dir transcripts
+      python assembly_transcribe.py webinar.mp4 --srt-output
+      python assembly_transcribe.py board_call.wav --use-calendar --embed-subtitles
+    """
+)
 
 
 class AssemblyAIError(RuntimeError):
@@ -419,22 +436,26 @@ def expand_audio_inputs(inputs: Iterable[str]) -> list[Path]:
     return resolved
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=CLI_DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=CLI_EPILOG,
+    )
     parser.add_argument(
         "audio_inputs",
         nargs="+",
-        help="Audio file(s) or glob patterns to transcribe.",
+        help="Audio/video file(s) or glob patterns to transcribe (quote globs on Windows shells).",
     )
 
     parser.add_argument(
         "--api-key",
         dest="api_key",
-        help="AssemblyAI API key. Overrides env vars and config files.",
+        help="AssemblyAI API key. Overrides environment variables and api_keys.json.",
     )
     parser.add_argument(
         "--api-key-file",
         default="api_keys.json",
-        help="Path to JSON file containing `assemblyai_api_key` (default: %(default)s).",
+        help="Path to JSON file containing `assemblyai_api_key` (default: %(default)s). Copy api_keys.json.sample to create one.",
     )
     parser.add_argument(
         "--output-dir",

@@ -1,116 +1,117 @@
 # AssemblyAI Transcription Toolkit
 
-This repository now focuses exclusively on a lightweight AssemblyAI-powered transcription workflow. Supply an audio file, and the helper script uploads it to AssemblyAI, polls until the transcript is ready, and emits a diarized DOCX transcript (with optional plain text or subtitles).
+This repository contains a lightweight CLI for sending audio or video files to AssemblyAI, waiting for the transcript to finish, and exporting the results as DOCX, plain text, or subtitles. Optional Google Calendar integration can rename files and embed event metadata, and ffmpeg support enables subtitle embedding.
 
-The former local Whisper/LLM automation has been archived under the `legacy-whisper-pipeline` Git tag for future reference.
+The former Whisper-based automation lives in the `legacy-whisper-pipeline` tag.
 
-## Quick Start
+## Prerequisites
+
+- **Python 3.9+** – required for postponed annotations and the Google client libraries.
+- **ffmpeg (optional)** – only needed for `--embed-subtitles`.
+- **AssemblyAI account** – required to generate an API key.
+
+## Install Dependencies
 
 ```bash
+git clone https://github.com/ecochran76/transcribe-audio.git
+cd transcribe-audio
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-export ASSEMBLYAI_API_KEY=your_api_key  # or store it in api_keys.json
-python assembly_transcribe.py path/to/audio.wav --text-output
-# (Optional) Generate subtitles instead of DOCX:
-# python assembly_transcribe.py path/to/video.mp4 --srt-output
-# (Optional) Burn subtitles into the media (requires ffmpeg):
-# python assembly_transcribe.py path/to/video.mp4 --embed-subtitles
-# (Optional) Include calendar metadata:
-# python assembly_transcribe.py meeting.mp3 --use-calendar --text-output
 ```
 
-- The script supports most common audio/video formats accepted by AssemblyAI.
-- Outputs default to the same directory as the source file (override with `--output-dir`).
+`requirements.txt` includes `requests`, `python-docx`, and the Google Calendar client libraries—everything the CLI needs at runtime.
 
-## Configuration & API Keys
+## Get an AssemblyAI API Key
 
-The CLI discovers the AssemblyAI key in this priority order:
+1. Sign in or create an account at [AssemblyAI](https://www.assemblyai.com/).
+2. Navigate to the dashboard’s API section and copy your **live** API key (the CLI does not use temporary tokens).
+3. Keep the key private; it grants access to your AssemblyAI quota and billing.
 
-1. `--api-key` command-line argument.
+## Configure Secrets
+
+The CLI checks for credentials in this order:
+
+1. `--api-key` command-line flag.
 2. `ASSEMBLYAI_API_KEY` environment variable.
-3. `assemblyai_api_key` entry inside `api_keys.json`. The script first looks relative to your current working directory and then alongside `assembly_transcribe.py`, so you can keep `api_keys.json` next to the script even when invoking it from elsewhere.
+3. `assemblyai_api_key` entry inside `api_keys.json` (searches the current working directory first, then alongside `assembly_transcribe.py`).
 
-Keep `api_keys.json` out of version control—copy `api_keys.json.sample` or use environment variables for local development.
-
-## Usage
+To store the key in a file, copy the sample template and fill it in:
 
 ```bash
-python assembly_transcribe.py meeting.mp3 \
-  --model universal \
-  --poll-interval 2 \
-  --output-dir transcripts \
-  --text-output
+cp api_keys.json.sample api_keys.json
+# edit api_keys.json and add your AssemblyAI (and optional OpenAI/Grok) keys
+```
+
+`api_keys.json` is already ignored by git. Use whichever option—flag, env var, or file—works best for your workflow.
+
+## Run the CLI
+
+Once dependencies and credentials are in place, invoke the script with one or more audio/video files. Run `python assembly_transcribe.py --help` to see every option.
+
+### Common commands
+
+```bash
+# 1. Basic DOCX transcript in-place
+python assembly_transcribe.py meeting.m4a
+
+# 2. DOCX + plain-text output in a custom folder
+python assembly_transcribe.py meeting.m4a --text-output --output-dir transcripts
+
+# 3. Standalone subtitles (SRT)
+python assembly_transcribe.py webinar.mp4 --srt-output
+
+# 4. Embed subtitles back into the media (requires ffmpeg)
+python assembly_transcribe.py webinar.mp4 --embed-subtitles
+
+# 5. Add Google Calendar metadata and diarization
+python assembly_transcribe.py board_call.wav --use-calendar --speaker-labels
+
+# 6. Batch processing and glob expansion
+python assembly_transcribe.py "~/Downloads/*.mp3" --model universal-2
+python assembly_transcribe.py "C:\\Calls\\*.m4a" --text-output
 ```
 
 Key options:
 
-- `--model`: AssemblyAI speech model (defaults to `universal`).
-- `--speaker-labels` / `--no-speaker-labels`: toggle diarization (enabled by default).
-- `--text-output`: also writes a `.txt` transcript alongside the primary export.
-- `--srt-output`: emits an `.srt` subtitle file instead of a DOCX transcript.
-- `--embed-subtitles`: muxes subtitles back into the source media (requires ffmpeg and supports MP4/MOV/M4V/MKV).
-- `--poll-interval`: adjust polling cadence to balance speed and API quota usage.
-- `--use-calendar`: match the file timestamp to a Google Calendar event, rename artifacts, and embed event metadata.
+- `--model`: Choose the AssemblyAI model (`universal` by default).
+- `--text-output`: Write a `.txt` transcript alongside the DOCX.
+- `--srt-output`: Produce subtitles instead of DOCX.
+- `--embed-subtitles`: Burn subtitles into the source media (creates `<original> subtitled.<ext>`).
+- `--poll-interval`: Control how often the script checks AssemblyAI for job status.
+- `--speaker-labels` / `--no-speaker-labels`: Toggle diarization.
+- `--output-dir`: Override where outputs are saved.
+- `--use-calendar`: Look up a nearby Google Calendar event and rename/add metadata.
 
-### Subtitle Outputs
+## Subtitle Outputs
 
-Subtitles can be generated as standalone `.srt` files or embedded directly into supported media containers:
-
-- Use `--srt-output` to create subtitles broken into single-sentence cues. Speaker names are automatically omitted when AssemblyAI reports only one speaker.
-- Use `--embed-subtitles` to write a new media file named `<original> subtitled.<ext>` that contains the subtitles track. This command relies on `ffmpeg` being available on `PATH` and works with MP4/M4V/MOV (text subtitles) and MKV (SRT subtitles).
-
-`--embed-subtitles` implicitly generates an internal SRT, so you do not need to pass `--srt-output` unless you also want the `.srt` file saved alongside the media.
+`--srt-output` generates sentence-length cues. When only one speaker is detected, speaker labels are omitted automatically. `--embed-subtitles` renders an internal SRT and muxes it into MP4/M4V/MOV (text subtitles) or MKV (SRT subtitles). You can enable both flags to keep the `.srt` file while also embedding it.
 
 ## Calendar-Aware Renaming (Optional)
 
-The CLI can rename audio and transcript outputs to align with a matching Google Calendar event and prepend the transcript with event details and attendees. The pattern used is `YYYY-mm-dd HH-MM <event name> <original base>` (colons are replaced with dashes for cross-platform compatibility).
+1. Create a Google OAuth client (Desktop or Web app) in the [Google Cloud Console](https://console.cloud.google.com/) and download the secrets file (e.g., `credentials.json`).
+2. Place `credentials.json` or `client_secrets.json` next to `assembly_transcribe.py`.
+3. Invoke the CLI with `--use-calendar`; the first run launches a browser window to authorize access and writes `token.json` for reuse.
+4. Additional flags:
+   - `--calendar-id` for non-primary calendars.
+   - `--calendar-credentials`, `--calendar-token`, and `--calendar-client-secrets` to override file locations.
+   - `--calendar-window` (hours on either side of the file timestamp) to tighten or widen the search.
 
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create an OAuth client ID (Desktop or Web app) and download the secrets file (commonly `credentials.json` or `client_secrets.json`). Place it alongside `assembly_transcribe.py`; the script searches this directory even when invoked from elsewhere.
-2. Run the CLI with `--use-calendar`. The first invocation opens a browser window for Google authorization and stores a token in `token.json` (also next to the script) for reuse.
-3. Optional flags:
-   - `--calendar-id` to query a non-primary calendar.
-   - `--calendar-credentials` / `--calendar-token` to override file locations.
-   - `--calendar-client-secrets` to point at a specific secrets file if you keep multiple credentials around.
-   - `--calendar-window` to expand or shrink the search window (hours either side of the file timestamp).
-
-Example:
-
-```bash
-python assembly_transcribe.py ~/Downloads/board_meeting.mp4 \
-  --use-calendar \
-  --text-output
-```
-
-If no event is found within the search window, the script continues without renaming or event metadata.
-
-### Batch Processing & Wildcards
-
-You can pass multiple files or glob patterns. The CLI expands patterns itself, so wildcards work even in environments (like PowerShell) that do not expand them automatically.
-
-```bash
-# POSIX shell
-python assembly_transcribe.py ~/Downloads/*.m4a --text-output
-
-# PowerShell
-python assembly_transcribe.py "C:\\Recordings\\*.mp4" --text-output
-```
-
-Each matching file is processed sequentially with the same CLI options.
+If an event is found, outputs are renamed to `YYYY-mm-dd HH-MM <event name> <original base>` (colons replaced with dashes) and the transcript is annotated with event metadata. If no event matches, transcription continues without renaming.
 
 ## Development Notes
 
-- Python 3.9+ is recommended (the CLI relies on postponed annotations).
-- Dependencies are kept lightweight (`requests`, `python-docx`, and the Google Calendar client libraries); install with `pip install -r requirements.txt`.
-- Contributions should target AssemblyAI-specific enhancements such as richer formatting, metadata decoration, or integration hooks for downstream tooling.
+- Keep sample secrets in `api_keys.json.sample`; real keys belong in the ignored `api_keys.json`.
+- Manual smoke tests are encouraged: run the CLI on a short clip after changes to confirm DOCX/TXT/SRT outputs.
+- For automated tests, create `tests/` powered by `pytest` and mock AssemblyAI calls with `responses` or similar.
 
 ## Legacy Pipeline
 
-If you need the original Whisper + local summarizer automation, checkout the `legacy-whisper-pipeline` tag:
+Need the old Whisper + local summarizer workflow? Fetch the archived tag:
 
 ```bash
 git fetch origin --tags
 git checkout legacy-whisper-pipeline
 ```
 
-That tag preserves the full diarization + LLM summarization workflow before this repository refocus.
+That tag preserves the diarization + LLM summarization tooling that previously lived in this repository.
