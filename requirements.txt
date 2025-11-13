@@ -1,31 +1,5 @@
-# Core dependencies for all scripts
-watchdog>=4.0.2  # For folder watching in auto_transcribe_audio.py
-configparser>=7.1.0  # For reading .ini config files
-pathlib2>=2.3.7.post1  # For cross-platform path handling (alternative to built-in pathlib)
-
-# Dependencies for transcribe_audio.py
-#git+https://github.com/openai/whisper.git  # Whisper for transcription
-#setuptools<81,>=60.0.0  # Setuptools for package management
-faster-whisper>=0.10.0
-ctranslate2>=3.17.0
-assemblyai>=0.33.0  # AssemblyAI for transcription
-soundfile>=0.12.1  # For audio file handling
-tqdm>=4.66.5  # For progress bars
-torch>=2.4.1  # For Whisper and pyannote-audio (CUDA support if available)
-pyannote.audio>=3.3.2  # For speaker diarization
-pydub>=0.25.1  # For audio file conversion
-
-# Dependencies for summarize_transcript.py
-openai>=1.46.1  # OpenAI API client for summarization
-colorlog>=6.8.2  # For colored logging output
-xhtml2pdf>=0.2.16  # For PDF output generation
-
-# Note: Pandoc is required for DOCX conversion in summarize_transcript.py but must be installed separately
-#       Install via: choco install pandoc (Windows with Chocolatey) or download from pandoc.org
-# Note: FFmpeg is required by pydub for audio conversion in transcribe_audio.py
-#       Install via: choco install ffmpeg (Windows with Chocolatey) or system package manager
-
-# python -m venv venv
-# source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate     # Windows
-# pip install -r requirements.txt
+requests>=2.31,<3
+python-docx>=1.1,<2
+google-api-python-client>=2.130,<3
+google-auth>=2.33,<3
+google-auth-oauthlib>=1.2,<2

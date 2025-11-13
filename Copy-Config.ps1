@@ -6,7 +6,8 @@ $files = @(
     ".\auto_transcribe_audio.py",
     ".\setup_environment.py",
     ".\summarize_transcript.py",
-    ".\transcribe_audio.py"
+    ".\transcribe_audio.py",
+    ".\transcription_config.ini"
 )
 
 # Build up the combined content

@@ -1,7 +1,11 @@
+.venv/
 transcribe_env*/
 out.txt
 *.ini
-*.json
-*.wav
 *.log
-
+transcription.log
+api_keys.json
+credentials.json
+token.json
+__pycache__/
+*.pyc
