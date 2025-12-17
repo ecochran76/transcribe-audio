@@ -29,6 +29,7 @@ import subprocess
 import time
 import tempfile
 import textwrap
+import getpass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterable, Optional
@@ -500,10 +501,21 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Audio/video file(s) or glob patterns to transcribe (quote globs on Windows shells).",
     )
 
-    parser.add_argument(
+    api_key_group = parser.add_mutually_exclusive_group()
+    api_key_group.add_argument(
         "--api-key",
         dest="api_key",
         help="AssemblyAI API key. Overrides environment variables and api_keys.json.",
+    )
+    api_key_group.add_argument(
+        "--api-key-stdin",
+        action="store_true",
+        help="Read AssemblyAI API key from stdin (first line). Useful to avoid saving keys to disk.",
+    )
+    api_key_group.add_argument(
+        "--api-key-prompt",
+        action="store_true",
+        help="Prompt for AssemblyAI API key interactively (input hidden).",
     )
     parser.add_argument(
         "--api-key-file",
@@ -633,6 +645,21 @@ def normalize_language_code(raw_value: Optional[str]) -> tuple[Optional[str], bo
 def resolve_api_key(args: argparse.Namespace) -> str:
     if args.api_key:
         return args.api_key
+
+    if getattr(args, "api_key_prompt", False):
+        if not sys.stdin.isatty():
+            raise AssemblyAIError("--api-key-prompt requires an interactive terminal (stdin is not a TTY).")
+        entered = getpass.getpass("AssemblyAI API key: ").strip()
+        if entered:
+            return entered
+
+    if getattr(args, "api_key_stdin", False):
+        if sys.stdin.isatty():
+            entered = sys.stdin.readline().strip()
+        else:
+            entered = sys.stdin.read().strip()
+        if entered:
+            return entered
 
     env_key = os.getenv("ASSEMBLYAI_API_KEY")
     if env_key:
