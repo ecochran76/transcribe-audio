@@ -112,8 +112,10 @@ def raise_for_status_with_details(response: requests.Response, *, context: str) 
                 detail = text
 
         hint = ""
-        if response.status_code == 400:
-            hint = " (Hint: try `--no-speaker-labels` and/or a different `--model`.)"
+        if response.status_code == 400 and detail:
+            lowered_detail = detail.lower()
+            if not any(term in lowered_detail for term in ("balance", "top up", "quota", "billing", "payment")):
+                hint = " (Hint: try `--no-speaker-labels` and/or a different `--model`.)"
         if detail:
             raise AssemblyAIError(f"{context} failed ({response.status_code}): {detail}{hint}") from exc
         raise AssemblyAIError(f"{context} failed ({response.status_code}).{hint}") from exc
@@ -992,14 +994,14 @@ def process_audio_file(
     session = requests.Session()
     session.headers.update({"authorization": api_key, "user-agent": "assembly-transcribe-cli"})
 
-    print(f"Uploading {working_path} to AssemblyAI...")
+    print(f"Uploading {working_path} to AssemblyAI...", flush=True)
     try:
         audio_url = upload_audio(session, working_path)
     except (requests.RequestException, AssemblyAIError) as exc:
         print(f"Upload failed: {exc}", file=sys.stderr)
         return False
 
-    print("Starting transcription job...")
+    print("Starting transcription job...", flush=True)
     try:
         language_code, language_detection = language_settings
         transcript_id = request_transcription(
@@ -1014,7 +1016,7 @@ def process_audio_file(
         print(f"Transcription request failed: {exc}", file=sys.stderr)
         return False
 
-    print(f"Polling transcript {transcript_id}...")
+    print(f"Polling transcript {transcript_id}...", flush=True)
     try:
         transcript_payload = poll_transcript(
             session,
@@ -1222,16 +1224,16 @@ def process_audio_file(
             }
             suppress_speaker = len(speaker_names) <= 1
             srt_path = output_dir / f"{base_name} Transcript.srt"
-            print(f"Writing SRT transcript to {srt_path}...")
+            print(f"Writing SRT transcript to {srt_path}...", flush=True)
             write_srt(selected_utterances, srt_path, suppress_speaker=suppress_speaker)
         if should_emit_docx:
             docx_path = output_dir / f"{base_name} Transcript.docx"
-            print(f"Writing DOCX transcript to {docx_path}...")
+            print(f"Writing DOCX transcript to {docx_path}...", flush=True)
             write_docx(selected_utterances, docx_path, event_info=event_info)
 
         if args.text_output:
             text_path = output_dir / f"{base_name} Transcript.txt"
-            print(f"Writing plain-text transcript to {text_path}...")
+            print(f"Writing plain-text transcript to {text_path}...", flush=True)
             write_text(selected_utterances, text_path, event_info=event_info)
 
     if args.embed_subtitles:
@@ -1247,7 +1249,7 @@ def process_audio_file(
             target_name = f"{working_path.stem} subtitled{working_path.suffix}"
             target_path = unique_path(working_path.with_name(target_name))
             try:
-                print(f"Embedding subtitles into media file at {target_path}...")
+                print(f"Embedding subtitles into media file at {target_path}...", flush=True)
                 embed_subtitles_with_ffmpeg(working_path, embed_srt_path, target_path)
             except AssemblyAIError as exc:
                 print(f"Warning: failed to embed subtitles ({exc})", file=sys.stderr)
