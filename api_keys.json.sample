@@ -1,5 +1,6 @@
 {
   "assemblyai_api_key": "replace-with-your-assemblyai-key",
+  "assemblyai_language_code": "en_us",
   "openai_api_key": "replace-with-your-openai-api-key",
   "grok_api_key": "replace-with-your-grok-api-key"
 }

@@ -13,6 +13,9 @@ API keys are read in this order:
 1. The `--api-key` argument.
 2. The `ASSEMBLYAI_API_KEY` environment variable.
 3. The `assemblyai_api_key` field inside a JSON file (default `api_keys.json`).
+
+Language defaults to English (`en_us`) unless overridden via `assemblyai_language_code` in the same JSON file
+(for example, `pt` for Portuguese).
 """
 from __future__ import annotations
 
@@ -41,6 +44,7 @@ from googleapiclient.discovery import build
 
 DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
+DEFAULT_LANGUAGE_CODE = "en_us"
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 SCRIPT_DIR = Path(__file__).resolve().parent
 WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
@@ -66,6 +70,28 @@ CLI_EPILOG = textwrap.dedent(
 
 class AssemblyAIError(RuntimeError):
     """Raised when AssemblyAI returns an error payload."""
+
+LANGUAGE_CODE_ALIASES = {
+    "en": "en_us",
+    "en_us": "en_us",
+    "en-us": "en_us",
+    "en_uk": "en_uk",
+    "en-uk": "en_uk",
+    "en_gb": "en_uk",
+    "en-gb": "en_uk",
+    "en_au": "en_au",
+    "en-au": "en_au",
+    "english": "en_us",
+    "portuguese": "pt",
+    "português": "pt",
+    "portugues": "pt",
+    "portugese": "pt",
+    "pt": "pt",
+    "pt_br": "pt",
+    "pt-br": "pt",
+    "pt_pt": "pt",
+    "pt-pt": "pt",
+}
 
 
 def to_rfc3339(dt: datetime) -> str:
@@ -468,6 +494,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="AssemblyAI speech model (default: %(default)s).",
     )
     parser.add_argument(
+        "--language",
+        dest="language",
+        help="Transcription language (overrides config). Examples: en_us (default), pt, en_uk, or auto for detection.",
+    )
+    parser.add_argument(
         "--poll-interval",
         type=float,
         default=3.0,
@@ -540,6 +571,38 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def resolve_config_candidates(configured_path: Path) -> list[Path]:
+    if configured_path.is_absolute():
+        return [configured_path]
+    return [
+        (Path.cwd() / configured_path).resolve(),
+        (SCRIPT_DIR / configured_path.name).resolve(),
+    ]
+
+
+def load_json_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    if not isinstance(payload, dict):
+        raise AssemblyAIError(f"Invalid JSON structure in {path}; expected an object.")
+    return payload
+
+
+def normalize_language_code(raw_value: Optional[str]) -> tuple[Optional[str], bool]:
+    if raw_value is None:
+        return DEFAULT_LANGUAGE_CODE, False
+
+    normalized = raw_value.strip()
+    if not normalized:
+        return DEFAULT_LANGUAGE_CODE, False
+
+    lowered = normalized.lower()
+    if lowered in {"auto", "detect", "language_detection", "language-detection"}:
+        return None, True
+
+    return LANGUAGE_CODE_ALIASES.get(lowered, normalized), False
+
+
 def resolve_api_key(args: argparse.Namespace) -> str:
     if args.api_key:
         return args.api_key
@@ -548,25 +611,15 @@ def resolve_api_key(args: argparse.Namespace) -> str:
     if env_key:
         return env_key
 
-    configured_path = Path(args.api_key_file).expanduser()
-    candidate_paths: list[Path] = []
-
-    if configured_path.is_absolute():
-        candidate_paths.append(configured_path)
-    else:
-        candidate_paths.append((Path.cwd() / configured_path).resolve())
-        candidate_paths.append((SCRIPT_DIR / configured_path.name).resolve())
-
     seen: set[Path] = set()
-    for candidate in candidate_paths:
+    for candidate in resolve_config_candidates(Path(args.api_key_file).expanduser()):
         if candidate in seen:
             continue
         seen.add(candidate)
         if not candidate.exists():
             continue
         try:
-            with candidate.open("r", encoding="utf-8") as fh:
-                payload = json.load(fh)
+            payload = load_json_config(candidate)
         except json.JSONDecodeError as exc:
             raise AssemblyAIError(f"Invalid JSON in {candidate}: {exc}") from exc
 
@@ -579,6 +632,30 @@ def resolve_api_key(args: argparse.Namespace) -> str:
         "AssemblyAI API key not found. Provide --api-key, set ASSEMBLYAI_API_KEY, "
         f"or store it in {args.api_key_file} (or alongside the script) under 'assemblyai_api_key'."
     )
+
+
+def resolve_language_settings(args: argparse.Namespace) -> tuple[Optional[str], bool]:
+    if getattr(args, "language", None):
+        return normalize_language_code(args.language)
+
+    for candidate in resolve_config_candidates(Path(args.api_key_file).expanduser()):
+        if not candidate.exists():
+            continue
+        try:
+            payload = load_json_config(candidate)
+        except json.JSONDecodeError as exc:
+            print(f"Warning: skipping invalid JSON in {candidate} ({exc}); using English defaults.", file=sys.stderr)
+            return DEFAULT_LANGUAGE_CODE, False
+        except AssemblyAIError as exc:
+            print(f"Warning: skipping {candidate} ({exc}); using English defaults.", file=sys.stderr)
+            return DEFAULT_LANGUAGE_CODE, False
+
+        for field in ("assemblyai_language_code", "assembly_ai_language_code"):
+            if field in payload:
+                return normalize_language_code(payload.get(field))
+        break
+
+    return DEFAULT_LANGUAGE_CODE, False
 
 
 def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Generator[bytes, None, None]:
@@ -606,6 +683,8 @@ def request_transcription(
     *,
     model: str,
     speaker_labels: bool,
+    language_code: Optional[str],
+    language_detection: bool,
 ) -> str:
     transcript_endpoint = f"{DEFAULT_BASE_URL}/v2/transcript"
     payload = {
@@ -613,6 +692,10 @@ def request_transcription(
         "speech_model": model,
         "speaker_labels": speaker_labels,
     }
+    if language_detection:
+        payload["language_detection"] = True
+    else:
+        payload["language_code"] = language_code or DEFAULT_LANGUAGE_CODE
     response = session.post(transcript_endpoint, json=payload)
     response.raise_for_status()
     data = response.json()
@@ -875,6 +958,7 @@ def process_audio_file(
     audio_path: Path,
     args: argparse.Namespace,
     api_key: str,
+    language_settings: tuple[Optional[str], bool],
     calendar_service,
 ) -> bool:
     working_path = audio_path
@@ -892,11 +976,14 @@ def process_audio_file(
 
     print("Starting transcription job...")
     try:
+        language_code, language_detection = language_settings
         transcript_id = request_transcription(
             session,
             audio_url,
             model=args.model,
             speaker_labels=args.speaker_labels,
+            language_code=language_code,
+            language_detection=language_detection,
         )
     except (requests.RequestException, AssemblyAIError) as exc:
         print(f"Transcription request failed: {exc}", file=sys.stderr)
@@ -1158,6 +1245,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    language_settings = resolve_language_settings(args)
+
     calendar_service = None
     if args.use_calendar:
         try:
@@ -1175,7 +1264,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     any_failures = False
     for path in audio_paths:
-        success = process_audio_file(path, args, api_key, calendar_service)
+        success = process_audio_file(path, args, api_key, language_settings, calendar_service)
         if not success:
             any_failures = True
 

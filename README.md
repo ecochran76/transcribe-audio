@@ -43,6 +43,11 @@ cp api_keys.json.sample api_keys.json
 # edit api_keys.json and add your AssemblyAI (and optional OpenAI/Grok) keys
 ```
 
+Optional language configuration:
+
+- `assemblyai_language_code` defaults to `en_us` (English).
+- Set it to `pt` for Portuguese transcription.
+
 `api_keys.json` is already ignored by git. Use whichever option—flag, env var, or file—works best for your workflow.
 
 ## Run the CLI
@@ -75,6 +80,7 @@ python assembly_transcribe.py "C:\\Calls\\*.m4a" --text-output
 Key options:
 
 - `--model`: Choose the AssemblyAI model (`universal` by default).
+- `--language`: Set the transcription language (e.g. `pt` for Portuguese, or `auto` for detection).
 - `--text-output`: Write a `.txt` transcript alongside the DOCX.
 - `--srt-output`: Produce subtitles instead of DOCX.
 - `--embed-subtitles`: Burn subtitles into the source media (creates `<original> subtitled.<ext>`).

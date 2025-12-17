@@ -1,18 +1,8 @@
-.venv/
-transcribe_env*/
-out.txt
-*.ini
-*.log
-transcription.log
-api_keys.json
-credentials.json
-token.json
-client_secrets.json
-download_google_doc.pyw
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 .Python
 .pytest_cache/
 .mypy_cache/
@@ -21,3 +11,62 @@ __pycache__/
 .cache/
 .coverage
 .coverage.*
+
+# Virtual environments
+.venv/
+transcribe_env*/
+
+# -----------------------------------------------------------------------------
+# Secrets / credentials (never commit)
+# -----------------------------------------------------------------------------
+api_keys.json
+credentials.json
+token.json
+client_secrets.json
+.env
+.env.*
+
+# -----------------------------------------------------------------------------
+# Local tools / binaries / caches
+# -----------------------------------------------------------------------------
+.tools/
+
+# -----------------------------------------------------------------------------
+# Local config + logs (often contain tokens / paths)
+# -----------------------------------------------------------------------------
+out.txt
+*.ini
+*.log
+transcription.log
+
+# -----------------------------------------------------------------------------
+# Media inputs + generated transcript outputs
+# Keep any tiny sample clips under tests/data/ if you add automated tests.
+# -----------------------------------------------------------------------------
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.wma
+*.mp4
+*.m4v
+*.mov
+*.mkv
+
+* Transcript.docx
+* Transcript.txt
+* Transcript.srt
+* subtitled.*
+
+!tests/data/**
+
+# -----------------------------------------------------------------------------
+# Misc
+# -----------------------------------------------------------------------------
+Thumbs.db
+.DS_Store
+
+# (Legacy helper, intentionally ignored)
+download_google_doc.pyw
