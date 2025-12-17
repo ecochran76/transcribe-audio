@@ -82,8 +82,10 @@ Key options:
 - `--model`: Choose the AssemblyAI model (`universal` by default).
 - `--language`: Set the transcription language (e.g. `pt` for Portuguese, or `auto` for detection).
 - `--text-output`: Write a `.txt` transcript alongside the DOCX.
-- `--srt-output`: Produce subtitles instead of DOCX.
+- `--srt-output`: Produce subtitles instead of DOCX (use `--docx-output` to emit both).
+- `--docx-output`: Also emit DOCX when `--srt-output` is set.
 - `--embed-subtitles`: Burn subtitles into the source media (creates `<original> subtitled.<ext>`).
+- `--translate-to`: Translate transcript + subtitles to a target language (e.g. `en`). Requires an OpenAI key (`OPENAI_API_KEY` or `openai_api_key` in `api_keys.json`).
 - `--poll-interval`: Control how often the script checks AssemblyAI for job status.
 - `--speaker-labels` / `--no-speaker-labels`: Toggle diarization.
 - `--output-dir`: Override where outputs are saved.
@@ -91,7 +93,7 @@ Key options:
 
 ## Subtitle Outputs
 
-`--srt-output` generates sentence-length cues. When only one speaker is detected, speaker labels are omitted automatically. `--embed-subtitles` renders an internal SRT and muxes it into MP4/M4V/MOV (text subtitles) or MKV (SRT subtitles). You can enable both flags to keep the `.srt` file while also embedding it.
+`--srt-output` generates sentence-length cues. When only one speaker is detected, speaker labels are omitted automatically. `--embed-subtitles` renders an internal SRT and muxes it into MP4/M4V/MOV (text subtitles) or MKV (SRT subtitles). You can enable both flags to keep the `.srt` file while also embedding it. Add `--translate-to en` to generate English transcript text/subtitles from non-English audio.
 
 ## Calendar-Aware Renaming (Optional)
 

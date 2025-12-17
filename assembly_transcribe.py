@@ -46,6 +46,7 @@ from googleapiclient.discovery import build
 DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
 DEFAULT_LANGUAGE_CODE = "en_us"
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 SCRIPT_DIR = Path(__file__).resolve().parent
 WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
@@ -554,9 +555,41 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Emit an SRT subtitle file instead of a DOCX transcript.",
     )
     parser.add_argument(
+        "--docx-output",
+        action="store_true",
+        help="Also emit a DOCX transcript when --srt-output is set.",
+    )
+    parser.add_argument(
         "--embed-subtitles",
         action="store_true",
         help="Embed generated subtitles into the source media using ffmpeg.",
+    )
+    parser.add_argument(
+        "--translate-to",
+        dest="translate_to",
+        help="Translate transcript and subtitles to a target language (e.g. en). Requires an OpenAI key.",
+    )
+
+    openai_key_group = parser.add_mutually_exclusive_group()
+    openai_key_group.add_argument(
+        "--openai-api-key",
+        dest="openai_api_key",
+        help="OpenAI API key (used for --translate-to). Overrides OPENAI_API_KEY and api_keys.json.",
+    )
+    openai_key_group.add_argument(
+        "--openai-api-key-stdin",
+        action="store_true",
+        help="Read OpenAI API key from stdin (first line).",
+    )
+    openai_key_group.add_argument(
+        "--openai-api-key-prompt",
+        action="store_true",
+        help="Prompt for OpenAI API key interactively (input hidden).",
+    )
+    parser.add_argument(
+        "--openai-model",
+        default=DEFAULT_OPENAI_MODEL,
+        help="OpenAI model for translation (default: %(default)s).",
     )
     parser.add_argument(
         "--use-calendar",
@@ -712,6 +745,52 @@ def resolve_language_settings(args: argparse.Namespace) -> tuple[Optional[str], 
     return DEFAULT_LANGUAGE_CODE, False
 
 
+def resolve_openai_key(args: argparse.Namespace) -> Optional[str]:
+    direct_key = getattr(args, "openai_api_key", None)
+    if direct_key:
+        return direct_key
+
+    if getattr(args, "openai_api_key_prompt", False):
+        if not sys.stdin.isatty():
+            raise AssemblyAIError("--openai-api-key-prompt requires an interactive terminal (stdin is not a TTY).")
+        entered = getpass.getpass("OpenAI API key: ").strip()
+        if entered:
+            return entered
+
+    if getattr(args, "openai_api_key_stdin", False):
+        if sys.stdin.isatty():
+            entered = sys.stdin.readline().strip()
+        else:
+            entered = sys.stdin.read().strip()
+        if entered:
+            return entered
+
+    env_key = os.getenv("OPENAI_API_KEY")
+    if env_key:
+        return env_key
+
+    if not getattr(args, "api_key_file", None):
+        return None
+
+    for candidate in resolve_config_candidates(Path(args.api_key_file).expanduser()):
+        if not candidate.exists():
+            continue
+        try:
+            payload = load_json_config(candidate)
+        except json.JSONDecodeError:
+            return None
+        except AssemblyAIError:
+            return None
+
+        for key_field in ("openai_api_key", "open_ai_api_key"):
+            openai_key = payload.get(key_field)
+            if openai_key:
+                return openai_key
+        break
+
+    return None
+
+
 def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Generator[bytes, None, None]:
     with path.open("rb") as handle:
         while True:
@@ -840,6 +919,99 @@ def split_into_sentences(text: str) -> list[str]:
     return [sentence.strip() for sentence in sentences if sentence.strip()]
 
 
+def openai_translate_lines(
+    *,
+    api_key: str,
+    model: str,
+    target_language: str,
+    lines: list[str],
+    timeout: float = 90.0,
+) -> list[str]:
+    endpoint = "https://api.openai.com/v1/chat/completions"
+    session = requests.Session()
+    session.headers.update({"authorization": f"Bearer {api_key}"})
+
+    system_prompt = (
+        "You are a translation engine. Translate the provided JSON array of strings into "
+        f"{target_language}. Output ONLY a JSON array of strings of the same length, in the same order. "
+        "Do not add commentary, numbering, or extra keys."
+    )
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(lines, ensure_ascii=False)},
+        ],
+    }
+    response = session.post(endpoint, json=payload, timeout=timeout)
+    raise_for_status_with_details(response, context="OpenAI translation")
+    data = response.json()
+    content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content") or ""
+    content = content.strip()
+    if not content:
+        raise AssemblyAIError("OpenAI translation returned an empty response.")
+
+    try:
+        translated = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise AssemblyAIError("OpenAI translation did not return valid JSON.") from exc
+
+    if not isinstance(translated, list) or not all(isinstance(item, str) for item in translated):
+        raise AssemblyAIError("OpenAI translation returned unexpected JSON (expected a string array).")
+    if len(translated) != len(lines):
+        raise AssemblyAIError(f"OpenAI translation returned {len(translated)} lines but expected {len(lines)}.")
+    return [item.strip() for item in translated]
+
+
+def translate_utterances_openai(
+    utterances: list[dict],
+    *,
+    api_key: str,
+    model: str,
+    target_language: str,
+) -> list[dict]:
+    translated_utterances = [dict(utterance) for utterance in utterances]
+    sentence_map: list[list[str]] = []
+    all_sentences: list[str] = []
+
+    for utterance in translated_utterances:
+        sentences = split_into_sentences(utterance.get("text") or "")
+        if not sentences:
+            sentence_map.append([])
+            continue
+        sentence_map.append(sentences)
+        all_sentences.extend(sentences)
+
+    if not all_sentences:
+        return translated_utterances
+
+    translated_sentences: list[str] = []
+    batch_size = 25
+    for start in range(0, len(all_sentences), batch_size):
+        batch = all_sentences[start : start + batch_size]
+        translated_sentences.extend(
+            openai_translate_lines(
+                api_key=api_key,
+                model=model,
+                target_language=target_language,
+                lines=batch,
+            )
+        )
+
+    idx = 0
+    for utterance, original_sentences in zip(translated_utterances, sentence_map):
+        if not original_sentences:
+            utterance.pop("sentences", None)
+            continue
+        translated_for_utterance = translated_sentences[idx : idx + len(original_sentences)]
+        idx += len(original_sentences)
+        utterance["sentences"] = translated_for_utterance
+        utterance["text"] = " ".join(translated_for_utterance).strip()
+
+    return translated_utterances
+
+
 def format_srt_timestamp(seconds: float) -> str:
     seconds = max(0.0, seconds)
     total_ms = int(round(seconds * 1000))
@@ -900,7 +1072,9 @@ def write_srt(
             start = previous_end
         if end < start:
             end = start
-        sentences = split_into_sentences(utterance.get("text") or "")
+        sentences = utterance.get("sentences")
+        if not isinstance(sentences, list) or not all(isinstance(item, str) for item in sentences):
+            sentences = split_into_sentences(utterance.get("text") or "")
         if not sentences:
             continue
         timings = allocate_sentence_timings(start, end, sentences)
@@ -1059,6 +1233,27 @@ def process_audio_file(
         print("AssemblyAI response did not contain diarized utterances; falling back to plain text.")
         text = transcript_payload.get("text") or ""
         utterances = [{"speaker": "Speaker", "start": 0, "end": 0, "text": text}]
+
+    if args.translate_to:
+        openai_key = resolve_openai_key(args)
+        if not openai_key:
+            print(
+                "Error: --translate-to requires an OpenAI key. Provide --openai-api-key, set OPENAI_API_KEY, "
+                "or add openai_api_key to api_keys.json.",
+                file=sys.stderr,
+            )
+            return False
+        print(f"Translating transcript to {args.translate_to}...", flush=True)
+        try:
+            utterances = translate_utterances_openai(
+                utterances,
+                api_key=openai_key,
+                model=args.openai_model,
+                target_language=args.translate_to,
+            )
+        except (requests.RequestException, AssemblyAIError) as exc:
+            print(f"Translation failed: {exc}", file=sys.stderr)
+            return False
 
     audio_duration = transcript_payload.get("audio_duration")
     if not audio_duration:
@@ -1233,7 +1428,7 @@ def process_audio_file(
             }
         )
 
-    should_emit_docx = not args.srt_output
+    should_emit_docx = (not args.srt_output) or args.docx_output
     should_emit_srt_files = args.srt_output
 
     for job in transcript_jobs:
