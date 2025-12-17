@@ -93,6 +93,31 @@ LANGUAGE_CODE_ALIASES = {
     "pt-pt": "pt",
 }
 
+def raise_for_status_with_details(response: requests.Response, *, context: str) -> None:
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail: Optional[str] = None
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                detail = payload.get("error") or payload.get("message")
+                if not detail:
+                    detail = json.dumps(payload, ensure_ascii=False)
+            else:
+                detail = json.dumps(payload, ensure_ascii=False)
+        except ValueError:
+            text = (response.text or "").strip()
+            if text:
+                detail = text
+
+        hint = ""
+        if response.status_code == 400:
+            hint = " (Hint: try `--no-speaker-labels` and/or a different `--model`.)"
+        if detail:
+            raise AssemblyAIError(f"{context} failed ({response.status_code}): {detail}{hint}") from exc
+        raise AssemblyAIError(f"{context} failed ({response.status_code}).{hint}") from exc
+
 
 def to_rfc3339(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -670,7 +695,7 @@ def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Generator[b
 def upload_audio(session: requests.Session, audio_path: Path) -> str:
     upload_endpoint = f"{DEFAULT_BASE_URL}/v2/upload"
     response = session.post(upload_endpoint, data=stream_file(audio_path))
-    response.raise_for_status()
+    raise_for_status_with_details(response, context="Upload")
     data = response.json()
     if "upload_url" not in data:
         raise AssemblyAIError(f"Upload response missing 'upload_url': {data}")
@@ -697,7 +722,7 @@ def request_transcription(
     else:
         payload["language_code"] = language_code or DEFAULT_LANGUAGE_CODE
     response = session.post(transcript_endpoint, json=payload)
-    response.raise_for_status()
+    raise_for_status_with_details(response, context="Transcription request")
     data = response.json()
     if "id" not in data:
         raise AssemblyAIError(f"Transcript response missing 'id': {data}")
@@ -713,7 +738,7 @@ def poll_transcript(
     status_endpoint = f"{DEFAULT_BASE_URL}/v2/transcript/{transcript_id}"
     while True:
         response = session.get(status_endpoint)
-        response.raise_for_status()
+        raise_for_status_with_details(response, context="Polling transcript")
         payload = response.json()
 
         status = payload.get("status")
