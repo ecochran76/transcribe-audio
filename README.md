@@ -34,8 +34,10 @@ The CLI checks for credentials in this order:
 
 1. `--api-key` command-line flag.
    - Use `--api-key-prompt` (hidden input) or `--api-key-stdin` to avoid storing keys on disk.
-2. `ASSEMBLYAI_API_KEY` environment variable.
-3. `assemblyai_api_key` entry inside `api_keys.json` (searches the current working directory first, then alongside `assembly_transcribe.py`).
+2. `assemblyai_api_key` entry inside `api_keys.json` (searches alongside `assembly_transcribe.py` first, then the current working directory).
+3. `ASSEMBLYAI_API_KEY` environment variable.
+
+Tip: add `--print-key-sources` to see which source was used (without printing the keys).
 
 To store the key in a file, copy the sample template and fill it in:
 

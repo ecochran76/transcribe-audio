@@ -524,6 +524,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Path to JSON file containing `assemblyai_api_key` (default: %(default)s). Copy api_keys.json.sample to create one.",
     )
     parser.add_argument(
+        "--print-key-sources",
+        action="store_true",
+        help="Print where API keys were loaded from (does not print the keys).",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         help="Directory for transcript outputs. Defaults to the audio file's directory.",
@@ -647,9 +652,9 @@ def resolve_config_candidates(configured_path: Path) -> list[Path]:
     if configured_path.is_absolute():
         return [configured_path]
     candidates = [
-        (Path.cwd() / configured_path).resolve(),
         (SCRIPT_DIR / configured_path).resolve(),
         (SCRIPT_DIR / configured_path.name).resolve(),
+        (Path.cwd() / configured_path).resolve(),
     ]
     unique: list[Path] = []
     seen: set[Path] = set()
@@ -684,16 +689,16 @@ def normalize_language_code(raw_value: Optional[str]) -> tuple[Optional[str], bo
     return LANGUAGE_CODE_ALIASES.get(lowered, normalized), False
 
 
-def resolve_api_key(args: argparse.Namespace) -> str:
+def resolve_api_key(args: argparse.Namespace) -> tuple[str, str]:
     if args.api_key:
-        return args.api_key
+        return args.api_key, "--api-key"
 
     if getattr(args, "api_key_prompt", False):
         if not sys.stdin.isatty():
             raise AssemblyAIError("--api-key-prompt requires an interactive terminal (stdin is not a TTY).")
         entered = getpass.getpass("AssemblyAI API key: ").strip()
         if entered:
-            return entered
+            return entered, "--api-key-prompt"
 
     if getattr(args, "api_key_stdin", False):
         if sys.stdin.isatty():
@@ -701,11 +706,7 @@ def resolve_api_key(args: argparse.Namespace) -> str:
         else:
             entered = sys.stdin.read().strip()
         if entered:
-            return entered
-
-    env_key = os.getenv("ASSEMBLYAI_API_KEY")
-    if env_key:
-        return env_key
+            return entered, "--api-key-stdin"
 
     seen: set[Path] = set()
     for candidate in resolve_config_candidates(Path(args.api_key_file).expanduser()):
@@ -726,7 +727,11 @@ def resolve_api_key(args: argparse.Namespace) -> str:
         for key_field in ("assemblyai_api_key", "assembly_ai_api_key"):
             api_key = payload.get(key_field)
             if api_key:
-                return api_key
+                return api_key, str(candidate)
+
+    env_key = os.getenv("ASSEMBLYAI_API_KEY")
+    if env_key:
+        return env_key, "ASSEMBLYAI_API_KEY"
 
     raise AssemblyAIError(
         "AssemblyAI API key not found. Provide --api-key, set ASSEMBLYAI_API_KEY, "
@@ -758,17 +763,17 @@ def resolve_language_settings(args: argparse.Namespace) -> tuple[Optional[str], 
     return DEFAULT_LANGUAGE_CODE, False
 
 
-def resolve_openai_key(args: argparse.Namespace) -> Optional[str]:
+def resolve_openai_key(args: argparse.Namespace) -> tuple[Optional[str], Optional[str]]:
     direct_key = getattr(args, "openai_api_key", None)
     if direct_key:
-        return direct_key
+        return direct_key, "--openai-api-key"
 
     if getattr(args, "openai_api_key_prompt", False):
         if not sys.stdin.isatty():
             raise AssemblyAIError("--openai-api-key-prompt requires an interactive terminal (stdin is not a TTY).")
         entered = getpass.getpass("OpenAI API key: ").strip()
         if entered:
-            return entered
+            return entered, "--openai-api-key-prompt"
 
     if getattr(args, "openai_api_key_stdin", False):
         if sys.stdin.isatty():
@@ -776,14 +781,13 @@ def resolve_openai_key(args: argparse.Namespace) -> Optional[str]:
         else:
             entered = sys.stdin.read().strip()
         if entered:
-            return entered
-
-    env_key = os.getenv("OPENAI_API_KEY")
-    if env_key:
-        return env_key
+            return entered, "--openai-api-key-stdin"
 
     if not getattr(args, "api_key_file", None):
-        return None
+        env_key = os.getenv("OPENAI_API_KEY")
+        if env_key:
+            return env_key, "OPENAI_API_KEY"
+        return None, None
 
     for candidate in resolve_config_candidates(Path(args.api_key_file).expanduser()):
         if not candidate.exists():
@@ -800,10 +804,14 @@ def resolve_openai_key(args: argparse.Namespace) -> Optional[str]:
         for key_field in ("openai_api_key", "open_ai_api_key"):
             openai_key = payload.get(key_field)
             if openai_key:
-                return openai_key
+                return openai_key, str(candidate)
         break
 
-    return None
+    env_key = os.getenv("OPENAI_API_KEY")
+    if env_key:
+        return env_key, "OPENAI_API_KEY"
+
+    return None, None
 
 
 def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Generator[bytes, None, None]:
@@ -1250,7 +1258,7 @@ def process_audio_file(
         utterances = [{"speaker": "Speaker", "start": 0, "end": 0, "text": text}]
 
     if args.translate_to:
-        openai_key = resolve_openai_key(args)
+        openai_key, openai_source = resolve_openai_key(args)
         if not openai_key:
             print(
                 "Error: --translate-to requires an OpenAI key. Provide --openai-api-key, set OPENAI_API_KEY, "
@@ -1258,6 +1266,8 @@ def process_audio_file(
                 file=sys.stderr,
             )
             return False
+        if args.print_key_sources and openai_source:
+            print(f"OpenAI API key source: {openai_source}", file=sys.stderr, flush=True)
         print(f"Translating transcript to {args.translate_to}...", flush=True)
         try:
             utterances = translate_utterances_openai(
@@ -1504,10 +1514,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         return 1
 
     try:
-        api_key = resolve_api_key(args)
+        api_key, api_key_source = resolve_api_key(args)
     except AssemblyAIError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    if args.print_key_sources:
+        print(f"AssemblyAI API key source: {api_key_source}", file=sys.stderr, flush=True)
 
     language_settings = resolve_language_settings(args)
 
