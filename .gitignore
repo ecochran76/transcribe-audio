@@ -55,9 +55,14 @@ transcription.log
 *.mov
 *.mkv
 
-* Transcript.docx
-* Transcript.txt
-* Transcript.srt
+# Common output folders
+outputs*/
+transcripts*/
+
+# Generated transcript outputs
+* Transcript*.docx
+* Transcript*.txt
+* Transcript*.srt
 * subtitled.*
 
 !tests/data/**

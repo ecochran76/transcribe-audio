@@ -7,7 +7,7 @@ The former Whisper-based automation lives in the `legacy-whisper-pipeline` tag.
 ## Prerequisites
 
 - **Python 3.9+** – required for postponed annotations and the Google client libraries.
-- **ffmpeg (optional)** – only needed for `--embed-subtitles`.
+- **ffmpeg (optional)** – required for `--embed-subtitles` and for burning subtitles.
 - **AssemblyAI account** – required to generate an API key.
 
 ## Install Dependencies
@@ -33,6 +33,7 @@ pip install -r requirements.txt
 The CLI checks for credentials in this order:
 
 1. `--api-key` command-line flag.
+   - Use `--api-key-prompt` (hidden input) or `--api-key-stdin` to avoid storing keys on disk.
 2. `ASSEMBLYAI_API_KEY` environment variable.
 3. `assemblyai_api_key` entry inside `api_keys.json` (searches the current working directory first, then alongside `assembly_transcribe.py`).
 
@@ -84,7 +85,7 @@ Key options:
 - `--text-output`: Write a `.txt` transcript alongside the DOCX.
 - `--srt-output`: Produce subtitles instead of DOCX (use `--docx-output` to emit both).
 - `--docx-output`: Also emit DOCX when `--srt-output` is set.
-- `--embed-subtitles`: Burn subtitles into the source media (creates `<original> subtitled.<ext>`).
+- `--embed-subtitles`: Embed subtitles as a subtitle track in the source media (creates `<original> subtitled.<ext>`).
 - `--translate-to`: Translate transcript + subtitles to a target language (e.g. `en`). Requires an OpenAI key (`OPENAI_API_KEY` or `openai_api_key` in `api_keys.json`).
 - `--poll-interval`: Control how often the script checks AssemblyAI for job status.
 - `--speaker-labels` / `--no-speaker-labels`: Toggle diarization.
@@ -93,7 +94,36 @@ Key options:
 
 ## Subtitle Outputs
 
-`--srt-output` generates sentence-length cues. When only one speaker is detected, speaker labels are omitted automatically. `--embed-subtitles` renders an internal SRT and muxes it into MP4/M4V/MOV (text subtitles) or MKV (SRT subtitles). You can enable both flags to keep the `.srt` file while also embedding it. Add `--translate-to en` to generate English transcript text/subtitles from non-English audio.
+`--srt-output` generates sentence-length cues. When only one speaker is detected, speaker labels are omitted automatically. `--embed-subtitles` muxes subtitles into MP4/M4V/MOV (text subtitles) or MKV (SRT subtitles) as a selectable track. You can enable both flags to keep the `.srt` file while also embedding it.
+
+### Embed an existing SRT (soft subtitles)
+
+If you already have an `.srt` (for example, a manually repaired translation), you can mux it into a copy of an MP4 without re-encoding video/audio:
+
+```bash
+ffmpeg -y \
+  -i Petrobras.mp4 \
+  -sub_charenc UTF-8 -i "outputs_pt/Petrobras Transcript ENG.srt" \
+  -map 0:v -map "0:a?" -map 1:0 \
+  -c:v copy -c:a copy -c:s mov_text \
+  -metadata:s:s:0 language=eng -metadata:s:s:0 title="English" \
+  -movflags +faststart \
+  "Petrobras subtitled ENG.mp4"
+```
+
+### Burn subtitles (hard subtitles)
+
+Burning subtitles re-encodes the video (the text becomes part of the pixels):
+
+```bash
+ffmpeg -y \
+  -i Petrobras.mp4 \
+  -vf "subtitles=outputs_pt/Petrobras\\ Transcript\\ ENG.srt:charenc=UTF-8" \
+  -c:v libx264 -crf 20 -preset medium -pix_fmt yuv420p \
+  -c:a copy \
+  -movflags +faststart \
+  "Petrobras burned ENG.mp4"
+```
 
 ## Calendar-Aware Renaming (Optional)
 
