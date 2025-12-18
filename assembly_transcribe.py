@@ -646,10 +646,19 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 def resolve_config_candidates(configured_path: Path) -> list[Path]:
     if configured_path.is_absolute():
         return [configured_path]
-    return [
+    candidates = [
         (Path.cwd() / configured_path).resolve(),
+        (SCRIPT_DIR / configured_path).resolve(),
         (SCRIPT_DIR / configured_path.name).resolve(),
     ]
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique.append(candidate)
+    return unique
 
 
 def load_json_config(path: Path) -> dict[str, Any]:
@@ -708,7 +717,11 @@ def resolve_api_key(args: argparse.Namespace) -> str:
         try:
             payload = load_json_config(candidate)
         except json.JSONDecodeError as exc:
-            raise AssemblyAIError(f"Invalid JSON in {candidate}: {exc}") from exc
+            print(f"Warning: skipping invalid JSON in {candidate} ({exc}).", file=sys.stderr)
+            continue
+        except AssemblyAIError as exc:
+            print(f"Warning: skipping {candidate} ({exc}).", file=sys.stderr)
+            continue
 
         for key_field in ("assemblyai_api_key", "assembly_ai_api_key"):
             api_key = payload.get(key_field)
@@ -777,10 +790,12 @@ def resolve_openai_key(args: argparse.Namespace) -> Optional[str]:
             continue
         try:
             payload = load_json_config(candidate)
-        except json.JSONDecodeError:
-            return None
-        except AssemblyAIError:
-            return None
+        except json.JSONDecodeError as exc:
+            print(f"Warning: skipping invalid JSON in {candidate} ({exc}).", file=sys.stderr)
+            continue
+        except AssemblyAIError as exc:
+            print(f"Warning: skipping {candidate} ({exc}).", file=sys.stderr)
+            continue
 
         for key_field in ("openai_api_key", "open_ai_api_key"):
             openai_key = payload.get(key_field)
