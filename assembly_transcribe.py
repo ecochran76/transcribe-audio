@@ -260,27 +260,55 @@ def format_event_datetime(dt_value: Optional[datetime]) -> Optional[str]:
     return dt_value.astimezone().strftime("%Y-%m-%d %H:%M %Z")
 
 
+def format_event_person(person: dict) -> Optional[str]:
+    name = person.get("displayName")
+    email = person.get("email")
+    if name and email:
+        return f"{name} <{email}>"
+    if name:
+        return name
+    if email:
+        return email
+    return None
+
+
 def extract_event_metadata(event: dict) -> dict[str, Any]:
     start_dt = parse_event_datetime(event.get("start", {}))
     end_dt = parse_event_datetime(event.get("end", {}))
     attendees = []
+    participants = []
+    seen_participants: set[str] = set()
+
+    def add_participant(person: dict, *, include_declined: bool = False) -> None:
+        if not person:
+            return
+        if not include_declined and person.get("responseStatus") == "declined":
+            return
+        value = format_event_person(person)
+        if not value:
+            return
+        if value in seen_participants:
+            return
+        participants.append(value)
+        seen_participants.add(value)
+
+    add_participant(event.get("organizer", {}), include_declined=True)
+    add_participant(event.get("creator", {}), include_declined=True)
+
     for attendee in event.get("attendees", []):
         if attendee.get("responseStatus") == "declined":
             continue
-        name = attendee.get("displayName")
-        email = attendee.get("email")
-        if name and email:
-            attendees.append(f"{name} <{email}>")
-        elif name:
-            attendees.append(name)
-        elif email:
-            attendees.append(email)
+        value = format_event_person(attendee)
+        if value:
+            attendees.append(value)
+        add_participant(attendee)
     return {
         "summary": event.get("summary") or "Untitled Event",
         "start": start_dt,
         "end": end_dt,
         "location": event.get("location"),
         "attendees": attendees,
+        "participants": participants,
         "hangoutLink": event.get("hangoutLink"),
     }
 
@@ -909,11 +937,11 @@ def add_event_metadata_to_doc(document: Document, event_info: dict[str, Any]) ->
     if event_info.get("hangoutLink"):
         document.add_paragraph(f"Meeting Link: {event_info['hangoutLink']}")
 
-    attendees = event_info.get("attendees") or []
-    if attendees:
-        document.add_paragraph("Attendees:")
-        for attendee in attendees:
-            document.add_paragraph(attendee, style="List Bullet")
+    participants = event_info.get("participants") or event_info.get("attendees") or []
+    if participants:
+        document.add_paragraph("Participants:")
+        for participant in participants:
+            document.add_paragraph(participant, style="List Bullet")
     document.add_paragraph("")
 
 
@@ -1187,11 +1215,11 @@ def write_text(
                 handle.write(f"Location: {event_info['location']}\n")
             if event_info.get("hangoutLink"):
                 handle.write(f"Meeting Link: {event_info['hangoutLink']}\n")
-            attendees = event_info.get("attendees") or []
-            if attendees:
-                handle.write("Attendees:\n")
-                for attendee in attendees:
-                    handle.write(f" - {attendee}\n")
+            participants = event_info.get("participants") or event_info.get("attendees") or []
+            if participants:
+                handle.write("Participants:\n")
+                for participant in participants:
+                    handle.write(f" - {participant}\n")
             handle.write("\n")
         for utterance in utterances:
             handle.write(format_utterance(utterance))

@@ -137,7 +137,7 @@ ffmpeg -y \
    - `--calendar-credentials`, `--calendar-token`, and `--calendar-client-secrets` to override file locations.
    - `--calendar-window` (hours on either side of the file timestamp) to tighten or widen the search.
 
-If an event is found, outputs are renamed to `YYYY-mm-dd HH-MM <event name> <original base>` (colons replaced with dashes) and the transcript is annotated with event metadata. If no event matches, transcription continues without renaming.
+If an event is found, outputs are renamed to `YYYY-mm-dd HH-MM <event name> <original base>` (colons replaced with dashes) and the transcript is annotated with event metadata, including participants when available. If no event matches, transcription continues without renaming.
 
 ## Development Notes
 
