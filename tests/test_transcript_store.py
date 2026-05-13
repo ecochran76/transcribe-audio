@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import transcript_store
+from scripts import auracall_legacy_enrichment_batch
 
 
 def write_json(path: Path, payload: dict) -> Path:
@@ -533,6 +534,51 @@ def test_legacy_enrichment_queue_lists_pending_legacy_imports(tmp_path: Path, ca
     assert "summarize_transcript.py" in stdout
     assert "--provider" in stdout
     assert transcript_store.LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX not in stdout
+
+
+def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path, capsys) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_json(tmp_path / "legacy.transcript.json", legacy_transcript_payload())
+    transcript_store.ingest_artifact(transcript_path, root=store_root, embedding_provider="debug-hash")
+    env_path = tmp_path / "auracall.env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "OPENAI_BASE_URL=http://127.0.0.1:18095/v1",
+                "OPENAI_API_KEY=auracall_test",
+                "AURACALL_MODEL=agent:pro-extended-chatgpt-soylei-transcripts",
+                "AURACALL_BATCH_URL=http://127.0.0.1:18095/v1/response-batches",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+
+    assert auracall_legacy_enrichment_batch.main(
+        [
+            "--env-file",
+            str(env_path),
+            "--store-dir",
+            str(store_root),
+            "enqueue",
+            "--dry-run",
+            "--manifest",
+            str(manifest_path),
+        ]
+    ) == 0
+
+    stdout = capsys.readouterr().out
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    request = payload["batch_payload"]["requests"][0]
+    assert payload["dry_run"] is True
+    assert payload["request_count"] == 1
+    assert payload["batch"] is None
+    assert request["model"] == "agent:pro-extended-chatgpt-soylei-transcripts"
+    assert request["metadata"]["response_format"] == {"type": "json_object"}
+    assert request["auracall"]["agent"] == "pro-extended-chatgpt-soylei-transcripts"
+    assert request["auracall"]["runtimeProfile"] == "wsl-chrome-3"
+    assert "AURACALL_BATCH_MANIFEST=" in stdout
 
 
 def test_backfill_dry_run_reports_counts_and_kinds(tmp_path: Path, capsys) -> None:

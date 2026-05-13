@@ -447,6 +447,20 @@ python transcript_store.py legacy-enrichment-queue --format commands --provider 
 
 The queue de-dupes same-hash or same-title legacy rows by default so batch enrichment does not waste provider calls. Use `--no-dedupe` only when you are auditing duplicate rows.
 
+For AuraCall-backed burst processing, use the project-bound `Transcripts` agent client env:
+
+```bash
+python scripts/auracall_legacy_enrichment_batch.py \
+  --env-file ~/.local/state/transcribe-audio/auracall-transcripts.env \
+  enqueue --limit 25 --store
+
+python scripts/auracall_legacy_enrichment_batch.py \
+  --env-file ~/.local/state/transcribe-audio/auracall-transcripts.env \
+  status ~/.local/state/transcribe-audio/auracall-batches/<manifest>.json --materialize --store
+```
+
+The enqueue command submits all selected readout requests to AuraCall in one response batch. AuraCall owns browser concurrency and interaction rate limits; this repo keeps the transcript payloads complete and later materializes completed responses into `*.readout.json` and `*.readout.md`.
+
 Link already-imported legacy transcripts to recordings later, using an explicit media index instead of rescanning mounted drives:
 
 ```bash

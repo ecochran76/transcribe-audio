@@ -1494,3 +1494,188 @@ Next:
   transported through the browser service as an attachment when needed, and so
   failed AuraCall runs return an API error instead of HTTP 200 with empty
   assistant content. Then retry the SBIR item with the full transcript.
+
+## Turn 55 | 2026-05-12
+
+Summary: Removed the transcript-length workaround from this repo, verified the
+fix belongs in AuraCall, and completed the pending SBIR readout with the full
+transcript.
+
+Action:
+
+- Removed the `--max-transcript-chars` workaround from the readout CLI,
+  generated queue commands, and tests.
+- Kept readout-shape validation so malformed/empty AuraCall responses do not
+  get stored as readouts.
+- Updated the AuraCall handoff note to state that transcript truncation was a
+  reverted experiment, not the path forward.
+- Rebuilt/reinstalled AuraCall and retried the pending SBIR readout without
+  transcript truncation.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_readouts.py tests/test_transcript_store.py -q`
+  passed with 37 tests.
+- `.venv/bin/python -m py_compile summarize_transcript.py transcript_store.py tests/test_readouts.py tests/test_transcript_store.py`
+  passed.
+- `.venv/bin/python -m pytest -q` passed with 104 tests.
+- Full-transcript SBIR retry through `agent:instant-chatgpt-soylei` failed
+  honestly with AuraCall HTTP 502 after AuraCall detected non-parseable JSON.
+- Full-transcript SBIR retry through `agent:pro-extended-chatgpt-soylei`
+  succeeded and wrote:
+  `/home/ecochran76/.transcripts/legacy-artifacts/28/28d268e46f590765c413-2025-04-17 Nacu Eric Call SoyLei SBIR Matters.readout.json`
+- The de-duped pending legacy enrichment queue now reports 58 items, and the
+  SBIR item is no longer pending.
+
+Next:
+
+- Continue legacy enrichment in bounded batches using the full transcript path.
+  Prefer stronger/project-specific AuraCall agents for long readout jobs when
+  JSON completeness matters.
+
+## Turn 56 | 2026-05-13
+
+Summary: Added an AuraCall response-batch path for legacy transcript readouts
+using a project-bound SoyLei Pro Extended transcripts agent.
+
+Action:
+
+- Added `scripts/auracall_legacy_enrichment_batch.py`.
+- Added `write_readout_from_payload` so synchronous and batched readouts share
+  the same JSON/Markdown materialization path.
+- Added a dry-run test that verifies the batch payload uses
+  `agent:pro-extended-chatgpt-soylei-transcripts`, JSON response-format
+  metadata, and the SoyLei `wsl-chrome-3` runtime hints.
+- Created registry agent `pro-extended-chatgpt-soylei-transcripts` with
+  `projectName=Transcripts`, `service=chatgpt`,
+  `runtimeProfile=wsl-chrome-3`, and `modelSelector=chatgpt:pro-extended`.
+- Issued scoped client env:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env`.
+- Restarted `auracall-api.service` and confirmed `/v1/models` includes
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_store.py::test_auracall_legacy_enrichment_batch_dry_run_writes_manifest tests/test_transcript_store.py::test_legacy_enrichment_queue_lists_pending_legacy_imports -q`
+  passed with 2 tests.
+- `.venv/bin/python -m py_compile summarize_transcript.py scripts/auracall_legacy_enrichment_batch.py tests/test_transcript_store.py`
+  passed.
+- Live dry-run built:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-062622.json`.
+- Live one-item enqueue created and completed
+  `batch_0db1883c7905471c83d807411cfdee33` with
+  `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`, and child
+  response `resp_1a4b0915303848a6ab68a48e286e563f`.
+- `status --materialize --store` wrote and ingested:
+  `/home/ecochran76/.transcripts/legacy-artifacts/29/29ed3d64cca92a7cf5f5-2025-08-15 Dr Stefl Knee Replacement Consult.readout.json`.
+- The de-duped pending legacy enrichment queue now reports 57 items.
+
+Note:
+
+- The earlier `POST /v1/projects/ensure` `button-missing` failure was repaired
+  in AuraCall on 2026-05-13. The ChatGPT provider project now exists as
+  `g-p-6a04628762ac8191894b16cfaddfd126`, and the transcript agent is bound to
+  that provider project id.
+
+## Turn 57 | 2026-05-13
+
+Summary: Revalidated the AuraCall scoped client path for transcript readout
+bursts after returning from live-follow work.
+
+Validation:
+
+- Scoped env:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env`.
+- The scoped key can read `/v1/models` and sees
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+- The running AuraCall registry shows
+  `pro-extended-chatgpt-soylei-transcripts` bound to ChatGPT project
+  `Transcripts` with provider project id
+  `g-p-6a04628762ac8191894b16cfaddfd126`.
+- Live scoped-env smoke passed:
+  `pnpm run smoke:scoped-client-env -- /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env --prompt 'Reply exactly: auracall transcribe env ok' --expect-output 'auracall transcribe env ok' --timeout-ms 180000`.
+- Response id `resp_45008e83347940909bcdba697b91fa2c` read back as
+  `completed` with output `auracall transcribe env ok`.
+
+Next:
+
+- Resume bounded legacy readout batches through
+  `scripts/auracall_legacy_enrichment_batch.py`.
+- Keep concurrency and browser interaction limits in the AuraCall batch request;
+  do not limit transcript length in this repo.
+
+## Turn 58 | 2026-05-13
+
+Summary: Added a repo-local handoff note so `transcribe-audio` can retake
+ownership of the AuraCall-backed legacy readout batch workflow.
+
+Action:
+
+- Added
+  `docs/dev/notes/2026-05-13-auracall-transcribe-ownership-handoff.md`.
+- Recorded the current AuraCall transcript agent binding, scoped env path,
+  live smoke evidence, one-item batch evidence, and next owner actions.
+- Reiterated the policy boundary: Transcribe Audio owns queue selection,
+  prompt construction, materialization, and store ingestion; AuraCall owns
+  large prompt transport, browser execution, project binding, queueing, and
+  rate limiting.
+
+Validation:
+
+- `graphiti-runtime doctor` reported healthy.
+- `graphiti-runtime discover --group-id transcribe_audio_main "AuraCall transcript readout batch scoped env next steps" --max-facts 5`
+  returned older P03/readout context; the new handoff therefore relies on
+  current repo runbook entries and live AuraCall evidence.
+- `git diff --check` passed.
+
+Next:
+
+- Resume with the handoff note's three-item dry run, then one three-item live
+  batch, then `status --materialize --store`.
+
+## Turn 59 | 2026-05-13
+
+Summary: Started the first three-item AuraCall response batch under
+`transcribe-audio` ownership; batch remains in progress.
+
+Action:
+
+- Read `docs/dev/notes/2026-05-13-auracall-transcribe-ownership-handoff.md`
+  and followed its owner actions.
+- Ran the three-item dry run:
+  `.venv/bin/python scripts/auracall_legacy_enrichment_batch.py --env-file /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env enqueue --limit 3 --store --dry-run`.
+- Dry-run manifest:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092116.json`.
+- Inspected the dry-run manifest and confirmed the expected model,
+  JSON response-format metadata, full prompt payloads, and limits.
+- Ran the first live three-item batch:
+  `.venv/bin/python scripts/auracall_legacy_enrichment_batch.py --env-file /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env enqueue --limit 3 --store --max-concurrent-runs 2 --max-browser-interactions-per-minute 8`.
+- Live manifest:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092135.json`.
+- Polled with `status --materialize --store` several times; no children were
+  complete yet, so no readouts were materialized.
+
+Validation:
+
+- Dry run selected 3 requests for
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Dry-run prompt lengths were approximately 137447, 33426, and 12107
+  characters; transcript payloads were not truncated.
+- Dry-run limits were `maxConcurrentRuns=2` and
+  `maxBrowserInteractionsPerMinute=8`.
+- Live enqueue returned batch id `batch_bd9a400d785f4eeeaecf986621597091`.
+- Current batch status is `running` with counts:
+  `total=3`, `in_progress=3`, `completed=0`, `failed=0`, `cancelled=0`,
+  `missing=0`.
+- Child response ids:
+  `resp_ad243a3df5bc4d61ac7934e144f4352b`,
+  `resp_b35c7e03a57d4d11ad3d081d77277404`,
+  `resp_9d59ac43f87f460081a187fa28c4bf49`.
+
+Next:
+
+- Re-run:
+  `.venv/bin/python scripts/auracall_legacy_enrichment_batch.py --env-file /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env status /home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092135.json --materialize --store`.
+- If children complete, verify readout artifacts and the pending queue count.
+- If children fail or remain stuck, preserve the manifest and response ids and
+  diagnose AuraCall rather than shortening transcripts in this repo.

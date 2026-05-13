@@ -219,3 +219,69 @@ Recommended order:
 
 The product fix belongs in AuraCall request transport and failure reporting, not
 in a transcript-length downgrade inside this repo.
+
+Final update:
+
+- The transcript-length workaround was removed from this repo.
+- AuraCall now preserves OpenAI-compatible `response_format`, carries system
+  instructions into browser execution, spills oversized browser prompts to
+  request attachments, returns HTTP 502 for failed chat-completions runs, and
+  detects incomplete ChatGPT JSON-object responses.
+- The pending SBIR transcript was retried with the full transcript.
+  `agent:instant-chatgpt-soylei` failed honestly with HTTP 502 because ChatGPT
+  did not finish parseable JSON; `agent:pro-extended-chatgpt-soylei` succeeded.
+- The SBIR readout is now written at
+  `/home/ecochran76/.transcripts/legacy-artifacts/28/28d268e46f590765c413-2025-04-17 Nacu Eric Call SoyLei SBIR Matters.readout.json`.
+- The de-duped pending legacy enrichment queue now reports 58 items.
+
+2026-05-13 batch-queue update:
+
+- Transcribe Audio now has a first-class AuraCall response-batch client:
+  `scripts/auracall_legacy_enrichment_batch.py`.
+- The intended default model for legacy readout bursts is
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+- The scoped client env is user-scoped at
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env`.
+- `enqueue` submits selected legacy readouts as one AuraCall response batch;
+  AuraCall owns concurrency and browser interaction rate limiting.
+- `status --materialize --store` reads completed AuraCall responses and writes
+  `*.readout.json` and `*.readout.md` through the same readout materialization
+  path as `summarize_transcript.py`.
+- A one-item live enqueue created and completed
+  `batch_0db1883c7905471c83d807411cfdee33` as
+  `resp_1a4b0915303848a6ab68a48e286e563f`.
+- Materialization wrote and stored:
+  `/home/ecochran76/.transcripts/legacy-artifacts/29/29ed3d64cca92a7cf5f5-2025-08-15 Dr Stefl Knee Replacement Consult.readout.json`.
+- The de-duped pending legacy enrichment queue now reports 57 items.
+- The provider project ensure call for ChatGPT project `Transcripts` currently
+  fails with `button-missing`; the registry agent is configured with
+  `projectName=Transcripts`, but AuraCall still needs the ChatGPT project
+  creation/binding selector repair before this is fully project-bound in the
+  provider workbench.
+
+2026-05-13 project-binding update:
+
+- AuraCall repaired the ChatGPT project-create confirm selector drift.
+- `POST /v1/projects/ensure` now creates/finds ChatGPT project `Transcripts`
+  and binds `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Provider project id:
+  `g-p-6a04628762ac8191894b16cfaddfd126`.
+- A second ensure call returned `status=found`, so future setup runs should be
+  idempotent.
+
+2026-05-13 scoped-client readiness update:
+
+- The scoped client env still exists at
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env`.
+- The running AuraCall service advertises
+  `agent:pro-extended-chatgpt-soylei-transcripts` to that scoped key.
+- `pnpm run smoke:scoped-client-env -- /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env --prompt 'Reply exactly: auracall transcribe env ok' --expect-output 'auracall transcribe env ok' --timeout-ms 180000`
+  passed through the live browser-backed SoyLei Pro Extended transcript agent.
+- Response id:
+  `resp_45008e83347940909bcdba697b91fa2c`.
+- Readback status was `completed` with output
+  `auracall transcribe env ok`.
+
+Use this path for the next bounded legacy-enrichment batch. Do not reintroduce
+caller-side transcript truncation; AuraCall owns large prompt transport,
+project binding, queueing, and browser interaction rate limiting.

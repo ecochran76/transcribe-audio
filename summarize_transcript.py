@@ -335,6 +335,31 @@ def output_base_path(artifact_path: Path, output_dir: Optional[Path]) -> Path:
     return directory / base_name
 
 
+def write_readout_from_payload(
+    artifact_path: Path,
+    model_payload: dict[str, Any],
+    *,
+    provider: dict[str, Any],
+    output_dir: Optional[Path] = None,
+    store: bool = False,
+    store_dir: Optional[Path] = None,
+) -> tuple[Path, Path]:
+    artifact_path = artifact_path.expanduser().resolve()
+    readout = Readout.from_model_payload(
+        validate_readout_payload(model_payload),
+        source_artifact_path=artifact_path,
+        provider=provider,
+    )
+    base_path = output_base_path(artifact_path, output_dir)
+    json_path = base_path.with_suffix(".readout.json")
+    markdown_path = base_path.with_suffix(".readout.md")
+    readout.write_json(json_path)
+    readout.write_markdown(markdown_path)
+    if store:
+        ingest_artifact(json_path, root=store_dir)
+    return json_path, markdown_path
+
+
 def generate_readout(args: argparse.Namespace) -> tuple[Path, Path]:
     artifact_path = args.artifact.expanduser().resolve()
     artifact = load_transcript_artifact(artifact_path)
@@ -378,19 +403,14 @@ def generate_readout(args: argparse.Namespace) -> tuple[Path, Path]:
             model=args.model,
             timeout=args.timeout,
         )
-    readout = Readout.from_model_payload(
+    return write_readout_from_payload(
+        artifact_path,
         model_payload,
-        source_artifact_path=artifact_path,
         provider=provider_info,
+        output_dir=args.output_dir,
+        store=args.store,
+        store_dir=args.store_dir,
     )
-    base_path = output_base_path(artifact_path, args.output_dir)
-    json_path = base_path.with_suffix(".readout.json")
-    markdown_path = base_path.with_suffix(".readout.md")
-    readout.write_json(json_path)
-    readout.write_markdown(markdown_path)
-    if args.store:
-        ingest_artifact(json_path, root=args.store_dir)
-    return json_path, markdown_path
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
