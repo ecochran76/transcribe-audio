@@ -1,6 +1,8 @@
 {
   "assemblyai_api_key": "replace-with-your-assemblyai-key",
   "assemblyai_language_code": "en_us",
+  "huggingface_token": "replace-with-your-huggingface-token",
   "openai_api_key": "replace-with-your-openai-api-key",
+  "openai_base_url": "https://api.openai.com/v1",
   "grok_api_key": "replace-with-your-grok-api-key"
 }

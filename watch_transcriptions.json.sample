@@ -1,0 +1,78 @@
+{
+  "jobs": [
+    {
+      "name": "downloads-assembly",
+      "enabled": true,
+      "watch_dir": "~/Downloads",
+      "glob": "My Recording*.m4a",
+      "backend": "assembly",
+      "recursive": false,
+      "settle_seconds": 120,
+      "min_age_seconds": 20,
+      "scan_interval": 30,
+      "failure_retry_seconds": 900,
+      "calendar": {
+        "enabled": true,
+        "providers": ["gog", "gws", "google-api"],
+        "calendar_id": "primary",
+        "window_hours": 24,
+        "gog": {
+          "account": "",
+          "client": ""
+        },
+        "gws": {
+          "config_dir": ""
+        }
+      },
+      "cli_args": [
+        "--text-output"
+      ],
+      "readout": {
+        "enabled": false,
+        "provider": "openai-compatible",
+        "model": "gpt-4o-mini",
+        "base_url": "",
+        "output_dir": ""
+      },
+      "store": {
+        "enabled": true,
+        "store_dir": "~/.transcripts",
+        "embedding_provider": "ollama",
+        "embedding_model": "ollama/nomic-embed-text"
+      }
+    },
+    {
+      "name": "downloads-faster-whisper",
+      "enabled": false,
+      "watch_dir": "~/Downloads",
+      "glob": "My Recording*.m4a",
+      "backend": "faster_whisper",
+      "recursive": false,
+      "settle_seconds": 120,
+      "min_age_seconds": 20,
+      "scan_interval": 30,
+      "failure_retry_seconds": 900,
+      "calendar": {
+        "enabled": true,
+        "providers": ["gog", "gws", "google-api"],
+        "calendar_id": "primary",
+        "window_hours": 24
+      },
+      "cli_args": [
+        "--text-output",
+        "--no-speaker-labels"
+      ],
+      "readout": {
+        "enabled": false,
+        "provider": "openai-compatible",
+        "model": "gpt-4o-mini"
+      },
+      "store": {
+        "enabled": true,
+        "store_dir": "~/.transcripts",
+        "embedding_provider": "ollama",
+        "embedding_model": "ollama/nomic-embed-text"
+      }
+    }
+  ]
+}
