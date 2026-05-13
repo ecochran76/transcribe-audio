@@ -38,6 +38,8 @@ out.txt
 *.ini
 *.log
 transcription.log
+watch_transcriptions.json
+.openclaw/
 
 # -----------------------------------------------------------------------------
 # Media inputs + generated transcript outputs

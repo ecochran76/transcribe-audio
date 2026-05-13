@@ -1,7 +1,8 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- The sole entry point is `assembly_transcribe.py`, which handles uploads, polling, and DOCX output. Keep new modules in the repo root until a larger `src/` layout is justified and documented.
+- The transcription entry points are `assembly_transcribe.py`, `faster_whisper_transcribe.py`, and `watch_transcriptions.py`; shared export, calendar, and formatting behavior belongs in `transcribe_common.py`.
+- Keep new modules in the repo root until a larger `src/` layout is justified in `ROADMAP.md` and a bounded plan under `docs/dev/plans/`.
 - Config artifacts sit alongside the script: `requirements.txt` lists runtime deps and `api_keys.json.sample` describes required secrets. Real keys belong in the ignored `api_keys.json`.
 - Add sample assets only when essential for testing; prefer short clips under `tests/data/` and link to heavier media externally.
 
@@ -29,3 +30,25 @@
 - Store AssemblyAI keys in env vars or `api_keys.json` (ignored). Mirror any new fields in `api_keys.json.sample` and document them in the README to prevent drift.
 - Google Calendar access uses `credentials.json` (OAuth client) and a generated `token.json`; both are ignored by Git. Document any new scopes or calendar-related flags when they change.
 - Prefer CLI flags for behavior tweaks; add config files only when options multiply, and describe resolution order clearly in documentation.
+
+## Policy Loading Contract
+- `AGENTS.md` is the entrypoint; durable policy lives under `docs/dev/policies/`.
+- Re-read relevant policy files at the start of non-trivial planning, architecture, runtime, tenant, memory, routing, or release work.
+- Re-read relevant policy files whenever the task scope changes mid-session.
+- Use `ROADMAP.md` as the master priority map, `RUNBOOK.md` as the dated execution log, and `docs/dev/plans/` for bounded implementation slices.
+
+## Policy Entry
+Read and follow these repo-local policies as applicable:
+- `docs/dev/policies/0001-policy-management.md`
+- `docs/dev/policies/0002-planning-roadmap-runbook.md`
+- `docs/dev/policies/0003-runtime-tenant-state.md`
+- `docs/dev/policies/0004-architecture-productization.md`
+- `docs/dev/policies/0005-memory-and-context-routing.md`
+- `docs/dev/policies/0006-git-release-validation.md`
+
+## Graphiti Memory Discovery
+- Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.
+- Query repo group `transcribe_audio_main` before assuming prior context exists only in chat history.
+- Treat Graphiti as advisory; verify cited facts against repo files, artifacts, commits, tests, or source episodes before changing code or live systems.
+- When bootstrapping or refreshing repo memory, harvest from `ROADMAP.md`, `RUNBOOK.md`, `docs/dev/plans/`, `docs/dev/policies/`, and validated artifacts only.
+- Do not seed secrets, raw private data, raw transcripts, full logs, or unreviewed speculation.
