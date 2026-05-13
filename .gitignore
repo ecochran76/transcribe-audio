@@ -60,6 +60,10 @@ watch_transcriptions.json
 # Common output folders
 outputs*/
 transcripts*/
+!openclaw/
+!openclaw/agents/
+!openclaw/agents/transcripts/
+!openclaw/agents/transcripts/**
 
 # Generated transcript outputs
 * Transcript*.docx
