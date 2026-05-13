@@ -1679,3 +1679,42 @@ Next:
 - If children complete, verify readout artifacts and the pending queue count.
 - If children fail or remain stuck, preserve the manifest and response ids and
   diagnose AuraCall rather than shortening transcripts in this repo.
+
+## Turn 60 | 2026-05-13
+
+Summary: Polled the first three-item AuraCall batch; it is not materializable
+because one completed response has empty output, one child is still running,
+and one child failed in AuraCall.
+
+Action:
+
+- Re-ran `status --materialize --store` for
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092135.json`.
+- Materialization failed with `OpenAI-compatible readout returned an empty response`.
+- Re-ran `status` without materialization to capture current batch state.
+- Saved raw response diagnostics under
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092135-diagnostics/`.
+- Re-checked the de-duped pending queue.
+
+Validation:
+
+- Batch id remains `batch_bd9a400d785f4eeeaecf986621597091`.
+- Current counts are `total=3`, `completed=1`, `in_progress=1`,
+  `failed=1`, `cancelled=0`, `missing=0`.
+- Index 0, `resp_ad243a3df5bc4d61ac7934e144f4352b`, is marked completed by
+  AuraCall but `/v1/responses/...` returns `output: []`, so there is no
+  readout JSON to materialize.
+- Index 1, `resp_b35c7e03a57d4d11ad3d081d77277404`, is still `in_progress`.
+- Index 2, `resp_9d59ac43f87f460081a187fa28c4bf49`, failed with
+  `runner_execution_failed: connect ETIMEDOUT 127.0.0.1:9222`.
+- No readouts were materialized from this batch.
+- The de-duped pending legacy enrichment queue still reports 57 items.
+
+Next:
+
+- Diagnose this as an AuraCall/runtime issue, not a transcript truncation issue:
+  completed-empty output and `127.0.0.1:9222` timeout should be repaired or
+  retried in AuraCall.
+- After AuraCall-side diagnosis, retry a fresh bounded batch or add
+  transcribe-side handling that skips failed/empty children while preserving
+  their response ids for retry.
