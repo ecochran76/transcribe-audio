@@ -1918,8 +1918,8 @@ Action:
   `legacy_readout.json` in its REPL/workspace and surface it as a downloadable
   artifact.
 - Removed the inline JSON requirement from the AuraCall-specific prompt; the
-  assistant message is now only the readiness marker
-  `legacy_readout.json ready`.
+  assistant response must now surface the actual `legacy_readout.json`
+  downloadable artifact/link rather than a text-only readiness marker.
 - Changed `metadata.outputContract.mode` from
   `inline_json_with_optional_workspace_artifact` to
   `chatgpt_workspace_artifact`.
@@ -1935,6 +1935,9 @@ Validation:
 - This transcribe-side change does not claim artifact extraction is fixed; it
   aligns the caller with the intended artifact contract so the next smoke tests
   the right behavior.
+- Correction: the first artifact-first prompt still allowed a text-only
+  readiness response. The prompt now explicitly says a text-only readiness note
+  is not sufficient.
 
 Next:
 

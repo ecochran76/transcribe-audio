@@ -128,9 +128,10 @@ def auracall_readout_system_prompt() -> str:
     return (
         readout_system_prompt()
         + " For AuraCall browser-backed batch runs, write the structured JSON readout into a ChatGPT "
-        "REPL/workspace file named legacy_readout.json and surface it as a downloadable artifact. The assistant "
-        "message is only a readiness marker after the artifact is available. Do not compress the readout for "
-        "chat-message length; preserve substantive detail in the JSON file."
+        "REPL/workspace file named legacy_readout.json and surface it as a downloadable artifact in the final "
+        "assistant response. The final response must expose the actual artifact/download link or attachment card; "
+        "a text-only readiness note is not sufficient. Do not compress the readout for chat-message length; "
+        "preserve substantive detail in the JSON file."
     )
 
 
@@ -138,9 +139,9 @@ def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
     return (
         "Create a ChatGPT REPL/workspace file named legacy_readout.json. The file must contain exactly one valid "
         "JSON object using the requested readout schema. Surface legacy_readout.json as a downloadable artifact. "
-        "Do not put the full JSON object in the assistant message. After the downloadable artifact is available, "
-        "reply exactly: legacy_readout.json ready. Preserve substantive detail instead of summarizing away "
-        "important context.\n\n"
+        "Do not put the full JSON object in the assistant message. Your final response must include the actual "
+        "downloadable legacy_readout.json artifact/link or attachment card; do not reply with only a text "
+        "readiness note. Preserve substantive detail instead of summarizing away important context.\n\n"
         + build_readout_prompt(artifact)
     )
 

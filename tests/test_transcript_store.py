@@ -585,6 +585,7 @@ def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path
     assert "legacy_readout.json" in request["input"][1]["content"]
     assert "downloadable artifact" in request["input"][1]["content"]
     assert "Do not put the full JSON object in the assistant message" in request["input"][1]["content"]
+    assert "do not reply with only a text readiness note" in request["input"][1]["content"]
     assert "Preserve substantive detail" in request["input"][1]["content"]
     assert request["auracall"]["agent"] == "pro-extended-chatgpt-soylei-transcripts"
     assert request["auracall"]["runtimeProfile"] == "wsl-chrome-3"
