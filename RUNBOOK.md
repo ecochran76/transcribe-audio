@@ -1770,3 +1770,44 @@ Next:
 - If it fails or remains stuck for an unreasonable interval, diagnose AuraCall
   with the fresh batch and child response ids rather than changing transcript
   length.
+
+## Turn 62 | 2026-05-14
+
+Summary: Polled the fresh AuraCall retry batch; all three children failed with
+partial JSON snapshots but no materializable response output.
+
+Action:
+
+- Re-polled fresh retry manifest
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-151528.json`
+  with `status --materialize --store`.
+- Materialization produced no readouts because the batch ended failed.
+- Saved raw response diagnostics under
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-151528-diagnostics/`.
+- Re-checked the de-duped legacy enrichment queue.
+
+Validation:
+
+- Fresh retry batch `batch_e9b79b1474ec4cf8a622e52f5b8f7bce` is now failed
+  with counts `total=3`, `completed=0`, `failed=3`, `in_progress=0`.
+- Index 0 `resp_56c5a0d25823456d99d97e50114fe887` failed with
+  `ChatGPT response did not complete as a parseable JSON object after waiting`;
+  AuraCall captured a best snapshot of 22322 chars but `/v1/responses/...`
+  still returned `output: []`.
+- Index 1 `resp_c073d5e002414a0c98f8ee0fe987470b` failed with the same
+  parseable-JSON completion issue and a best snapshot of 11918 chars; response
+  output was empty.
+- Index 2 `resp_618693902f244b8e8a777cff9fc38305` failed with the same issue
+  and a best snapshot of 10358 chars; response output was empty.
+- The de-duped pending legacy enrichment queue still reports 57 items.
+- No transcript payloads were shortened and no readouts were stored from this
+  retry batch.
+
+Next:
+
+- AuraCall should expose failed-run best snapshots as retrievable diagnostics or
+  recoverable output artifacts, or complete JSON capture before marking the run
+  failed.
+- Transcribe-side next work can add retry/quarantine metadata around failed
+  batch children, but should not treat partial snapshots as readouts unless
+  AuraCall exposes a deliberate recovery contract.
