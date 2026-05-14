@@ -1811,3 +1811,47 @@ Next:
 - Transcribe-side next work can add retry/quarantine metadata around failed
   batch children, but should not treat partial snapshots as readouts unless
   AuraCall exposes a deliberate recovery contract.
+
+## Turn 63 | 2026-05-14
+
+Summary: Started a one-item retry against AuraCall's new recovery-artifact
+contract; the run remains active with no output yet.
+
+Action:
+
+- Read AuraCall handoff
+  `/home/ecochran76/workspace.local/auracall/docs/dev/notes/2026-05-14-chatgpt-json-artifact-handoff.md`.
+- Confirmed the AuraCall fix is non-retroactive for the failed
+  `batch_e9b79b1474ec4cf8a622e52f5b8f7bce`, so a fresh run is required.
+- Enqueued a fresh one-item batch from the current pending queue using
+  `agent:pro-extended-chatgpt-soylei-transcripts`, `maxConcurrentRuns=1`, and
+  `maxBrowserInteractionsPerMinute=6`.
+- Polled the manifest with `status --materialize --store` several times.
+- Read the response object directly and saved a raw diagnostic snapshot.
+
+Validation:
+
+- Manifest:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-171322.json`.
+- Batch id: `batch_0973e70d5a1e4fa5a7f8f4c2ae7d1668`.
+- Response id: `resp_723b789f244446159354a2e751dde7a0`.
+- Selected transcript title:
+  `2025-08-20 Nacu Eric Line of Business follow up meeting`.
+- Batch status remains `running` with counts `total=1`, `in_progress=1`,
+  `completed=0`, `failed=0`.
+- Direct response read showed `status=in_progress`, `output_len=0`,
+  `terminalStepId=null`, and a running step for
+  `pro-extended-chatgpt-soylei-transcripts` on `wsl-chrome-3`.
+- Response `lastUpdatedAt` was `2026-05-14T22:20:50.377Z`, proving the run was
+  still active during this turn.
+- Diagnostics path:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-171322-diagnostics/`.
+- Queue still reports 57 pending items because no readout was materialized yet.
+
+Next:
+
+- Poll the one-item manifest again with `status --materialize --store`.
+- If it completes with message JSON or an artifact output, materialize/store and
+  verify the pending queue decreases.
+- If it fails, inspect `/v1/responses/resp_723b789f244446159354a2e751dde7a0`
+  for the new recovery artifact contract before changing transcribe prompts.
