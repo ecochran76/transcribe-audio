@@ -1718,3 +1718,55 @@ Next:
 - After AuraCall-side diagnosis, retry a fresh bounded batch or add
   transcribe-side handling that skips failed/empty children while preserving
   their response ids for retry.
+
+## Turn 61 | 2026-05-14
+
+Summary: Retried the AuraCall batch path after the AuraCall upgrade; the old
+batch is terminally failed and a fresh three-item retry batch is in progress.
+
+Action:
+
+- Re-polled old manifest
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260513-092135.json`
+  with `status --materialize --store`.
+- Materialization still failed with `OpenAI-compatible readout returned an
+  empty response`.
+- Re-polled the old manifest without materialization and confirmed its terminal
+  status.
+- Re-checked the de-duped queue; it still reported 57 pending legacy readout
+  items.
+- Submitted a fresh three-item live batch using the same full transcript
+  payloads, model, and limits.
+- Polled the fresh batch twice; no children completed or failed yet.
+
+Validation:
+
+- Old batch `batch_bd9a400d785f4eeeaecf986621597091` is now `failed` with
+  counts `total=3`, `completed=1`, `failed=2`, `in_progress=0`.
+- Old index 0 `resp_ad243a3df5bc4d61ac7934e144f4352b` is completed but still
+  has empty output, so no readout can be materialized.
+- Old index 1 `resp_b35c7e03a57d4d11ad3d081d77277404` failed with
+  `runner_execution_failed: ChatGPT response did not complete as a parseable
+  JSON object.`
+- Old index 2 `resp_9d59ac43f87f460081a187fa28c4bf49` failed with
+  `runner_execution_failed: connect ETIMEDOUT 127.0.0.1:9222`.
+- Fresh retry manifest:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-151528.json`.
+- Fresh retry batch id: `batch_e9b79b1474ec4cf8a622e52f5b8f7bce`.
+- Fresh retry child response ids:
+  `resp_56c5a0d25823456d99d97e50114fe887`,
+  `resp_c073d5e002414a0c98f8ee0fe987470b`,
+  `resp_618693902f244b8e8a777cff9fc38305`.
+- Fresh retry status after several minutes remained `running` with counts
+  `total=3`, `in_progress=3`, `completed=0`, `failed=0`, `cancelled=0`,
+  `missing=0`.
+- No readouts were materialized in this turn.
+
+Next:
+
+- Poll the fresh retry manifest with:
+  `.venv/bin/python scripts/auracall_legacy_enrichment_batch.py --env-file /home/ecochran76/.local/state/transcribe-audio/auracall-transcripts.env status /home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-151528.json --materialize --store`.
+- If it completes, verify stored readouts and queue count.
+- If it fails or remains stuck for an unreasonable interval, diagnose AuraCall
+  with the fresh batch and child response ids rather than changing transcript
+  length.
