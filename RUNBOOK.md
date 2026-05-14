@@ -1855,3 +1855,53 @@ Next:
   verify the pending queue decreases.
 - If it fails, inspect `/v1/responses/resp_723b789f244446159354a2e751dde7a0`
   for the new recovery artifact contract before changing transcribe prompts.
+
+## Turn 64 | 2026-05-14
+
+Summary: Exercised AuraCall recovery/output contracts and updated the batch
+client to preserve full inline JSON while accepting future JSON artifact outputs.
+
+Action:
+
+- Polled the prior one-item recovery run and inspected its partial recovery
+  artifact.
+- Updated `scripts/auracall_legacy_enrichment_batch.py` so AuraCall requests no
+  longer use `metadata.response_format`, because browser-backed ChatGPT runs do
+  not reliably complete through that JSON-object path.
+- Added `response_model_payload()` materialization support for both inline
+  message JSON and future JSON artifact outputs.
+- Tried the ChatGPT workspace-file contract by asking for `legacy_readout.json`.
+- Observed that AuraCall completed the run with only
+  `legacy_readout.json ready` in `/v1/responses/{id}` and no artifact entries in
+  local `sharedState.artifacts`.
+- Tried full inline JSON without length limits; AuraCall returned JSON-like text
+  but with raw newlines, malformed nested sections, or truncation, so
+  materialization correctly rejected it.
+- A short capped prompt did materialize one readout successfully, but the cap was
+  removed because full-fidelity readouts should not be product-limited just to
+  work around provider transport.
+
+Validation:
+
+- Tests: `.venv/bin/python -m pytest tests/test_transcript_store.py
+  tests/test_readouts.py -q` passed with 39 tests.
+- Whitespace: `git diff --check` passed.
+- Workspace artifact trial:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-175431.json`.
+- Inline full-output trials:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-175902.json`
+  and
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-180139.json`.
+- Successful capped-output materialization:
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-180342.json`,
+  response `resp_19865f8e9d7046d68b523ea440a5a9be`, readout stored at
+  `/home/ecochran76/.transcripts/legacy-artifacts/63/63eb9090a1dcc8e9a332-2025-08-20 Nacu Eric Line of Business follow up meeting.readout.json`.
+- Current code intentionally does not keep the capped prompt; it preserves full
+  detail and validates before storing.
+
+Next:
+
+- Fix AuraCall to expose ChatGPT workspace/file artifacts as response outputs, or
+  add a durable attachment/output channel for large structured JSON.
+- After AuraCall exposes the full readout artifact, retry one uncapped item and
+  then resume the legacy enrichment batch.

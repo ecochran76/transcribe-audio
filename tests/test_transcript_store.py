@@ -575,10 +575,40 @@ def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path
     assert payload["request_count"] == 1
     assert payload["batch"] is None
     assert request["model"] == "agent:pro-extended-chatgpt-soylei-transcripts"
-    assert request["metadata"]["response_format"] == {"type": "json_object"}
+    assert request["metadata"]["outputContract"] == {
+        "mode": "inline_json_with_optional_workspace_artifact",
+        "artifactFileName": "legacy_readout.json",
+        "mimeType": "application/json",
+        "fallback": "none",
+    }
+    assert "legacy_readout.json" in request["input"][0]["content"]
+    assert "legacy_readout.json" in request["input"][1]["content"]
+    assert "Return exactly one valid JSON object" in request["input"][1]["content"]
+    assert "Preserve substantive detail" in request["input"][1]["content"]
     assert request["auracall"]["agent"] == "pro-extended-chatgpt-soylei-transcripts"
     assert request["auracall"]["runtimeProfile"] == "wsl-chrome-3"
     assert "AURACALL_BATCH_MANIFEST=" in stdout
+
+
+def test_auracall_response_model_payload_reads_json_artifact(tmp_path: Path) -> None:
+    artifact_path = tmp_path / "legacy_readout.json"
+    artifact_path.write_text(json.dumps(readout_payload()), encoding="utf-8")
+
+    model_payload = auracall_legacy_enrichment_batch.response_model_payload(
+        {
+            "output": [
+                {
+                    "type": "artifact",
+                    "artifact_type": "file",
+                    "mime_type": "application/json",
+                    "title": "legacy_readout.json",
+                    "path": str(artifact_path),
+                }
+            ]
+        }
+    )
+
+    assert model_payload["summary"] == "Tempo Chemical discussed sample evaluation."
 
 
 def test_backfill_dry_run_reports_counts_and_kinds(tmp_path: Path, capsys) -> None:

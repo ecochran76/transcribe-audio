@@ -124,18 +124,45 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def auracall_readout_system_prompt() -> str:
+    return (
+        readout_system_prompt()
+        + " For AuraCall browser-backed batch runs, the assistant message is the durable output. Return exactly "
+        "one valid JSON object in the assistant message. Do not reply with a readiness note. Do not include "
+        "markdown or code fences. If you also create a ChatGPT workspace file, name it legacy_readout.json, but "
+        "still return the same JSON object inline because workspace files may not be exposed to the API caller. "
+        "Preserve substantive detail instead of compressing the readout, while keeping the JSON syntax valid."
+    )
+
+
+def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
+    return (
+        "Return exactly one valid JSON object in this chat response. Do not respond with "
+        "`legacy_readout.json ready` unless the same response also contains the complete JSON object. Escape any "
+        "line breaks inside string values as \\n, or avoid line breaks inside strings. If workspace artifacts are "
+        "available, you may also create legacy_readout.json with the same JSON content, but the inline JSON is "
+        "required. Preserve substantive detail instead of summarizing away important context.\n\n"
+        + build_readout_prompt(artifact)
+    )
+
+
 def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
     source_path = Path(str(item["source_path"])).expanduser().resolve()
     artifact = load_transcript_artifact(source_path)
     return {
         "model": model,
         "input": [
-            {"role": "system", "content": readout_system_prompt()},
-            {"role": "user", "content": build_readout_prompt(artifact)},
+            {"role": "system", "content": auracall_readout_system_prompt()},
+            {"role": "user", "content": auracall_readout_prompt(artifact)},
         ],
         "metadata": {
-            "response_format": {"type": "json_object"},
             "workflow": "transcribe-audio-legacy-enrichment",
+            "outputContract": {
+                "mode": "inline_json_with_optional_workspace_artifact",
+                "artifactFileName": "legacy_readout.json",
+                "mimeType": "application/json",
+                "fallback": "none",
+            },
             "transcriptDocumentId": item.get("id"),
             "transcriptTitle": item.get("title"),
             "sourcePath": str(source_path),
@@ -195,6 +222,54 @@ def response_text(payload: dict[str, Any]) -> str:
             if isinstance(part, dict) and isinstance(part.get("text"), str):
                 parts.append(part["text"])
     return "\n".join(parts).strip()
+
+
+def artifact_payload_text(item: dict[str, Any]) -> str:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    path_text = (
+        item.get("path")
+        or item.get("uri")
+        or metadata.get("path")
+        or metadata.get("uri")
+        or metadata.get("download_path")
+    )
+    if path_text:
+        path = Path(str(path_text)).expanduser()
+        if path.exists() and path.is_file():
+            return path.read_text(encoding="utf-8", errors="replace")
+
+    for key in ("text", "content", "json", "data"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False)
+    return ""
+
+
+def response_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    text = response_text(payload)
+    if text:
+        try:
+            return parse_model_json_object(text)
+        except TranscriptionError:
+            pass
+
+    for item in payload.get("output") or []:
+        if not isinstance(item, dict) or item.get("type") != "artifact":
+            continue
+        artifact_type = str(item.get("artifact_type") or item.get("artifactType") or item.get("kind") or "").lower()
+        mime_type = str(item.get("mime_type") or item.get("mimeType") or "").lower()
+        title = str(item.get("title") or item.get("filename") or item.get("name") or "")
+        if artifact_type and artifact_type not in {"file", "json"}:
+            continue
+        if mime_type and "json" not in mime_type and not title.endswith(".json"):
+            continue
+        content = artifact_payload_text(item)
+        if content.strip():
+            return parse_model_json_object(content)
+
+    raise TranscriptionError("AuraCall response did not include parseable readout JSON text or artifact output.")
 
 
 def enqueue(args: argparse.Namespace) -> int:
@@ -271,8 +346,7 @@ def materialize_completed(args: argparse.Namespace, manifest: dict[str, Any], ba
         if not job or job.get("status") != "completed" or not job.get("responseId"):
             continue
         response = read_json_url(f"{base_url}/responses/{job['responseId']}", api_key)
-        content = response_text(response)
-        model_payload = parse_model_json_object(content)
+        model_payload = response_model_payload(response)
         json_path, markdown_path = write_readout_from_payload(
             Path(str(item["source_path"])),
             model_payload,
