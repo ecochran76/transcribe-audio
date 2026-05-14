@@ -127,21 +127,20 @@ def utc_now_iso() -> str:
 def auracall_readout_system_prompt() -> str:
     return (
         readout_system_prompt()
-        + " For AuraCall browser-backed batch runs, the assistant message is the durable output. Return exactly "
-        "one valid JSON object in the assistant message. Do not reply with a readiness note. Do not include "
-        "markdown or code fences. If you also create a ChatGPT workspace file, name it legacy_readout.json, but "
-        "still return the same JSON object inline because workspace files may not be exposed to the API caller. "
-        "Preserve substantive detail instead of compressing the readout, while keeping the JSON syntax valid."
+        + " For AuraCall browser-backed batch runs, write the structured JSON readout into a ChatGPT "
+        "REPL/workspace file named legacy_readout.json and surface it as a downloadable artifact. The assistant "
+        "message is only a readiness marker after the artifact is available. Do not compress the readout for "
+        "chat-message length; preserve substantive detail in the JSON file."
     )
 
 
 def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
     return (
-        "Return exactly one valid JSON object in this chat response. Do not respond with "
-        "`legacy_readout.json ready` unless the same response also contains the complete JSON object. Escape any "
-        "line breaks inside string values as \\n, or avoid line breaks inside strings. If workspace artifacts are "
-        "available, you may also create legacy_readout.json with the same JSON content, but the inline JSON is "
-        "required. Preserve substantive detail instead of summarizing away important context.\n\n"
+        "Create a ChatGPT REPL/workspace file named legacy_readout.json. The file must contain exactly one valid "
+        "JSON object using the requested readout schema. Surface legacy_readout.json as a downloadable artifact. "
+        "Do not put the full JSON object in the assistant message. After the downloadable artifact is available, "
+        "reply exactly: legacy_readout.json ready. Preserve substantive detail instead of summarizing away "
+        "important context.\n\n"
         + build_readout_prompt(artifact)
     )
 
@@ -158,7 +157,7 @@ def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
         "metadata": {
             "workflow": "transcribe-audio-legacy-enrichment",
             "outputContract": {
-                "mode": "inline_json_with_optional_workspace_artifact",
+                "mode": "chatgpt_workspace_artifact",
                 "artifactFileName": "legacy_readout.json",
                 "mimeType": "application/json",
                 "fallback": "none",

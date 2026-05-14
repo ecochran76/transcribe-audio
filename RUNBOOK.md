@@ -1905,3 +1905,40 @@ Next:
   add a durable attachment/output channel for large structured JSON.
 - After AuraCall exposes the full readout artifact, retry one uncapped item and
   then resume the legacy enrichment batch.
+
+## Turn 65 | 2026-05-14
+
+Summary: Restored the legacy enrichment request contract to artifact-first
+ChatGPT workspace output.
+
+Action:
+
+- Updated `scripts/auracall_legacy_enrichment_batch.py` so the SoyLei
+  Transcripts AuraCall batch request instructs ChatGPT to create
+  `legacy_readout.json` in its REPL/workspace and surface it as a downloadable
+  artifact.
+- Removed the inline JSON requirement from the AuraCall-specific prompt; the
+  assistant message is now only the readiness marker
+  `legacy_readout.json ready`.
+- Changed `metadata.outputContract.mode` from
+  `inline_json_with_optional_workspace_artifact` to
+  `chatgpt_workspace_artifact`.
+- Kept `response_model_payload()` able to parse artifact outputs first after a
+  non-JSON readiness message, while still tolerating parseable inline JSON for
+  backward compatibility.
+
+Validation:
+
+- AuraCall-side live smoke `resp_db52dcf73b7d44b0abbffd327bbeac5c` now proves
+  the browser run lands inside the SoyLei `Transcripts` project URL, but it
+  still recorded `discovered=0 materialized=0` for the requested artifact.
+- This transcribe-side change does not claim artifact extraction is fixed; it
+  aligns the caller with the intended artifact contract so the next smoke tests
+  the right behavior.
+
+Next:
+
+- Probe the project-bound ChatGPT conversation/artifact UI directly from
+  AuraCall to decide whether ChatGPT generated `legacy_readout.json` and
+  AuraCall missed it, or ChatGPT replied ready without creating a downloadable
+  artifact.
