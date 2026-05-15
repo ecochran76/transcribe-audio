@@ -1938,6 +1938,12 @@ Validation:
 - Correction: the first artifact-first prompt still allowed a text-only
   readiness response. The prompt now explicitly says a text-only readiness note
   is not sufficient.
+- Live retry `resp_6b10a6d743e84ec3a775060fda94b120` reached the SoyLei
+  `Transcripts` project but ChatGPT returned the future-tense status sentence
+  `I'll create the JSON readout...` with no artifact. The prompt was tightened
+  again to forbid future-tense/status replies and require an actual
+  `sandbox:/.../legacy_readout.json` link or native attachment card in the final
+  response.
 
 Next:
 

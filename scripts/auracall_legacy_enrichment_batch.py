@@ -130,8 +130,9 @@ def auracall_readout_system_prompt() -> str:
         + " For AuraCall browser-backed batch runs, write the structured JSON readout into a ChatGPT "
         "REPL/workspace file named legacy_readout.json and surface it as a downloadable artifact in the final "
         "assistant response. The final response must expose the actual artifact/download link or attachment card; "
-        "a text-only readiness note is not sufficient. Do not compress the readout for chat-message length; "
-        "preserve substantive detail in the JSON file."
+        "a text-only readiness note is not sufficient. Never reply with a future-tense status such as "
+        "\"I'll create the file\". Use the workspace/REPL file mechanism before answering. Do not compress the "
+        "readout for chat-message length; preserve substantive detail in the JSON file."
     )
 
 
@@ -139,9 +140,11 @@ def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
     return (
         "Create a ChatGPT REPL/workspace file named legacy_readout.json. The file must contain exactly one valid "
         "JSON object using the requested readout schema. Surface legacy_readout.json as a downloadable artifact. "
-        "Do not put the full JSON object in the assistant message. Your final response must include the actual "
-        "downloadable legacy_readout.json artifact/link or attachment card; do not reply with only a text "
-        "readiness note. Preserve substantive detail instead of summarizing away important context.\n\n"
+        "Do not put the full JSON object in the assistant message. Do not describe what you will do. Do the file "
+        "creation first. Your final response must include the actual downloadable legacy_readout.json "
+        "artifact/link or attachment card, such as a sandbox:/.../legacy_readout.json link when that is the "
+        "workspace file URL shape; do not reply with only a text readiness note. Preserve substantive detail "
+        "instead of summarizing away important context.\n\n"
         + build_readout_prompt(artifact)
     )
 
