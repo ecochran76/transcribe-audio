@@ -1966,3 +1966,44 @@ Next:
   AuraCall to decide whether ChatGPT generated `legacy_readout.json` and
   AuraCall missed it, or ChatGPT replied ready without creating a downloadable
   artifact.
+
+## Turn 66 | 2026-05-14
+
+Summary: Scaled the working AuraCall artifact path to a five-item legacy
+enrichment batch.
+
+Action:
+
+- Ran a dry-run over five pending legacy transcript artifacts to confirm the
+  selected slice.
+- Submitted live batch
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-192515.json`.
+- Batch id: `batch_4039e070788e4190b371d6e9be4a4627`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Limits: `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`.
+- Polled with `status --materialize --store` until completion.
+
+Validation:
+
+- Batch completed with `total=5`, `completed=5`, `failed=0`.
+- Response ids:
+  - `resp_e5550593a3eb46d59770fc3ae5acaa64`
+  - `resp_779cbfa125b1435a86de0d2bab81d9f3`
+  - `resp_0c524b251f514100bb162520ae41aa12`
+  - `resp_61d874f762324a73a399491bb8269ad7`
+  - `resp_bdb5f5b24ff540799ddf51e1de8ee69b`
+- Materialized readouts:
+  - `/home/ecochran76/.transcripts/legacy-artifacts/fe/feb0a84f7d5262804b3f-2025-08-22 Baker Pappajohn Pitch My recording 21.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/84/843ca41a06ab290c2a66-2025-08-26 Amazon SoyLei Bio My recording 20.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/1d/1dd5a4304e17b9b76f9d-2025-05-15 SoyLei USDA BPP NCAT Visit My recording 3.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/da/dae8087a62f028b8c6cf-2025-05-19 Dr Dikis Follow up My recording 4.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/a9/a9c53a94e82d1b027bf5-2025-05-20 Saber Corn Board Call Alex Buck My recording 5.readout.json`
+- File verification confirmed all five JSON and Markdown outputs exist and are
+  non-empty.
+
+Next:
+
+- Continue scaling conservatively with a 10-item batch at concurrency 1.
+- If 10 items pass cleanly, consider raising batch size before raising
+  concurrency; keep browser interaction rate limiting unchanged until there is
+  more variability data.
