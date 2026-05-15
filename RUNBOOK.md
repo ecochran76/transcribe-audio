@@ -2060,3 +2060,56 @@ Next:
 - Retry only the two missing items, not the whole ten-item batch.
 - Keep batch size at 10 and concurrency at 1 until the account-drift and
   text-only artifact noncompliance paths are resolved.
+
+## Turn 68 | 2026-05-14
+
+Summary: Retried the two missing AuraCall legacy enrichment items after
+verifying the SoyLei ChatGPT runtime identity.
+
+Action:
+
+- Verified Graphiti runtime health with `graphiti-runtime doctor`.
+- Queried Graphiti group `transcribe_audio_main`; no newer AuraCall retry fact
+  superseded the repo runbook/manifest evidence.
+- Confirmed AuraCall profile identity using
+  `auracall --profile wsl-chrome-3 profile identity-smoke --target chatgpt --prune-browser-state --json`.
+- Identity preflight passed for runtime profile `wsl-chrome-3`: expected and
+  actual ChatGPT identity were both `eric.cochran@soylei.com`.
+- Dry-run queue
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-210644.json`
+  confirmed the first two pending items were exactly the two missing artifacts
+  from Turn 67.
+- Submitted live retry batch
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-210745.json`.
+- Batch id: `batch_9613778ae9fb4dd7a8257eed82375a23`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Limits: `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`.
+
+Validation:
+
+- Batch completed with `total=2`, `completed=2`, `failed=0`, `cancelled=0`,
+  `missing=0`.
+- Materialization failed for both completed responses with
+  `AuraCall response did not include parseable readout JSON text or artifact output`.
+- Response `resp_1d69ad3a4036474c8434e6d9929ff5af` for
+  `/home/ecochran76/.transcripts/legacy-artifacts/e4/e4443a54bbb79a9a2e48-2025-07-30 Nacu Breakfast with Nacu My recording 17.transcript.json`
+  returned one assistant message only, beginning:
+  `I'll create the requested legacy_readout.json artifact...`.
+- Response `resp_1a585eb1c56f42c4982cf8df41f8b5b4` for
+  `/home/ecochran76/.transcripts/legacy-artifacts/f6/f6d8ca6ef3bc0eecc682-2024-10-07 Vigil Cochran Performance Review My recording 5.transcript.json`
+  returned one assistant message only, beginning:
+  `I'm reading the attachment as an instruction packet...`.
+- Neither response included any `artifact` output objects, local artifact path,
+  downloadable JSON metadata, or parseable inline JSON.
+- This retry proves the prior account-session drift was fixed before enqueue,
+  but the browser runner can still stop at a future-tense/status-only ChatGPT
+  reply even though the prompt forbids that shape.
+
+Next:
+
+- Fix AuraCall/OpenAI-compatible response handling or browser completion
+  criteria so a ChatGPT response is not marked complete until the required
+  `legacy_readout.json` artifact is present.
+- Keep the two failed retry response ids and manifest as the current diagnostic
+  boundary; do not keep re-enqueueing these two transcripts until the runner
+  distinguishes "started working" status replies from completed artifacts.
