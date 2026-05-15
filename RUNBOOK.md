@@ -2113,3 +2113,58 @@ Next:
 - Keep the two failed retry response ids and manifest as the current diagnostic
   boundary; do not keep re-enqueueing these two transcripts until the runner
   distinguishes "started working" status replies from completed artifacts.
+
+## Turn 69 | 2026-05-15
+
+Summary: Retried the two missing AuraCall legacy enrichment items after the
+installed AuraCall runtime upgrade; the retry did not produce artifacts and was
+cancelled after live browser/runtime diagnostics showed dispatch instability.
+
+Action:
+
+- Verified Graphiti runtime health and queried repo group `transcribe_audio_main`;
+  no newer Graphiti fact superseded the repo runbook/manifest evidence.
+- Confirmed the installed AuraCall service contained the required-artifact guard,
+  then restarted `auracall-api.service` because it had been running since before
+  the upgraded artifact-contract code was installed.
+- Submitted live retry batch
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260515-055623.json`.
+- Batch id: `batch_88aa13c439f44ea3a62aa9e636a5ddcc`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Limits: `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`.
+- Response ids:
+  - `resp_971323e460de434d93bf2b44941091d7`
+  - `resp_f047ef728c7e456ab2f7e8f03289fc52`
+
+Validation:
+
+- Initial batch execution was blocked by stale ChE grading response runs holding
+  the same `wsl-chrome-3` ChatGPT browser runner. Cancelled:
+  - `resp_6998b1db0f744932832054674dc17e65`
+  - `resp_634a607998244cde84139e505600aa1f`
+  - `resp_348547c367514c08899e2ea345ec3e63`
+- First transcript response `resp_971323e460de434d93bf2b44941091d7` reached
+  running state, but the managed Chrome renderer became unresponsive to direct
+  CDP `Runtime.evaluate`. The managed Chrome process was terminated to release
+  the browser lock, which stranded that response; it was cancelled at
+  `2026-05-15T11:23:03Z`.
+- Second transcript response `resp_f047ef728c7e456ab2f7e8f03289fc52` was then
+  drained directly. Live CDP inspection showed the `wsl-chrome-3` ChatGPT tab
+  idle at `https://chatgpt.com/`, not in the Transcripts project and not
+  generating/submitting transcript work. It was cancelled at
+  `2026-05-15T11:30:56Z`.
+- Final batch status: `total=2`, `cancelled=2`, `completed=0`, `failed=0`,
+  `materialized=0`, `materialization_errors=0`.
+- This retry did not prove the ChatGPT artifact contract; it exposed a lower
+  AuraCall browser dispatch/runtime problem before artifact generation could be
+  tested.
+
+Next:
+
+- Fix AuraCall browser dispatch for project-bound `agent:pro-extended-chatgpt-soylei-transcripts`
+  so it reliably opens the Transcripts project, submits the attached request,
+  and reports a failure when navigation/submission does not happen.
+- Add or use a small project-bound artifact smoke before retrying private
+  transcript payloads again.
+- After that smoke passes, retry only the two missing legacy items from the
+  current manifest.
