@@ -2323,3 +2323,50 @@ Next:
   output names do not repeat an already-calendar-prefixed title.
 - Repair Slack notification PATH or command availability if success/failure
   alerts are still desired; current logs show `openclaw not found on PATH`.
+
+## Turn 73 | 2026-05-15
+
+Summary: Continued watcher monitoring, found that calendar-renamed media could
+still be retried after success, and hardened retry detection so renamed/same-size
+successful media are treated as already processed.
+
+Action:
+
+- Monitored the current Downloads backlog after the one-file-per-job scan change.
+- Confirmed `2026-05-01 12-00 ChE 4470 and 1 other(s) My recording 111.m4a`
+  completed via AssemblyAI, wrote calendar-context artifacts, and stored them in
+  `~/.transcripts`.
+- Confirmed both Syncthing Sound Recordings files completed and stored; the
+  Syncthing job later showed `candidates=0`.
+- Found two retry gaps caused by calendar renames:
+  - same media path could be retried when mtime/fingerprint changed after a
+    successful rename;
+  - renamed paths could be retried when the new filename embedded the old media
+    filename but mtime was not stable enough for the previous equivalence check.
+- Hardened watcher retry logic:
+  - a successful processed record with the same file size is not retried just
+    because the fingerprint changed;
+  - renamed media is matched against successful prior records by same size and
+    embedded prior filename.
+- Restarted `transcribe-watch.service` to load the patch and cancel duplicate
+  in-flight retries.
+
+Validation:
+
+- `python -m py_compile watch_transcriptions.py` passed.
+- `git diff --check` passed.
+- After restart, the watcher skipped duplicate renamed media and advanced to
+  `2026-05-01 10-00 BOTTLE update meeting - Sweeney My recording 110.m4a`.
+- `110.m4a` completed via AssemblyAI, matched calendar event
+  `BOTTLE update meeting - Sweeney`, wrote a transcript artifact, and stored it
+  under `~/.transcripts/artifacts/56/...`.
+- Final observed service state: active under systemd, no child process running,
+  Downloads state had 45 processed path records and 60 candidates, Syncthing
+  state had 5 processed path records and 0 candidates.
+
+Next:
+
+- Fix the root filename construction so calendar prefixes are not prepended to
+  filenames that already contain the calendar title/date.
+- Keep the watcher running; continue periodic monitor passes while historical
+  Downloads backlog drains.

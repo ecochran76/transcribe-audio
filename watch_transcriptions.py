@@ -620,7 +620,9 @@ def iter_candidates(job: WatchJob) -> list[Path]:
     return candidates
 
 
-def should_retry(record: ProcessedRecord, now: float, fingerprint: str) -> bool:
+def should_retry(record: ProcessedRecord, now: float, fingerprint: str, size: int) -> bool:
+    if record.status == "success" and record.size == size:
+        return False
     if record.fingerprint != fingerprint:
         return True
     if record.status == "success":
@@ -633,13 +635,20 @@ def should_retry(record: ProcessedRecord, now: float, fingerprint: str) -> bool:
 def equivalent_processed_record(
     processed: dict[str, ProcessedRecord],
     *,
+    media_path: Path,
     size: int,
     mtime: float,
 ) -> Optional[ProcessedRecord]:
-    for record in processed.values():
+    media_name = media_path.name.casefold()
+    for path_key, record in processed.items():
         if record.status != "success":
             continue
-        if record.size == size and abs(record.mtime - mtime) < 0.001:
+        if record.size != size:
+            continue
+        prior_name = Path(path_key).name.casefold()
+        if media_name == prior_name or media_name.endswith(prior_name):
+            return record
+        if abs(record.mtime - mtime) < 0.001:
             return record
     return None
 
@@ -915,13 +924,18 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
         fingerprint = fingerprint_for(media_path, size, mtime)
         processed = job_state.processed.get(key)
 
-        if processed and not should_retry(processed, now, fingerprint):
+        if processed and not should_retry(processed, now, fingerprint, size):
             if verbose:
                 print(f"[{job.name}] Skipping already-processed file {media_path}", flush=True)
             job_state.candidates.pop(key, None)
             continue
 
-        equivalent_processed = equivalent_processed_record(job_state.processed, size=size, mtime=mtime)
+        equivalent_processed = equivalent_processed_record(
+            job_state.processed,
+            media_path=media_path,
+            size=size,
+            mtime=mtime,
+        )
         if equivalent_processed and not processed:
             if verbose:
                 print(
