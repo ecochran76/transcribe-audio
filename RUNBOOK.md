@@ -2275,3 +2275,51 @@ Next:
   first broadened-glob transcription completes and store ingest succeeds.
 - If AssemblyAI fails, confirm the faster-whisper fallback completes before
   changing service scope.
+
+## Turn 72 | 2026-05-15
+
+Summary: Continued live watcher monitoring after broadening the watch scope;
+confirmed end-to-end transcription, calendar context, store ingest,
+faster-whisper fallback, Syncthing ingestion, and then hardened the watcher so
+new recordings remain responsive while historical backlog drains.
+
+Action:
+
+- Monitored `transcribe-watch.service` after enabling `*.m4a` matching and the
+  Syncthing Sound Recordings job.
+- Confirmed the broadened Downloads job completed
+  `2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129.m4a` via
+  AssemblyAI with calendar context and stored two transcript artifacts.
+- Confirmed AssemblyAI rejected the long NCAT/MnROAD recording as
+  `Audio duration is too long`; the watcher correctly fell back to
+  faster-whisper and stored the resulting transcript artifact.
+- Confirmed Syncthing Sound Recordings ingestion completed
+  `2022-08-10 Drive Time Live on KSCJ.m4a` via AssemblyAI and stored the
+  transcript artifact.
+- Changed the watcher to process at most one file per job per scan, forcing
+  state saves between files and allowing newly arrived recordings to be noticed
+  between backlog items.
+- Added duplicate-rename protection: if a calendar-renamed media file has the
+  same size and mtime as a successful prior record, the watcher records the new
+  path as already processed instead of transcribing it again.
+- Restarted `transcribe-watch.service` to load both changes.
+
+Validation:
+
+- `python -m py_compile watch_transcriptions.py` passed.
+- `git diff --check` passed.
+- After restart, the watcher marked renamed aliases for already-processed files
+  instead of reprocessing them.
+- The service advanced to the next real unprocessed Downloads file:
+  `2026-05-01 12-00 ChE 4470 and 1 other(s) My recording 111.m4a` via AssemblyAI.
+- Live service remained active under systemd with calendar flags present on
+  child transcription commands.
+
+Next:
+
+- Continue periodic monitoring until the backlog is drained enough that the
+  newest incoming recordings are handled immediately.
+- Fix the underlying filename duplication behavior separately so calendar-aware
+  output names do not repeat an already-calendar-prefixed title.
+- Repair Slack notification PATH or command availability if success/failure
+  alerts are still desired; current logs show `openclaw not found on PATH`.

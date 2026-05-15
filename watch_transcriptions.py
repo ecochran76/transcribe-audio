@@ -630,6 +630,20 @@ def should_retry(record: ProcessedRecord, now: float, fingerprint: str) -> bool:
     return now >= record.next_retry_after
 
 
+def equivalent_processed_record(
+    processed: dict[str, ProcessedRecord],
+    *,
+    size: int,
+    mtime: float,
+) -> Optional[ProcessedRecord]:
+    for record in processed.values():
+        if record.status != "success":
+            continue
+        if record.size == size and abs(record.mtime - mtime) < 0.001:
+            return record
+    return None
+
+
 def shorten(text: str, limit: int = 500) -> str:
     text = (text or "").strip()
     if len(text) <= limit:
@@ -907,6 +921,18 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
             job_state.candidates.pop(key, None)
             continue
 
+        equivalent_processed = equivalent_processed_record(job_state.processed, size=size, mtime=mtime)
+        if equivalent_processed and not processed:
+            if verbose:
+                print(
+                    f"[{job.name}] Skipping renamed already-processed file {media_path}",
+                    flush=True,
+                )
+            job_state.processed[key] = equivalent_processed
+            job_state.candidates.pop(key, None)
+            changed = True
+            continue
+
         if age < job.min_age_seconds:
             if verbose:
                 print(f"[{job.name}] Waiting for minimum age on {media_path} ({age:.1f}s)", flush=True)
@@ -945,6 +971,7 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
         elif latest:
             stats.failure_count += 1
         changed = True
+        break
 
     stale_candidates = [key for key in job_state.candidates if key not in live_keys]
     for key in stale_candidates:
