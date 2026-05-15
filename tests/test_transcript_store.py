@@ -615,6 +615,33 @@ def test_auracall_response_model_payload_reads_json_artifact(tmp_path: Path) -> 
     assert model_payload["summary"] == "Tempo Chemical discussed sample evaluation."
 
 
+def test_auracall_response_model_payload_reads_generated_json_artifact_metadata_path(tmp_path: Path) -> None:
+    artifact_path = tmp_path / "legacy_readout.json"
+    artifact_path.write_text(json.dumps(readout_payload()), encoding="utf-8")
+
+    model_payload = auracall_legacy_enrichment_batch.response_model_payload(
+        {
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "[Download legacy_readout.json](sandbox:/mnt/data/legacy_readout.json)"}],
+                },
+                {
+                    "type": "artifact",
+                    "artifact_type": "generated",
+                    "mime_type": "application/json",
+                    "title": "Download legacy_readout.json",
+                    "uri": "sandbox:/mnt/data/legacy_readout.json",
+                    "metadata": {"localPath": str(artifact_path)},
+                },
+            ]
+        }
+    )
+
+    assert model_payload["summary"] == "Tempo Chemical discussed sample evaluation."
+
+
 def test_backfill_dry_run_reports_counts_and_kinds(tmp_path: Path, capsys) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()

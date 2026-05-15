@@ -1944,6 +1944,21 @@ Validation:
   again to forbid future-tense/status replies and require an actual
   `sandbox:/.../legacy_readout.json` link or native attachment card in the final
   response.
+- Second retry `resp_48647ca8e7bc42979f89f20dd4778dee` produced a sandbox
+  artifact link and AuraCall recorded `discovered=1 materialized=1`, but the
+  response artifact was still exposed as `artifact_type=generated` without a
+  local path, so the transcribe materializer rejected it.
+- AuraCall was patched and reinstalled to preserve the materialized local path
+  and JSON MIME metadata on response artifacts. The transcribe materializer was
+  patched to accept generated/download JSON artifacts and prefer
+  `metadata.localPath` over sandbox URIs.
+- Final smoke `batch_ca0a6f46ed1844c0a789329bcc241053` /
+  `resp_4235722877774ee79e158be3843de653` completed and materialized:
+  - `/home/ecochran76/.transcripts/legacy-artifacts/5d/5d26c585ac566dc22c0d-2025-08-21 Lululemon JP Siddhant Xlinked HBAN  My recording 20.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/5d/5d26c585ac566dc22c0d-2025-08-21 Lululemon JP Siddhant Xlinked HBAN  My recording 20.readout.md`
+  - API artifact evidence included `artifact_type=file`,
+    `mime_type=application/json`, `disposition=attachment`, remote ChatGPT
+    estuary URL, and `metadata.localPath`.
 
 Next:
 

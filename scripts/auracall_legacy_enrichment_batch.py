@@ -231,10 +231,11 @@ def artifact_payload_text(item: dict[str, Any]) -> str:
     metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
     path_text = (
         item.get("path")
-        or item.get("uri")
         or metadata.get("path")
+        or metadata.get("localPath")
         or metadata.get("uri")
         or metadata.get("download_path")
+        or item.get("uri")
     )
     if path_text:
         path = Path(str(path_text)).expanduser()
@@ -264,9 +265,11 @@ def response_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
         artifact_type = str(item.get("artifact_type") or item.get("artifactType") or item.get("kind") or "").lower()
         mime_type = str(item.get("mime_type") or item.get("mimeType") or "").lower()
         title = str(item.get("title") or item.get("filename") or item.get("name") or "")
-        if artifact_type and artifact_type not in {"file", "json"}:
+        uri = str(item.get("uri") or "")
+        json_named = title.lower().endswith(".json") or uri.lower().endswith(".json")
+        if artifact_type and artifact_type not in {"file", "json", "generated", "download"} and not json_named:
             continue
-        if mime_type and "json" not in mime_type and not title.endswith(".json"):
+        if mime_type and "json" not in mime_type and not json_named:
             continue
         content = artifact_payload_text(item)
         if content.strip():
