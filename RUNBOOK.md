@@ -2233,3 +2233,45 @@ Next:
   behavior that produced a downloaded cache file.
 - After that fix, rerun the same two-item manifest or enqueue another two-item
   bounded retry; do not widen the batch until materialization succeeds.
+
+## Turn 71 | 2026-05-15
+
+Summary: Repaired the live auto-transcription watcher so it sees current `.m4a`
+files in Downloads and Syncthing Sound Recordings, keeps calendar mode enabled,
+and drains newest recordings first.
+
+Action:
+
+- Verified `transcribe-watch.service` was active but reporting
+  `candidates=0` for hours.
+- Found the runtime config only watched `~/Downloads` with glob
+  `My Recording*.m4a`, which missed dated Windows recorder files such as
+  `2026-05-13 ... My recording 129.m4a`.
+- Updated ignored runtime config `watch_transcriptions.json` to watch all
+  `*.m4a` files in `~/Downloads` and added a recursive
+  `~/SyncThing/Documents/Sound Recordings` job.
+- Updated tracked sample config to use `*.m4a` for Downloads examples.
+- Updated watcher candidate ordering to newest-first so recent recordings are
+  not blocked behind older backlog.
+- Restarted `transcribe-watch.service`.
+
+Validation:
+
+- Service restarted cleanly and loaded two jobs:
+  `downloads-mobile-recordings` and `syncthing-sound-recordings`.
+- Heartbeat changed from `candidates=0` to `candidates=88`.
+- The live child process began transcribing
+  `/mnt/c/Users/ecoch/Downloads/2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129.m4a`
+  via AssemblyAI.
+- The live transcription command includes calendar mode:
+  `--use-calendar --calendar-providers gog,gws,google-api --calendar-id primary --calendar-window 24`.
+- State after restart showed `downloads-mobile-recordings` with 77 pending
+  candidates and `syncthing-sound-recordings` with 2 pending candidates while
+  the newest file was actively transcribing.
+
+Next:
+
+- Keep monitoring `journalctl --user -u transcribe-watch.service -f` until the
+  first broadened-glob transcription completes and store ingest succeeds.
+- If AssemblyAI fails, confirm the faster-whisper fallback completes before
+  changing service scope.

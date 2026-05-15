@@ -613,7 +613,10 @@ def iter_candidates(job: WatchJob) -> list[Path]:
         if not fnmatch.fnmatch(path.name.lower(), job.glob.lower()):
             continue
         candidates.append(path.resolve())
-    candidates.sort(key=lambda item: str(item).lower())
+    candidates.sort(
+        key=lambda item: (item.stat().st_mtime, str(item).lower()),
+        reverse=True,
+    )
     return candidates
 
 
