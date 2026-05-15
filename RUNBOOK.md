@@ -2168,3 +2168,68 @@ Next:
   transcript payloads again.
 - After that smoke passes, retry only the two missing legacy items from the
   current manifest.
+
+## Turn 70 | 2026-05-15
+
+Summary: Verified the strengthened artifact-surfacing prompt against the
+project-bound AuraCall ChatGPT agent, then retried the two pending legacy
+transcript enrichments. The prompt now reaches ChatGPT and produces visible
+`legacy_readout.json` artifact references, but AuraCall skips downloading those
+`sandbox:` artifacts for the real transcript runs, so no local readouts were
+materialized.
+
+Action:
+
+- Verified Graphiti runtime health and queried repo group `transcribe_audio_main`;
+  no newer Graphiti fact superseded repo/runtime evidence.
+- Confirmed `auracall-api.service` was active and the runtime env targeted
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Ran a non-private artifact smoke through `/v1/response-batches` using the same
+  Transcripts project-bound agent. Smoke batch `batch_5243d5260bb94feabb28b55e5f13e9e3`
+  completed with response `resp_3202e87977554bd8b2f4990a47614c03` and produced a
+  downloaded `legacy_readout.json` file under the AuraCall ChatGPT attachment
+  cache.
+- Submitted live legacy retry batch
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260515-091327.json`.
+- Batch id: `batch_fdedf5abec1f496987d3a7a5769fe1b4`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Limits: `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`.
+- Response ids:
+  - `resp_0597befb3edf4e7fb6e201557f633b41`
+  - `resp_7c146c4c0712414a891933cb24acd150`
+
+Validation:
+
+- The live batch completed: `total=2`, `completed=2`, `failed=0`, `cancelled=0`,
+  `missing=0`.
+- Both real transcript requests contained explicit instructions to create a
+  ChatGPT REPL/workspace file named `legacy_readout.json`, surface it as a
+  downloadable artifact/link/card, avoid text-only readiness replies, and avoid
+  compressing the JSON for chat-message length.
+- Response `resp_0597befb3edf4e7fb6e201557f633b41` returned an assistant status
+  message plus an artifact object:
+  `uri=sandbox:/mnt/data/legacy_readout.json`, `title=legacy_readout.json`,
+  `artifact_type=generated`.
+- Response `resp_7c146c4c0712414a891933cb24acd150` returned the same artifact
+  shape: `uri=sandbox:/mnt/data/legacy_readout.json`, `title=legacy_readout.json`,
+  `artifact_type=generated`.
+- AuraCall artifact-fetch manifests for conversations
+  `6a072a0d-abd8-83ea-9fe7-ffbc28a4a522` and
+  `6a072a9c-9b1c-83ea-823d-b11a2da12fa1` show `artifactCount=1`,
+  `materializedCount=0`, and the `legacy_readout.json` `sandbox:` entry marked
+  `status=skipped`.
+- The transcribe-audio materializer therefore reported both completed responses
+  as `AuraCall response did not include parseable readout JSON text or artifact
+  output` and wrote no local readout JSON files.
+
+Next:
+
+- Treat the prompt and project-bound dispatch as proven enough for the current
+  boundary: the real failure is that AuraCall exposes only a generated
+  `sandbox:/mnt/data/legacy_readout.json` artifact reference for these transcript
+  jobs and skips downloading it into a file/artifact output.
+- Fix AuraCall artifact fetching so generated `sandbox:` download artifacts are
+  fetched or surfaced with a retrievable local path/content, matching the smoke
+  behavior that produced a downloaded cache file.
+- After that fix, rerun the same two-item manifest or enqueue another two-item
+  bounded retry; do not widen the batch until materialization succeeds.
