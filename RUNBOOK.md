@@ -2007,3 +2007,56 @@ Next:
 - If 10 items pass cleanly, consider raising batch size before raising
   concurrency; keep browser interaction rate limiting unchanged until there is
   more variability data.
+
+## Turn 67 | 2026-05-14
+
+Summary: Scaled AuraCall legacy enrichment to a ten-item batch and preserved
+partial materialization across provider/runtime failures.
+
+Action:
+
+- Submitted live batch
+  `/home/ecochran76/.local/state/transcribe-audio/auracall-batches/legacy-enrichment-20260514-194324.json`.
+- Batch id: `batch_e4aee9e4995d427980782ab7493af600`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Limits: `maxConcurrentRuns=1`, `maxBrowserInteractionsPerMinute=6`.
+- Polled with `status --materialize --store`.
+- Hardened `scripts/auracall_legacy_enrichment_batch.py` so materialization
+  records per-item extraction failures instead of aborting the whole batch and
+  dropping later successful readouts.
+
+Validation:
+
+- Batch terminal state was not clean: `total=10`, `completed=9`, `failed=1`,
+  `cancelled=0`, `missing=0`.
+- The failed runner item was index 4,
+  `resp_5abdf807f712471bbfb0c89f171631c8`, for
+  `/home/ecochran76/.transcripts/legacy-artifacts/e4/e4443a54bbb79a9a2e48-2025-07-30 Nacu Breakfast with Nacu My recording 17.transcript.json`.
+- Failure cause: ChatGPT browser auth preflight reported
+  `chatgpt_account_session_drift`; expected `eric.cochran@soylei.com`, found
+  `consult@polymerconsultinggroup.com`.
+- One completed response still failed extraction: index 8,
+  `resp_7c642b430b694b9fa4bdd59bcd087f35`, for
+  `/home/ecochran76/.transcripts/legacy-artifacts/f6/f6d8ca6ef3bc0eecc682-2024-10-07 Vigil Cochran Performance Review My recording 5.transcript.json`.
+- Extraction failure cause: AuraCall response did not include parseable readout
+  JSON text or artifact output; observed assistant text began with a
+  future-tense status sentence rather than the required downloadable artifact.
+- Eight readouts were materialized and verified non-empty:
+  - `/home/ecochran76/.transcripts/legacy-artifacts/ce/ceb04ee51746c31abd78-2025-06-05 Alireza CTE grade discussion My recording 7.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/7a/7aeed5ead7566ebc4412-2025-06-05 Iowa Energy Center Deicing Preproposal Discussion My recording 8.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/c1/c196f97cd0fbe68a669f-2025-07-31 Schulman Mac Visit My recording 15 (1).readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/c1/c18c6a8155bb03044dcd-2025-07-30 Green Dot CB2 project discussion  My recording 17 (1).readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/6d/6dee455fc63b5f406d4a-2025-07-30 Rudrapatna Follow up  My recording 16.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/bc/bc670708734fee1060a4-20240918-123353-Executive Licensing and Patent Strategy Meeting between Soilay and ACS on Brazilian Operations.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/8e/8e320b2f55cc9dcc11ec-2025-09-04 UL EPD Discussion SIP-1111 SIP-1132 My recording 20.readout.json`
+  - `/home/ecochran76/.transcripts/legacy-artifacts/b9/b9d3d649b18165bcd9bd-2024-08-14 Meeting eith Chris and Scott Roberts Recording (1).readout.json`
+- Manifest now records both `materialized` and `materialization_errors` so the
+  retry boundary is deterministic.
+
+Next:
+
+- Fix or refresh the SoyLei Transcripts ChatGPT runtime profile so the bound
+  account and browser session both use `eric.cochran@soylei.com`.
+- Retry only the two missing items, not the whole ten-item batch.
+- Keep batch size at 10 and concurrency at 1 until the account-drift and
+  text-only artifact noncompliance paths are resolved.

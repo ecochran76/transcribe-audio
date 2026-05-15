@@ -337,7 +337,11 @@ def enqueue(args: argparse.Namespace) -> int:
     return 0
 
 
-def materialize_completed(args: argparse.Namespace, manifest: dict[str, Any], batch_status: dict[str, Any]) -> list[dict[str, Any]]:
+def materialize_completed(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+    batch_status: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     env = runtime_env(args)
     api_key = resolve_api_key(args, env)
     base_url = str(manifest["response_base_url"]).rstrip("/")
@@ -347,35 +351,46 @@ def materialize_completed(args: argparse.Namespace, manifest: dict[str, Any], ba
         if isinstance(job, dict) and isinstance(job.get("index"), int)
     }
     results: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
     for index, item in enumerate((manifest.get("queue") or {}).get("items") or []):
         job = jobs_by_index.get(index)
         if not job or job.get("status") != "completed" or not job.get("responseId"):
             continue
-        response = read_json_url(f"{base_url}/responses/{job['responseId']}", api_key)
-        model_payload = response_model_payload(response)
-        json_path, markdown_path = write_readout_from_payload(
-            Path(str(item["source_path"])),
-            model_payload,
-            provider={
-                "name": "auracall-response-batch",
-                "model": manifest.get("model"),
-                "batch_id": (manifest.get("batch") or {}).get("id"),
-                "response_id": job["responseId"],
-            },
-            output_dir=args.output_dir,
-            store=args.store,
-            store_dir=args.store_dir,
-        )
-        results.append(
-            {
-                "index": index,
-                "response_id": job["responseId"],
-                "source_path": item["source_path"],
-                "readout_json": str(json_path),
-                "readout_markdown": str(markdown_path),
-            }
-        )
-    return results
+        try:
+            response = read_json_url(f"{base_url}/responses/{job['responseId']}", api_key)
+            model_payload = response_model_payload(response)
+            json_path, markdown_path = write_readout_from_payload(
+                Path(str(item["source_path"])),
+                model_payload,
+                provider={
+                    "name": "auracall-response-batch",
+                    "model": manifest.get("model"),
+                    "batch_id": (manifest.get("batch") or {}).get("id"),
+                    "response_id": job["responseId"],
+                },
+                output_dir=args.output_dir,
+                store=args.store,
+                store_dir=args.store_dir,
+            )
+            results.append(
+                {
+                    "index": index,
+                    "response_id": job["responseId"],
+                    "source_path": item["source_path"],
+                    "readout_json": str(json_path),
+                    "readout_markdown": str(markdown_path),
+                }
+            )
+        except (TranscriptionError, TranscriptStoreError, OSError, json.JSONDecodeError) as exc:
+            errors.append(
+                {
+                    "index": index,
+                    "response_id": job["responseId"],
+                    "source_path": item.get("source_path"),
+                    "error": str(exc),
+                }
+            )
+    return results, errors
 
 
 def status(args: argparse.Namespace) -> int:
@@ -387,12 +402,27 @@ def status(args: argparse.Namespace) -> int:
     env = runtime_env(args)
     batch_url = f"{str(manifest['batch_url']).rstrip('/')}/{batch_id}"
     batch_status = read_json_url(batch_url, resolve_api_key(args, env))
-    materialized = materialize_completed(args, manifest, batch_status) if args.materialize else []
+    materialized: list[dict[str, Any]] = []
+    materialization_errors: list[dict[str, Any]] = []
+    if args.materialize:
+        materialized, materialization_errors = materialize_completed(args, manifest, batch_status)
     manifest["last_status"] = batch_status
     if materialized:
         manifest["materialized"] = materialized
+    if materialization_errors:
+        manifest["materialization_errors"] = materialization_errors
     write_manifest(manifest_path, manifest)
-    print(json.dumps({"manifest": str(manifest_path), "status": batch_status, "materialized": materialized}, indent=2))
+    print(
+        json.dumps(
+            {
+                "manifest": str(manifest_path),
+                "status": batch_status,
+                "materialized": materialized,
+                "materialization_errors": materialization_errors,
+            },
+            indent=2,
+        )
+    )
     print(f"{MANIFEST_JSON_STDOUT_PREFIX}{manifest_path}")
     return 0
 
