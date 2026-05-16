@@ -157,6 +157,7 @@ stop and restart the service.
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --export-review ~/.local/state/transcribe-audio/filename-cleanup-review.json --include-diff-summary
 .venv/bin/python transcript_filename_conflict_review.py ~/.local/state/transcribe-audio/filename-cleanup-review.json
+.venv/bin/python transcript_filename_conflict_review.py --investigate-review ~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review.json
 .venv/bin/python transcript_filename_conflict_review.py --apply-review ~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review.json --audit-output ~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review-audit.json
 .venv/bin/python transcript_filename_conflict_review.py --apply-review ~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review.json --apply --approval-token APPLY_FILENAME_CONFLICT_REVIEW --manage-service --refresh-store
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --resolve-reviewed-conflicts
@@ -175,6 +176,9 @@ classifications without embedding transcript excerpts. Use
 `transcript_filename_conflict_review.py` to turn that export into a local
 operator decision template and Markdown report with explicit choices:
 `preserve_both`, `quarantine_old`, `keep_target`, or `needs_investigation`. Use
+`--investigate-review` to generate a private local report with bounded diff
+snippets for pending items; do not commit those generated reports because they
+can contain transcript text. Use
 `--apply-review` as a dry-run over an edited decision template; live mutation
 requires `--apply --approval-token APPLY_FILENAME_CONFLICT_REVIEW`. Only
 `quarantine_old` moves files; `preserve_both` and `keep_target` are recorded

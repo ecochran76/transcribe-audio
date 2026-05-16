@@ -195,3 +195,100 @@ def test_apply_review_template_writes_audit_output(tmp_path: Path) -> None:
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
     assert audit["summary"]["by_status"]["recorded_noop"] == 1
     assert audit["results"][0]["decision"] == "preserve_both"
+
+
+def test_build_investigation_report_includes_pending_diff_hunks(tmp_path: Path) -> None:
+    old_txt = tmp_path / "old.txt"
+    target_txt = tmp_path / "target.txt"
+    old_txt.write_text("same before\nold only\nsame after\n", encoding="utf-8")
+    target_txt.write_text("same before\ntarget only\nsame after\n", encoding="utf-8")
+    template_path = tmp_path / "review-template.json"
+    template_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "items": [
+                    {
+                        "id": "pending-1",
+                        "decision": "pending",
+                        "classification": "high_overlap_needs_review",
+                        "recommended_decision": "needs_investigation",
+                        "clean_base_name": "Pending Meeting",
+                        "artifact_path": str(tmp_path / "pending.transcript.json"),
+                        "conflicts": [
+                            {
+                                "role": "output:txt",
+                                "old_path": str(old_txt),
+                                "target_path": str(target_txt),
+                                "diff_summary": {"body_similarity_ratio": 0.8},
+                            }
+                        ],
+                    },
+                    {
+                        "id": "noop-1",
+                        "decision": "preserve_both",
+                        "conflicts": [],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = review.parse_args(["--investigate-review", str(template_path), "--diff-context-lines", "1"])
+
+    report = review.build_investigation_report(args)
+
+    assert report["summary"]["pending_items"] == 1
+    conflict = report["items"][0]["conflicts"][0]
+    assert conflict["status"] == "ok"
+    assert conflict["hunks"][0]["old_excerpt"] == ["same before", "old only", "same after"]
+    assert conflict["hunks"][0]["target_excerpt"] == ["same before", "target only", "same after"]
+
+
+def test_main_writes_investigation_report(tmp_path: Path, capsys) -> None:
+    old_txt = tmp_path / "old.txt"
+    target_txt = tmp_path / "target.txt"
+    old_txt.write_text("old\n", encoding="utf-8")
+    target_txt.write_text("target\n", encoding="utf-8")
+    template_path = tmp_path / "review-template.json"
+    output_json = tmp_path / "investigation.json"
+    output_md = tmp_path / "investigation.md"
+    template_path.write_text(
+        json.dumps(
+            {
+                "items": [
+                    {
+                        "id": "pending-1",
+                        "decision": "pending",
+                        "classification": "partial_overlap_distinct_content",
+                        "recommended_decision": "needs_investigation",
+                        "clean_base_name": "Pending Meeting",
+                        "artifact_path": "/tmp/pending.transcript.json",
+                        "conflicts": [{"role": "output:txt", "old_path": str(old_txt), "target_path": str(target_txt)}],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        review.main(
+            [
+                "--investigate-review",
+                str(template_path),
+                "--investigation-output",
+                str(output_json),
+                "--investigation-markdown-output",
+                str(output_md),
+            ]
+        )
+        == 0
+    )
+
+    stdout = capsys.readouterr().out
+    assert "Pending items: 1" in stdout
+    payload = json.loads(output_json.read_text(encoding="utf-8"))
+    markdown = output_md.read_text(encoding="utf-8")
+    assert payload["privacy"] == "contains bounded private transcript snippets; keep local"
+    assert "Transcript Filename Conflict Investigation" in markdown

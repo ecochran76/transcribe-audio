@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import json
 import shutil
@@ -15,6 +16,7 @@ from typing import Any, Iterable, Optional
 from cleanup_transcript_filenames import (
     DEFAULT_QUARANTINE_DIR,
     DEFAULT_SERVICE_NAME,
+    comparable_lines,
     refresh_store_for_replacements,
     rewrite_artifact_payload,
     rewrite_state_file,
@@ -62,6 +64,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--markdown-output", type=Path, help="Write the Markdown report to this path.")
     parser.add_argument("--apply-review", type=Path, help="Apply decisions from an edited review template JSON.")
     parser.add_argument("--audit-output", type=Path, help="Write the apply-review preview/apply audit JSON to this path.")
+    parser.add_argument("--investigate-review", type=Path, help="Write bounded diff snippets for pending review items.")
+    parser.add_argument("--investigation-output", type=Path, help="Write investigation JSON to this path.")
+    parser.add_argument("--investigation-markdown-output", type=Path, help="Write investigation Markdown to this path.")
+    parser.add_argument("--diff-context-lines", type=int, default=2)
+    parser.add_argument("--max-snippet-chars", type=int, default=240)
     parser.add_argument("--apply", action="store_true", help="Actually apply --apply-review decisions. Default is dry-run.")
     parser.add_argument("--approval-token", help=f"Required with --apply. Use {APPLY_APPROVAL_TOKEN}.")
     parser.add_argument("--quarantine-dir", type=Path, default=DEFAULT_QUARANTINE_DIR)
@@ -410,6 +417,183 @@ def apply_review_template(args: argparse.Namespace) -> dict[str, Any]:
     return result
 
 
+def truncate_line(line: str, *, max_chars: int) -> str:
+    if len(line) <= max_chars:
+        return line
+    return line[: max(0, max_chars - 1)] + "…"
+
+
+def first_diff_hunks(
+    old_lines: list[str],
+    target_lines: list[str],
+    *,
+    context_lines: int,
+    max_snippet_chars: int,
+    max_hunks: int = 3,
+) -> list[dict[str, Any]]:
+    grouped = difflib.SequenceMatcher(None, old_lines, target_lines).get_grouped_opcodes(context_lines)
+    hunks: list[dict[str, Any]] = []
+    for group in grouped:
+        old_start = group[0][1] if group else 0
+        target_start = group[0][3] if group else 0
+        old_excerpt: list[str] = []
+        target_excerpt: list[str] = []
+        for tag, old_a, old_b, target_a, target_b in group:
+            if tag in {"equal", "replace", "delete"}:
+                old_excerpt.extend(old_lines[old_a:old_b])
+            if tag in {"equal", "replace", "insert"}:
+                target_excerpt.extend(target_lines[target_a:target_b])
+        hunks.append(
+            {
+                "old_start_line": old_start + 1,
+                "target_start_line": target_start + 1,
+                "old_excerpt": [truncate_line(line, max_chars=max_snippet_chars) for line in old_excerpt],
+                "target_excerpt": [truncate_line(line, max_chars=max_snippet_chars) for line in target_excerpt],
+            }
+        )
+        if len(hunks) >= max_hunks:
+            break
+    return hunks
+
+
+def investigate_conflict(
+    conflict: dict[str, Any],
+    *,
+    context_lines: int,
+    max_snippet_chars: int,
+) -> dict[str, Any]:
+    role = str(conflict.get("role") or "")
+    old_path = Path(str(conflict.get("old_path") or "")).expanduser()
+    target_path = Path(str(conflict.get("target_path") or "")).expanduser()
+    result: dict[str, Any] = {
+        "role": role,
+        "old_path": str(old_path),
+        "target_path": str(target_path),
+        "diff_summary": conflict.get("diff_summary", {}),
+        "status": "ok",
+        "hunks": [],
+    }
+    if not old_path.exists() or not target_path.exists():
+        result["status"] = "missing_path"
+        return result
+    try:
+        old_lines = comparable_lines(old_path, role)
+        target_lines = comparable_lines(target_path, role)
+    except Exception as exc:  # pragma: no cover - defensive for corrupt operator files
+        result["status"] = "read_error"
+        result["error"] = str(exc)
+        return result
+    result["old_line_count"] = len(old_lines)
+    result["target_line_count"] = len(target_lines)
+    result["hunks"] = first_diff_hunks(
+        old_lines,
+        target_lines,
+        context_lines=context_lines,
+        max_snippet_chars=max_snippet_chars,
+    )
+    return result
+
+
+def build_investigation_report(args: argparse.Namespace) -> dict[str, Any]:
+    template = load_json(args.investigate_review)
+    items: list[dict[str, Any]] = []
+    for item in template.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("decision") != "pending":
+            continue
+        investigations = [
+            investigate_conflict(
+                conflict,
+                context_lines=args.diff_context_lines,
+                max_snippet_chars=args.max_snippet_chars,
+            )
+            for conflict in item.get("conflicts", [])
+            if isinstance(conflict, dict)
+        ]
+        items.append(
+            {
+                "id": item.get("id"),
+                "clean_base_name": item.get("clean_base_name"),
+                "classification": item.get("classification"),
+                "recommended_decision": item.get("recommended_decision"),
+                "decision": item.get("decision"),
+                "event": item.get("event"),
+                "artifact_path": item.get("artifact_path"),
+                "conflicts": investigations,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source_review_template": str(args.investigate_review.expanduser().resolve()),
+        "privacy": "contains bounded private transcript snippets; keep local",
+        "summary": {
+            "pending_items": len(items),
+            "by_classification": dict(Counter(str(item.get("classification")) for item in items)),
+        },
+        "items": items,
+    }
+
+
+def investigation_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Transcript Filename Conflict Investigation",
+        "",
+        f"Source review template: `{report['source_review_template']}`",
+        f"Created: `{report['created_at']}`",
+        "",
+        "Private local artifact: contains bounded transcript snippets.",
+        "",
+        "## Summary",
+        "",
+        f"- Pending items: {report['summary']['pending_items']}",
+    ]
+    for classification, count in sorted(report["summary"]["by_classification"].items()):
+        lines.append(f"- {classification}: {count}")
+    lines.extend(["", "## Items", ""])
+    for item in report["items"]:
+        lines.extend(
+            [
+                f"### {item['id']} | {item['clean_base_name']}",
+                "",
+                f"- Classification: `{item['classification']}`",
+                f"- Recommended decision: `{item['recommended_decision']}`",
+                f"- Artifact: `{item['artifact_path']}`",
+            ]
+        )
+        for conflict in item.get("conflicts", []):
+            lines.extend(
+                [
+                    "",
+                    f"#### Conflict `{conflict.get('role')}`",
+                    "",
+                    f"- Status: `{conflict.get('status')}`",
+                    f"- Old: `{conflict.get('old_path')}`",
+                    f"- Target: `{conflict.get('target_path')}`",
+                ]
+            )
+            for hunk in conflict.get("hunks", []):
+                lines.extend(
+                    [
+                        "",
+                        f"Old around line {hunk.get('old_start_line')}:",
+                        "",
+                        "```text",
+                        *hunk.get("old_excerpt", []),
+                        "```",
+                        "",
+                        f"Target around line {hunk.get('target_start_line')}:",
+                        "",
+                        "```text",
+                        *hunk.get("target_excerpt", []),
+                        "```",
+                    ]
+                )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def default_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     output_dir = args.output_dir.expanduser().resolve()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -424,6 +608,30 @@ def default_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
+    if args.investigate_review:
+        report = build_investigation_report(args)
+        output_dir = args.output_dir.expanduser().resolve()
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        json_path = (
+            args.investigation_output.expanduser().resolve()
+            if args.investigation_output
+            else output_dir / f"filename-conflict-investigation-{stamp}.json"
+        )
+        markdown_path = (
+            args.investigation_markdown_output.expanduser().resolve()
+            if args.investigation_markdown_output
+            else output_dir / f"filename-conflict-investigation-{stamp}.md"
+        )
+        write_json(json_path, report)
+        write_text(markdown_path, investigation_markdown(report))
+        result = {"json_path": str(json_path), "markdown_path": str(markdown_path), "summary": report["summary"]}
+        if args.format == "json":
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print(f"Investigation JSON: {json_path}")
+            print(f"Investigation Markdown: {markdown_path}")
+            print(f"Pending items: {report['summary']['pending_items']}")
+        return 0
     if args.apply_review:
         result = apply_review_template(args)
         if args.format == "json":

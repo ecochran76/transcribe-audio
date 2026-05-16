@@ -2782,3 +2782,35 @@ Validation:
 Next:
 
 - Continue with investigation support for the remaining 8 pending conflicts.
+
+## Turn 86 | 2026-05-16
+
+Summary: Added bounded local investigation reports for pending filename
+conflicts.
+
+Action:
+
+- Extended `transcript_filename_conflict_review.py` with
+  `--investigate-review`.
+- The investigation report includes only pending review items.
+- Each conflict includes bounded first-difference hunks, line counts, paths,
+  diff summary, and event/review context.
+- Investigation artifacts are explicitly local/private because they may contain
+  transcript snippets.
+
+Validation:
+
+- `python -m pytest tests/test_transcript_filename_conflict_review.py tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile transcript_filename_conflict_review.py cleanup_transcript_filenames.py` passed.
+- Live generation wrote
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-investigation-20260516-160221.json`
+  and matching Markdown.
+- Live report contains 8 pending items: 2 `high_overlap_needs_review` and 6
+  `partial_overlap_distinct_content`.
+
+Next:
+
+- Review the local Markdown investigation report and set explicit decisions in
+  the review JSON for any items that are now clear.
+- Keep generated investigation reports out of git because they may contain raw
+  transcript snippets.
