@@ -2649,3 +2649,37 @@ Next:
   store refresh.
 - Regenerate the review export and preserve the remaining high-overlap,
   partial-overlap, and distinct-content conflicts for human review.
+
+## Turn 82 | 2026-05-16
+
+Summary: Applied the reviewed metadata-only filename cleanup resolutions.
+
+Action:
+
+- Ran `cleanup_transcript_filenames.py --apply --manage-service
+  --refresh-store --resolve-reviewed-conflicts` against Downloads and
+  Syncthing Sound Recordings.
+- Resolved 7 reviewed metadata-only conflicts.
+- Quarantined 7 old DOCX conflict files under
+  `~/.local/state/transcribe-audio/filename-cleanup-quarantine/`.
+- Moved 20 non-conflicting output/media paths, rewrote watcher state, and
+  refreshed 7 transcript-store rows.
+- Regenerated the live review artifact at
+  `.openclaw/reviews/transcript-filename-cleanup-review-2026-05-16.json`.
+
+Validation:
+
+- Apply output reported `reviewed_resolved_count=7`, `state_updated=true`, and
+  `store_refreshed_count=7`.
+- Post-apply review reported `scanned=10 actionable=0 operations=0 skipped=10`.
+- Remaining conflict classes: 2 high-overlap review items, 6 partial-overlap
+  distinct-content items, and 2 preserve-both distinct-content items.
+- `transcribe-watch.service` restarted successfully and heartbeated with
+  `candidates=0 attempted=0 successes=0 failures=0`.
+
+Next:
+
+- Do not auto-merge the remaining 10 conflicts; they contain meaningful
+  transcript/output differences under the current classifier.
+- Build a small human-review report or UI slice that lets the operator compare
+  the remaining pairs and choose preserve, quarantine old, or keep both.
