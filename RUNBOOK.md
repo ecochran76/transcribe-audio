@@ -2550,3 +2550,39 @@ Next:
   outputs or keep them as separate overlapping-calendar artifacts.
 - Keep watcher monitoring in place and confirm next newly arriving recording is
   transcribed immediately.
+
+## Turn 79 | 2026-05-16
+
+Summary: Added and applied a conservative resolver for content-identical
+filename cleanup conflicts.
+
+Action:
+
+- Added `cleanup_transcript_filenames.py --resolve-identical-conflicts`.
+- The resolver compares transcript JSON text, TXT text, and DOCX paragraph
+  text rather than relying on byte-identical files.
+- Old redundant conflict files are moved to
+  `~/.local/state/transcribe-audio/filename-cleanup-quarantine/` instead of
+  being deleted.
+- The resolver updates watcher state and can refresh `~/.transcripts` just like
+  regular cleanup applies.
+- Applied the resolver to live Downloads/Sound Recordings conflicts.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- `git diff --check` passed.
+- Live resolver quarantined 12 redundant old conflict files, refreshed 4 store
+  records, and restarted `transcribe-watch.service`.
+- After restart, the watcher heartbeated with
+  `candidates=0 attempted=0 successes=0 failures=0`.
+- Regenerated review dry-run reported `scanned=17 actionable=0 operations=0
+  skipped=17`.
+
+Next:
+
+- Review the remaining 17 non-equivalent conflicts manually; they are not safe
+  for automatic merge because visible transcript/output content differs.
+- Keep watcher monitoring in place and confirm next newly arriving recording is
+  transcribed immediately.

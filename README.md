@@ -156,6 +156,7 @@ stop and restart the service.
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --export-review ~/.local/state/transcribe-audio/filename-cleanup-review.json
+.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store --resolve-identical-conflicts
 ```
 
 The cleanup derives canonical names from each transcript sidecar's calendar
@@ -163,7 +164,11 @@ event, renames only non-conflicting files, rewrites sidecar path fields, updates
 watcher state, and can refresh `~/.transcripts` rows for changed sidecars.
 Use `--export-review` when dry-run reports skipped conflicts; the review file
 lists the event metadata, proposed operations, existing targets, and suggested
-manual action for each ambiguous artifact.
+manual action for each ambiguous artifact. Use
+`--resolve-identical-conflicts` only after review; it compares transcript JSON
+text, TXT text, and DOCX paragraph text, then moves redundant old conflict files
+to `~/.local/state/transcribe-audio/filename-cleanup-quarantine/` instead of
+deleting them.
 
 Local faster-whisper options:
 

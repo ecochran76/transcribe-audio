@@ -6,7 +6,9 @@ from pathlib import Path
 from cleanup_transcript_filenames import (
     apply_plan,
     build_review_payload,
+    content_equivalent,
     plan_artifact_cleanup,
+    resolve_identical_conflict_plan,
     rewrite_state_file,
     write_review_file,
 )
@@ -161,3 +163,31 @@ def test_write_review_file_creates_parent_directory(tmp_path: Path) -> None:
     assert written_path == review_path
     payload = json.loads(review_path.read_text(encoding="utf-8"))
     assert payload["items"][0]["suggested_action"] == "choose the canonical media title for shared overlapping calendar artifacts"
+
+
+def test_content_equivalent_compares_artifact_transcript_text(tmp_path: Path) -> None:
+    old_path = tmp_path / "old.transcript.json"
+    new_path = tmp_path / "new.transcript.json"
+    old_path.write_text(json.dumps({"transcript_text": "same text", "output_paths": {"artifact": str(old_path)}}), encoding="utf-8")
+    new_path.write_text(
+        json.dumps({"transcript_text": "same text", "output_paths": {"artifact": str(new_path)}, "source_media_path": "different"}),
+        encoding="utf-8",
+    )
+
+    assert content_equivalent(old_path, new_path, "output:artifact") is True
+
+
+def test_resolve_identical_conflict_quarantines_redundant_output(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    plan = plan_artifact_cleanup(artifact_path)
+    clean_artifact = tmp_path / f"{plan.clean_base_name} Transcript.transcript.json"
+    clean_artifact.write_text(artifact_path.read_text(encoding="utf-8"), encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+
+    result = resolve_identical_conflict_plan(plan, quarantine_dir=tmp_path / "quarantine")
+
+    assert result is not None
+    assert result["resolved_identical_conflict"] is True
+    assert not artifact_path.exists()
+    assert clean_artifact.exists()
+    assert Path(result["quarantined"][0]["quarantine_path"]).exists()

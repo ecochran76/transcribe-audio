@@ -6,6 +6,7 @@ prefixes.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -16,10 +17,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from docx import Document
+
 from transcribe_common import build_event_base_name
 from watch_transcriptions import AUDIO_VIDEO_EXTENSIONS, DEFAULT_STATE_PATH, dump_json, load_json
 
 DEFAULT_SERVICE_NAME = "transcribe-watch.service"
+DEFAULT_QUARANTINE_DIR = Path("~/.local/state/transcribe-audio/filename-cleanup-quarantine")
 DATE_PREFIX_RE = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2} ")
 OTHER_EVENTS_RE = re.compile(r"\band \d+ other\(s\)\b", re.IGNORECASE)
 TRANSCRIPT_SUFFIXES = {
@@ -99,6 +103,12 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         type=Path,
         help="Write a compact JSON review file for skipped/conflicting plans.",
     )
+    parser.add_argument(
+        "--resolve-identical-conflicts",
+        action="store_true",
+        help="In apply mode, quarantine old conflict files whose canonical targets have identical content.",
+    )
+    parser.add_argument("--quarantine-dir", type=Path, default=DEFAULT_QUARANTINE_DIR)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON output.")
     return parser.parse_args(argv)
 
@@ -219,6 +229,38 @@ def media_name_needs_cleanup(path: Path) -> bool:
     )
 
 
+def normalized_text(text: str) -> str:
+    return "\n".join(line.rstrip() for line in text.splitlines()).strip()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def comparable_content(path: Path, role: str) -> str:
+    if role == "output:artifact":
+        payload = load_json_file(path)
+        return normalized_text(str(payload.get("transcript_text") or ""))
+    if role == "output:txt":
+        return normalized_text(path.read_text(encoding="utf-8", errors="replace"))
+    if role == "output:docx":
+        doc = Document(str(path))
+        return normalized_text("\n".join(paragraph.text for paragraph in doc.paragraphs))
+    return sha256_file(path)
+
+
+def content_equivalent(old_path: Path, new_path: Path, role: str) -> bool:
+    if not old_path.exists() or not new_path.exists() or old_path.resolve() == new_path.resolve():
+        return False
+    if role in {"output:artifact", "output:txt", "output:docx"}:
+        return comparable_content(old_path, role) == comparable_content(new_path, role)
+    return sha256_file(old_path) == sha256_file(new_path)
+
+
 def event_review(payload: dict[str, Any]) -> dict[str, Any]:
     event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
     matching_calendars = event.get("matching_calendars") if isinstance(event.get("matching_calendars"), list) else []
@@ -250,6 +292,22 @@ def target_conflicts(plan: CleanupPlan) -> list[dict[str, str]]:
                     "role": operation.role,
                     "old_path": str(operation.old_path),
                     "target_path": str(operation.new_path),
+                }
+            )
+    try:
+        payload = load_json_file(plan.artifact_path)
+    except (OSError, json.JSONDecodeError, CleanupError):
+        return conflicts
+    output_paths = payload.get("output_paths") if isinstance(payload.get("output_paths"), dict) else {}
+    for key, raw_path in output_paths.items():
+        old_path = Path(str(raw_path)).expanduser()
+        target_path = output_target_for(str(key), old_path, plan.clean_base_name)
+        if old_path.exists() and target_path.exists() and old_path.resolve() != target_path.resolve():
+            conflicts.append(
+                {
+                    "role": f"output:{key}",
+                    "old_path": str(old_path.resolve()),
+                    "target_path": str(target_path.resolve()),
                 }
             )
     return conflicts
@@ -394,6 +452,71 @@ def apply_plan(plan: CleanupPlan) -> dict[str, Any]:
     return {"artifact_path": str(artifact_path), "applied": applied}
 
 
+def quarantine_path_for(root: Path, source_path: Path) -> Path:
+    digest = sha256_file(source_path)[:16] if source_path.exists() else "missing"
+    return root / digest[:2] / f"{digest}-{source_path.name}"
+
+
+def resolve_identical_conflict_plan(plan: CleanupPlan, *, quarantine_dir: Path) -> Optional[dict[str, Any]]:
+    if not plan.skipped:
+        return None
+
+    conflicts = target_conflicts(plan)
+    if not conflicts:
+        return None
+    equivalent_conflicts: list[dict[str, str]] = []
+    for conflict in conflicts:
+        old_path = Path(conflict["old_path"])
+        target_path = Path(conflict["target_path"])
+        role = conflict["role"]
+        if not content_equivalent(old_path, target_path, role):
+            return None
+        equivalent_conflicts.append(conflict)
+
+    replacements = dict(plan.replacements)
+    quarantined: list[dict[str, str]] = []
+    root = quarantine_dir.expanduser().resolve()
+    for conflict in equivalent_conflicts:
+        old_path = Path(conflict["old_path"])
+        target_path = Path(conflict["target_path"])
+        quarantine_path = quarantine_path_for(root, old_path)
+        quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+        if quarantine_path.exists():
+            raise CleanupError(f"Quarantine target already exists: {quarantine_path}")
+        shutil.move(str(old_path), str(quarantine_path))
+        replacements[str(old_path.resolve())] = str(target_path.resolve())
+        quarantined.append(
+            {
+                "role": conflict["role"],
+                "old_path": str(old_path),
+                "canonical_path": str(target_path),
+                "quarantine_path": str(quarantine_path),
+            }
+        )
+
+    media_moves: list[dict[str, str]] = []
+    for operation in plan.operations:
+        if operation.role.startswith("output:"):
+            continue
+        if operation.new_path.exists():
+            return None
+        operation.new_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(operation.old_path), str(operation.new_path))
+        replacements[str(operation.old_path)] = str(operation.new_path)
+        media_moves.append(operation.to_dict())
+
+    artifact_path = replacements.get(str(plan.artifact_path.resolve()), str(plan.artifact_path.resolve()))
+    if Path(artifact_path).exists():
+        rewrite_artifact_payload(Path(artifact_path), replacements)
+    return {
+        "artifact_path": artifact_path,
+        "resolved_identical_conflict": True,
+        "quarantined": quarantined,
+        "media_moves": media_moves,
+        "replacements": replacements,
+    }
+
+
 def refresh_store_for_replacements(
     replacements: dict[str, str],
     artifact_paths: Iterable[str],
@@ -459,6 +582,19 @@ def summarize(plans: list[CleanupPlan]) -> dict[str, int]:
 def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
     payload = load_json_file(plan.artifact_path)
     output_paths = payload.get("output_paths") if isinstance(payload.get("output_paths"), dict) else {}
+    conflicts = []
+    for conflict in target_conflicts(plan):
+        old_path = Path(conflict["old_path"])
+        target_path = Path(conflict["target_path"])
+        role = conflict["role"]
+        conflicts.append(
+            {
+                **conflict,
+                "old_sha256": sha256_file(old_path) if old_path.exists() else "",
+                "target_sha256": sha256_file(target_path) if target_path.exists() else "",
+                "content_equivalent": content_equivalent(old_path, target_path, role),
+            }
+        )
     return {
         "artifact_path": str(plan.artifact_path),
         "reason": plan.reason,
@@ -470,7 +606,7 @@ def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
         "output_paths": output_paths,
         "operations": [operation.to_dict() for operation in plan.operations],
         "replacements": plan.replacements,
-        "target_conflicts": target_conflicts(plan),
+        "target_conflicts": conflicts,
     }
 
 
@@ -584,6 +720,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         replacements: dict[str, str] = {}
         applied_results: list[dict[str, Any]] = []
         for plan in plans:
+            if args.resolve_identical_conflicts and plan.skipped:
+                resolved_result = resolve_identical_conflict_plan(plan, quarantine_dir=args.quarantine_dir)
+                if resolved_result:
+                    applied_results.append(resolved_result)
+                    replacements.update(resolved_result["replacements"])
+                continue
             if plan.skipped or not (plan.operations or plan.replacements):
                 continue
             applied_result = apply_plan(plan)
