@@ -7,10 +7,12 @@ It serves only the configured user-scoped transcript store. It does not read arb
 ## Start
 
 ```bash
-python transcript_api.py --store-dir ~/.transcripts --host 127.0.0.1 --port 8765
+python transcript_api.py --store-dir ~/.transcripts --host 127.0.0.1 --port 18876
 ```
 
-Development and test runs can use `--embedding-provider debug-hash` when search should avoid a live embedder.
+Development and test runs can use `--embedding-provider debug-hash` when search should avoid a live embedder. The default port is pinned to `18876` for cooper ingress as `transcripts.localhost` and `transcripts.ecochran.dyndns.org`.
+
+When `frontend/dist/` exists, the same server also serves the built React console at `/`; API routes remain under `/api`.
 
 ## Endpoints
 

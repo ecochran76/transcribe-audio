@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -106,6 +107,49 @@ def test_blob_route_supports_range_reads(tmp_path: Path) -> None:
         assert response.status == 206
         assert response.headers["Content-Range"] == "bytes 2-5/16"
         assert response.read() == b"2345"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_static_frontend_serves_index_and_assets(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    static_root = tmp_path / "static"
+    static_root.mkdir()
+    (static_root / "index.html").write_text('<div id="root"></div><script src="/assets/app.js"></script>', encoding="utf-8")
+    assets = static_root / "assets"
+    assets.mkdir()
+    (assets / "app.js").write_text("console.log('ok')", encoding="utf-8")
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        quiet=True,
+        static_dir=static_root,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        index = urlopen(f"http://{host}:{port}/", timeout=5)
+        asset = urlopen(f"http://{host}:{port}/assets/app.js", timeout=5)
+        fallback = urlopen(f"http://{host}:{port}/library/deep-link", timeout=5)
+        assert index.status == 200
+        assert b'<div id="root">' in index.read()
+        assert asset.headers["Content-Type"].startswith("text/javascript") or asset.headers["Content-Type"].startswith(
+            "application/javascript"
+        )
+        assert b"console.log" in asset.read()
+        assert b'<div id="root">' in fallback.read()
+        try:
+            urlopen(f"http://{host}:{port}/api/missing", timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 404
+            assert json.loads(exc.read())["error"] == "Not found"
+        else:
+            raise AssertionError("Unknown API routes must not fall through to the SPA")
     finally:
         server.shutdown()
         server.server_close()

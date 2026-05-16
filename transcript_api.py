@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mimetypes
 import sqlite3
 import sys
 from http import HTTPStatus
@@ -27,6 +28,9 @@ from transcript_store import (
     search_store,
     store_dir,
 )
+
+DEFAULT_API_PORT = 18876
+DEFAULT_STATIC_DIR = Path(__file__).resolve().parent / "frontend" / "dist"
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -248,6 +252,11 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 if len(parts) == 3:
                     self.write_blob(parts[2], download=first(params, "download") in {"1", "true", "yes"})
                     return
+            if parsed.path.startswith("/api/"):
+                self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+                return
+            if self.write_static(parsed.path):
+                return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
         except TranscriptStoreError as exc:
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
@@ -265,6 +274,35 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
 
     def write_error(self, status: HTTPStatus, message: str) -> None:
         self.write_json({"error": message, "status": status.value}, status=status)
+
+    def write_static(self, request_path: str) -> bool:
+        static_dir = self.server.static_dir  # type: ignore[attr-defined]
+        if static_dir is None:
+            return False
+        static_root = Path(static_dir)
+        if not static_root.exists() or not static_root.is_dir():
+            return False
+        relative = unquote(request_path).lstrip("/")
+        target = static_root / relative if relative else static_root / "index.html"
+        if not target.exists() or target.is_dir():
+            target = static_root / "index.html"
+        try:
+            resolved = target.resolve()
+            resolved.relative_to(static_root.resolve())
+        except ValueError:
+            self.write_error(HTTPStatus.FORBIDDEN, "Forbidden")
+            return True
+        if not resolved.exists() or not resolved.is_file():
+            return False
+        body = resolved.read_bytes()
+        mime_type = mimetypes.guess_type(str(resolved))[0] or "application/octet-stream"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mime_type)
+        self.send_header("Cache-Control", "no-store" if resolved.name == "index.html" else "public, max-age=3600")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return True
 
     def write_blob(self, blob_id: str, *, download: bool = False) -> None:
         blob = get_blob(blob_id, root=self.store_root)
@@ -305,21 +343,25 @@ class TranscriptApiServer(ThreadingHTTPServer):
         embedding_provider: str,
         embedding_model: str,
         quiet: bool = False,
+        static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
     ) -> None:
         super().__init__(server_address, handler_class)
         self.store_root = store_root
         self.embedding_provider = embedding_provider
         self.embedding_model = embedding_model
         self.quiet = quiet
+        self.static_dir = static_dir
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve the local transcript review API.")
     parser.add_argument("--store-dir", type=Path, default=DEFAULT_STORE_DIR)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--embedding-provider", default=DEFAULT_EMBEDDING_PROVIDER)
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
+    parser.add_argument("--static-dir", type=Path, default=DEFAULT_STATIC_DIR)
+    parser.add_argument("--no-static", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     return parser.parse_args(argv)
 
@@ -335,6 +377,7 @@ def serve(args: argparse.Namespace) -> None:
         embedding_provider=args.embedding_provider,
         embedding_model=args.embedding_model,
         quiet=bool(args.quiet),
+        static_dir=None if args.no_static else args.static_dir,
     )
     print(f"Serving transcript API on http://{args.host}:{args.port} using {db_path(root)}")
     server.serve_forever()

@@ -2873,3 +2873,48 @@ Next:
 - Add read-only API support for review queue manifests under
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
+
+## Turn 89 | 2026-05-16
+
+Summary: Pinned the transcript review console for cooper ingress.
+
+Action:
+
+- Selected port `18876` as the fixed transcript-console upstream port.
+- Updated `transcript_api.py` to default to port `18876`.
+- Added static frontend serving from `frontend/dist/` at `/` while keeping API
+  routes under `/api`.
+- Ensured unknown `/api/...` routes return JSON `404` instead of falling
+  through to the SPA.
+- Updated frontend dev proxy and docs to use port `18876`.
+- Installed and enabled the user systemd service
+  `~/.config/systemd/user/transcripts.service`.
+- Registered cooper ingress inventory for `transcripts.localhost` and the
+  Authelia-gated external host `transcripts.ecochran.dyndns.org`.
+- Published the bastion Traefik route and added the matching bastion Authelia
+  `one_factor` access rule.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `curl http://127.0.0.1:18876/api/health` returned HTTP 200 against
+  `/home/ecochran76/.transcripts/transcripts.sqlite3`.
+- `curl http://transcripts.localhost/api/health` returned HTTP 200.
+- `curl http://transcripts.localhost/` returned HTTP 200 for the built review
+  console.
+- Static HTML/assets were checked for raw-port leakage; no
+  `localhost:18876`, `127.0.0.1:18876`, `localhost:5174`, or
+  `127.0.0.1:5174` references were found.
+- `curl https://transcripts.ecochran.dyndns.org/` returned HTTP 302 to
+  `https://auth.ecochran.dyndns.org/...`, confirming unauthenticated external
+  access is Authelia-gated.
+- `systemctl --user restart transcripts.service` completed and
+  `systemctl --user is-active transcripts.service` returned `active`.
+
+Next:
+
+- Add read-only API support for review queue manifests under
+  `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
+  queue summary with live review queue data.
