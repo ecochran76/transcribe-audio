@@ -2518,3 +2518,35 @@ Next:
   overlapping/ambiguous artifacts.
 - Keep watcher monitoring in place and confirm next newly arriving recording is
   transcribed immediately.
+
+## Turn 78 | 2026-05-16
+
+Summary: Added skipped-conflict review export for historical transcript filename
+cleanup.
+
+Action:
+
+- Added `cleanup_transcript_filenames.py --export-review <path>`.
+- Review exports are JSON files with schema version, summary counts,
+  per-reason counts, event metadata, source/working media paths, output paths,
+  proposed operations, existing target conflicts, replacements, and suggested
+  manual actions.
+- Added tests for review payload construction and writing nested review paths.
+- Documented the `--export-review` workflow in `README.md`.
+- Generated the live review artifact at
+  `.openclaw/reviews/transcript-filename-cleanup-review-2026-05-16.json`.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- `git diff --check` passed.
+- Live export dry-run reported `scanned=21 actionable=0 operations=0
+  skipped=21` and wrote the review file.
+
+Next:
+
+- Review the 21 conflict items and decide whether to merge/delete duplicate
+  outputs or keep them as separate overlapping-calendar artifacts.
+- Keep watcher monitoring in place and confirm next newly arriving recording is
+  transcribed immediately.

@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cleanup_transcript_filenames import apply_plan, plan_artifact_cleanup, rewrite_state_file
+from cleanup_transcript_filenames import (
+    apply_plan,
+    build_review_payload,
+    plan_artifact_cleanup,
+    rewrite_state_file,
+    write_review_file,
+)
 
 
 def write_artifact(root: Path) -> Path:
@@ -126,3 +132,32 @@ def test_plan_skips_media_target_that_still_has_cleanup_noise(tmp_path: Path) ->
 
     assert not any(operation.role == "media" for operation in plan.operations)
     assert plan.reason == "canonical media target still contains cleanup noise"
+
+
+def test_review_payload_describes_skipped_conflicts(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    plan = plan_artifact_cleanup(artifact_path)
+    plan.skipped = True
+    plan.reason = f"target already exists: {tmp_path / 'target.docx'}"
+
+    payload = build_review_payload([plan])
+
+    assert payload["schema_version"] == 1
+    assert payload["summary"]["review_count"] == 1
+    assert payload["items"][0]["artifact_path"] == str(artifact_path)
+    assert payload["items"][0]["suggested_action"] == "compare duplicate artifact/media contents before merge or deletion"
+    assert payload["items"][0]["event"]["summary"] == "M&Q - UT Knoxville | NSF CAREER Proposal Debrief - Dustin Gilmer"
+
+
+def test_write_review_file_creates_parent_directory(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    plan = plan_artifact_cleanup(artifact_path)
+    plan.skipped = True
+    plan.reason = "shared media has conflicting canonical targets"
+    review_path = tmp_path / "reviews" / "cleanup-review.json"
+
+    written_path = write_review_file(review_path, [plan])
+
+    assert written_path == review_path
+    payload = json.loads(review_path.read_text(encoding="utf-8"))
+    assert payload["items"][0]["suggested_action"] == "choose the canonical media title for shared overlapping calendar artifacts"

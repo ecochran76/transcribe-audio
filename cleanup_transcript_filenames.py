@@ -94,6 +94,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--embedding-provider", default="ollama")
     parser.add_argument("--embedding-model", default="ollama/nomic-embed-text")
     parser.add_argument("--limit", type=int, help="Limit number of actionable plans.")
+    parser.add_argument(
+        "--export-review",
+        type=Path,
+        help="Write a compact JSON review file for skipped/conflicting plans.",
+    )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON output.")
     return parser.parse_args(argv)
 
@@ -212,6 +217,56 @@ def media_name_needs_cleanup(path: Path) -> bool:
         or stem.endswith(" (1)")
         or OTHER_EVENTS_RE.search(stem) is not None
     )
+
+
+def event_review(payload: dict[str, Any]) -> dict[str, Any]:
+    event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+    matching_calendars = event.get("matching_calendars") if isinstance(event.get("matching_calendars"), list) else []
+    return {
+        "summary": event.get("summary"),
+        "start": event.get("start"),
+        "end": event.get("end"),
+        "participants": event.get("participants") if isinstance(event.get("participants"), list) else [],
+        "matching_calendar_count": len(matching_calendars),
+        "matching_calendars": [
+            {
+                "calendar_id": item.get("calendar_id"),
+                "calendar_summary": item.get("calendar_summary"),
+                "event_summary": item.get("event_summary"),
+                "coverage": item.get("coverage"),
+            }
+            for item in matching_calendars
+            if isinstance(item, dict)
+        ],
+    }
+
+
+def target_conflicts(plan: CleanupPlan) -> list[dict[str, str]]:
+    conflicts: list[dict[str, str]] = []
+    for operation in plan.operations:
+        if operation.new_path.exists():
+            conflicts.append(
+                {
+                    "role": operation.role,
+                    "old_path": str(operation.old_path),
+                    "target_path": str(operation.new_path),
+                }
+            )
+    return conflicts
+
+
+def suggested_review_action(plan: CleanupPlan) -> str:
+    if plan.reason == "missing usable event metadata":
+        return "inspect sidecar/event metadata before renaming"
+    if plan.reason == "already canonical":
+        return "no action needed"
+    if plan.reason == "shared media has conflicting canonical targets":
+        return "choose the canonical media title for shared overlapping calendar artifacts"
+    if plan.reason == "canonical media target still contains cleanup noise":
+        return "choose one event title or keep shared media unchanged"
+    if plan.reason.startswith("target already exists:"):
+        return "compare duplicate artifact/media contents before merge or deletion"
+    return "manual review required"
 
 
 def plan_artifact_cleanup(artifact_path: Path) -> CleanupPlan:
@@ -401,6 +456,48 @@ def summarize(plans: list[CleanupPlan]) -> dict[str, int]:
     }
 
 
+def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
+    payload = load_json_file(plan.artifact_path)
+    output_paths = payload.get("output_paths") if isinstance(payload.get("output_paths"), dict) else {}
+    return {
+        "artifact_path": str(plan.artifact_path),
+        "reason": plan.reason,
+        "suggested_action": suggested_review_action(plan),
+        "clean_base_name": plan.clean_base_name,
+        "event": event_review(payload),
+        "source_media_path": payload.get("source_media_path"),
+        "working_media_path": payload.get("working_media_path"),
+        "output_paths": output_paths,
+        "operations": [operation.to_dict() for operation in plan.operations],
+        "replacements": plan.replacements,
+        "target_conflicts": target_conflicts(plan),
+    }
+
+
+def build_review_payload(plans: list[CleanupPlan]) -> dict[str, Any]:
+    skipped = [plan for plan in plans if plan.skipped]
+    by_reason: dict[str, int] = {}
+    for plan in skipped:
+        reason = plan.reason or "unspecified"
+        by_reason[reason] = by_reason.get(reason, 0) + 1
+    return {
+        "schema_version": 1,
+        "summary": {
+            **summarize(plans),
+            "review_count": len(skipped),
+            "by_reason": by_reason,
+        },
+        "items": [build_review_entry(plan) for plan in skipped],
+    }
+
+
+def write_review_file(path: Path, plans: list[CleanupPlan]) -> Path:
+    output_path = path.expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json_file(output_path, build_review_payload(plans))
+    return output_path
+
+
 def suppress_conflicting_media_operations(plans: list[CleanupPlan]) -> None:
     media_targets: dict[str, set[str]] = {}
     for plan in plans:
@@ -451,6 +548,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         plans = limited
 
     result: dict[str, Any] = {"summary": summarize(plans), "plans": [plan.to_dict() for plan in plans]}
+    if args.export_review:
+        review_path = write_review_file(args.export_review, plans)
+        result["review_path"] = str(review_path)
     if not args.apply:
         if args.json:
             print(json.dumps(result, indent=2, sort_keys=True))
@@ -466,6 +566,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 print(f"\n{plan.artifact_path}")
                 for operation in plan.operations:
                     print(f"  {operation.role}: {operation.old_path.name} -> {operation.new_path.name}")
+            if args.export_review:
+                print(f"Review file: {result['review_path']}")
         return 0
 
     if service_is_active(args.service_name) and not args.manage_service:
