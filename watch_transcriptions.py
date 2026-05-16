@@ -912,7 +912,6 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
     for media_path in iter_candidates(job):
         key = file_key(media_path)
         live_keys.add(key)
-        stats.candidate_count += 1
         try:
             file_stats = media_path.stat()
         except FileNotFoundError:
@@ -947,6 +946,7 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
             changed = True
             continue
 
+        stats.candidate_count += 1
         if age < job.min_age_seconds:
             if verbose:
                 print(f"[{job.name}] Waiting for minimum age on {media_path} ({age:.1f}s)", flush=True)

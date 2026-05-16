@@ -27,11 +27,13 @@ from watch_transcriptions import (
     ProcessedRecord,
     WatchJob,
     extract_artifact_paths,
+    fingerprint_for,
     ingest_store_artifacts,
     load_jobs,
     load_state,
     parse_args,
     save_state,
+    scan_job,
 )
 
 
@@ -221,6 +223,51 @@ def test_watcher_state_preserves_store_paths(tmp_path: Path) -> None:
     loaded = load_state(state_path, [job])
     record = next(iter(loaded[job.name].processed.values()))
     assert record.store_paths == [store_path]
+
+
+def test_scan_job_does_not_count_processed_files_as_queued(tmp_path: Path) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    media_stats = media_path.stat()
+    size = int(media_stats.st_size)
+    mtime = float(media_stats.st_mtime)
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    job_state = JobState(
+        processed={
+            str(media_path.resolve()): ProcessedRecord(
+                status="success",
+                completed_at=1.0,
+                size=size,
+                mtime=mtime,
+                fingerprint=fingerprint_for(media_path.resolve(), size, mtime),
+                command=["python", "assembly_transcribe.py"],
+                returncode=0,
+                backend="assembly",
+                attempted_backends=["assembly"],
+            )
+        },
+        candidates={},
+    )
+
+    changed, stats = scan_job(job, job_state, verbose=False)
+
+    assert changed is False
+    assert stats.candidate_count == 0
+    assert stats.processed_attempts == 0
 
 
 def test_watcher_store_config_expands_to_job_settings(tmp_path: Path) -> None:

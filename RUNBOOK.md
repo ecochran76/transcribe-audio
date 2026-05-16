@@ -2405,3 +2405,43 @@ Next:
   from before this fix.
 - Repair the Slack notification runtime path if watcher alerts should resume;
   current service logs still show `openclaw not found on PATH`.
+
+## Turn 75 | 2026-05-16
+
+Summary: Fixed a watcher liveness bug where already-processed filesystem
+matches were counted as queued candidates, causing repeated no-progress
+systemd restarts after the backlog drained.
+
+Action:
+
+- Checked Graphiti advisory memory for watcher backlog and service-state
+  guidance, then verified against local systemd logs and state files.
+- Found persisted watcher state had no queued candidates, while the live
+  heartbeat still reported 88 candidates and eventually exited for no progress.
+- Updated `scan_job` so `candidate_count` means pending/queued work after
+  processed-file and equivalent-renamed-file skip checks, not every matching
+  file on disk.
+- Added a regression test confirming an already-successful media file reports
+  zero queued candidates.
+- Restarted `transcribe-watch.service` to load the fix.
+
+Validation:
+
+- `python -m pytest tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile watch_transcriptions.py transcribe_common.py` passed.
+- `git diff --check` passed.
+- After restart, the service heartbeat reported
+  `candidates=0 attempted=0 successes=0 failures=0`.
+- Historical duplicate-prefix inventory found 130 matching files under
+  Downloads and 4 under Syncthing Sound Recordings; bulk cleanup was deferred
+  because many names reflect overlapping calendar matches with different event
+  titles, and renaming live media without state/sidecar updates could trigger
+  re-transcription.
+
+Next:
+
+- Implement a bounded historical cleanup tool that updates media filenames,
+  transcript sidecar paths, store metadata, and watcher state together.
+- Keep the watcher running and confirm it immediately handles the next newly
+  arriving recording.
+- Repair Slack notification PATH if service notifications are still wanted.
