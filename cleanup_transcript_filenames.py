@@ -119,6 +119,14 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="In apply mode, quarantine old conflict files whose canonical targets have identical content.",
     )
+    parser.add_argument(
+        "--resolve-reviewed-conflicts",
+        action="store_true",
+        help=(
+            "Quarantine and rewrite conflicts classified as metadata_or_format_only_candidate. "
+            "Dry-run reports eligible resolutions; apply mode performs them."
+        ),
+    )
     parser.add_argument("--quarantine-dir", type=Path, default=DEFAULT_QUARANTINE_DIR)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON output.")
     return parser.parse_args(argv)
@@ -586,6 +594,80 @@ def resolve_identical_conflict_plan(plan: CleanupPlan, *, quarantine_dir: Path) 
     }
 
 
+def reviewed_conflict_resolution_plan(
+    plan: CleanupPlan,
+    *,
+    quarantine_dir: Path,
+    apply: bool,
+) -> Optional[dict[str, Any]]:
+    if not plan.skipped:
+        return None
+
+    conflicts = target_conflicts(plan)
+    if not conflicts:
+        return None
+
+    reviewed_conflicts: list[dict[str, Any]] = []
+    for conflict in conflicts:
+        old_path = Path(conflict["old_path"])
+        target_path = Path(conflict["target_path"])
+        role = conflict["role"]
+        if not old_path.exists() or not target_path.exists():
+            return None
+        diff_summary = content_difference_summary(old_path, target_path, role)
+        if diff_summary.get("classification") != "metadata_or_format_only_candidate":
+            return None
+        reviewed_conflicts.append({**conflict, "diff_summary": diff_summary})
+
+    for operation in plan.operations:
+        if operation.new_path.exists():
+            return None
+
+    replacements = dict(plan.replacements)
+    root = quarantine_dir.expanduser().resolve()
+    quarantined: list[dict[str, str]] = []
+    for conflict in reviewed_conflicts:
+        old_path = Path(conflict["old_path"])
+        target_path = Path(conflict["target_path"])
+        quarantine_path = quarantine_path_for(root, old_path)
+        if apply:
+            quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+            if quarantine_path.exists():
+                raise CleanupError(f"Quarantine target already exists: {quarantine_path}")
+            shutil.move(str(old_path), str(quarantine_path))
+        replacements[str(old_path.resolve())] = str(target_path.resolve())
+        quarantined.append(
+            {
+                "role": str(conflict["role"]),
+                "old_path": str(old_path),
+                "canonical_path": str(target_path),
+                "quarantine_path": str(quarantine_path),
+            }
+        )
+
+    applied: list[dict[str, str]] = []
+    for operation in plan.operations:
+        if apply:
+            operation.new_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(operation.old_path), str(operation.new_path))
+        replacements[str(operation.old_path)] = str(operation.new_path)
+        applied.append(operation.to_dict())
+
+    artifact_path = replacements.get(str(plan.artifact_path.resolve()), str(plan.artifact_path.resolve()))
+    if apply and Path(artifact_path).exists():
+        rewrite_artifact_payload(Path(artifact_path), replacements)
+
+    return {
+        "artifact_path": artifact_path,
+        "resolved_reviewed_conflict": True,
+        "applied": applied,
+        "quarantined": quarantined,
+        "replacements": replacements,
+        "review_classification": "metadata_or_format_only_candidate",
+        "dry_run": not apply,
+    }
+
+
 def refresh_store_for_replacements(
     replacements: dict[str, str],
     artifact_paths: Iterable[str],
@@ -754,6 +836,18 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         plans = limited
 
     result: dict[str, Any] = {"summary": summarize(plans), "plans": [plan.to_dict() for plan in plans]}
+    if args.resolve_reviewed_conflicts:
+        result["reviewed_resolutions"] = [
+            resolution
+            for plan in plans
+            if (
+                resolution := reviewed_conflict_resolution_plan(
+                    plan,
+                    quarantine_dir=args.quarantine_dir,
+                    apply=False,
+                )
+            )
+        ]
     if args.export_review:
         review_path = write_review_file(args.export_review, plans, include_diff_summary=args.include_diff_summary)
         result["review_path"] = str(review_path)
@@ -774,6 +868,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                     print(f"  {operation.role}: {operation.old_path.name} -> {operation.new_path.name}")
             if args.export_review:
                 print(f"Review file: {result['review_path']}")
+            if args.resolve_reviewed_conflicts:
+                print(f"Reviewed conflict resolutions: {len(result['reviewed_resolutions'])}")
         return 0
 
     if service_is_active(args.service_name) and not args.manage_service:
@@ -795,6 +891,16 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 if resolved_result:
                     applied_results.append(resolved_result)
                     replacements.update(resolved_result["replacements"])
+                continue
+            if args.resolve_reviewed_conflicts and plan.skipped:
+                reviewed_result = reviewed_conflict_resolution_plan(
+                    plan,
+                    quarantine_dir=args.quarantine_dir,
+                    apply=True,
+                )
+                if reviewed_result:
+                    applied_results.append(reviewed_result)
+                    replacements.update(reviewed_result["replacements"])
                 continue
             if plan.skipped or not (plan.operations or plan.replacements):
                 continue

@@ -9,6 +9,7 @@ from cleanup_transcript_filenames import (
     content_difference_summary,
     content_equivalent,
     plan_artifact_cleanup,
+    reviewed_conflict_resolution_plan,
     resolve_identical_conflict_plan,
     rewrite_state_file,
     write_review_file,
@@ -224,3 +225,54 @@ def test_resolve_identical_conflict_quarantines_redundant_output(tmp_path: Path)
     assert not artifact_path.exists()
     assert clean_artifact.exists()
     assert Path(result["quarantined"][0]["quarantine_path"]).exists()
+
+
+def test_reviewed_conflict_resolution_dry_run_requires_metadata_only_candidate(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    Path(payload["output_paths"]["txt"]).write_text("Source: noisy name\nShared transcript body\n", encoding="utf-8")
+    clean_txt = tmp_path / "2026-04-10 10-00 M&Q - UT Knoxville NSF CAREER Proposal Debrief - Dustin Gilmer My recording 88 Transcript.txt"
+    clean_txt.write_text("Source: clean name\nShared transcript body\n", encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+
+    result = reviewed_conflict_resolution_plan(plan, quarantine_dir=tmp_path / "quarantine", apply=False)
+
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["review_classification"] == "metadata_or_format_only_candidate"
+    assert Path(payload["output_paths"]["txt"]).exists()
+    assert not Path(result["quarantined"][0]["quarantine_path"]).exists()
+
+
+def test_reviewed_conflict_resolution_rejects_distinct_content(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    Path(payload["output_paths"]["txt"]).write_text("Old transcript content\n", encoding="utf-8")
+    clean_txt = tmp_path / "2026-04-10 10-00 M&Q - UT Knoxville NSF CAREER Proposal Debrief - Dustin Gilmer My recording 88 Transcript.txt"
+    clean_txt.write_text("Different target content\n", encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+
+    result = reviewed_conflict_resolution_plan(plan, quarantine_dir=tmp_path / "quarantine", apply=False)
+
+    assert result is None
+
+
+def test_reviewed_conflict_resolution_apply_quarantines_and_rewrites(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    old_txt = Path(payload["output_paths"]["txt"])
+    old_txt.write_text("Source: noisy name\nShared transcript body\n", encoding="utf-8")
+    clean_txt = tmp_path / "2026-04-10 10-00 M&Q - UT Knoxville NSF CAREER Proposal Debrief - Dustin Gilmer My recording 88 Transcript.txt"
+    clean_txt.write_text("Source: clean name\nShared transcript body\n", encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+
+    result = reviewed_conflict_resolution_plan(plan, quarantine_dir=tmp_path / "quarantine", apply=True)
+
+    assert result is not None
+    assert result["dry_run"] is False
+    assert not old_txt.exists()
+    assert clean_txt.exists()
+    assert Path(result["quarantined"][0]["quarantine_path"]).exists()
+    new_artifact = Path(result["artifact_path"])
+    new_payload = json.loads(new_artifact.read_text(encoding="utf-8"))
+    assert new_payload["output_paths"]["txt"] == str(clean_txt)

@@ -2620,3 +2620,32 @@ Next:
 - Keep the partial/distinct-content conflicts preserved until a human chooses
   whether each represents a separate overlapping-calendar artifact or a stale
   duplicate.
+
+## Turn 81 | 2026-05-16
+
+Summary: Added a reviewed apply path for metadata-only filename cleanup
+conflicts.
+
+Action:
+
+- Added `cleanup_transcript_filenames.py --resolve-reviewed-conflicts`.
+- Dry-run mode reports eligible reviewed resolutions without moving files.
+- Apply mode only resolves conflicts whose computed diff summary classifies
+  every target conflict as `metadata_or_format_only_candidate`.
+- Reviewed resolution quarantines old conflict files, moves non-conflicting
+  outputs, rewrites transcript sidecar pointers, updates watcher state, and can
+  refresh the transcript store.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- Live dry-run reported 7 eligible reviewed resolutions out of 17 skipped
+  conflicts; each would quarantine one old DOCX conflict.
+
+Next:
+
+- Apply the 7 reviewed metadata-only resolutions with service management and
+  store refresh.
+- Regenerate the review export and preserve the remaining high-overlap,
+  partial-overlap, and distinct-content conflicts for human review.

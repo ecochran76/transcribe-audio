@@ -156,6 +156,8 @@ stop and restart the service.
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --export-review ~/.local/state/transcribe-audio/filename-cleanup-review.json --include-diff-summary
+.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --resolve-reviewed-conflicts
+.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store --resolve-reviewed-conflicts
 .venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store --resolve-identical-conflicts
 ```
 
@@ -167,6 +169,10 @@ lists the event metadata, proposed operations, existing targets, and suggested
 manual action for each ambiguous artifact. Add `--include-diff-summary` to
 include privacy-conscious line counts, similarity ratios, and conflict
 classifications without embedding transcript excerpts. Use
+`--resolve-reviewed-conflicts` first as a dry-run to report conflicts classified
+as `metadata_or_format_only_candidate`; in apply mode it quarantines the old
+conflict files, moves non-conflicting outputs, and rewrites sidecar pointers.
+Use
 `--resolve-identical-conflicts` only after review; it compares transcript JSON
 text, TXT text, and DOCX paragraph text, then moves redundant old conflict files
 to `~/.local/state/transcribe-audio/filename-cleanup-quarantine/` instead of
