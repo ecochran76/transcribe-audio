@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -10,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from transcribe_common import (
     CalendarProvider,
     attach_matching_calendars,
+    build_event_base_name,
     build_gog_calendar_list_command,
     build_gog_calendar_events_command,
     build_gws_calendar_env,
@@ -88,6 +90,27 @@ def test_process_transcription_outputs_writes_artifact_json(tmp_path: Path) -> N
     assert payload["output_paths"]["artifact"] == str(artifact_path)
     assert payload["output_paths"]["docx"].endswith("meeting Transcript.docx")
     assert payload["output_paths"]["txt"].endswith("meeting Transcript.txt")
+
+
+def test_event_base_name_does_not_duplicate_existing_calendar_prefix() -> None:
+    event_time = datetime(2026, 5, 13, 13, 0).astimezone()
+
+    assert (
+        build_event_base_name(
+            event_time,
+            "Kiddie training and 1 other(s)",
+            "2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129",
+        )
+        == "2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129"
+    )
+    assert (
+        build_event_base_name(
+            event_time,
+            "Kiddie training",
+            "2026-05-13 13-00 Kiddie training and 1 other(s) 2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129",
+        )
+        == "2026-05-13 13-00 Kiddie training My recording 129"
+    )
 
 
 def test_extract_artifact_paths_from_backend_stdout() -> None:

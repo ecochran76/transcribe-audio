@@ -38,6 +38,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
 EVENT_WINDOW_BUFFER_SECONDS = 5 * 60
 SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
+OTHER_EVENTS_PREFIX_RE = re.compile(r"^and \d+ other\(s\)\s+", re.IGNORECASE)
 MIN_SRT_CUE_DURATION = 0.5
 LANGUAGE_CODE_ALIASES = {
     "en": "en_us",
@@ -1021,10 +1022,40 @@ def unique_path(base_path: Path) -> Path:
     return candidate
 
 
+def strip_existing_event_prefix(source_stem: str, timestamp_str: str, event_summary: str) -> str:
+    cleaned_source = sanitize_filename_part(source_stem)
+    cleaned_summary = sanitize_filename_part(event_summary or "Untitled Event")
+    summary_without_suffix = re.sub(r"\s+and \d+ other\(s\)$", "", cleaned_summary, flags=re.IGNORECASE)
+    summary_candidates = [cleaned_summary]
+    if summary_without_suffix and summary_without_suffix != cleaned_summary:
+        summary_candidates.append(summary_without_suffix)
+
+    changed = True
+    while changed and cleaned_source:
+        changed = False
+        for summary in summary_candidates:
+            prefix = f"{timestamp_str} {summary}".strip()
+            folded_source = cleaned_source.casefold()
+            folded_prefix = prefix.casefold()
+            if folded_source == folded_prefix:
+                cleaned_source = ""
+                changed = True
+                break
+            if folded_source.startswith(f"{folded_prefix} "):
+                cleaned_source = cleaned_source[len(prefix) :].strip()
+                changed = True
+                break
+        stripped = OTHER_EVENTS_PREFIX_RE.sub("", cleaned_source).strip()
+        if stripped != cleaned_source:
+            cleaned_source = stripped
+            changed = True
+    return cleaned_source
+
+
 def build_event_base_name(recording_time: datetime, event_summary: str, source_stem: str) -> str:
     timestamp_str = recording_time.astimezone().strftime("%Y-%m-%d %H-%M")
     cleaned_summary = sanitize_filename_part(event_summary or "Untitled Event")
-    cleaned_source = sanitize_filename_part(source_stem)
+    cleaned_source = strip_existing_event_prefix(source_stem, timestamp_str, cleaned_summary)
     parts = [timestamp_str, cleaned_summary, cleaned_source]
     return " ".join(part for part in parts if part)
 

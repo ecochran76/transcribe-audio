@@ -2370,3 +2370,38 @@ Next:
   filenames that already contain the calendar title/date.
 - Keep the watcher running; continue periodic monitor passes while historical
   Downloads backlog drains.
+
+## Turn 74 | 2026-05-15
+
+Summary: Fixed calendar-aware filename construction so already-prefixed media
+does not produce duplicate date/title prefixes in transcript outputs.
+
+Action:
+
+- Added prefix stripping in `transcribe_common.py` before constructing
+  calendar-aware output basenames.
+- Covered both exact repeated `YYYY-MM-DD HH-MM Event` prefixes and cases where
+  prior overlapping-calendar titles left a leading `and N other(s)` fragment.
+- Added a regression test for already-calendar-prefixed Downloads recordings.
+- Restarted `transcribe-watch.service` after the patch.
+
+Validation:
+
+- `python -m pytest tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile transcribe_common.py watch_transcriptions.py` passed.
+- `git diff --check` passed.
+- After restart, the watcher completed
+  `2026-04-09 13-00 Andersons-Saber Update My recording 87.m4a` via AssemblyAI
+  and wrote clean output names without a repeated calendar prefix.
+- Final observed service state: active under systemd, Downloads had 75 processed
+  path records and 45 candidates, Syncthing had 5 processed path records and 0
+  candidates.
+
+Next:
+
+- Continue monitoring until Downloads backlog drains and new recordings are
+  picked up immediately.
+- Decide whether to clean already-created duplicate-prefixed transcript outputs
+  from before this fix.
+- Repair the Slack notification runtime path if watcher alerts should resume;
+  current service logs still show `openclaw not found on PATH`.
