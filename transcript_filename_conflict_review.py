@@ -5,10 +5,24 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
+
+from cleanup_transcript_filenames import (
+    DEFAULT_QUARANTINE_DIR,
+    DEFAULT_SERVICE_NAME,
+    refresh_store_for_replacements,
+    rewrite_artifact_payload,
+    rewrite_state_file,
+    service_is_active,
+    start_service,
+    stop_service,
+)
+from watch_transcriptions import DEFAULT_STATE_PATH
 
 DECISION_OPTIONS = [
     "pending",
@@ -25,13 +39,19 @@ CLASSIFICATION_PRIORITY = [
     "binary_or_unsupported",
 ]
 DEFAULT_REVIEW_DIR = Path("~/.local/state/transcribe-audio/filename-conflict-reviews")
+APPLY_APPROVAL_TOKEN = "APPLY_FILENAME_CONFLICT_REVIEW"
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a human review template and Markdown report for filename cleanup conflicts."
     )
-    parser.add_argument("review_export", type=Path, help="JSON produced by cleanup_transcript_filenames.py --export-review.")
+    parser.add_argument(
+        "review_export",
+        nargs="?",
+        type=Path,
+        help="JSON produced by cleanup_transcript_filenames.py --export-review.",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -40,6 +60,17 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--json-output", type=Path, help="Write the decision template to this path.")
     parser.add_argument("--markdown-output", type=Path, help="Write the Markdown report to this path.")
+    parser.add_argument("--apply-review", type=Path, help="Apply decisions from an edited review template JSON.")
+    parser.add_argument("--apply", action="store_true", help="Actually apply --apply-review decisions. Default is dry-run.")
+    parser.add_argument("--approval-token", help=f"Required with --apply. Use {APPLY_APPROVAL_TOKEN}.")
+    parser.add_argument("--quarantine-dir", type=Path, default=DEFAULT_QUARANTINE_DIR)
+    parser.add_argument("--manage-service", action="store_true", help="Stop/restart transcribe-watch.service during apply.")
+    parser.add_argument("--service-name", default=DEFAULT_SERVICE_NAME)
+    parser.add_argument("--state-file", type=Path, default=DEFAULT_STATE_PATH)
+    parser.add_argument("--refresh-store", action="store_true")
+    parser.add_argument("--store-dir", type=Path, default=Path("~/.transcripts"))
+    parser.add_argument("--embedding-provider", default="ollama")
+    parser.add_argument("--embedding-model", default="ollama/nomic-embed-text")
     parser.add_argument("--format", choices=["text", "json"], default="text")
     return parser.parse_args(argv)
 
@@ -226,6 +257,153 @@ def markdown_report(template: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def quarantine_path_for(root: Path, source_path: Path) -> Path:
+    digest = hashlib.sha256(source_path.read_bytes()).hexdigest()[:16] if source_path.exists() else "missing"
+    return root / digest[:2] / f"{digest}-{source_path.name}"
+
+
+def apply_review_item(item: dict[str, Any], *, quarantine_dir: Path, apply: bool) -> dict[str, Any]:
+    decision = str(item.get("decision") or "pending")
+    result: dict[str, Any] = {
+        "id": item.get("id"),
+        "decision": decision,
+        "clean_base_name": item.get("clean_base_name"),
+        "status": "skipped",
+        "replacements": {},
+        "quarantined": [],
+        "moved": [],
+        "artifact_path": item.get("artifact_path"),
+    }
+    if decision in {"pending", "needs_investigation"}:
+        result["reason"] = "decision is not actionable"
+        return result
+    if decision in {"preserve_both", "keep_target"}:
+        result["status"] = "recorded_noop"
+        result["reason"] = f"decision {decision} does not mutate files"
+        return result
+    if decision != "quarantine_old":
+        result["status"] = "error"
+        result["reason"] = f"unsupported decision: {decision}"
+        return result
+
+    replacements: dict[str, str] = {}
+    quarantine_root = quarantine_dir.expanduser().resolve()
+    for conflict in item.get("conflicts", []):
+        if not isinstance(conflict, dict):
+            continue
+        old_path = Path(str(conflict.get("old_path") or "")).expanduser()
+        target_path = Path(str(conflict.get("target_path") or "")).expanduser()
+        if not old_path.exists():
+            result["status"] = "error"
+            result["reason"] = f"old conflict path does not exist: {old_path}"
+            return result
+        if not target_path.exists():
+            result["status"] = "error"
+            result["reason"] = f"target conflict path does not exist: {target_path}"
+            return result
+        quarantine_path = quarantine_path_for(quarantine_root, old_path)
+        if apply:
+            quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+            if quarantine_path.exists():
+                result["status"] = "error"
+                result["reason"] = f"quarantine target already exists: {quarantine_path}"
+                return result
+            shutil.move(str(old_path), str(quarantine_path))
+        replacements[str(old_path.resolve())] = str(target_path.resolve())
+        result["quarantined"].append(
+            {
+                "role": conflict.get("role"),
+                "old_path": str(old_path),
+                "canonical_path": str(target_path),
+                "quarantine_path": str(quarantine_path),
+            }
+        )
+
+    for operation in item.get("planned_non_conflicting_operations", []):
+        if not isinstance(operation, dict):
+            continue
+        old_path = Path(str(operation.get("old_path") or "")).expanduser()
+        new_path = Path(str(operation.get("new_path") or "")).expanduser()
+        if not old_path.exists():
+            continue
+        if new_path.exists():
+            result["status"] = "error"
+            result["reason"] = f"planned operation target already exists: {new_path}"
+            return result
+        if apply:
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(old_path), str(new_path))
+        replacements[str(old_path.resolve())] = str(new_path.resolve())
+        result["moved"].append({"role": operation.get("role"), "old_path": str(old_path), "new_path": str(new_path)})
+
+    artifact_path = Path(str(item.get("artifact_path") or "")).expanduser()
+    final_artifact = Path(replacements.get(str(artifact_path.resolve()), str(artifact_path.resolve())))
+    if apply and final_artifact.exists():
+        rewrite_artifact_payload(final_artifact, replacements)
+    result["artifact_path"] = str(final_artifact)
+    result["replacements"] = replacements
+    result["status"] = "applied" if apply else "planned"
+    result["dry_run"] = not apply
+    return result
+
+
+def apply_review_template(args: argparse.Namespace) -> dict[str, Any]:
+    if args.apply and args.approval_token != APPLY_APPROVAL_TOKEN:
+        raise ValueError(f"--apply requires --approval-token {APPLY_APPROVAL_TOKEN}")
+    if args.apply and service_is_active(args.service_name) and not args.manage_service:
+        raise RuntimeError(f"{args.service_name} is active; use --manage-service for apply")
+
+    template = load_json(args.apply_review)
+    results: list[dict[str, Any]] = []
+    service_was_active = False
+    try:
+        if args.apply and args.manage_service:
+            service_was_active = stop_service(args.service_name)
+        for item in template.get("items", []):
+            if isinstance(item, dict):
+                results.append(apply_review_item(item, quarantine_dir=args.quarantine_dir, apply=args.apply))
+        replacements: dict[str, str] = {}
+        artifact_paths: list[str] = []
+        for result in results:
+            if result.get("status") in {"planned", "applied"}:
+                replacements.update(result.get("replacements", {}))
+                if result.get("artifact_path"):
+                    artifact_paths.append(str(result["artifact_path"]))
+        state_updated = (
+            rewrite_state_file(args.state_file.expanduser().resolve(), replacements)
+            if args.apply and replacements
+            else False
+        )
+        store_refreshed = (
+            refresh_store_for_replacements(
+                replacements,
+                artifact_paths,
+                store_dir=args.store_dir,
+                embedding_provider=args.embedding_provider,
+                embedding_model=args.embedding_model,
+            )
+            if args.apply and args.refresh_store and replacements
+            else []
+        )
+    finally:
+        if args.apply and args.manage_service and service_was_active:
+            start_service(args.service_name)
+
+    counts = Counter(str(result.get("status")) for result in results)
+    return {
+        "mode": "apply" if args.apply else "preview",
+        "review_path": str(args.apply_review.expanduser().resolve()),
+        "summary": {
+            "items": len(results),
+            "by_status": dict(counts),
+            "mutating_decisions": sum(1 for result in results if result.get("status") in {"planned", "applied"}),
+        },
+        "state_updated": state_updated,
+        "store_refreshed": store_refreshed,
+        "results": results,
+    }
+
+
 def default_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     output_dir = args.output_dir.expanduser().resolve()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -240,6 +418,23 @@ def default_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
+    if args.apply_review:
+        result = apply_review_template(args)
+        if args.format == "json":
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print(f"Mode: {result['mode']}")
+            print(f"Review: {result['review_path']}")
+            print(f"Items: {result['summary']['items']}")
+            print(f"Statuses: {result['summary']['by_status']}")
+        return 0
+    if args.apply:
+        print("Error: --apply requires --apply-review", file=sys.stderr)
+        return 2
+    if not args.review_export:
+        print("Error: review_export is required unless --apply-review is used", file=sys.stderr)
+        return 2
+
     review_export = args.review_export.expanduser().resolve()
     payload = load_json(review_export)
     template = build_review_template(review_export, payload)

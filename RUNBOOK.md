@@ -2719,3 +2719,37 @@ Next:
   conflict resolution.
 - Add an apply path that consumes the review template and only acts on explicit
   non-pending decisions.
+
+## Turn 84 | 2026-05-16
+
+Summary: Added an explicit-decision apply path for filename-conflict review
+templates.
+
+Action:
+
+- Extended `transcript_filename_conflict_review.py` with `--apply-review`.
+- Review-template applies are dry-run by default.
+- Live mutation requires `--apply --approval-token
+  APPLY_FILENAME_CONFLICT_REVIEW`.
+- `pending` and `needs_investigation` decisions are skipped.
+- `preserve_both` and `keep_target` are recorded no-op decisions.
+- Only `quarantine_old` moves files: old conflict paths are quarantined,
+  planned non-conflicting operations are moved, sidecar pointers are rewritten,
+  watcher state can be updated, and transcript-store rows can be refreshed.
+
+Validation:
+
+- `python -m pytest tests/test_transcript_filename_conflict_review.py tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile transcript_filename_conflict_review.py cleanup_transcript_filenames.py` passed.
+- Live dry-run over
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review-20260516-153723.json`
+  reported 10 skipped items and 0 mutating decisions because all decisions are
+  still `pending`.
+
+Next:
+
+- Operator should edit the review JSON decisions for any of the remaining 10
+  conflicts, then rerun `--apply-review` as dry-run.
+- After dry-run confirms the intended mutations, apply with
+  `--apply --approval-token APPLY_FILENAME_CONFLICT_REVIEW --manage-service
+  --refresh-store`.
