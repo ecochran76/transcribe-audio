@@ -61,6 +61,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--json-output", type=Path, help="Write the decision template to this path.")
     parser.add_argument("--markdown-output", type=Path, help="Write the Markdown report to this path.")
     parser.add_argument("--apply-review", type=Path, help="Apply decisions from an edited review template JSON.")
+    parser.add_argument("--audit-output", type=Path, help="Write the apply-review preview/apply audit JSON to this path.")
     parser.add_argument("--apply", action="store_true", help="Actually apply --apply-review decisions. Default is dry-run.")
     parser.add_argument("--approval-token", help=f"Required with --apply. Use {APPLY_APPROVAL_TOKEN}.")
     parser.add_argument("--quarantine-dir", type=Path, default=DEFAULT_QUARANTINE_DIR)
@@ -390,9 +391,10 @@ def apply_review_template(args: argparse.Namespace) -> dict[str, Any]:
             start_service(args.service_name)
 
     counts = Counter(str(result.get("status")) for result in results)
-    return {
+    result = {
         "mode": "apply" if args.apply else "preview",
         "review_path": str(args.apply_review.expanduser().resolve()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "items": len(results),
             "by_status": dict(counts),
@@ -402,6 +404,10 @@ def apply_review_template(args: argparse.Namespace) -> dict[str, Any]:
         "store_refreshed": store_refreshed,
         "results": results,
     }
+    if args.audit_output:
+        write_json(args.audit_output.expanduser().resolve(), result)
+        result["audit_path"] = str(args.audit_output.expanduser().resolve())
+    return result
 
 
 def default_output_paths(args: argparse.Namespace) -> tuple[Path, Path]:

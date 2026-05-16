@@ -181,3 +181,17 @@ def test_apply_review_template_requires_approval_for_apply(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="approval-token"):
         review.apply_review_template(args)
+
+
+def test_apply_review_template_writes_audit_output(tmp_path: Path) -> None:
+    template_path = tmp_path / "review.json"
+    audit_path = tmp_path / "audit.json"
+    write_apply_template(template_path, decision="preserve_both")
+    args = review.parse_args(["--apply-review", str(template_path), "--audit-output", str(audit_path)])
+
+    result = review.apply_review_template(args)
+
+    assert result["audit_path"] == str(audit_path.resolve())
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["summary"]["by_status"]["recorded_noop"] == 1
+    assert audit["results"][0]["decision"] == "preserve_both"

@@ -2753,3 +2753,32 @@ Next:
 - After dry-run confirms the intended mutations, apply with
   `--apply --approval-token APPLY_FILENAME_CONFLICT_REVIEW --manage-service
   --refresh-store`.
+
+## Turn 85 | 2026-05-16
+
+Summary: Marked the two distinct-content filename conflicts as preserve-both
+and added review audit output support.
+
+Action:
+
+- Updated the live operator review JSON under
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/` for the two
+  `distinct_content_preserve_both` items.
+- Set both decisions to `preserve_both` with reviewer metadata and decision
+  reasons.
+- Added `transcript_filename_conflict_review.py --audit-output` so dry-run or
+  apply results can be written as durable local runtime audit JSON.
+
+Validation:
+
+- Live dry-run over the edited review JSON reported 2 `recorded_noop`, 8
+  `skipped`, and 0 mutating decisions.
+- `python -m pytest tests/test_transcript_filename_conflict_review.py tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile transcript_filename_conflict_review.py cleanup_transcript_filenames.py` passed.
+- `git diff --check` passed.
+- Wrote local audit JSON:
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review-20260516-153723-preserve-both-audit.json`.
+
+Next:
+
+- Continue with investigation support for the remaining 8 pending conflicts.
