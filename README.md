@@ -526,7 +526,7 @@ Start the local read API for the planned React review console:
 python transcript_api.py --store-dir ~/.transcripts --host 127.0.0.1 --port 18876
 ```
 
-The API exposes `/api/library`, `/api/search`, `/api/documents/<id>`, `/api/documents/<id>/context`, and range-capable `/api/blobs/<blob_id>` routes over the user-scoped store. When `frontend/dist/` exists, the same server serves the built React console at `/`. Transcript ingestion registers existing source recordings as copied blobs under `~/.transcripts/blobs/` and links them to documents through SQLite pointers, so the UI can play recordings without streaming arbitrary original filesystem paths. See `docs/dev/transcript-review-api.md` for the endpoint contract.
+The API exposes `/api/library`, `/api/review-queue`, `/api/search`, `/api/documents/<id>`, `/api/documents/<id>/context`, and range-capable `/api/blobs/<blob_id>` routes over the user-scoped store and runtime state. When `frontend/dist/` exists, the same server serves the built React console at `/`. Transcript ingestion registers existing source recordings as copied blobs under `~/.transcripts/blobs/` and links them to documents through SQLite pointers, so the UI can play recordings without streaming arbitrary original filesystem paths. See `docs/dev/transcript-review-api.md` for the endpoint contract.
 
 ### Run the watcher
 

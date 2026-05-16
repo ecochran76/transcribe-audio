@@ -153,3 +153,69 @@ def test_static_frontend_serves_index_and_assets(tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    route_path = tmp_path / "meeting.route.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "selected_candidate": {
+                    "label": "SoyLei Tempo Chemical matter",
+                    "target_kind": "matter",
+                    "confidence": 0.62,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_dir = state_root / "review-queue"
+    review_dir.mkdir(parents=True)
+    (review_dir / "route-a.route-review.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-05-16T21:00:00Z",
+                "reason": "Route confidence below threshold.",
+                "route_decision_path": str(route_path),
+                "selected_label": "SoyLei Tempo Chemical matter",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / "route-b.route-review.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-05-16T21:01:00Z",
+                "reason": "Route confidence below threshold.",
+                "route_decision_path": str(tmp_path / "missing.route.json"),
+                "selected_label": "Missing route",
+            }
+        ),
+        encoding="utf-8",
+    )
+    conflict_dir = state_root / "filename-conflict-reviews"
+    conflict_dir.mkdir()
+    (conflict_dir / "filename-conflict-review-20260516-153723.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-05-16T20:37:23Z",
+                "items": [
+                    {"id": "one", "decision": "keep_target"},
+                    {"id": "two", "decision": "pending"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = transcript_api.review_queue_summary(state_root=state_root, store_root=store_root, limit=20)
+
+    route_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "route_reviews")
+    conflict_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "filename_conflicts")
+    assert route_bucket["count"] == 1
+    assert route_bucket["stale_count"] == 1
+    assert conflict_bucket["count"] == 1
+    assert conflict_bucket["decisions"] == {"keep_target": 1, "pending": 1}
+    assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}

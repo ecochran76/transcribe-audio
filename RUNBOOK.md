@@ -2874,6 +2874,40 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 90 | 2026-05-16
+
+Summary: Added live read-only review queue data to the transcript console.
+
+Action:
+
+- Added `--state-dir` to `transcript_api.py`, defaulting to
+  `~/.local/state/transcribe-audio`.
+- Added `GET /api/review-queue` to aggregate route-review files,
+  filename-conflict decisions, and legacy enrichment queue counts.
+- Route-review items now report whether their referenced route-decision JSON
+  still exists; stale temp/pytest references are surfaced as
+  `stale_reference` instead of hidden or deleted.
+- Replaced hard-coded React review cards with live `/api/review-queue` data.
+- Updated the Review Queue inspector to show the runtime state root and live
+  route, filename-conflict, and legacy-enrichment summaries.
+- Updated `ROADMAP.md`, the P09 plan, README, and API docs for the endpoint.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- Live `curl http://127.0.0.1:18876/api/review-queue?limit=100` returned
+  buckets for 48 stale route-review references, 0 open filename conflicts, and
+  29 pending legacy enrichment items.
+- Live `curl http://transcripts.localhost/api/review-queue?limit=5` returned
+  HTTP 200 through local ingress.
+
+Next:
+
+- Add a safe local cleanup or archive workflow for stale route-review files so
+  pytest/temp references do not dominate the Review Queue surface.
+
 ## Turn 89 | 2026-05-16
 
 Summary: Pinned the transcript review console for cooper ingress.

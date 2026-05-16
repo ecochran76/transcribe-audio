@@ -24,6 +24,7 @@ from transcript_store import (
     context_for_document,
     db_path,
     init_db,
+    legacy_enrichment_queue,
     parse_object_json,
     search_store,
     store_dir,
@@ -31,6 +32,7 @@ from transcript_store import (
 
 DEFAULT_API_PORT = 18876
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parent / "frontend" / "dist"
+DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -154,6 +156,159 @@ def first(params: dict[str, list[str]], key: str, default: str = "") -> str:
     return values[0] if values else default
 
 
+def read_json_file(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def review_status(count: int, *, stale_count: int = 0, pending_count: int = 0) -> str:
+    if count <= 0 and pending_count <= 0:
+        return "clear"
+    if pending_count > 0:
+        return "pending"
+    if stale_count >= count:
+        return "stale"
+    if stale_count > 0:
+        return "mixed"
+    return "pending"
+
+
+def filename_conflict_summary(state_root: Path) -> dict[str, Any]:
+    review_dir = state_root / "filename-conflict-reviews"
+    review_files = sorted(review_dir.glob("filename-conflict-review-*.json"), key=lambda path: path.stat().st_mtime)
+    review_files = [path for path in review_files if "audit" not in path.name]
+    if not review_files:
+        return {
+            "id": "filename_conflicts",
+            "label": "Filename conflicts",
+            "count": 0,
+            "status": "clear",
+            "detail": "No filename-conflict review file found.",
+            "path": "",
+            "decisions": {},
+            "total_count": 0,
+        }
+    path = review_files[-1]
+    payload = read_json_file(path)
+    items = payload.get("items") if isinstance(payload.get("items"), list) else []
+    decisions: dict[str, int] = {}
+    pending_count = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        decision = str(item.get("decision") or "pending")
+        decisions[decision] = decisions.get(decision, 0) + 1
+        if decision in {"pending", "needs_investigation"}:
+            pending_count += 1
+    decision_text = ", ".join(f"{key}: {value}" for key, value in sorted(decisions.items())) or "no items"
+    return {
+        "id": "filename_conflicts",
+        "label": "Filename conflicts",
+        "count": pending_count,
+        "status": "pending" if pending_count else "clear",
+        "detail": f"Latest review has {decision_text}.",
+        "path": str(path),
+        "decisions": decisions,
+        "total_count": len(items),
+        "updated_at": payload.get("updated_at") or payload.get("created_at") or "",
+    }
+
+
+def route_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+    review_dir = state_root / "review-queue"
+    paths = sorted(review_dir.glob("*.route-review.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    items: list[dict[str, Any]] = []
+    for path in paths[:limit]:
+        payload = read_json_file(path)
+        route_path = Path(str(payload.get("route_decision_path") or "")).expanduser()
+        route_exists = bool(str(route_path)) and route_path.exists()
+        route_payload = read_json_file(route_path) if route_exists else {}
+        selected = route_payload.get("selected_candidate") if isinstance(route_payload.get("selected_candidate"), dict) else {}
+        item = {
+            "id": path.stem.removesuffix(".route-review"),
+            "bucket": "route_reviews",
+            "type": "route_review",
+            "label": payload.get("selected_label") or selected.get("label") or "Unselected route",
+            "reason": payload.get("reason") or "",
+            "created_at": payload.get("created_at") or "",
+            "review_path": str(path),
+            "route_decision_path": str(route_path) if str(route_path) else "",
+            "route_decision_exists": route_exists,
+            "status": "pending" if route_exists else "stale_reference",
+            "confidence": selected.get("confidence"),
+            "target_kind": selected.get("target_kind") or "",
+        }
+        items.append(item)
+    return items
+
+
+def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optional[Path] = None, limit: int = 50) -> dict[str, Any]:
+    runtime_state_root = (state_root or DEFAULT_STATE_DIR).expanduser()
+    route_items = route_review_items(runtime_state_root, limit=limit)
+    stale_count = sum(1 for item in route_items if not item["route_decision_exists"])
+    actionable_count = len(route_items) - stale_count
+    filename_bucket = filename_conflict_summary(runtime_state_root)
+    legacy_payload = legacy_enrichment_queue(root=store_root, pending_only=True)
+    legacy_count = int(legacy_payload.get("selected_count") or 0)
+    route_bucket = {
+        "id": "route_reviews",
+        "label": "Route reviews",
+        "count": actionable_count,
+        "status": review_status(len(route_items), stale_count=stale_count),
+        "detail": f"{actionable_count} actionable, {stale_count} stale local references.",
+        "total_count": len(route_items),
+        "stale_count": stale_count,
+    }
+    legacy_bucket = {
+        "id": "legacy_enrichment",
+        "label": "Legacy enrichment",
+        "count": legacy_count,
+        "status": "pending" if legacy_count else "clear",
+        "detail": "Pending first-pass summaries for imported historical transcripts.",
+        "duplicate_count": legacy_payload.get("duplicate_count") or 0,
+        "sample_items": [
+            {
+                "id": item.get("id"),
+                "title": item.get("title"),
+                "generated_at": item.get("generated_at"),
+                "has_media_blob": item.get("has_media_blob"),
+            }
+            for item in legacy_payload.get("items", [])[:5]
+            if isinstance(item, dict)
+        ],
+    }
+    buckets = [
+        route_bucket,
+        filename_bucket,
+        legacy_bucket,
+        {
+            "id": "memory_harvest",
+            "label": "Memory harvest",
+            "count": 0,
+            "status": "gated",
+            "detail": "Requires explicit review file approval before live Graphiti writes.",
+        },
+        {
+            "id": "speaker_ids",
+            "label": "Speaker IDs",
+            "count": 0,
+            "status": "planned",
+            "detail": "Contact dedupe and speaker assignment tables are planned in P09.",
+        },
+    ]
+    return {
+        "state_dir": str(runtime_state_root),
+        "store_dir": str(store_dir(store_root)),
+        "limit": limit,
+        "buckets": buckets,
+        "items": route_items,
+        "total_open": sum(int(bucket.get("count") or 0) for bucket in buckets),
+    }
+
+
 def parse_range_header(header: str, size: int) -> tuple[int, int] | None:
     if not header.startswith("bytes="):
         return None
@@ -188,6 +343,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def embedding_model(self) -> str:
         return self.server.embedding_model  # type: ignore[attr-defined]
 
+    @property
+    def state_root(self) -> Path:
+        return self.server.state_root  # type: ignore[attr-defined]
+
     def log_message(self, fmt: str, *args: Any) -> None:
         if self.server.quiet:  # type: ignore[attr-defined]
             return
@@ -207,6 +366,15 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         kind=first(params, "kind"),
                         limit=parse_int(first(params, "limit"), 50, minimum=1, maximum=200),
                         offset=parse_int(first(params, "offset"), 0, minimum=0, maximum=100000),
+                    )
+                )
+                return
+            if parsed.path == "/api/review-queue":
+                self.write_json(
+                    review_queue_summary(
+                        state_root=self.state_root,
+                        store_root=self.store_root,
+                        limit=parse_int(first(params, "limit"), 50, minimum=1, maximum=200),
                     )
                 )
                 return
@@ -342,6 +510,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         store_root: Path,
         embedding_provider: str,
         embedding_model: str,
+        state_root: Path = DEFAULT_STATE_DIR,
         quiet: bool = False,
         static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
     ) -> None:
@@ -349,6 +518,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         self.store_root = store_root
         self.embedding_provider = embedding_provider
         self.embedding_model = embedding_model
+        self.state_root = state_root.expanduser()
         self.quiet = quiet
         self.static_dir = static_dir
 
@@ -356,6 +526,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve the local transcript review API.")
     parser.add_argument("--store-dir", type=Path, default=DEFAULT_STORE_DIR)
+    parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--embedding-provider", default=DEFAULT_EMBEDDING_PROVIDER)
@@ -376,6 +547,7 @@ def serve(args: argparse.Namespace) -> None:
         store_root=root,
         embedding_provider=args.embedding_provider,
         embedding_model=args.embedding_model,
+        state_root=args.state_dir,
         quiet=bool(args.quiet),
         static_dir=None if args.no_static else args.static_dir,
     )
