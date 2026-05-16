@@ -304,6 +304,19 @@ python route_transcript.py "meeting Transcript.transcript.json" "meeting Transcr
 
 This writes a `*.route.json` decision containing route candidates, confidence, evidence, rejected alternatives, fallback behavior, and a `provenance_pack`. Current provenance comes from calendar metadata already stored in the transcript artifact, including `event.matching_calendars`. Low-confidence decisions write a local review queue item under `~/.local/state/transcribe-audio/review-queue/` unless `--no-review-queue` is passed.
 
+Archive stale local review queue items whose referenced route-decision files no
+longer exist:
+
+```bash
+python review_queue_maintenance.py --audit-output /tmp/stale-route-review-audit.json
+python review_queue_maintenance.py --apply --approval-token ARCHIVE_STALE_ROUTE_REVIEWS \
+  --audit-output ~/.local/state/transcribe-audio/review-queue-archive/stale-route-review-archive-audit.json
+```
+
+The command is dry-run by default. Apply mode moves only stale
+`*.route-review.json` files into
+`~/.local/state/transcribe-audio/review-queue-archive/<run-id>/`.
+
 Add live read-only Google Workspace provenance with `gws`:
 
 ```bash

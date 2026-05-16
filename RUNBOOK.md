@@ -2874,6 +2874,48 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 91 | 2026-05-16
+
+Summary: Added and applied a reviewed archive workflow for stale route reviews.
+
+Action:
+
+- Added `review_queue_maintenance.py`.
+- The maintenance workflow plans stale local `*.route-review.json` files whose
+  referenced route-decision JSON no longer exists.
+- Dry-run mode is the default.
+- Apply mode requires
+  `--apply --approval-token ARCHIVE_STALE_ROUTE_REVIEWS`.
+- Apply mode moves stale review files into
+  `~/.local/state/transcribe-audio/review-queue-archive/<run-id>/` and writes
+  an audit JSON.
+- Updated README, P09 docs, API docs, and roadmap notes.
+- Applied the reviewed live cleanup for stale pytest/temp route-review
+  references.
+
+Validation:
+
+- Graphiti discovery was healthy but returned only older roadmap/runbook facts
+  for this query; repo-local files were used as the implementation authority.
+- Dry run reported 48 stale route-review candidates and 48 planned archive
+  moves.
+- Live apply archived 48 stale route-review files under
+  `~/.local/state/transcribe-audio/review-queue-archive/20260516-223347/`.
+- Live audit was written to
+  `~/.local/state/transcribe-audio/review-queue-archive/stale-route-review-archive-20260516-223347.json`.
+- `curl http://127.0.0.1:18876/api/review-queue?limit=100` now reports route
+  reviews as `clear`, 0 route-review items, and 29 pending legacy enrichment
+  items.
+- `.venv/bin/python -m pytest tests/test_review_queue_maintenance.py tests/test_transcript_api.py -q` passed.
+- `python -m py_compile review_queue_maintenance.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add a legacy enrichment queue action surface that can prepare a reviewed
+  bounded batch from the 29 pending first-pass readouts without starting
+  provider work from the UI.
+
 ## Turn 90 | 2026-05-16
 
 Summary: Added live read-only review queue data to the transcript console.

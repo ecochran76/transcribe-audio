@@ -54,6 +54,11 @@ The UI should play recordings through `/api/blobs/<blob_id>` rather than using o
 
 The endpoint is read-only and intentionally reports stale references instead of deleting or hiding them.
 
+Use `review_queue_maintenance.py` for reviewed cleanup of stale local
+route-review files. It is dry-run by default and requires
+`--apply --approval-token ARCHIVE_STALE_ROUTE_REVIEWS` before moving files to
+`~/.local/state/transcribe-audio/review-queue-archive/<run-id>/`.
+
 ## Security Boundary
 
 This API is currently local and read-only. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
