@@ -2814,3 +2814,31 @@ Next:
   the review JSON for any items that are now clear.
 - Keep generated investigation reports out of git because they may contain raw
   transcript snippets.
+
+## Turn 87 | 2026-05-16
+
+Summary: Closed the remaining filename-conflict review as no-mutation decisions.
+
+Action:
+
+- Operator reviewed the Previews-published investigation report and determined
+  the remaining 8 pending conflicts were basically identical except for timezone
+  spelling (`CDT` spelled out in one output and not the other).
+- Updated the local review JSON under
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/` to set those 8
+  items to `keep_target`.
+- The review now has 8 `keep_target` decisions and 2 previously recorded
+  `preserve_both` decisions.
+- Wrote final no-mutation audit JSON:
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review-20260516-153723-final-keep-target-audit.json`.
+
+Validation:
+
+- `transcript_filename_conflict_review.py --apply-review ... --audit-output ...`
+  reported 10 `recorded_noop` items and 0 mutating decisions.
+- No transcript files were moved or quarantined in this step.
+
+Next:
+
+- Leave the reviewed conflicts in place; the target outputs are operator truth.
+- Return to the broader review-console/UI work or service maintenance.
