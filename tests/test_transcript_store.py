@@ -551,7 +551,7 @@ def test_first_pass_summary_queue_lists_pending_imports(tmp_path: Path, capsys) 
     assert transcript_store.FIRST_PASS_SUMMARY_QUEUE_JSON_STDOUT_PREFIX in stdout
 
 
-def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path, capsys) -> None:
+def test_auracall_first_pass_prepare_writes_manifest(tmp_path: Path, capsys) -> None:
     store_root = tmp_path / "store"
     transcript_path = write_json(tmp_path / "legacy.transcript.json", legacy_transcript_payload())
     transcript_store.ingest_artifact(transcript_path, root=store_root, embedding_provider="debug-hash")
@@ -576,8 +576,7 @@ def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path
             str(env_path),
             "--store-dir",
             str(store_root),
-            "enqueue",
-            "--dry-run",
+            "prepare",
             "--manifest",
             str(manifest_path),
         ]
@@ -592,16 +591,17 @@ def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path
     assert request["model"] == "agent:pro-extended-chatgpt-soylei-transcripts"
     assert request["metadata"]["outputContract"] == {
         "mode": "chatgpt_workspace_artifact",
-        "artifactFileName": "legacy_readout.json",
+        "artifactFileName": "first_pass_readout.json",
         "mimeType": "application/json",
         "fallback": "none",
     }
-    assert "legacy_readout.json" in request["input"][0]["content"]
-    assert "legacy_readout.json" in request["input"][1]["content"]
+    assert payload["batch_payload"]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
+    assert "first_pass_readout.json" in request["input"][0]["content"]
+    assert "first_pass_readout.json" in request["input"][1]["content"]
     assert "downloadable artifact" in request["input"][1]["content"]
     assert "Do not put the full JSON object in the assistant message" in request["input"][1]["content"]
     assert "Do not describe what you will do" in request["input"][1]["content"]
-    assert "sandbox:/.../legacy_readout.json" in request["input"][1]["content"]
+    assert "sandbox:/.../first_pass_readout.json" in request["input"][1]["content"]
     assert "do not reply with only a text readiness note" in request["input"][1]["content"]
     assert "Preserve substantive detail" in request["input"][1]["content"]
     assert request["auracall"]["agent"] == "pro-extended-chatgpt-soylei-transcripts"

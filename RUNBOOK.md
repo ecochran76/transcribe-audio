@@ -2874,6 +2874,39 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 93 | 2026-05-16
+
+Summary: Added a dry-run prepare path for bounded first-pass summary batches.
+
+Action:
+
+- Added `prepare` to `scripts/auracall_legacy_enrichment_batch.py`.
+- `prepare` builds the same batch manifest as enqueue, but always leaves
+  `dry_run=true`, `batch=null`, and does not submit provider work.
+- Updated batch metadata and default manifest names from legacy-enrichment
+  framing to first-pass summary framing.
+- Updated the artifact contract from `legacy_readout.json` to
+  `first_pass_readout.json`.
+- Prepared a five-item first-pass summary batch manifest from the live queue:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-230748.json`.
+- Updated README to show `prepare` as the safe first command.
+
+Validation:
+
+- Graphiti discovery ran and repo files remained the implementation authority.
+- `.venv/bin/python -m pytest tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest tests/test_transcript_store.py::test_first_pass_summary_queue_lists_pending_imports tests/test_transcript_api.py -q` passed.
+- `python -m py_compile scripts/auracall_legacy_enrichment_batch.py transcript_store.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- The prepared manifest has `request_count=5`, `dry_run=true`, `batch_id=null`,
+  workflow `transcribe-audio-first-pass-summary`, and artifact file
+  `first_pass_readout.json`.
+
+Next:
+
+- Add a provider-neutral backend/API prepare endpoint or action record for
+  first-pass summary batches, so the UI can expose “Prepare batch” without
+  knowing AuraCall or script internals.
+
 ## Turn 92 | 2026-05-16
 
 Summary: Removed legacy framing from the first-pass summary queue.

@@ -40,6 +40,29 @@ DEFAULT_MAX_BROWSER_INTERACTIONS_PER_MINUTE = 8
 MANIFEST_JSON_STDOUT_PREFIX = "AURACALL_BATCH_MANIFEST="
 
 
+def add_queue_arguments(parser: argparse.ArgumentParser, *, include_dry_run: bool) -> None:
+    parser.add_argument("--limit", type=int, help="Limit queued item count.")
+    parser.add_argument("--model", default=None, help=f"AuraCall model. Defaults to {DEFAULT_MODEL}.")
+    parser.add_argument("--all", action="store_true", help="Include rows that already have a readout.")
+    parser.add_argument("--no-dedupe", action="store_true", help="Do not collapse same-hash or same-title queue entries.")
+    if include_dry_run:
+        parser.add_argument("--dry-run", action="store_true", help="Build and write a manifest without submitting.")
+    parser.add_argument("--manifest", type=Path, help="Manifest path. Defaults under ~/.local/state/transcribe-audio.")
+    parser.add_argument("--store", action="store_true", help="Ingest readouts during later materialization.")
+    parser.add_argument(
+        "--max-concurrent-runs",
+        type=int,
+        default=DEFAULT_MAX_CONCURRENT_RUNS,
+        help="Per-batch AuraCall concurrency limit.",
+    )
+    parser.add_argument(
+        "--max-browser-interactions-per-minute",
+        type=int,
+        default=DEFAULT_MAX_BROWSER_INTERACTIONS_PER_MINUTE,
+        help="Per-batch AuraCall browser interaction rate limit.",
+    )
+
+
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Queue or materialize first-pass transcript readouts via AuraCall.")
     parser.add_argument("--env-file", type=Path, default=DEFAULT_CLIENT_ENV, help="AuraCall client .env file.")
@@ -48,26 +71,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--store-dir", type=Path, default=store_dir(), help="Transcript store root.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    prepare = subparsers.add_parser("prepare", help="Build a first-pass summary batch manifest without submitting.")
+    add_queue_arguments(prepare, include_dry_run=False)
+
     enqueue = subparsers.add_parser("enqueue", help="Submit pending first-pass transcript readouts as one AuraCall batch.")
-    enqueue.add_argument("--limit", type=int, help="Limit queued item count.")
-    enqueue.add_argument("--model", default=None, help=f"AuraCall model. Defaults to {DEFAULT_MODEL}.")
-    enqueue.add_argument("--all", action="store_true", help="Include rows that already have a readout.")
-    enqueue.add_argument("--no-dedupe", action="store_true", help="Do not collapse same-hash or same-title queue entries.")
-    enqueue.add_argument("--dry-run", action="store_true", help="Build and write a manifest without submitting.")
-    enqueue.add_argument("--manifest", type=Path, help="Manifest path. Defaults under ~/.local/state/transcribe-audio.")
-    enqueue.add_argument("--store", action="store_true", help="Ingest readouts during later materialization.")
-    enqueue.add_argument(
-        "--max-concurrent-runs",
-        type=int,
-        default=DEFAULT_MAX_CONCURRENT_RUNS,
-        help="Per-batch AuraCall concurrency limit.",
-    )
-    enqueue.add_argument(
-        "--max-browser-interactions-per-minute",
-        type=int,
-        default=DEFAULT_MAX_BROWSER_INTERACTIONS_PER_MINUTE,
-        help="Per-batch AuraCall browser interaction rate limit.",
-    )
+    add_queue_arguments(enqueue, include_dry_run=True)
 
     status = subparsers.add_parser("status", help="Read AuraCall batch status from a manifest.")
     status.add_argument("manifest", type=Path)
@@ -128,7 +136,7 @@ def auracall_readout_system_prompt() -> str:
     return (
         readout_system_prompt()
         + " For AuraCall browser-backed batch runs, write the structured JSON readout into a ChatGPT "
-        "REPL/workspace file named legacy_readout.json and surface it as a downloadable artifact in the final "
+        "REPL/workspace file named first_pass_readout.json and surface it as a downloadable artifact in the final "
         "assistant response. The final response must expose the actual artifact/download link or attachment card; "
         "a text-only readiness note is not sufficient. Never reply with a future-tense status such as "
         "\"I'll create the file\". Use the workspace/REPL file mechanism before answering. Do not compress the "
@@ -138,11 +146,11 @@ def auracall_readout_system_prompt() -> str:
 
 def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
     return (
-        "Create a ChatGPT REPL/workspace file named legacy_readout.json. The file must contain exactly one valid "
-        "JSON object using the requested readout schema. Surface legacy_readout.json as a downloadable artifact. "
+        "Create a ChatGPT REPL/workspace file named first_pass_readout.json. The file must contain exactly one valid "
+        "JSON object using the requested readout schema. Surface first_pass_readout.json as a downloadable artifact. "
         "Do not put the full JSON object in the assistant message. Do not describe what you will do. Do the file "
-        "creation first. Your final response must include the actual downloadable legacy_readout.json "
-        "artifact/link or attachment card, such as a sandbox:/.../legacy_readout.json link when that is the "
+        "creation first. Your final response must include the actual downloadable first_pass_readout.json "
+        "artifact/link or attachment card, such as a sandbox:/.../first_pass_readout.json link when that is the "
         "workspace file URL shape; do not reply with only a text readiness note. Preserve substantive detail "
         "instead of summarizing away important context.\n\n"
         + build_readout_prompt(artifact)
@@ -159,10 +167,10 @@ def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
             {"role": "user", "content": auracall_readout_prompt(artifact)},
         ],
         "metadata": {
-            "workflow": "transcribe-audio-legacy-enrichment",
+            "workflow": "transcribe-audio-first-pass-summary",
             "outputContract": {
                 "mode": "chatgpt_workspace_artifact",
-                "artifactFileName": "legacy_readout.json",
+                "artifactFileName": "first_pass_readout.json",
                 "mimeType": "application/json",
                 "fallback": "none",
             },
@@ -181,7 +189,7 @@ def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
 
 def default_manifest_path() -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return DEFAULT_MANIFEST_DIR.expanduser() / f"legacy-enrichment-{stamp}.json"
+    return DEFAULT_MANIFEST_DIR.expanduser() / f"first-pass-summary-{stamp}.json"
 
 
 def write_manifest(path: Path, payload: dict[str, Any]) -> Path:
@@ -278,7 +286,7 @@ def response_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
     raise TranscriptionError("AuraCall response did not include parseable readout JSON text or artifact output.")
 
 
-def enqueue(args: argparse.Namespace) -> int:
+def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
     env = runtime_env(args)
     model = resolve_model(args, env)
     queue = legacy_enrichment_queue(
@@ -293,7 +301,7 @@ def enqueue(args: argparse.Namespace) -> int:
     requests_payload = [create_request(item, model) for item in queue["items"]]
     batch_payload = {
         "metadata": {
-            "workflow": "transcribe-audio-legacy-enrichment",
+            "workflow": "transcribe-audio-first-pass-summary",
             "createdAt": utc_now_iso(),
             "model": model,
             "storeDir": queue["store_dir"],
@@ -310,16 +318,16 @@ def enqueue(args: argparse.Namespace) -> int:
         "object": "transcribe_audio_auracall_batch_manifest",
         "created_at": utc_now_iso(),
         "model": model,
-        "dry_run": bool(args.dry_run),
+        "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
         "store": bool(args.store),
         "batch_url": resolve_batch_url(args, env),
         "response_base_url": resolve_base_url(args, env),
         "queue": queue,
         "request_count": len(requests_payload),
-        "batch_payload": batch_payload if args.dry_run else None,
+        "batch_payload": batch_payload if force_dry_run or getattr(args, "dry_run", False) else None,
         "batch": None,
     }
-    if requests_payload and not args.dry_run:
+    if requests_payload and not (force_dry_run or getattr(args, "dry_run", False)):
         manifest["batch"] = post_batch(manifest["batch_url"], resolve_api_key(args, env), batch_payload)
     manifest_path = write_manifest(args.manifest or default_manifest_path(), manifest)
     print(
@@ -328,7 +336,7 @@ def enqueue(args: argparse.Namespace) -> int:
                 "manifest": str(manifest_path),
                 "request_count": len(requests_payload),
                 "batch_id": (manifest["batch"] or {}).get("id"),
-                "dry_run": bool(args.dry_run),
+                "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
             },
             indent=2,
         )
@@ -432,6 +440,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     try:
         if args.command == "enqueue":
             return enqueue(args)
+        if args.command == "prepare":
+            return enqueue(args, force_dry_run=True)
         if args.command == "status":
             return status(args)
     except (TranscriptionError, TranscriptStoreError, OSError, json.JSONDecodeError) as exc:

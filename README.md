@@ -512,6 +512,11 @@ For AuraCall-backed burst processing, use the project-bound `Transcripts` agent 
 ```bash
 python scripts/auracall_legacy_enrichment_batch.py \
   --env-file ~/.local/state/transcribe-audio/auracall-transcripts.env \
+  prepare --limit 5 --store \
+  --manifest ~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare.json
+
+python scripts/auracall_legacy_enrichment_batch.py \
+  --env-file ~/.local/state/transcribe-audio/auracall-transcripts.env \
   enqueue --limit 25 --store
 
 python scripts/auracall_legacy_enrichment_batch.py \
@@ -519,7 +524,7 @@ python scripts/auracall_legacy_enrichment_batch.py \
   status ~/.local/state/transcribe-audio/auracall-batches/<manifest>.json --materialize --store
 ```
 
-The enqueue command submits all selected readout requests to AuraCall in one response batch. AuraCall owns browser concurrency and interaction rate limits; this repo keeps the transcript payloads complete and later materializes completed responses into `*.readout.json` and `*.readout.md`.
+The `prepare` command writes a dry-run manifest and never submits provider work. The `enqueue` command submits all selected readout requests to AuraCall in one response batch. AuraCall owns browser concurrency and interaction rate limits; this repo keeps the transcript payloads complete and later materializes completed responses into `*.readout.json` and `*.readout.md`.
 
 Link already-imported legacy transcripts to recordings later, using an explicit media index instead of rescanning mounted drives:
 
