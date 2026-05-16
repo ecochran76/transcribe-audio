@@ -1524,7 +1524,7 @@ def format_legacy_enrichment_queue_text(payload: dict[str, Any]) -> str:
         lines.append(f"   document: {item['id']}")
         lines.append(f"   artifact: {item['source_path']}")
         if item.get("legacy_source_path"):
-            lines.append(f"   legacy: {item['legacy_source_path']}")
+            lines.append(f"   import source: {item['legacy_source_path']}")
         lines.append(f"   command: {shell_command(item['command'])}")
     return "\n".join(lines).rstrip()
 
