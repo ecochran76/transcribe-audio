@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Submit legacy transcript readout work to AuraCall response batches.
+Submit pending transcript readout work to AuraCall response batches.
 """
 from __future__ import annotations
 
@@ -41,17 +41,17 @@ MANIFEST_JSON_STDOUT_PREFIX = "AURACALL_BATCH_MANIFEST="
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Queue or materialize legacy transcript readouts via AuraCall.")
+    parser = argparse.ArgumentParser(description="Queue or materialize first-pass transcript readouts via AuraCall.")
     parser.add_argument("--env-file", type=Path, default=DEFAULT_CLIENT_ENV, help="AuraCall client .env file.")
     parser.add_argument("--base-url", help="AuraCall/OpenAI-compatible base URL. Defaults to env.")
     parser.add_argument("--api-key", help="AuraCall API key. Defaults to env.")
     parser.add_argument("--store-dir", type=Path, default=store_dir(), help="Transcript store root.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    enqueue = subparsers.add_parser("enqueue", help="Submit pending legacy transcript readouts as one AuraCall batch.")
+    enqueue = subparsers.add_parser("enqueue", help="Submit pending first-pass transcript readouts as one AuraCall batch.")
     enqueue.add_argument("--limit", type=int, help="Limit queued item count.")
     enqueue.add_argument("--model", default=None, help=f"AuraCall model. Defaults to {DEFAULT_MODEL}.")
-    enqueue.add_argument("--all", action="store_true", help="Include legacy rows that already have a readout.")
+    enqueue.add_argument("--all", action="store_true", help="Include rows that already have a readout.")
     enqueue.add_argument("--no-dedupe", action="store_true", help="Do not collapse same-hash or same-title queue entries.")
     enqueue.add_argument("--dry-run", action="store_true", help="Build and write a manifest without submitting.")
     enqueue.add_argument("--manifest", type=Path, help="Manifest path. Defaults under ~/.local/state/transcribe-audio.")

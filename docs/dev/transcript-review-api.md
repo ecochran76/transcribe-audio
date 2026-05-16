@@ -20,7 +20,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
-- `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and legacy enrichment queue counts.
+- `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/search?q=<query>&kind=transcript&limit=10`: lexical/semantic search over stored artifacts.
 - `GET /api/documents/<document_id>`: document detail, JSON payload, text content, metadata, and linked blobs.
 - `GET /api/documents/<document_id>/context?chunk_index=5&context_chunks=1`: nearby transcript/readout context from stored chunks.
@@ -47,7 +47,7 @@ The UI should play recordings through `/api/blobs/<blob_id>` rather than using o
 
 `/api/review-queue` returns:
 
-- `buckets`: summary cards for route reviews, filename conflicts, legacy enrichment, memory harvest, and speaker ID work.
+- `buckets`: summary cards for route reviews, filename conflicts, first-pass summaries, memory harvest, and speaker ID work.
 - `items`: currently route-review files from `~/.local/state/transcribe-audio/review-queue/`.
 - `route_decision_exists`: whether a route-review item still points at a readable route-decision artifact.
 - `status=stale_reference`: a local review item exists, but its referenced route decision is gone, commonly from earlier pytest/temp runs.

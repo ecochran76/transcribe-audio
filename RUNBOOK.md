@@ -2874,6 +2874,43 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 92 | 2026-05-16
+
+Summary: Removed legacy framing from the first-pass summary queue.
+
+Action:
+
+- Updated the review API bucket from `legacy_enrichment` to
+  `first_pass_summaries`.
+- Updated the React Review Queue UI and inspector to show `First-pass
+  summaries`.
+- Added `transcript_store.py first-pass-summary-queue` as the preferred CLI
+  command, leaving `legacy-enrichment-queue` as a compatibility alias.
+- Updated the first-pass queue text output and stdout sentinel to use neutral
+  naming for the preferred command.
+- Kept implementation compatibility seams where renaming files/functions would
+  create unnecessary churn.
+- Wrote a neutral queue snapshot:
+  `~/.local/state/transcribe-audio/first-pass-summary-queues/first-pass-summary-queue-20260516-230347.json`.
+
+Validation:
+
+- Graphiti discovery was healthy but returned only older unrelated facts; repo
+  files were used as authority.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_store.py -q` passed.
+- `python -m py_compile transcript_api.py transcript_store.py scripts/auracall_legacy_enrichment_batch.py` passed.
+- `npm --prefix frontend run build` passed.
+- The queue snapshot contains 29 selected first-pass summary items and 1
+  de-duped duplicate.
+- Live `curl http://transcripts.localhost/api/review-queue?limit=5` reports
+  `first_pass_summaries`, label `First-pass summaries`, count 29.
+
+Next:
+
+- Prepare a bounded first-pass summary batch from the neutral queue snapshot,
+  without adding provider-specific or historical/import-specific language to
+  the operator UI.
+
 ## Turn 91 | 2026-05-16
 
 Summary: Added and applied a reviewed archive workflow for stale route reviews.
@@ -2904,7 +2941,7 @@ Validation:
 - Live audit was written to
   `~/.local/state/transcribe-audio/review-queue-archive/stale-route-review-archive-20260516-223347.json`.
 - `curl http://127.0.0.1:18876/api/review-queue?limit=100` now reports route
-  reviews as `clear`, 0 route-review items, and 29 pending legacy enrichment
+  reviews as `clear`, 0 route-review items, and 29 pending first-pass summary
   items.
 - `.venv/bin/python -m pytest tests/test_review_queue_maintenance.py tests/test_transcript_api.py -q` passed.
 - `python -m py_compile review_queue_maintenance.py transcript_api.py` passed.
@@ -2912,9 +2949,9 @@ Validation:
 
 Next:
 
-- Add a legacy enrichment queue action surface that can prepare a reviewed
-  bounded batch from the 29 pending first-pass readouts without starting
-  provider work from the UI.
+- Add a first-pass summary queue action surface that can prepare a reviewed
+  bounded batch from the 29 pending readouts without starting provider work
+  from the UI.
 
 ## Turn 90 | 2026-05-16
 
@@ -2925,13 +2962,13 @@ Action:
 - Added `--state-dir` to `transcript_api.py`, defaulting to
   `~/.local/state/transcribe-audio`.
 - Added `GET /api/review-queue` to aggregate route-review files,
-  filename-conflict decisions, and legacy enrichment queue counts.
+  filename-conflict decisions, and first-pass summary queue counts.
 - Route-review items now report whether their referenced route-decision JSON
   still exists; stale temp/pytest references are surfaced as
   `stale_reference` instead of hidden or deleted.
 - Replaced hard-coded React review cards with live `/api/review-queue` data.
 - Updated the Review Queue inspector to show the runtime state root and live
-  route, filename-conflict, and legacy-enrichment summaries.
+  route, filename-conflict, and first-pass summary queue summaries.
 - Updated `ROADMAP.md`, the P09 plan, README, and API docs for the endpoint.
 
 Validation:
@@ -2941,7 +2978,7 @@ Validation:
 - `npm --prefix frontend run build` passed.
 - Live `curl http://127.0.0.1:18876/api/review-queue?limit=100` returned
   buckets for 48 stale route-review references, 0 open filename conflicts, and
-  29 pending legacy enrichment items.
+  29 pending first-pass summary items.
 - Live `curl http://transcripts.localhost/api/review-queue?limit=5` returned
   HTTP 200 through local ingress.
 

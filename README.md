@@ -498,14 +498,14 @@ The legacy importer supports `*Transcript.txt` and `*Transcript.docx` by default
 
 Duplicate protection is enabled by default. The importer skips candidates with the same source transcript hash or the same normalized title as an existing stored transcript, and also skips duplicate hashes/titles within the same batch. Use `--no-dedupe` only for diagnostic runs where you intentionally want duplicate rows. Use `--no-media-match` when importing from large mounted Shared Drives and you want transcript indexing first, with recording/blob matching deferred to a later targeted pass.
 
-List legacy rows that still need first-pass readouts:
+List stored transcripts that still need first-pass readouts:
 
 ```bash
-python transcript_store.py legacy-enrichment-queue --format text
-python transcript_store.py legacy-enrichment-queue --format commands --provider openai-compatible --limit 10
+python transcript_store.py first-pass-summary-queue --format text
+python transcript_store.py first-pass-summary-queue --format commands --provider openai-compatible --limit 10
 ```
 
-The queue de-dupes same-hash or same-title legacy rows by default so batch enrichment does not waste provider calls. Use `--no-dedupe` only when you are auditing duplicate rows.
+The queue de-dupes same-hash or same-title rows by default so batch preparation does not waste provider calls. Use `--no-dedupe` only when you are auditing duplicate rows.
 
 For AuraCall-backed burst processing, use the project-bound `Transcripts` agent client env:
 

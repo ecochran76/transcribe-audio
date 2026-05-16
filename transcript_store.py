@@ -26,6 +26,7 @@ SEARCH_JSON_STDOUT_PREFIX = "TRANSCRIPT_SEARCH_JSON="
 BACKFILL_JSON_STDOUT_PREFIX = "TRANSCRIPT_BACKFILL_JSON="
 CONTEXT_JSON_STDOUT_PREFIX = "TRANSCRIPT_CONTEXT_JSON="
 LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX = "TRANSCRIPT_LEGACY_ENRICHMENT_QUEUE_JSON="
+FIRST_PASS_SUMMARY_QUEUE_JSON_STDOUT_PREFIX = "TRANSCRIPT_FIRST_PASS_SUMMARY_QUEUE_JSON="
 EMBEDDING_DIM = 128
 EMBEDDING_MAX_CHARS = 1500
 EMBEDDING_CHUNK_OVERLAP_CHARS = 200
@@ -1511,7 +1512,7 @@ def shell_command(argv: list[str]) -> str:
 
 def format_legacy_enrichment_queue_text(payload: dict[str, Any]) -> str:
     lines = [
-        f"Legacy enrichment queue: {payload['selected_count']} item(s)",
+        f"First-pass summary queue: {payload['selected_count']} item(s)",
         f"Store: {payload['store_dir']}",
     ]
     if payload.get("duplicate_count"):
@@ -1605,38 +1606,45 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
     context_parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
 
-    legacy_queue_parser = subparsers.add_parser(
-        "legacy-enrichment-queue",
-        help="List legacy transcript rows that still need first-pass readouts.",
-    )
-    legacy_queue_parser.add_argument("--limit", type=int, help="Limit queued item count.")
-    legacy_queue_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Include legacy rows that already have at least one readout.",
-    )
-    legacy_queue_parser.add_argument(
-        "--format",
-        choices=("text", "json", "compact-json", "commands"),
-        default="text",
-        help="Queue output format. commands prints summarize_transcript.py commands only.",
-    )
-    legacy_queue_parser.add_argument(
-        "--provider",
-        default="openai-compatible",
-        help="Provider to include in generated commands.",
-    )
-    legacy_queue_parser.add_argument("--model", default="", help="Optional model to include in generated commands.")
-    legacy_queue_parser.add_argument(
-        "--no-store",
-        action="store_true",
-        help="Do not include --store in generated readout commands.",
-    )
-    legacy_queue_parser.add_argument(
-        "--no-dedupe",
-        action="store_true",
-        help="Do not collapse same-hash or same-title queue entries.",
-    )
+    legacy_queue_parsers = [
+        subparsers.add_parser(
+            "first-pass-summary-queue",
+            help="List stored transcripts that still need first-pass readouts.",
+        ),
+        subparsers.add_parser(
+            "legacy-enrichment-queue",
+            help="Compatibility alias for first-pass-summary-queue.",
+        ),
+    ]
+    for legacy_queue_parser in legacy_queue_parsers:
+        legacy_queue_parser.add_argument("--limit", type=int, help="Limit queued item count.")
+        legacy_queue_parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Include rows that already have at least one readout.",
+        )
+        legacy_queue_parser.add_argument(
+            "--format",
+            choices=("text", "json", "compact-json", "commands"),
+            default="text",
+            help="Queue output format. commands prints summarize_transcript.py commands only.",
+        )
+        legacy_queue_parser.add_argument(
+            "--provider",
+            default="openai-compatible",
+            help="Provider to include in generated commands.",
+        )
+        legacy_queue_parser.add_argument("--model", default="", help="Optional model to include in generated commands.")
+        legacy_queue_parser.add_argument(
+            "--no-store",
+            action="store_true",
+            help="Do not include --store in generated readout commands.",
+        )
+        legacy_queue_parser.add_argument(
+            "--no-dedupe",
+            action="store_true",
+            help="Do not collapse same-hash or same-title queue entries.",
+        )
 
     backfill_parser = subparsers.add_parser("backfill", help="Discover and ingest artifact JSON files.")
     backfill_parser.add_argument("roots", nargs="+", type=Path, help="Files or directories to scan.")
@@ -1771,7 +1779,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 print(format_context_text(payload))
             print(f"{CONTEXT_JSON_STDOUT_PREFIX}{db_path(root)}")
             return 0
-        if args.command == "legacy-enrichment-queue":
+        if args.command in {"first-pass-summary-queue", "legacy-enrichment-queue"}:
+            stdout_prefix = (
+                FIRST_PASS_SUMMARY_QUEUE_JSON_STDOUT_PREFIX
+                if args.command == "first-pass-summary-queue"
+                else LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX
+            )
             payload = legacy_enrichment_queue(
                 root=root,
                 limit=args.limit,
@@ -1786,14 +1799,14 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 return 0
             if args.format == "json":
                 print(json.dumps(payload, indent=2, ensure_ascii=False))
-                print(f"{LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX}{db_path(root)}")
+                print(f"{stdout_prefix}{db_path(root)}")
                 return 0
             if args.format == "commands":
                 for item in payload["items"]:
                     print(shell_command(item["command"]))
                 return 0
             print(format_legacy_enrichment_queue_text(payload))
-            print(f"{LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX}{db_path(root)}")
+            print(f"{stdout_prefix}{db_path(root)}")
             return 0
         if args.command == "backfill":
             planned = plan_backfill(

@@ -464,7 +464,7 @@ def test_cli_search_context_compact_json_includes_search_metadata(tmp_path: Path
     assert transcript_store.CONTEXT_JSON_STDOUT_PREFIX not in stdout
 
 
-def test_legacy_enrichment_queue_lists_pending_legacy_imports(tmp_path: Path, capsys) -> None:
+def test_first_pass_summary_queue_lists_pending_imports(tmp_path: Path, capsys) -> None:
     store_root = tmp_path / "store"
     transcript_result = transcript_store.ingest_artifact(
         write_json(tmp_path / "legacy.transcript.json", legacy_transcript_payload()),
@@ -521,7 +521,7 @@ def test_legacy_enrichment_queue_lists_pending_legacy_imports(tmp_path: Path, ca
         [
             "--store-dir",
             str(store_root),
-            "legacy-enrichment-queue",
+            "first-pass-summary-queue",
             "--format",
             "commands",
             "--provider",
@@ -533,7 +533,22 @@ def test_legacy_enrichment_queue_lists_pending_legacy_imports(tmp_path: Path, ca
     stdout = capsys.readouterr().out
     assert "summarize_transcript.py" in stdout
     assert "--provider" in stdout
+
+    assert transcript_store.main(
+        [
+            "--store-dir",
+            str(store_root),
+            "first-pass-summary-queue",
+            "--format",
+            "text",
+            "--limit",
+            "1",
+        ]
+    ) == 0
+    stdout = capsys.readouterr().out
+    assert "First-pass summary queue: 1 item(s)" in stdout
     assert transcript_store.LEGACY_ENRICHMENT_QUEUE_JSON_STDOUT_PREFIX not in stdout
+    assert transcript_store.FIRST_PASS_SUMMARY_QUEUE_JSON_STDOUT_PREFIX in stdout
 
 
 def test_auracall_legacy_enrichment_batch_dry_run_writes_manifest(tmp_path: Path, capsys) -> None:

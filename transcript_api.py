@@ -263,11 +263,11 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
         "stale_count": stale_count,
     }
     legacy_bucket = {
-        "id": "legacy_enrichment",
-        "label": "Legacy enrichment",
+        "id": "first_pass_summaries",
+        "label": "First-pass summaries",
         "count": legacy_count,
         "status": "pending" if legacy_count else "clear",
-        "detail": "Pending first-pass summaries for imported historical transcripts.",
+        "detail": "Stored transcripts waiting for first-pass summaries.",
         "duplicate_count": legacy_payload.get("duplicate_count") or 0,
         "sample_items": [
             {

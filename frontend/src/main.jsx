@@ -38,7 +38,7 @@ const FALLBACK_REVIEW_QUEUE = {
   total_open: 68,
   buckets: [
   { label: "Filename conflicts", count: 0, status: "clear", detail: "Reviewed: 8 keep target, 2 preserve both" },
-  { label: "Legacy enrichment", count: 68, status: "pending", detail: "Pending first-pass summaries for imported historical rows" },
+  { id: "first_pass_summaries", label: "First-pass summaries", count: 68, status: "pending", detail: "Stored transcripts waiting for first-pass summaries" },
   { label: "Memory harvest", count: 0, status: "gated", detail: "Requires explicit review file approval" },
   { label: "Speaker IDs", count: 0, status: "planned", detail: "Contact dedupe tables are planned in P09" }
   ],
@@ -289,7 +289,7 @@ function Inspector({ item, activeNav, reviewQueue }) {
   if (activeNav === "Review Queue") {
     const routeBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "route_reviews");
     const filenameBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "filename_conflicts");
-    const legacyBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "legacy_enrichment");
+    const summaryBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "first_pass_summaries");
     return (
       <div className="inspector-content">
         <p className="eyebrow">Review Inspector</p>
@@ -302,8 +302,8 @@ function Inspector({ item, activeNav, reviewQueue }) {
           <dd>{routeBucket?.detail || "No route review summary."}</dd>
           <dt>Filename conflicts</dt>
           <dd>{filenameBucket?.detail || "No filename conflict summary."}</dd>
-          <dt>Legacy enrichment</dt>
-          <dd>{legacyBucket ? `${legacyBucket.count} pending; ${legacyBucket.duplicate_count || 0} duplicate queue entries skipped.` : "No legacy queue summary."}</dd>
+          <dt>First-pass summaries</dt>
+          <dd>{summaryBucket ? `${summaryBucket.count} pending; ${summaryBucket.duplicate_count || 0} duplicate queue entries skipped.` : "No summary queue data."}</dd>
         </dl>
       </div>
     );

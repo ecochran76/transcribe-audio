@@ -214,8 +214,10 @@ def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
 
     route_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "route_reviews")
     conflict_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "filename_conflicts")
+    summary_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "first_pass_summaries")
     assert route_bucket["count"] == 1
     assert route_bucket["stale_count"] == 1
     assert conflict_bucket["count"] == 1
+    assert summary_bucket["label"] == "First-pass summaries"
     assert conflict_bucket["decisions"] == {"keep_target": 1, "pending": 1}
     assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}
