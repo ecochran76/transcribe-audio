@@ -104,3 +104,25 @@ def test_apply_plan_rewrites_artifact_paths_and_state(tmp_path: Path) -> None:
     assert str(old_media_path) not in processed
     assert payload["working_media_path"] in processed
     assert processed[payload["working_media_path"]]["artifact_paths"] == [str(new_artifact)]
+
+
+def test_plan_skips_media_target_that_still_has_cleanup_noise(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    noisy_media = tmp_path / (
+        "2026-05-13 13-00 Kiddie training and 1 other(s) "
+        "2026-05-13 13-00 Kiddie training and 1 other(s) My recording 129.m4a"
+    )
+    noisy_media.write_bytes(b"audio")
+    payload["source_media_path"] = str(noisy_media)
+    payload["working_media_path"] = str(noisy_media)
+    payload["event"] = {
+        "start": "2026-05-13T14:00:00-05:00",
+        "summary": "Meet with Eric (Arjun B)",
+    }
+    artifact_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    plan = plan_artifact_cleanup(artifact_path)
+
+    assert not any(operation.role == "media" for operation in plan.operations)
+    assert plan.reason == "canonical media target still contains cleanup noise"

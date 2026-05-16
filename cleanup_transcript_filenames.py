@@ -246,6 +246,9 @@ def plan_artifact_cleanup(artifact_path: Path) -> CleanupPlan:
         media_target = media_path.with_name(f"{clean_base}{media_path.suffix}")
         if media_path.resolve() != media_target.resolve() and not media_name_needs_cleanup(media_path):
             continue
+        if media_path.resolve() != media_target.resolve() and media_name_needs_cleanup(media_target):
+            plan.reason = "canonical media target still contains cleanup noise"
+            continue
         add_rename(plan, media_path, media_target, "media")
 
     if plan.skipped:

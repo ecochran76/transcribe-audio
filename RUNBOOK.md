@@ -2486,3 +2486,35 @@ Next:
   `.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --limit 10 --apply --manage-service --refresh-store`
 - Add a review/export mode for skipped conflicts so overlapping calendar
   artifacts can be resolved deliberately instead of guessed.
+
+## Turn 77 | 2026-05-16
+
+Summary: Continued historical cleanup batches until no safe automatic filename
+cleanup remained.
+
+Action:
+
+- Ran additional bounded cleanup batches with `--apply --manage-service
+  --refresh-store`.
+- Applied 32 more actionable plans, 32 file rename operations, watcher state
+  updates, and 32 transcript-store refreshes.
+- Hardened `cleanup_transcript_filenames.py` so media renames are suppressed
+  when the computed target still contains cleanup noise, preventing overlapping
+  event artifacts from being treated as safe automatic cleanup.
+- Added a regression test for that skipped/review-needed case.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- `git diff --check` passed.
+- After each apply, `transcribe-watch.service` restarted successfully and
+  heartbeated with `candidates=0 attempted=0 successes=0 failures=0`.
+- Final dry-run reported `scanned=21 actionable=0 operations=0 skipped=21`.
+
+Next:
+
+- Add a skipped-conflict export/review workflow for the 21 remaining
+  overlapping/ambiguous artifacts.
+- Keep watcher monitoring in place and confirm next newly arriving recording is
+  transcribed immediately.
