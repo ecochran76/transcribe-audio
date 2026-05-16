@@ -1,6 +1,6 @@
 # Plan 0009 | React Vite Review Console
 
-State: PLANNED
+State: OPEN
 
 Lane: P09
 
@@ -25,7 +25,12 @@ The console should reuse these proven patterns:
 
 The repo already has transcript artifacts, first-pass readouts, contextual readouts, route decisions, deposition previews, memory-harvest review/apply artifacts, and a user-scoped SQLite/vector transcript store under `~/.transcripts`.
 
-The missing layer is an operator UI that makes the workflow visible:
+The first UI shell now exists under `frontend/`. It provides the navbar,
+animated pane layout, central library/review viewport, and right inspector
+surface. It is read-only and currently wires `/api/health` plus `/api/library`
+through the Vite dev proxy, with redacted fallback rows when the API is offline.
+
+The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
 2. Play the recording and inspect transcript/readouts.
@@ -190,7 +195,7 @@ Use a React + Vite app under `frontend/` with:
 
 1. Done: product plan and route contract.
 2. In progress: backend read API for store/library/search plus audio blob route. New ingests register media blobs; older stored transcripts need a migration/backfill pass to populate blob links. Legacy TXT/DOCX transcript outputs can be synthesized into private sidecars with `legacy_transcript_import.py` and marked for enrichment; live historical imports inserted 70 deduped legacy transcript rows. The first Sound Recordings import matched 44 source recordings, while targeted SoyLei Shared Drive media linking later added 16 matched blobs from an explicit `find` index. `transcript_store.py legacy-enrichment-queue` now exposes the de-duped first-pass readout queue for those legacy rows.
-3. React + Vite shell with navbar, animated panes, library table, and inspector mock wired to read API.
+3. Done: React + Vite shell with navbar, animated panes, library table, review queue cards, and inspector mock wired to read API.
 4. Login guard and share-link model borrowed from `previews`.
 5. Contact/speaker review tables and merge audit.
 6. Context-run and provenance-management surfaces.

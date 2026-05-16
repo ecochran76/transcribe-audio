@@ -30,6 +30,8 @@ client_secrets.json
 # Local tools / binaries / caches
 # -----------------------------------------------------------------------------
 .tools/
+frontend/node_modules/
+frontend/dist/
 
 # -----------------------------------------------------------------------------
 # Local config + logs (often contain tokens / paths)

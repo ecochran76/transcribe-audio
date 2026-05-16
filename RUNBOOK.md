@@ -2842,3 +2842,34 @@ Next:
 
 - Leave the reviewed conflicts in place; the target outputs are operator truth.
 - Return to the broader review-console/UI work or service maintenance.
+
+## Turn 88 | 2026-05-16
+
+Summary: Started P09 with the first React + Vite review-console shell.
+
+Action:
+
+- Added `frontend/` with a Vite React app.
+- Implemented sticky top navigation for Library, Review Queue, Context Runs,
+  Contacts, Provenance, Intelligence, Depositions, and Settings.
+- Added animated left filter pane, central table/review viewport, and right
+  inspector pane.
+- Wired the shell to `/api/health` and `/api/library` through a Vite dev proxy
+  to `transcript_api.py`.
+- Added redacted fallback fixture rows when the local API is unavailable.
+- Surfaced the filename-conflict review queue as closed/no-mutation state.
+- Kept generated frontend dependencies and builds ignored under
+  `frontend/node_modules/` and `frontend/dist/`.
+
+Validation:
+
+- `npm install` completed with 0 vulnerabilities.
+- `npm run build` passed in `frontend/`.
+- `python -m py_compile transcript_api.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_filename_conflict_review.py -q` passed.
+
+Next:
+
+- Add read-only API support for review queue manifests under
+  `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
+  queue summary with live review queue data.
