@@ -6,6 +6,7 @@ from pathlib import Path
 from cleanup_transcript_filenames import (
     apply_plan,
     build_review_payload,
+    content_difference_summary,
     content_equivalent,
     plan_artifact_cleanup,
     resolve_identical_conflict_plan,
@@ -175,6 +176,38 @@ def test_content_equivalent_compares_artifact_transcript_text(tmp_path: Path) ->
     )
 
     assert content_equivalent(old_path, new_path, "output:artifact") is True
+
+
+def test_content_difference_summary_classifies_metadata_only_candidate(tmp_path: Path) -> None:
+    old_path = tmp_path / "old.txt"
+    target_path = tmp_path / "target.txt"
+    old_path.write_text("Source: noisy name\nUtterance 1: Same body\nUtterance 2: Still same\n", encoding="utf-8")
+    target_path.write_text("Source: clean name\nUtterance 1: Same body\nUtterance 2: Still same\n", encoding="utf-8")
+
+    summary = content_difference_summary(old_path, target_path, "output:txt")
+
+    assert summary["classification"] == "metadata_or_format_only_candidate"
+    assert summary["body_similarity_ratio"] == 1.0
+    assert summary["line_similarity_ratio"] < 1.0
+
+
+def test_review_payload_can_include_diff_summary(tmp_path: Path) -> None:
+    artifact_path = write_artifact(tmp_path)
+    artifact_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    Path(artifact_payload["output_paths"]["txt"]).write_text("shared line\nold detail", encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+    clean_txt = tmp_path / f"{plan.clean_base_name} Transcript.txt"
+    clean_txt.write_text("shared line\nnew detail", encoding="utf-8")
+    plan = plan_artifact_cleanup(artifact_path)
+
+    payload = build_review_payload([plan], include_diff_summary=True)
+
+    txt_conflict = next(
+        conflict for conflict in payload["items"][0]["target_conflicts"] if conflict["role"] == "output:txt"
+    )
+    assert txt_conflict["content_equivalent"] is False
+    assert txt_conflict["diff_summary"]["role"] == "output:txt"
+    assert txt_conflict["diff_summary"]["classification"] == "partial_overlap_distinct_content"
 
 
 def test_resolve_identical_conflict_quarantines_redundant_output(tmp_path: Path) -> None:

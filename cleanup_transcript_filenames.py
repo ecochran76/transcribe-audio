@@ -6,6 +6,7 @@ prefixes.
 from __future__ import annotations
 
 import argparse
+from difflib import SequenceMatcher
 import hashlib
 import json
 import re
@@ -26,6 +27,11 @@ DEFAULT_SERVICE_NAME = "transcribe-watch.service"
 DEFAULT_QUARANTINE_DIR = Path("~/.local/state/transcribe-audio/filename-cleanup-quarantine")
 DATE_PREFIX_RE = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2} ")
 OTHER_EVENTS_RE = re.compile(r"\band \d+ other\(s\)\b", re.IGNORECASE)
+METADATA_LINE_RE = re.compile(
+    r"^(Transcript|Source|Recording|Generated|Calendar|Event|Meeting|Date|Start|End|"
+    r"Attendees?|Participants?|File|Audio|Duration|Path)\b",
+    re.IGNORECASE,
+)
 TRANSCRIPT_SUFFIXES = {
     "artifact": " Transcript.transcript.json",
     "docx": " Transcript.docx",
@@ -102,6 +108,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--export-review",
         type=Path,
         help="Write a compact JSON review file for skipped/conflicting plans.",
+    )
+    parser.add_argument(
+        "--include-diff-summary",
+        action="store_true",
+        help="Include line-level content-difference metrics in --export-review output.",
     )
     parser.add_argument(
         "--resolve-identical-conflicts",
@@ -251,6 +262,64 @@ def comparable_content(path: Path, role: str) -> str:
         doc = Document(str(path))
         return normalized_text("\n".join(paragraph.text for paragraph in doc.paragraphs))
     return sha256_file(path)
+
+
+def comparable_lines(path: Path, role: str) -> list[str]:
+    return [line.strip() for line in comparable_content(path, role).splitlines() if line.strip()]
+
+
+def transcript_body_lines(lines: list[str]) -> list[str]:
+    body: list[str] = []
+    for line in lines:
+        if METADATA_LINE_RE.search(line):
+            continue
+        if "Transcript.transcript.json" in line or "Transcript.docx" in line:
+            continue
+        if "My recording" in line and len(line) < 220:
+            continue
+        body.append(line)
+    return body
+
+
+def line_similarity(old_lines: list[str], target_lines: list[str]) -> float:
+    return round(SequenceMatcher(None, old_lines, target_lines).ratio(), 4)
+
+
+def content_difference_summary(old_path: Path, target_path: Path, role: str) -> dict[str, Any]:
+    if role not in {"output:artifact", "output:txt", "output:docx"}:
+        return {"classification": "binary_or_unsupported", "role": role}
+
+    old_lines = comparable_lines(old_path, role)
+    target_lines = comparable_lines(target_path, role)
+    old_body = transcript_body_lines(old_lines)
+    target_body = transcript_body_lines(target_lines)
+    line_ratio = line_similarity(old_lines, target_lines)
+    body_ratio = line_similarity(old_body, target_body)
+    matcher = SequenceMatcher(None, old_lines, target_lines)
+    changed_line_spans = sum(
+        max(old_end - old_start, target_end - target_start)
+        for tag, old_start, old_end, target_start, target_end in matcher.get_opcodes()
+        if tag != "equal"
+    )
+    if body_ratio >= 0.995:
+        classification = "metadata_or_format_only_candidate"
+    elif body_ratio >= 0.9:
+        classification = "high_overlap_needs_review"
+    elif body_ratio >= 0.5:
+        classification = "partial_overlap_distinct_content"
+    else:
+        classification = "distinct_content_preserve_both"
+    return {
+        "classification": classification,
+        "role": role,
+        "old_line_count": len(old_lines),
+        "target_line_count": len(target_lines),
+        "old_body_line_count": len(old_body),
+        "target_body_line_count": len(target_body),
+        "line_similarity_ratio": line_ratio,
+        "body_similarity_ratio": body_ratio,
+        "changed_line_spans": changed_line_spans,
+    }
 
 
 def content_equivalent(old_path: Path, new_path: Path, role: str) -> bool:
@@ -579,7 +648,7 @@ def summarize(plans: list[CleanupPlan]) -> dict[str, int]:
     }
 
 
-def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
+def build_review_entry(plan: CleanupPlan, *, include_diff_summary: bool = False) -> dict[str, Any]:
     payload = load_json_file(plan.artifact_path)
     output_paths = payload.get("output_paths") if isinstance(payload.get("output_paths"), dict) else {}
     conflicts = []
@@ -587,14 +656,15 @@ def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
         old_path = Path(conflict["old_path"])
         target_path = Path(conflict["target_path"])
         role = conflict["role"]
-        conflicts.append(
-            {
-                **conflict,
-                "old_sha256": sha256_file(old_path) if old_path.exists() else "",
-                "target_sha256": sha256_file(target_path) if target_path.exists() else "",
-                "content_equivalent": content_equivalent(old_path, target_path, role),
-            }
-        )
+        entry = {
+            **conflict,
+            "old_sha256": sha256_file(old_path) if old_path.exists() else "",
+            "target_sha256": sha256_file(target_path) if target_path.exists() else "",
+            "content_equivalent": content_equivalent(old_path, target_path, role),
+        }
+        if include_diff_summary and old_path.exists() and target_path.exists():
+            entry["diff_summary"] = content_difference_summary(old_path, target_path, role)
+        conflicts.append(entry)
     return {
         "artifact_path": str(plan.artifact_path),
         "reason": plan.reason,
@@ -610,7 +680,7 @@ def build_review_entry(plan: CleanupPlan) -> dict[str, Any]:
     }
 
 
-def build_review_payload(plans: list[CleanupPlan]) -> dict[str, Any]:
+def build_review_payload(plans: list[CleanupPlan], *, include_diff_summary: bool = False) -> dict[str, Any]:
     skipped = [plan for plan in plans if plan.skipped]
     by_reason: dict[str, int] = {}
     for plan in skipped:
@@ -623,14 +693,14 @@ def build_review_payload(plans: list[CleanupPlan]) -> dict[str, Any]:
             "review_count": len(skipped),
             "by_reason": by_reason,
         },
-        "items": [build_review_entry(plan) for plan in skipped],
+        "items": [build_review_entry(plan, include_diff_summary=include_diff_summary) for plan in skipped],
     }
 
 
-def write_review_file(path: Path, plans: list[CleanupPlan]) -> Path:
+def write_review_file(path: Path, plans: list[CleanupPlan], *, include_diff_summary: bool = False) -> Path:
     output_path = path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    write_json_file(output_path, build_review_payload(plans))
+    write_json_file(output_path, build_review_payload(plans, include_diff_summary=include_diff_summary))
     return output_path
 
 
@@ -685,7 +755,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     result: dict[str, Any] = {"summary": summarize(plans), "plans": [plan.to_dict() for plan in plans]}
     if args.export_review:
-        review_path = write_review_file(args.export_review, plans)
+        review_path = write_review_file(args.export_review, plans, include_diff_summary=args.include_diff_summary)
         result["review_path"] = str(review_path)
     if not args.apply:
         if args.json:

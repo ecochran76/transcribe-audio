@@ -2586,3 +2586,37 @@ Next:
   for automatic merge because visible transcript/output content differs.
 - Keep watcher monitoring in place and confirm next newly arriving recording is
   transcribed immediately.
+
+## Turn 80 | 2026-05-16
+
+Summary: Added privacy-conscious diff summaries to filename cleanup review
+exports and classified the remaining conflicts.
+
+Action:
+
+- Added `cleanup_transcript_filenames.py --include-diff-summary` for
+  `--export-review`.
+- Diff summaries include line counts, body-line counts, similarity ratios,
+  changed-line span counts, and a conservative classification, without storing
+  transcript excerpts in the review JSON.
+- Regenerated the live review artifact at
+  `.openclaw/reviews/transcript-filename-cleanup-review-2026-05-16.json`.
+- Remaining live conflicts classify as 7 metadata/format-only candidates, 2
+  high-overlap review items, 6 partial-overlap distinct-content items, and 2
+  preserve-both distinct-content items.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- Live review regeneration reported `scanned=17 actionable=0 operations=0
+  skipped=17`.
+
+Next:
+
+- Add a reviewed apply path for metadata/format-only candidates that quarantines
+  old files and rewrites pointers only after the review classification is
+  explicitly selected.
+- Keep the partial/distinct-content conflicts preserved until a human chooses
+  whether each represents a separate overlapping-calendar artifact or a stale
+  duplicate.
