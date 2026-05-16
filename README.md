@@ -145,6 +145,22 @@ Output contract:
 - `*.readout.json` and `*.readout.md` are the AI-generated summary/readout outputs produced by `summarize_transcript.py`.
 - Backend CLIs print `TRANSCRIPT_ARTIFACT_JSON=<path>` for each sidecar so service wrappers can record artifact paths without guessing filenames.
 
+### Clean historical calendar filenames
+
+If older calendar-mode runs created duplicated date/title prefixes, use
+`cleanup_transcript_filenames.py` from the virtual environment. It defaults to a
+dry-run and refuses to apply while the watcher is active unless it is allowed to
+stop and restart the service.
+
+```bash
+.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive
+.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --apply --manage-service --refresh-store
+```
+
+The cleanup derives canonical names from each transcript sidecar's calendar
+event, renames only non-conflicting files, rewrites sidecar path fields, updates
+watcher state, and can refresh `~/.transcripts` rows for changed sidecars.
+
 Local faster-whisper options:
 
 - `--device`: `auto`, `cuda`, or `cpu` (`auto` prefers CUDA).

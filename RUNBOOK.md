@@ -2445,3 +2445,44 @@ Next:
 - Keep the watcher running and confirm it immediately handles the next newly
   arriving recording.
 - Repair Slack notification PATH if service notifications are still wanted.
+
+## Turn 76 | 2026-05-16
+
+Summary: Added and exercised a bounded historical filename cleanup tool for
+calendar-prefixed transcript artifacts.
+
+Action:
+
+- Added `cleanup_transcript_filenames.py`.
+- The tool derives canonical names from each transcript sidecar's calendar
+  event metadata, defaults to dry-run, refuses to apply while the watcher is
+  active unless `--manage-service` is used, rewrites transcript JSON path
+  fields, updates watcher state, and can refresh `~/.transcripts` rows with
+  `--refresh-store`.
+- Added regression tests for planning, applying, sidecar rewrites, and watcher
+  state rewrites.
+- Documented the cleanup command in `README.md`.
+- Applied three bounded live cleanup batches against Downloads/Sound Recordings
+  using `--apply --manage-service --refresh-store`.
+
+Validation:
+
+- `python -m pytest tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile cleanup_transcript_filenames.py` passed.
+- `git diff --check` passed.
+- Live cleanup applied 20 actionable plans, 19 file rename operations, watcher
+  state updates, and 20 store refreshes.
+- After each apply, `transcribe-watch.service` restarted successfully and
+  heartbeated with `candidates=0 attempted=0 successes=0 failures=0`.
+- A shared-media guard was added after dry-run exposed overlapping calendar
+  artifacts that referenced the same recording but wanted different event
+  titles; those media renames are now suppressed unless the current media name
+  itself has cleanup noise such as `(1)`, duplicate date prefixes, or
+  `and N other(s)`.
+
+Next:
+
+- Continue cleanup in small batches with:
+  `.venv/bin/python cleanup_transcript_filenames.py ~/Downloads ~/SyncThing/Documents/"Sound Recordings" --recursive --limit 10 --apply --manage-service --refresh-store`
+- Add a review/export mode for skipped conflicts so overlapping calendar
+  artifacts can be resolved deliberately instead of guessed.
