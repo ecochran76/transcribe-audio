@@ -2683,3 +2683,39 @@ Next:
   transcript/output differences under the current classifier.
 - Build a small human-review report or UI slice that lets the operator compare
   the remaining pairs and choose preserve, quarantine old, or keep both.
+
+## Turn 83 | 2026-05-16
+
+Summary: Added a filename-conflict human review report generator.
+
+Action:
+
+- Added `transcript_filename_conflict_review.py`.
+- The generator reads a cleanup `--export-review --include-diff-summary` JSON
+  file and writes a user-scoped review template plus Markdown report under
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/` by default.
+- Each review item has a stable id, `pending` decision, recommended decision,
+  allowed decisions, conflict paths, diff metrics, event metadata, and planned
+  non-conflicting operations.
+- Decision choices are `preserve_both`, `quarantine_old`, `keep_target`, and
+  `needs_investigation`.
+- The report remains local runtime state and does not commit private paths or
+  transcript content.
+
+Validation:
+
+- `python -m pytest tests/test_transcript_filename_conflict_review.py tests/test_cleanup_transcript_filenames.py tests/test_transcript_artifacts.py -q` passed.
+- `python -m py_compile transcript_filename_conflict_review.py cleanup_transcript_filenames.py` passed.
+- Live generation wrote
+  `~/.local/state/transcribe-audio/filename-conflict-reviews/filename-conflict-review-20260516-153723.json`
+  and matching Markdown.
+- Live review summary: 10 items; 2 `distinct_content_preserve_both`, 2
+  `high_overlap_needs_review`, and 6 `partial_overlap_distinct_content`.
+- Recommended decisions: 2 `preserve_both`, 8 `needs_investigation`.
+
+Next:
+
+- Use that template as the apply boundary for any future human-selected
+  conflict resolution.
+- Add an apply path that consumes the review template and only acts on explicit
+  non-pending decisions.
