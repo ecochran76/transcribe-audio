@@ -2874,6 +2874,34 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 100 | 2026-05-17
+
+Summary: Completed the one-item retry for the failed second-batch transcript.
+
+Action:
+
+- Polled retry batch `batch_d2dbf05f502e489b9cec3ee8c873f61d` through the
+  transcript API status/materialize endpoint.
+- Materialized the completed retry readout from manifest
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-220424.json`.
+- Ran the readout quality gate on the retry manifest.
+
+Validation:
+
+- Retry final status: `completed`.
+- Retry final counts: `total=1`, `completed=1`, `failed=0`, `cancelled=0`,
+  `missing=0`, `in_progress=0`.
+- Materialization: `materialized=1`, `materialization_errors=0`.
+- Quality gate: 1 pass, 0 warn, 0 fail.
+- Materialized readout:
+  `~/.transcripts/legacy-artifacts/b0/b0fce70ac392889ad41f-2025-12-02 08-00 NCAT My recording 120.readout.json`.
+- Live review queue now reports 20 pending first-pass summaries.
+
+Next:
+
+- Prepare and submit the next five-item first-pass summary batch, then run the
+  same status/materialize and quality-gate loop before scaling.
+
 ## Turn 99 | 2026-05-17
 
 Summary: Submitted the next five-item batch; four materialized and one item is
