@@ -2874,6 +2874,51 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 101 | 2026-05-17
+
+Summary: Ran the next first-pass batch; AuraCall stalled after two valid
+readouts.
+
+Action:
+
+- Submitted five-item manifest
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260517-075535.json`.
+- Batch id: `batch_6a27f88c9abe4d71b16090f7f53efc5a`.
+- Polled through the transcript API status/materialize endpoint.
+- Materialized two completed readouts, then recovered/cancelled stranded
+  AuraCall runs that were stuck as `in_progress` without producing artifacts.
+- Prepared an exact three-item retry manifest for the unmaterialized readouts:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260517-083532.json`.
+- Retry batch id: `batch_fcc01c7655d440d0aaabfe7e0125686e`.
+- The retry made no provider progress after recovery claims; all three retry
+  runs were cancelled to avoid leaving active batch work hanging.
+
+Validation:
+
+- Original final status: `cancelled`.
+- Original final counts: `total=5`, `completed=2`, `cancelled=3`,
+  `failed=0`, `missing=0`, `in_progress=0`.
+- Original materialization: `materialized=2`, `materialization_errors=0`.
+- Retry final status: `cancelled`.
+- Retry final counts: `total=3`, `completed=0`, `cancelled=3`, `failed=0`,
+  `missing=0`, `in_progress=0`.
+- Retry materialization: `materialized=0`, `materialization_errors=0`.
+- `scripts/check_readout_quality.py` on the original manifest passed for the
+  two materialized readouts: 2 pass, 0 warn, 0 fail.
+- `transcripts.service` remained active.
+- `auracall-api.service` was active at closeout, but had restarted during the
+  batch window and left multiple runs with recoverable or suspiciously idle
+  lease states.
+- Live review queue now reports 18 pending first-pass summaries.
+
+Next:
+
+- Fix the AuraCall provider-progress/restart issue before submitting another
+  multi-item batch. Use a single transcript smoke on
+  `agent:pro-extended-chatgpt-soylei-transcripts`, require a surfaced
+  `first_pass_readout.json` artifact, and confirm local materialization before
+  retrying the three cancelled readouts.
+
 ## Turn 100 | 2026-05-17
 
 Summary: Completed the one-item retry for the failed second-batch transcript.
