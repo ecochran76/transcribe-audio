@@ -2874,6 +2874,37 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 97 | 2026-05-16
+
+Summary: Completed and materialized the first five-item first-pass summary
+batch.
+
+Action:
+
+- Continued polling AuraCall batch `batch_73f8ae99132741f2ba30a19905587b2c`
+  through the transcript API status/materialize endpoint.
+- Materialized completed readouts as they became available.
+- Verified all five completed readouts wrote both JSON and Markdown artifacts
+  beside their source transcript artifacts and ingested into the transcript
+  store.
+
+Validation:
+
+- Final batch status: `completed`.
+- Final counts: `total=5`, `completed=5`, `failed=0`, `cancelled=0`,
+  `missing=0`, `in_progress=0`.
+- Materialization: `materialized=5`, `materialization_errors=0`.
+- Readout JSON validation showed each materialized file exists, each Markdown
+  file exists, each readout has `schema_version=1`, and each readout preserves
+  `source_artifact_path`.
+- Live review queue now reports 25 pending first-pass summaries.
+
+Next:
+
+- Inspect a small sample of the five readouts in the review UI, then decide
+  whether to submit the next prepared batch at size five or add an automatic
+  post-materialization quality check before scaling.
+
 ## Turn 96 | 2026-05-16
 
 Summary: Submitted the first live five-item first-pass summary batch through
