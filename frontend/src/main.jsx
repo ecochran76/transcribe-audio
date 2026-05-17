@@ -67,6 +67,16 @@ async function fetchJson(path) {
   return response.json();
 }
 
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json();
+}
+
 function App() {
   const [activeNav, setActiveNav] = useState("Library");
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -77,6 +87,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
+  const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +126,21 @@ function App() {
 
   const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
+
+  async function prepareFirstPassBatch() {
+    setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "" });
+    try {
+      const payload = await postJson("/api/review-queue/first-pass-summaries/prepare", { limit: 5, store: true });
+      setReviewAction({
+        status: "prepared",
+        message: `Prepared ${payload.request_count} dry-run requests; no provider work was submitted.`,
+        manifest: payload.manifest || ""
+      });
+      setApiError("");
+    } catch (error) {
+      setReviewAction({ status: "error", message: `Prepare failed: ${error.message}`, manifest: "" });
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -194,7 +220,7 @@ function App() {
           </div>
 
           {activeNav === "Review Queue" ? (
-            <ReviewQueue queue={reviewQueue} />
+            <ReviewQueue queue={reviewQueue} reviewAction={reviewAction} onPrepareFirstPass={prepareFirstPassBatch} />
           ) : (
             <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
           )}
@@ -246,7 +272,7 @@ function LibraryTable({ items, selectedId, onSelect }) {
   );
 }
 
-function ReviewQueue({ queue }) {
+function ReviewQueue({ queue, reviewAction, onPrepareFirstPass }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
   return (
@@ -258,9 +284,25 @@ function ReviewQueue({ queue }) {
             <strong>{bucket.count}</strong>
             <h3>{bucket.label}</h3>
             <p>{bucket.detail}</p>
+            {bucket.id === "first_pass_summaries" && (
+              <button
+                className="inline-action"
+                disabled={!bucket.count || reviewAction.status === "running"}
+                onClick={onPrepareFirstPass}
+                type="button"
+              >
+                {reviewAction.status === "running" ? "Preparing..." : "Prepare batch"}
+              </button>
+            )}
           </article>
         ))}
       </div>
+      {reviewAction.message && (
+        <div className={`action-notice ${reviewAction.status}`}>
+          <strong>{reviewAction.message}</strong>
+          {reviewAction.manifest && <code>{reviewAction.manifest}</code>}
+        </div>
+      )}
       <div className="queue-list">
         <div className="queue-list-heading">
           <h2>Route review items</h2>

@@ -2874,6 +2874,43 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 94 | 2026-05-16
+
+Summary: Added a provider-neutral Review Queue action for first-pass summary
+batch preparation.
+
+Action:
+
+- Added `POST /api/review-queue/first-pass-summaries/prepare`.
+- The endpoint creates a dry-run first-pass summary manifest under
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/` and returns
+  action metadata without exposing provider-specific UI details.
+- Wired the React Review Queue first-pass summary card to call the endpoint
+  with a five-item default and show the prepared manifest path.
+- Documented the endpoint in README and `docs/dev/transcript-review-api.md`.
+- Restarted `transcripts.service` so `transcripts.localhost` serves the new
+  code.
+
+Validation:
+
+- Graphiti discovery ran and repo files remained the implementation authority.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest -q` passed.
+- `python -m py_compile transcript_api.py scripts/auracall_legacy_enrichment_batch.py tests/test_transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Live `POST http://transcripts.localhost/api/review-queue/first-pass-summaries/prepare`
+  returned HTTP 201 with `request_count=5`, `dry_run=true`,
+  `batch_id=null`, workflow `transcribe-audio-first-pass-summary`, and artifact
+  `first_pass_readout.json`.
+- Live manifest:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-191159.json`.
+
+Next:
+
+- Add a provider-neutral submit/status action for prepared manifests, gated so
+  the UI can start provider work only from an already prepared manifest and can
+  poll/materialize results without exposing AuraCall internals.
+
 ## Turn 93 | 2026-05-16
 
 Summary: Added a dry-run prepare path for bounded first-pass summary batches.

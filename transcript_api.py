@@ -9,6 +9,7 @@ import json
 import mimetypes
 import sqlite3
 import sys
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,10 +30,12 @@ from transcript_store import (
     search_store,
     store_dir,
 )
+from transcribe_common import TranscriptionError
 
 DEFAULT_API_PORT = 18876
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parent / "frontend" / "dist"
 DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
+DEFAULT_BATCH_ENV_FILE = Path("~/.local/state/transcribe-audio/auracall-transcripts.env")
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -309,6 +312,63 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
     }
 
 
+def default_prepare_manifest_path(state_root: Path) -> Path:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return state_root.expanduser() / "first-pass-summary-batches" / f"first-pass-summary-prepare-{stamp}.json"
+
+
+def prepare_first_pass_summary_batch(
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    limit: int = 5,
+    store: bool = True,
+    model: str = "",
+    manifest: Optional[Path] = None,
+) -> dict[str, Any]:
+    from scripts import auracall_legacy_enrichment_batch
+
+    manifest_path = manifest or default_prepare_manifest_path(state_root)
+    args = argparse.Namespace(
+        command="prepare",
+        env_file=env_file,
+        base_url=None,
+        api_key=None,
+        store_dir=store_root,
+        limit=limit,
+        model=model or None,
+        all=False,
+        no_dedupe=False,
+        manifest=manifest_path,
+        store=store,
+        max_concurrent_runs=auracall_legacy_enrichment_batch.DEFAULT_MAX_CONCURRENT_RUNS,
+        max_browser_interactions_per_minute=auracall_legacy_enrichment_batch.DEFAULT_MAX_BROWSER_INTERACTIONS_PER_MINUTE,
+    )
+    exit_code = auracall_legacy_enrichment_batch.enqueue(args, force_dry_run=True)
+    if exit_code != 0:
+        raise TranscriptStoreError(f"First-pass summary prepare failed with exit code {exit_code}")
+    payload = read_json_file(manifest_path)
+    return {
+        "action": "prepare_first_pass_summary_batch",
+        "bucket": "first_pass_summaries",
+        "status": "prepared",
+        "manifest": str(manifest_path.expanduser()),
+        "request_count": int(payload.get("request_count") or 0),
+        "dry_run": bool(payload.get("dry_run")),
+        "batch_id": (payload.get("batch") or {}).get("id") if isinstance(payload.get("batch"), dict) else None,
+        "workflow": ((payload.get("batch_payload") or {}).get("metadata") or {}).get("workflow")
+        if isinstance(payload.get("batch_payload"), dict)
+        else "",
+        "artifact_file": (
+            (((payload.get("batch_payload") or {}).get("requests") or [{}])[0].get("metadata") or {}).get("outputContract")
+            or {}
+        ).get("artifactFileName")
+        if isinstance(payload.get("batch_payload"), dict)
+        else "",
+    }
+
+
 def parse_range_header(header: str, size: int) -> tuple[int, int] | None:
     if not header.startswith("bytes="):
         return None
@@ -431,6 +491,44 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
 
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path == "/api/review-queue/first-pass-summaries/prepare":
+                body = self.read_json_body()
+                limit = parse_int(str(body.get("limit") or ""), 5, minimum=1, maximum=50)
+                store = bool(body.get("store", True))
+                model = str(body.get("model") or "")
+                self.write_json(
+                    prepare_first_pass_summary_batch(
+                        state_root=self.state_root,
+                        store_root=self.store_root,
+                        env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                        limit=limit,
+                        store=store,
+                        model=model,
+                    ),
+                    status=HTTPStatus.CREATED,
+                )
+                return
+            if parsed.path.startswith("/api/"):
+                self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+                return
+            self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+        except (TranscriptStoreError, TranscriptionError, OSError, json.JSONDecodeError) as exc:
+            self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
+        except ValueError as exc:
+            self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
+
+    def read_json_body(self) -> dict[str, Any]:
+        length = parse_int(self.headers.get("Content-Length", "0"), 0, minimum=0, maximum=1024 * 1024)
+        if length <= 0:
+            return {}
+        payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Request JSON body must be an object.")
+        return payload
+
     def write_json(self, payload: dict[str, Any], *, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         self.send_response(status)
@@ -511,6 +609,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         embedding_provider: str,
         embedding_model: str,
         state_root: Path = DEFAULT_STATE_DIR,
+        batch_env_file: Path = DEFAULT_BATCH_ENV_FILE,
         quiet: bool = False,
         static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
     ) -> None:
@@ -519,6 +618,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         self.embedding_provider = embedding_provider
         self.embedding_model = embedding_model
         self.state_root = state_root.expanduser()
+        self.batch_env_file = batch_env_file.expanduser()
         self.quiet = quiet
         self.static_dir = static_dir
 
@@ -527,6 +627,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Serve the local transcript review API.")
     parser.add_argument("--store-dir", type=Path, default=DEFAULT_STORE_DIR)
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR)
+    parser.add_argument("--batch-env-file", type=Path, default=DEFAULT_BATCH_ENV_FILE)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--embedding-provider", default=DEFAULT_EMBEDDING_PROVIDER)
@@ -548,6 +649,7 @@ def serve(args: argparse.Namespace) -> None:
         embedding_provider=args.embedding_provider,
         embedding_model=args.embedding_model,
         state_root=args.state_dir,
+        batch_env_file=args.batch_env_file,
         quiet=bool(args.quiet),
         static_dir=None if args.no_static else args.static_dir,
     )

@@ -1,6 +1,6 @@
 # Transcript Review API
 
-`transcript_api.py` is the local read API for the planned React + Vite review console.
+`transcript_api.py` is the local API for the planned React + Vite review console.
 
 It serves only the configured user-scoped transcript store. It does not read arbitrary filesystem paths from request parameters, and blob playback is limited to blob ids registered in `~/.transcripts/transcripts.sqlite3`.
 
@@ -21,6 +21,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
+- `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
 - `GET /api/search?q=<query>&kind=transcript&limit=10`: lexical/semantic search over stored artifacts.
 - `GET /api/documents/<document_id>`: document detail, JSON payload, text content, metadata, and linked blobs.
 - `GET /api/documents/<document_id>/context?chunk_index=5&context_chunks=1`: nearby transcript/readout context from stored chunks.
@@ -52,15 +53,21 @@ The UI should play recordings through `/api/blobs/<blob_id>` rather than using o
 - `route_decision_exists`: whether a route-review item still points at a readable route-decision artifact.
 - `status=stale_reference`: a local review item exists, but its referenced route decision is gone, commonly from earlier pytest/temp runs.
 
-The endpoint is read-only and intentionally reports stale references instead of deleting or hiding them.
+The queue aggregation endpoint is read-only and intentionally reports stale references instead of deleting or hiding them.
 
 Use `review_queue_maintenance.py` for reviewed cleanup of stale local
 route-review files. It is dry-run by default and requires
 `--apply --approval-token ARCHIVE_STALE_ROUTE_REVIEWS` before moving files to
 `~/.local/state/transcribe-audio/review-queue-archive/<run-id>/`.
 
+First-pass summary preparation is the only current write action exposed by this
+API. It writes a dry-run manifest under
+`~/.local/state/transcribe-audio/first-pass-summary-batches/`, returns the
+manifest path and request count, and leaves `batch=null`. It does not submit
+provider work.
+
 ## Security Boundary
 
-This API is currently local and read-only. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
+This API is currently local and only exposes a dry-run write action for first-pass summary preparation. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
 
 Do not expose this service publicly without an auth layer.

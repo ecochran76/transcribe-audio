@@ -26,6 +26,11 @@ def write_transcript_artifact(tmp_path: Path) -> Path:
                 "working_media_path": str(media_path),
                 "backend": "test",
                 "duration_seconds": 16,
+                "legacy_import": {
+                    "needs_enrichment": True,
+                    "source_path": str(artifact_path),
+                    "source_sha256": "test-transcript-sha",
+                },
                 "utterances": [
                     {
                         "speaker": "Speaker A",
@@ -221,3 +226,63 @@ def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
     assert summary_bucket["label"] == "First-pass summaries"
     assert conflict_bucket["decisions"] == {"keep_target": 1, "pending": 1}
     assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}
+
+
+def test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    env_file = tmp_path / "auracall.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_BASE_URL=http://127.0.0.1:18095/v1",
+                "OPENAI_API_KEY=test-key",
+                "AURACALL_BATCH_URL=http://127.0.0.1:18095/v1/response-batches",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        batch_env_file=env_file,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        request = Request(
+            f"http://{host}:{port}/api/review-queue/first-pass-summaries/prepare",
+            data=json.dumps({"limit": 1}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        response = urlopen(request, timeout=5)
+        payload = json.loads(response.read())
+        manifest = json.loads(Path(payload["manifest"]).read_text(encoding="utf-8"))
+
+        assert response.status == 201
+        assert payload["action"] == "prepare_first_pass_summary_batch"
+        assert payload["bucket"] == "first_pass_summaries"
+        assert payload["request_count"] == 1
+        assert payload["dry_run"] is True
+        assert payload["batch_id"] is None
+        assert payload["workflow"] == "transcribe-audio-first-pass-summary"
+        assert payload["artifact_file"] == "first_pass_readout.json"
+        assert manifest["batch"] is None
+        assert manifest["request_count"] == 1
+        assert manifest["batch_payload"]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
+    finally:
+        server.shutdown()
+        server.server_close()

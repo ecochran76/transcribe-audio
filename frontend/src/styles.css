@@ -320,6 +320,43 @@ td small {
   color: var(--muted);
 }
 
+.inline-action {
+  margin-top: 0.75rem;
+  border: 1px solid rgba(215, 255, 115, 0.38);
+  border-radius: 999px;
+  background: rgba(215, 255, 115, 0.13);
+  color: var(--accent);
+  padding: 0.55rem 0.85rem;
+}
+
+.inline-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.action-notice {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.action-notice.prepared {
+  border-color: rgba(118, 223, 170, 0.38);
+}
+
+.action-notice.error {
+  border-color: rgba(255, 111, 97, 0.5);
+}
+
+.action-notice code {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .queue-list {
   display: grid;
   gap: 0.75rem;
