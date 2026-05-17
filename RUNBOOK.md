@@ -2874,6 +2874,41 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 98 | 2026-05-16
+
+Summary: Added a reusable quality gate for materialized first-pass readouts and
+prepared the next five-item batch.
+
+Action:
+
+- Added `scripts/check_readout_quality.py`.
+- The quality gate checks readout JSON shape, `schema_version=1`, non-empty
+  title/summary/source/generated timestamp, source-artifact existence, paired
+  Markdown existence, summary length, and core list fields for participants,
+  topics, action items, matter candidates, and memory candidates.
+- Added focused tests in `tests/test_readout_quality.py`.
+- Documented the quality gate in README and `docs/dev/transcript-review-api.md`.
+- Ran the gate against the completed five-item manifest:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-191244.json`.
+- Prepared the next dry-run five-item manifest:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-200445.json`.
+
+Validation:
+
+- `python scripts/check_readout_quality.py --manifest ... --format text`
+  passed for the completed batch with 5 pass, 0 warn, 0 fail.
+- `.venv/bin/python -m pytest tests/test_readout_quality.py -q` passed.
+- `python -m py_compile scripts/check_readout_quality.py tests/test_readout_quality.py` passed.
+- The next prepared manifest has `request_count=5`, `dry_run=true`,
+  `batch=null`, workflow `transcribe-audio-first-pass-summary`, and artifact
+  `first_pass_readout.json`.
+
+Next:
+
+- Submit the next prepared five-item manifest if the operator wants to continue
+  AuraCall execution, then run the same status/materialize loop and quality gate
+  before scaling beyond five.
+
 ## Turn 97 | 2026-05-16
 
 Summary: Completed and materialized the first five-item first-pass summary

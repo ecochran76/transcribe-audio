@@ -522,9 +522,14 @@ python scripts/auracall_legacy_enrichment_batch.py \
 python scripts/auracall_legacy_enrichment_batch.py \
   --env-file ~/.local/state/transcribe-audio/auracall-transcripts.env \
   status ~/.local/state/transcribe-audio/auracall-batches/<manifest>.json --materialize --store
+
+python scripts/check_readout_quality.py \
+  --manifest ~/.local/state/transcribe-audio/first-pass-summary-batches/<manifest>.json \
+  --format text
 ```
 
 The `prepare` command writes a dry-run manifest and never submits provider work. The `enqueue` command submits all selected readout requests to AuraCall in one response batch. AuraCall owns browser concurrency and interaction rate limits; this repo keeps the transcript payloads complete and later materializes completed responses into `*.readout.json` and `*.readout.md`.
+Run `check_readout_quality.py` after materialization and before scaling batch size; it verifies readout JSON shape, paired Markdown artifacts, source-artifact links, and core routing/memory fields without reading raw transcript text into the report.
 
 Link already-imported legacy transcripts to recordings later, using an explicit media index instead of rescanning mounted drives:
 

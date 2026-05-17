@@ -70,6 +70,12 @@ manifest paths outside that directory, submit requires an explicit approval
 token, and status can materialize completed provider results back into the
 store when requested.
 
+After materialization, run `scripts/check_readout_quality.py --manifest <path>`
+before scaling batch size. The check is non-mutating and reports only structural
+quality metadata: schema version, paired Markdown presence, source-artifact link
+existence, summary length, and counts for participants, topics, action items,
+matter candidates, and memory candidates.
+
 ## Security Boundary
 
 This API is currently local and exposes manifest-scoped first-pass summary batch actions. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
