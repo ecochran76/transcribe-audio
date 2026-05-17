@@ -2874,6 +2874,56 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 102 | 2026-05-17
+
+Summary: Retried the remaining stalled readouts after AuraCall fixes; one more
+materialized, two still failed on browser connection loss.
+
+Action:
+
+- Verified `transcripts.service` and `auracall-api.service` were active.
+- Verified AuraCall recovery status had no active leases, stale heartbeats,
+  reclaimable runs, or recoverable stranded runs before submitting.
+- Submitted three-item retry manifest
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260517-155332.json`.
+- Batch id: `batch_78c87360d55449feaf56ca961861a0da`.
+- Polled through the transcript API status/materialize endpoint.
+- One readout completed and materialized.
+- Two jobs failed with AuraCall `runner_execution_failed` at stage
+  `connection-lost`; both reported "Chrome window closed before auracall
+  finished. Please keep it open until completion."
+- Submitted a one-item retry for the first remaining pending readout:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260517-155802.json`.
+- Retry batch id: `batch_84c2166157194de9a249d192306f524d`.
+- AuraCall restarted during the one-item retry. The response became
+  `recoverableStranded`, was claimed back to the local runner, made no provider
+  progress, and was cancelled to avoid leaving active work hanging.
+
+Validation:
+
+- Three-item retry final status: `failed`.
+- Three-item retry final counts: `total=3`, `completed=1`, `failed=2`,
+  `cancelled=0`, `missing=0`, `in_progress=0`.
+- Three-item retry materialization: `materialized=1`,
+  `materialization_errors=0`.
+- Quality gate on the three-item manifest passed for the materialized readout:
+  1 pass, 0 warn, 0 fail.
+- Materialized readout:
+  `~/.transcripts/legacy-artifacts/a0/a0cf796472e3426a594f-2026-01-23 10-30 Soylei--Ingevity review Recording (10).readout.json`.
+- One-item retry final status: `cancelled`.
+- One-item retry final counts: `total=1`, `completed=0`, `failed=0`,
+  `cancelled=1`, `missing=0`, `in_progress=0`.
+- Live review queue now reports 17 pending first-pass summaries.
+- Graphiti discovery was healthy but only returned older repo memory; live
+  runbook/API state remained the authority.
+
+Next:
+
+- Return to AuraCall for the remaining blocker: browser-backed response runs
+  still lose the Chrome connection or strand after service restart under the
+  `wsl-chrome-3` ChatGPT runtime profile. Do not submit another batch until a
+  single non-private artifact smoke survives the restart/connection-loss path.
+
 ## Turn 101 | 2026-05-17
 
 Summary: Ran the next first-pass batch; AuraCall stalled after two valid
