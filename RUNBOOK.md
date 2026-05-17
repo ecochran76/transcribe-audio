@@ -2874,6 +2874,42 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 96 | 2026-05-16
+
+Summary: Submitted the first live five-item first-pass summary batch through
+the gated API.
+
+Action:
+
+- Checked Graphiti discovery, repo status, `transcripts.service`, and
+  `auracall-api.service`.
+- Verified the latest prepared manifest:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-191244.json`.
+- Verified AuraCall `/status` returned `ok=true` and authenticated
+  `/v1/models` returned HTTP 200 with the scoped transcript env key.
+- Submitted the prepared manifest through
+  `POST /api/review-queue/first-pass-summaries/submit`.
+- Batch id: `batch_73f8ae99132741f2ba30a19905587b2c`.
+- Fixed the review API's neutral status count adapter so provider aggregate
+  counts are not double-counted with per-job statuses.
+
+Validation:
+
+- Submit returned HTTP 202 with `request_count=5`, `dry_run=false`, and the
+  batch id above.
+- Live status through `127.0.0.1:18876` returned `status=running`,
+  `total=5`, `in_progress=5`, `completed=0`, `failed=0`, `cancelled=0`, and
+  no materialized readouts yet.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest -q` passed.
+- `python -m py_compile transcript_api.py tests/test_transcript_api.py` passed.
+- `git diff --check` passed.
+
+Next:
+
+- Poll `batch_73f8ae99132741f2ba30a19905587b2c` until at least one child
+  completes or fails, then materialize completed readouts and inspect any
+  artifact extraction failures before scaling beyond five items.
+
 ## Turn 95 | 2026-05-16
 
 Summary: Added gated submit and status actions for prepared first-pass summary

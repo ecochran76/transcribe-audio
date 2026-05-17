@@ -270,6 +270,15 @@ def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
     assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}
 
 
+def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
+    assert transcript_api.batch_status_counts(
+        {
+            "counts": {"total": 5, "in_progress": 5, "completed": 0},
+            "jobs": [{"status": "in_progress"} for _ in range(5)],
+        }
+    ) == {"total": 5, "in_progress": 5, "completed": 0}
+
+
 def test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"

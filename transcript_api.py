@@ -345,6 +345,8 @@ def batch_status_counts(batch_status: dict[str, Any]) -> dict[str, int]:
         for key, value in raw_counts.items():
             if isinstance(value, int):
                 counts[str(key)] = value
+        if counts:
+            return counts
     for job in batch_status.get("jobs") or []:
         if not isinstance(job, dict):
             continue
