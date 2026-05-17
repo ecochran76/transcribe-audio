@@ -2874,6 +2874,43 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 99 | 2026-05-17
+
+Summary: Submitted the next five-item batch; four materialized and one item is
+under single-item retry.
+
+Action:
+
+- Submitted prepared manifest
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-200445.json`.
+- Batch id: `batch_aa65f65dff894602a30c5a7cc3dca9d1`.
+- Polled with `materialize=true` until the batch reached a terminal state.
+- The batch completed four readouts and failed one job.
+- Failure details: job index 4 failed with `runner_execution_failed` at stage
+  `connection-lost`; AuraCall reported "Chrome window closed before auracall
+  finished. Please keep it open until completion."
+- The four successful readouts passed `scripts/check_readout_quality.py` with
+  4 pass, 0 warn, 0 fail.
+- Prepared and submitted a one-item retry for the failed queue item:
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-prepare-20260516-220424.json`.
+- Retry batch id: `batch_d2dbf05f502e489b9cec3ee8c873f61d`.
+
+Validation:
+
+- Second batch final counts: `total=5`, `completed=4`, `failed=1`,
+  `cancelled=0`, `missing=0`, `in_progress=0`.
+- Second batch materialization: `materialized=4`,
+  `materialization_errors=0`.
+- Retry batch latest status: `running`, `total=1`, `in_progress=1`,
+  `completed=0`, `failed=0`.
+- Live review queue reports 21 pending first-pass summaries after the four
+  new materialized readouts.
+
+Next:
+
+- Poll retry batch `batch_d2dbf05f502e489b9cec3ee8c873f61d` until it completes
+  or fails. Do not start another batch while this retry is in progress.
+
 ## Turn 98 | 2026-05-16
 
 Summary: Added a reusable quality gate for materialized first-pass readouts and
