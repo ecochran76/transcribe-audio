@@ -22,6 +22,8 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
+- `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
+- `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`.
 - `GET /api/search?q=<query>&kind=transcript&limit=10`: lexical/semantic search over stored artifacts.
 - `GET /api/documents/<document_id>`: document detail, JSON payload, text content, metadata, and linked blobs.
 - `GET /api/documents/<document_id>/context?chunk_index=5&context_chunks=1`: nearby transcript/readout context from stored chunks.
@@ -60,14 +62,16 @@ route-review files. It is dry-run by default and requires
 `--apply --approval-token ARCHIVE_STALE_ROUTE_REVIEWS` before moving files to
 `~/.local/state/transcribe-audio/review-queue-archive/<run-id>/`.
 
-First-pass summary preparation is the only current write action exposed by this
-API. It writes a dry-run manifest under
+First-pass summary preparation writes a dry-run manifest under
 `~/.local/state/transcribe-audio/first-pass-summary-batches/`, returns the
 manifest path and request count, and leaves `batch=null`. It does not submit
-provider work.
+provider work. Submit and status actions are manifest-scoped: the API refuses
+manifest paths outside that directory, submit requires an explicit approval
+token, and status can materialize completed provider results back into the
+store when requested.
 
 ## Security Boundary
 
-This API is currently local and only exposes a dry-run write action for first-pass summary preparation. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
+This API is currently local and exposes manifest-scoped first-pass summary batch actions. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
 
 Do not expose this service publicly without an auth layer.

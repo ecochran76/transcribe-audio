@@ -87,7 +87,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
-  const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "" });
+  const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -128,17 +128,62 @@ function App() {
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
 
   async function prepareFirstPassBatch() {
-    setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "" });
+    setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "" });
     try {
       const payload = await postJson("/api/review-queue/first-pass-summaries/prepare", { limit: 5, store: true });
       setReviewAction({
         status: "prepared",
         message: `Prepared ${payload.request_count} dry-run requests; no provider work was submitted.`,
-        manifest: payload.manifest || ""
+        manifest: payload.manifest || "",
+        batchId: payload.batch_id || ""
       });
       setApiError("");
     } catch (error) {
-      setReviewAction({ status: "error", message: `Prepare failed: ${error.message}`, manifest: "" });
+      setReviewAction({ status: "error", message: `Prepare failed: ${error.message}`, manifest: "", batchId: "" });
+    }
+  }
+
+  async function submitFirstPassBatch() {
+    if (!reviewAction.manifest) return;
+    const approved = window.confirm("Submit this prepared first-pass summary batch to the configured provider?");
+    if (!approved) return;
+    setReviewAction((current) => ({ ...current, status: "submitting", message: "Submitting prepared batch..." }));
+    try {
+      const payload = await postJson("/api/review-queue/first-pass-summaries/submit", {
+        manifest: reviewAction.manifest,
+        approval_token: "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
+      });
+      setReviewAction({
+        status: payload.status || "submitted",
+        message: `Submitted ${payload.request_count} requests; batch ${payload.batch_id || "pending id"}.`,
+        manifest: payload.manifest || reviewAction.manifest,
+        batchId: payload.batch_id || ""
+      });
+    } catch (error) {
+      setReviewAction((current) => ({ ...current, status: "error", message: `Submit failed: ${error.message}` }));
+    }
+  }
+
+  async function refreshFirstPassBatch() {
+    if (!reviewAction.manifest) return;
+    setReviewAction((current) => ({ ...current, status: "checking", message: "Checking prepared batch status..." }));
+    try {
+      const payload = await postJson("/api/review-queue/first-pass-summaries/status", {
+        manifest: reviewAction.manifest,
+        materialize: true
+      });
+      const counts = payload.batch_counts || {};
+      const countText = Object.entries(counts).map(([key, value]) => `${key}: ${value}`).join(", ");
+      setReviewAction({
+        status: payload.status || "checked",
+        message: countText
+          ? `Batch status ${payload.status}; ${countText}. Materialized ${payload.materialized?.length || 0}.`
+          : `Batch status ${payload.status}.`,
+        manifest: payload.manifest || reviewAction.manifest,
+        batchId: payload.batch_id || reviewAction.batchId || ""
+      });
+    } catch (error) {
+      setReviewAction((current) => ({ ...current, status: "error", message: `Status check failed: ${error.message}` }));
     }
   }
 
@@ -220,7 +265,13 @@ function App() {
           </div>
 
           {activeNav === "Review Queue" ? (
-            <ReviewQueue queue={reviewQueue} reviewAction={reviewAction} onPrepareFirstPass={prepareFirstPassBatch} />
+            <ReviewQueue
+              queue={reviewQueue}
+              reviewAction={reviewAction}
+              onPrepareFirstPass={prepareFirstPassBatch}
+              onSubmitFirstPass={submitFirstPassBatch}
+              onRefreshFirstPass={refreshFirstPassBatch}
+            />
           ) : (
             <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
           )}
@@ -272,7 +323,7 @@ function LibraryTable({ items, selectedId, onSelect }) {
   );
 }
 
-function ReviewQueue({ queue, reviewAction, onPrepareFirstPass }) {
+function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
   return (
@@ -301,6 +352,18 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass }) {
         <div className={`action-notice ${reviewAction.status}`}>
           <strong>{reviewAction.message}</strong>
           {reviewAction.manifest && <code>{reviewAction.manifest}</code>}
+          <div className="notice-actions">
+            {reviewAction.manifest && !reviewAction.batchId && (
+              <button disabled={reviewAction.status === "submitting"} onClick={onSubmitFirstPass} type="button">
+                Submit prepared batch
+              </button>
+            )}
+            {reviewAction.manifest && (
+              <button disabled={reviewAction.status === "checking"} onClick={onRefreshFirstPass} type="button">
+                Check and materialize
+              </button>
+            )}
+          </div>
         </div>
       )}
       <div className="queue-list">

@@ -2874,6 +2874,45 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 95 | 2026-05-16
+
+Summary: Added gated submit and status actions for prepared first-pass summary
+batch manifests.
+
+Action:
+
+- Added manifest-scoped submit and status endpoints under
+  `/api/review-queue/first-pass-summaries/`.
+- Submit requires an existing prepared manifest under
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/` and
+  `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
+- Status polls an already submitted manifest and can materialize completed
+  readouts when requested.
+- Updated the React Review Queue action notice with submit and
+  check/materialize controls after a batch is prepared.
+- Documented the expanded batch action contract in README and
+  `docs/dev/transcript-review-api.md`.
+
+Validation:
+
+- Graphiti discovery ran and repo files remained the implementation authority.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest -q` passed.
+- `python -m py_compile transcript_api.py tests/test_transcript_api.py scripts/auracall_legacy_enrichment_batch.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Added a fake-provider API test proving submit requires the approval token,
+  posts the prepared manifest payload, records the batch id, and polls status
+  without touching a live provider.
+- Restarted `transcripts.service`; live
+  `POST http://transcripts.localhost/api/review-queue/first-pass-summaries/status`
+  against the latest prepared manifest returned HTTP 200 with
+  `status=prepared`, `request_count=5`, `dry_run=true`, and `batch_id=null`.
+
+Next:
+
+- Decide whether to submit the latest five-item prepared batch from the UI or
+  keep batch execution paused until the next provider-readiness check.
+
 ## Turn 94 | 2026-05-16
 
 Summary: Added a provider-neutral Review Queue action for first-pass summary

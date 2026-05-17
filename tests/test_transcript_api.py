@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sys
 import threading
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -11,6 +13,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import transcript_api
 import transcript_store
+
+
+class FakeAuraCallHandler(BaseHTTPRequestHandler):
+    requests: list[dict] = []
+
+    def log_message(self, fmt: str, *args: object) -> None:
+        return
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
+        self.__class__.requests.append(payload)
+        self.write_json(
+            {
+                "id": "batch_test",
+                "status": "queued",
+                "request_count": len(payload.get("requests") or []),
+            },
+            HTTPStatus.CREATED,
+        )
+
+    def do_GET(self) -> None:
+        if self.path.endswith("/response-batches/batch_test"):
+            self.write_json(
+                {
+                    "id": "batch_test",
+                    "status": "running",
+                    "jobs": [{"index": 0, "status": "running"}],
+                }
+            )
+            return
+        self.write_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+
+    def write_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
 
 def write_transcript_artifact(tmp_path: Path) -> Path:
@@ -286,3 +328,107 @@ def test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest(tmp_path: P
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_first_pass_summary_submit_and_status_use_prepared_manifest(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    env_file = tmp_path / "auracall.env"
+    transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    FakeAuraCallHandler.requests = []
+    provider = ThreadingHTTPServer(("127.0.0.1", 0), FakeAuraCallHandler)
+    provider_thread = threading.Thread(target=provider.serve_forever, daemon=True)
+    provider_thread.start()
+    host, provider_port = provider.server_address
+    env_file.write_text(
+        "\n".join(
+            [
+                f"OPENAI_BASE_URL=http://{host}:{provider_port}/v1",
+                "OPENAI_API_KEY=test-key",
+                f"AURACALL_BATCH_URL=http://{host}:{provider_port}/v1/response-batches",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        batch_env_file=env_file,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        prepare_request = Request(
+            f"http://{host}:{port}/api/review-queue/first-pass-summaries/prepare",
+            data=json.dumps({"limit": 1}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        prepared = json.loads(urlopen(prepare_request, timeout=5).read())
+        manifest_path = Path(prepared["manifest"])
+
+        blocked_request = Request(
+            f"http://{host}:{port}/api/review-queue/first-pass-summaries/submit",
+            data=json.dumps({"manifest": prepared["manifest"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(blocked_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 400
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("Submit without approval token must fail")
+
+        submit_request = Request(
+            f"http://{host}:{port}/api/review-queue/first-pass-summaries/submit",
+            data=json.dumps(
+                {
+                    "manifest": prepared["manifest"],
+                    "approval_token": "SUBMIT_FIRST_PASS_SUMMARY_BATCH",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        submitted_response = urlopen(submit_request, timeout=5)
+        submitted = json.loads(submitted_response.read())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        assert submitted_response.status == 202
+        assert submitted["status"] == "submitted"
+        assert submitted["batch_id"] == "batch_test"
+        assert submitted["dry_run"] is False
+        assert manifest["batch"]["id"] == "batch_test"
+        assert manifest["dry_run"] is False
+        assert FakeAuraCallHandler.requests[0]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
+
+        status_request = Request(
+            f"http://{host}:{port}/api/review-queue/first-pass-summaries/status",
+            data=json.dumps({"manifest": prepared["manifest"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        status_payload = json.loads(urlopen(status_request, timeout=5).read())
+
+        assert status_payload["status"] == "running"
+        assert status_payload["batch_id"] == "batch_test"
+        assert status_payload["batch_counts"] == {"running": 1}
+        assert json.loads(manifest_path.read_text(encoding="utf-8"))["last_status"]["status"] == "running"
+    finally:
+        server.shutdown()
+        server.server_close()
+        provider.shutdown()
+        provider.server_close()

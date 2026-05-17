@@ -9,7 +9,7 @@ import json
 import mimetypes
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -167,6 +167,13 @@ def read_json_file(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def write_json_file(path: Path, payload: dict[str, Any]) -> Path:
+    target = path.expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    return target
+
+
 def review_status(count: int, *, stale_count: int = 0, pending_count: int = 0) -> str:
     if count <= 0 and pending_count <= 0:
         return "clear"
@@ -317,6 +324,71 @@ def default_prepare_manifest_path(state_root: Path) -> Path:
     return state_root.expanduser() / "first-pass-summary-batches" / f"first-pass-summary-prepare-{stamp}.json"
 
 
+def resolve_batch_manifest_path(state_root: Path, path_text: str) -> Path:
+    if not path_text:
+        raise ValueError("Missing required manifest path.")
+    root = (state_root.expanduser() / "first-pass-summary-batches").resolve()
+    path = Path(path_text).expanduser().resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Manifest path is outside the first-pass summary batch directory.") from exc
+    if not path.exists() or not path.is_file():
+        raise TranscriptStoreError(f"Manifest not found: {path}")
+    return path
+
+
+def batch_status_counts(batch_status: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    raw_counts = batch_status.get("counts")
+    if isinstance(raw_counts, dict):
+        for key, value in raw_counts.items():
+            if isinstance(value, int):
+                counts[str(key)] = value
+    for job in batch_status.get("jobs") or []:
+        if not isinstance(job, dict):
+            continue
+        status = str(job.get("status") or "unknown")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def batch_action_response(
+    *,
+    action: str,
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    status: str,
+    batch_status: Optional[dict[str, Any]] = None,
+    materialized: Optional[list[dict[str, Any]]] = None,
+    materialization_errors: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    batch = manifest.get("batch") if isinstance(manifest.get("batch"), dict) else {}
+    batch_payload = manifest.get("batch_payload") if isinstance(manifest.get("batch_payload"), dict) else {}
+    requests = batch_payload.get("requests") if isinstance(batch_payload.get("requests"), list) else []
+    first_request = requests[0] if requests and isinstance(requests[0], dict) else {}
+    output_contract = (
+        (first_request.get("metadata") or {}).get("outputContract")
+        if isinstance(first_request.get("metadata"), dict)
+        else {}
+    )
+    return {
+        "action": action,
+        "bucket": "first_pass_summaries",
+        "status": status,
+        "manifest": str(manifest_path),
+        "request_count": int(manifest.get("request_count") or 0),
+        "dry_run": bool(manifest.get("dry_run")),
+        "batch_id": batch.get("id") if batch else None,
+        "workflow": (batch_payload.get("metadata") or {}).get("workflow") if isinstance(batch_payload.get("metadata"), dict) else "",
+        "artifact_file": output_contract.get("artifactFileName") if isinstance(output_contract, dict) else "",
+        "batch_status": batch_status,
+        "batch_counts": batch_status_counts(batch_status or {}),
+        "materialized": materialized or [],
+        "materialization_errors": materialization_errors or [],
+    }
+
+
 def prepare_first_pass_summary_batch(
     *,
     state_root: Path,
@@ -349,24 +421,104 @@ def prepare_first_pass_summary_batch(
     if exit_code != 0:
         raise TranscriptStoreError(f"First-pass summary prepare failed with exit code {exit_code}")
     payload = read_json_file(manifest_path)
-    return {
-        "action": "prepare_first_pass_summary_batch",
-        "bucket": "first_pass_summaries",
-        "status": "prepared",
-        "manifest": str(manifest_path.expanduser()),
-        "request_count": int(payload.get("request_count") or 0),
-        "dry_run": bool(payload.get("dry_run")),
-        "batch_id": (payload.get("batch") or {}).get("id") if isinstance(payload.get("batch"), dict) else None,
-        "workflow": ((payload.get("batch_payload") or {}).get("metadata") or {}).get("workflow")
-        if isinstance(payload.get("batch_payload"), dict)
-        else "",
-        "artifact_file": (
-            (((payload.get("batch_payload") or {}).get("requests") or [{}])[0].get("metadata") or {}).get("outputContract")
-            or {}
-        ).get("artifactFileName")
-        if isinstance(payload.get("batch_payload"), dict)
-        else "",
-    }
+    return batch_action_response(
+        action="prepare_first_pass_summary_batch",
+        manifest_path=manifest_path.expanduser(),
+        manifest=payload,
+        status="prepared",
+    )
+
+
+def submit_first_pass_summary_batch(
+    *,
+    state_root: Path,
+    env_file: Path,
+    manifest: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    from scripts import auracall_legacy_enrichment_batch
+
+    if approval_token != "SUBMIT_FIRST_PASS_SUMMARY_BATCH":
+        raise ValueError("Submit requires approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH.")
+    manifest_path = resolve_batch_manifest_path(state_root, manifest)
+    payload = read_json_file(manifest_path)
+    if payload.get("batch"):
+        return batch_action_response(
+            action="submit_first_pass_summary_batch",
+            manifest_path=manifest_path,
+            manifest=payload,
+            status="already_submitted",
+        )
+    batch_payload = payload.get("batch_payload")
+    if not isinstance(batch_payload, dict):
+        raise ValueError("Manifest does not include a prepared batch payload.")
+    if int(payload.get("request_count") or 0) <= 0:
+        raise ValueError("Manifest has no prepared requests to submit.")
+    args = argparse.Namespace(env_file=env_file, base_url=None, api_key=None)
+    env = auracall_legacy_enrichment_batch.runtime_env(args)
+    payload["batch"] = auracall_legacy_enrichment_batch.post_batch(
+        str(payload["batch_url"]),
+        auracall_legacy_enrichment_batch.resolve_api_key(args, env),
+        batch_payload,
+    )
+    payload["dry_run"] = False
+    payload["submitted_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    write_json_file(manifest_path, payload)
+    return batch_action_response(
+        action="submit_first_pass_summary_batch",
+        manifest_path=manifest_path,
+        manifest=payload,
+        status="submitted",
+    )
+
+
+def first_pass_summary_batch_status(
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    manifest: str,
+    materialize: bool = False,
+) -> dict[str, Any]:
+    from scripts import auracall_legacy_enrichment_batch
+
+    manifest_path = resolve_batch_manifest_path(state_root, manifest)
+    payload = read_json_file(manifest_path)
+    batch = payload.get("batch") if isinstance(payload.get("batch"), dict) else {}
+    batch_id = str(batch.get("id") or "")
+    if not batch_id:
+        return batch_action_response(
+            action="first_pass_summary_batch_status",
+            manifest_path=manifest_path,
+            manifest=payload,
+            status="prepared",
+        )
+    args = argparse.Namespace(env_file=env_file, base_url=None, api_key=None, store=bool(payload.get("store")), store_dir=store_root, output_dir=None)
+    env = auracall_legacy_enrichment_batch.runtime_env(args)
+    batch_url = f"{str(payload['batch_url']).rstrip('/')}/{batch_id}"
+    batch_status = auracall_legacy_enrichment_batch.read_json_url(
+        batch_url,
+        auracall_legacy_enrichment_batch.resolve_api_key(args, env),
+    )
+    materialized: list[dict[str, Any]] = []
+    materialization_errors: list[dict[str, Any]] = []
+    if materialize:
+        materialized, materialization_errors = auracall_legacy_enrichment_batch.materialize_completed(args, payload, batch_status)
+    payload["last_status"] = batch_status
+    if materialized:
+        payload["materialized"] = materialized
+    if materialization_errors:
+        payload["materialization_errors"] = materialization_errors
+    write_json_file(manifest_path, payload)
+    return batch_action_response(
+        action="first_pass_summary_batch_status",
+        manifest_path=manifest_path,
+        manifest=payload,
+        status=str(batch_status.get("status") or "unknown"),
+        batch_status=batch_status,
+        materialized=materialized,
+        materialization_errors=materialization_errors,
+    )
 
 
 def parse_range_header(header: str, size: int) -> tuple[int, int] | None:
@@ -509,6 +661,30 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         model=model,
                     ),
                     status=HTTPStatus.CREATED,
+                )
+                return
+            if parsed.path == "/api/review-queue/first-pass-summaries/submit":
+                body = self.read_json_body()
+                self.write_json(
+                    submit_first_pass_summary_batch(
+                        state_root=self.state_root,
+                        env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                        manifest=str(body.get("manifest") or ""),
+                        approval_token=str(body.get("approval_token") or ""),
+                    ),
+                    status=HTTPStatus.ACCEPTED,
+                )
+                return
+            if parsed.path == "/api/review-queue/first-pass-summaries/status":
+                body = self.read_json_body()
+                self.write_json(
+                    first_pass_summary_batch_status(
+                        state_root=self.state_root,
+                        store_root=self.store_root,
+                        env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                        manifest=str(body.get("manifest") or ""),
+                        materialize=bool(body.get("materialize", False)),
+                    )
                 )
                 return
             if parsed.path.startswith("/api/"):
