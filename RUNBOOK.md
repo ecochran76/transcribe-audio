@@ -3067,6 +3067,57 @@ Next:
   partially written child state. After that, retry the two unfinished transcript
   items in a fresh one- or two-item batch.
 
+## Turn 107 | 2026-05-18
+
+Summary: Rechecked the three-item AuraCall transcript-intake batch after the
+handoff note started; the two previously non-terminal responses had completed
+and all three readouts materialized.
+
+Action:
+
+- Re-read AuraCall runtime records for
+  `resp_7504789aba714119b23903bfbbed4adf` and
+  `resp_3c57d99d2e5e4601970149345dfab749`.
+- Re-read direct `/v1/responses/{id}` status through the
+  `auracall-transcripts.env` scoped key.
+- Re-ran the batch status/materialization command for
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-085533.json`
+  with `--materialize --store`.
+- Left an AuraCall handoff note at
+  `../auracall/docs/dev/notes/2026-05-18-transcribe-batch-restart-recovery-handoff.md`.
+
+Validation:
+
+- Batch id `batch_baec0e7666d143a283a01a4f4828507d` now reports
+  `status=completed`.
+- Final counts: `total=3`, `completed=3`, `in_progress=0`, `failed=0`,
+  `cancelled=0`, and `missing=0`.
+- `resp_7504789aba714119b23903bfbbed4adf` later recorded `step-succeeded` at
+  `2026-05-18T14:23:50.930Z` and direct response status `completed`.
+- `resp_3c57d99d2e5e4601970149345dfab749` later recorded `step-succeeded` at
+  `2026-05-18T14:19:48.438Z` and direct response status `completed`.
+- Materialized readouts now include:
+  `~/.transcripts/legacy-artifacts/c7/c72a9a2433cfe9027b83-2025-08-20 Nacu Eric Line of Business follow up meeting My recording 19.readout.json`
+  and
+  `~/.transcripts/legacy-artifacts/62/62b0e1928e29f2f6e4db-2025-09-26 SoyLei Scott Roberts Nacu Austin My recording 32.readout.json`.
+- `materialization_errors=[]`.
+
+Notes:
+
+- Turn 106 captured a real intermediate recovery ambiguity, but it is not the
+  final batch outcome.
+- The remaining AuraCall issue is still worth fixing: callers should not see
+  contradictory `in_progress`, no-active-lease, cancel-released, or transient
+  malformed-batch-read states when the child browser work is still capable of
+  completing.
+
+Next:
+
+- Use the AuraCall handoff note as the next owner boundary, then continue
+  transcript-intake scaling only after deciding whether the current intermediate
+  recovery ambiguity is acceptable for another small batch or needs an
+  AuraCall-side status/cancel fix first.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
