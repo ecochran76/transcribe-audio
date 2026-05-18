@@ -2993,6 +2993,80 @@ Next:
   continue requiring surfaced `first_pass_readout.json` artifacts before
   materialization counts as successful.
 
+## Turn 106 | 2026-05-18
+
+Summary: Scaled AuraCall transcript-intake testing to three items; one readout
+materialized, then the AuraCall service restarted and left the remaining two
+responses non-terminal.
+
+Action:
+
+- Ran Graphiti discovery setup for repo group `transcribe_audio_main`; the
+  runtime doctor was healthy, but discovery returned no current repo facts, so
+  repo files and live runtime state remained authoritative for this slice.
+- Confirmed `auracall-api.service`, `transcribe-watch.service`, and
+  `transcripts.service` were active before submitting more transcript work.
+- Prepared dry-run manifest
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-084520.json`
+  with three pending first-pass transcript readouts.
+- Enqueued manifest
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-085533.json`.
+- Batch id: `batch_baec0e7666d143a283a01a4f4828507d`.
+- Response ids:
+  `resp_81b34938e9694aa9aaf19198cfe8cf89`,
+  `resp_7504789aba714119b23903bfbbed4adf`, and
+  `resp_3c57d99d2e5e4601970149345dfab749`.
+
+Validation:
+
+- Response `resp_81b34938e9694aa9aaf19198cfe8cf89` completed through
+  conversation `6a0b1a5d-e0f8-83ea-bd83-3f1fc76890f8` and target
+  `B0AEEA52DCF94C4E9A4C415569D29ABE`.
+- The first response surfaced `sandbox:/mnt/data/first_pass_readout.json`,
+  AuraCall downloaded it into its ChatGPT cache, and transcript tooling
+  materialized:
+  `~/.transcripts/legacy-artifacts/ff/ff13b2fc131bfca2eb12-2026-02-20 13-30 Meet with Eric (ryan jaggar) My recording 60.readout.json`
+  and
+  `~/.transcripts/legacy-artifacts/ff/ff13b2fc131bfca2eb12-2026-02-20 13-30 Meet with Eric (ryan jaggar) My recording 60.readout.md`.
+- Batch status after materialization reported `total=3`, `completed=1`,
+  `in_progress=2`, `failed=0`, `cancelled=0`, and one materialized readout.
+- `resp_7504789aba714119b23903bfbbed4adf` remains API-visible as
+  `in_progress` with no output; its runtime record is `running` with a
+  `lease expired` event and no active lease.
+- `cancel-run` for `resp_7504789aba714119b23903bfbbed4adf` returned HTTP 409:
+  `run has no active lease to cancel`.
+- `resp_3c57d99d2e5e4601970149345dfab749` remains API-visible as
+  `in_progress` with no output; its runtime record is `running` even after a
+  `lease released: cancelled` event.
+- `auracall-api.service` is active again under PID `3179893`, entered active
+  state at `Mon 2026-05-18 09:08:48 CDT`, and has `NRestarts=0` for the current
+  unit instance.
+
+Notes:
+
+- AuraCall logs during the second response included `Received SIGTERM; leaving
+  Chrome running (assistant response pending)` and `Session still in flight; use
+  your reattach command to continue`; the service then restarted while the
+  batch was active.
+- A later batch materializer/status poll briefly failed with
+  `Expected double-quoted property name in JSON at position 1048544`, but the
+  batch status endpoint later recovered enough to report counts and the one
+  materialized artifact.
+- The current failure mode is not prompt quality or missing artifact surfacing.
+  It is a runtime recovery boundary: responses can remain `running` /
+  `in_progress` without an active lease after service restart or cancellation.
+- Do not scale transcript-intake batches further until AuraCall can reconcile,
+  cancel, or recover no-active-lease running responses and keep response-batch
+  status durable across service restarts.
+
+Next:
+
+- Take the stranded-response evidence to the AuraCall repo: response batches
+  need restart-safe child-run reconciliation, a cancellation path for
+  no-active-lease `running` runs, and batch-status hardening around corrupted or
+  partially written child state. After that, retry the two unfinished transcript
+  items in a fresh one- or two-item batch.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
