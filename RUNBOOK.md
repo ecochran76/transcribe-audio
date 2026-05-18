@@ -2874,6 +2874,61 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 104 | 2026-05-17
+
+Summary: Cancelled the one-item first-pass retry after runtime evidence showed
+the active AuraCall lease was attached to the wrong ChatGPT target.
+
+Action:
+
+- Monitored one-item retry manifest
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260517-204443.json`.
+- Batch id: `batch_b233f1defa434225abc95acf46fac534`.
+- Response id: `resp_801d7fae735e4a348460029d8ca95ef0`.
+- The retry stayed `running` for more than 90 minutes with repeating
+  `chatgpt-passive-dom-probe` and `browser-runtime-hint` lease heartbeats.
+- A materialize/read poll while the run was still active returned
+  `AuraCall read failed (400): Unexpected end of JSON input`, so subsequent
+  monitoring used plain batch status until terminal state.
+- CDP target inspection showed the lease target
+  `2DD81FEB230FEF239857872E722DEB56` was currently on
+  `https://chatgpt.com/library`, and no open page target matched conversation
+  `6a0a6f14-7a80-83ea-a77b-81f654b709aa`.
+- Official AuraCall runtime inspection confirmed the active browser diagnostic
+  target was `ChatGPT - Library`, with `modelResponses=0`, even though the
+  lease heartbeat still renewed.
+- Cancelled the run through `POST /status` with `runControl.cancel-run`.
+
+Validation:
+
+- Cancellation result: `status=cancelled`, `cancelled=true`.
+- Final retry batch status: `cancelled`.
+- Final retry counts: `total=1`, `completed=0`, `failed=0`, `cancelled=1`,
+  `missing=0`, `in_progress=0`.
+- AuraCall recovery after cancellation: `reclaimable=0`, `activeLease=0`,
+  `recoverableStranded=0`, `stranded=0`.
+- `systemctl --user is-active transcripts.service auracall-api.service`
+  returned `active` and `active`.
+- Live first-pass summary queue still reports 15 pending items, with
+  `2026-02-12 Scott Roberts Call 2 Recording` first.
+
+Notes:
+
+- This is not a transcript-store failure and not a time-only timeout decision.
+  The stop condition was contradictory runtime evidence: the active lease kept
+  renewing while the associated browser target was no longer the transcript
+  conversation.
+- Do not submit another private first-pass summary batch until AuraCall rejects
+  lease renewal when the active ChatGPT target is on Library/project/root
+  instead of the expected conversation URL, and until stale completed/failed
+  transcript tabs are cleaned or isolated from running prompt ownership.
+
+Next:
+
+- Return to AuraCall and fix the ChatGPT browser lifecycle/evidence boundary:
+  one running prompt must have one live conversation target, and passive DOM
+  lease evidence must be tied to that target instead of stale stored metadata.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
