@@ -2874,6 +2874,60 @@ Next:
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
 
+## Turn 103 | 2026-05-17
+
+Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
+two readouts materialized and one browser child failed on stale-response
+detection.
+
+Action:
+
+- Confirmed `transcribe-watch.service` and `auracall-api.service` were active.
+- Ran Graphiti discovery against `transcribe_audio_main`; it returned only
+  older broad repo facts, so live repo/API state remained the authority.
+- Confirmed the live first-pass summary queue had 17 pending items before
+  submitting.
+- Submitted a conservative three-item AuraCall batch with
+  `--max-concurrent-runs 1`, `--max-browser-interactions-per-minute 8`, and
+  `--store`.
+- Manifest:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260517-201320.json`.
+- Batch id: `batch_4201009fb3e84b498957ae992866191e`.
+- AuraCall runner topology stayed healthy during the run: no active-lease
+  health warning, fresh runner heartbeats, and runner activity updated from
+  browser runtime evidence.
+
+Validation:
+
+- Final batch status: `failed`.
+- Final counts: `total=3`, `completed=2`, `failed=1`, `cancelled=0`,
+  `missing=0`, `in_progress=0`.
+- Materialized readouts: 2; materialization errors: 0.
+- Failed child: `resp_3168e7286aa94bef85f02eaca860e58f` with
+  `runner_execution_failed: Stale ChatGPT assistant response detected after send.`
+- Materialized readouts:
+  `~/.transcripts/legacy-artifacts/ce/cebc3de9804d0276e862-2026-01-07 Scott Roberts Charlie Nacu Austin update Recording (10).readout.json`.
+- Materialized readouts:
+  `~/.transcripts/legacy-artifacts/37/37a7dc67cc5cb5870a95-2026-02-13 14-45 SoyLei - Discussion of Infringement & C&D Letters My recording 53 (1).readout.json`.
+- `scripts/check_readout_quality.py` passed for both new readouts: 2 pass,
+  0 warn, 0 fail.
+- Live first-pass summary queue now reports 15 pending items.
+
+Notes:
+
+- The prior suspicious-idle/connection-loss failure did not recur in this run.
+- The remaining failed child is an AuraCall browser-response freshness issue,
+  not a transcript-store or prompt-materialization failure.
+- During polling, AuraCall status reads intermittently returned JSON parse
+  errors, but direct batch/response reads recovered and final materialization
+  succeeded for completed children.
+
+Next:
+
+- Hand the new `Stale ChatGPT assistant response detected after send` failure
+  to AuraCall, then retry the failed Scott Roberts Call 2 item as a one-item
+  batch before scaling the remaining 15 pending summaries.
+
 ## Turn 102 | 2026-05-17
 
 Summary: Retried the remaining stalled readouts after AuraCall fixes; one more
