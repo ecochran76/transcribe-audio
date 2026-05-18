@@ -3118,6 +3118,60 @@ Next:
   recovery ambiguity is acceptable for another small batch or needs an
   AuraCall-side status/cancel fix first.
 
+## Turn 108 | 2026-05-18
+
+Summary: Ran the first controlled one-item transcript-intake retry after the
+AuraCall restart recovery fix; the batch survived a recovery window,
+materialized, and passed the readout quality gate.
+
+Action:
+
+- Ran Graphiti discovery for `transcribe_audio_main`; it returned only older
+  repo/bootstrap facts, so current repo files and the AuraCall handoff note
+  remained the authority.
+- Prepared and submitted a one-item first-pass summary batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-115121.json`.
+- Batch id: `batch_83c0ab506c434c6db2ce0cc1f59fc601`.
+- Child response id: `resp_5f8d3719d8784a6baf74b40bdbdc95c3`.
+- Limits: `maxConcurrentRuns=1`,
+  `maxBrowserInteractionsPerMinute=4`.
+- Polled AuraCall status without submitting additional work while the child ran.
+- Materialized the completed readout with `--materialize --store`.
+
+Validation:
+
+- During the run, AuraCall recorded target-bound passive evidence for
+  conversation `6a0b43c0-8570-83ea-9ecc-0879a1eb94ee` on submitted Chrome
+  target `B7E8181F5B74AF85EDD01AEDB267F833`.
+- The run exercised restart/recovery behavior: the initial browser session
+  received `SIGTERM`, AuraCall reattached to the submitted tab, and the batch
+  still converged to `completed`.
+- Final counts: `total=1`, `completed=1`, `in_progress=0`, `failed=0`,
+  `cancelled=0`, and `missing=0`.
+- Final diagnostics reported `terminalTransitionSource=step-succeeded`.
+- Materialized readout:
+  `~/.transcripts/legacy-artifacts/ac/acf05a3ca0b499dc2e9b-2024-10-02 Rich Sean Scott Colorbiotics.readout.json`.
+- `materialization_errors=[]`.
+- `python scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-115121.json --format text`
+  passed with `1 pass, 0 warn, 0 fail`.
+- Live review queue now reports 10 pending first-pass summaries.
+- `transcripts.service` and `auracall-api.service` are both active.
+
+Notes:
+
+- This smoke confirms the fixed AuraCall installed path can recover a
+  browser-backed transcript readout after service interruption and still
+  materialize a valid artifact.
+- The terminal batch row still reports `leaseState=expired` because the final
+  lease had already expired by the time status was read; the important
+  convergence signal is `completed` plus `terminalTransitionSource=step-succeeded`.
+
+Next:
+
+- Continue with another small controlled batch before scaling. Keep batch
+  concurrency at 1 until multiple consecutive materialized readouts complete
+  without contradictory operator-facing status.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
