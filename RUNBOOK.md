@@ -3172,6 +3172,58 @@ Next:
   concurrency at 1 until multiple consecutive materialized readouts complete
   without contradictory operator-facing status.
 
+## Turn 109 | 2026-05-18
+
+Summary: Ran the second controlled one-item transcript-intake retry after the
+AuraCall restart recovery fix; the batch completed, materialized, and passed
+the readout quality gate.
+
+Action:
+
+- Rechecked repo policy, service health, and Graphiti discovery for
+  `transcribe_audio_main`; Graphiti again returned older bootstrap facts only.
+- Prepared and submitted a one-item first-pass summary batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-121059.json`.
+- Batch id: `batch_c5b71dbdeb7a4b09b295172911c8fea1`.
+- Child response id: `resp_a66384f1a6f24b2b89d91299ad63007f`.
+- Limits: `maxConcurrentRuns=1`,
+  `maxBrowserInteractionsPerMinute=4`.
+- Polled AuraCall status without submitting additional work while the child ran.
+- Materialized the completed readout with `--materialize --store`.
+
+Validation:
+
+- During the run, AuraCall recorded target-bound passive evidence for
+  conversation `6a0b4849-8328-83ea-bc16-f8db5c026eac` on submitted Chrome
+  target `6D4DFF018704B4450120A8A84B79B312`.
+- The run progressed from `thinking` to `response-complete`, briefly reported
+  `leaseState=expired` while still `in_progress`, then converged to
+  `completed`.
+- Final counts: `total=1`, `completed=1`, `in_progress=0`, `failed=0`,
+  `cancelled=0`, and `missing=0`.
+- Final diagnostics reported `terminalTransitionSource=step-succeeded`.
+- Materialized readout:
+  `~/.transcripts/legacy-artifacts/63/636b92e150f41aab214a-2025-10-16 Scott Eric Chris response to Wittmack Demand Letter.readout.json`.
+- `materialization_errors=[]`.
+- `python scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-121059.json --format text`
+  passed with `1 pass, 0 warn, 0 fail`.
+- Live review queue now reports 9 pending first-pass summaries.
+- `transcripts.service` and `auracall-api.service` are both active.
+
+Notes:
+
+- This is the second consecutive one-item transcript-intake success on the
+  fixed installed AuraCall path.
+- The residual operator-facing rough edge is still the transient
+  `response-complete` plus expired-lease interval before the batch row flips to
+  `completed`; it resolved without cancellation or manual repair.
+
+Next:
+
+- Continue with a small controlled batch of two or three items at concurrency
+  1, or fix the transient finalization display in AuraCall before scaling if
+  operator clarity is more important than throughput.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
