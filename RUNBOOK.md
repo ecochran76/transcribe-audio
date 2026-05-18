@@ -2929,6 +2929,70 @@ Next:
   one running prompt must have one live conversation target, and passive DOM
   lease evidence must be tied to that target instead of stale stored metadata.
 
+## Turn 105 | 2026-05-18
+
+Summary: Reopened AuraCall transcript-intake testing after the target-bound
+browser fix and completed one first-pass readout.
+
+Action:
+
+- Confirmed `auracall-api.service` was systemd-active but `/status` initially
+  hung; inspected service state, CDP targets, runtime records, and logs before
+  restarting the user service.
+- Restarted `auracall-api.service` after confirming the previous private run
+  was already `cancelled` and the later non-private smoke had `succeeded`.
+- Verified `/status` returned `ok: true` after restart.
+- Ran a non-private direct `/v1/responses` target-bound artifact smoke through
+  `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Left the stale ChatGPT tabs in place for the smoke so the target-binding
+  evidence was tested with `ChatGPT - Library` and older transcript targets
+  still present.
+- Submitted a one-item first-pass summary batch after the non-private gate
+  passed.
+
+Validation:
+
+- Non-private smoke response: `resp_797f2f89d22845789ca01148a5f4713d`.
+- Non-private smoke conversation:
+  `6a0b143a-acb4-83ea-aa81-183b642eb46b`.
+- Non-private smoke target: `58BD9E2D464AC4FD51DB3523E5A6DB0D`.
+- Non-private smoke completed with a surfaced
+  `sandbox:/mnt/data/first_pass_readout.json` link and a materialized local
+  artifact under AuraCall's ChatGPT cache.
+- The materialized smoke artifact parsed as valid JSON and contained
+  `summary=AURACALL_TRANSCRIPT_INTAKE_ARTIFACT_OK`.
+- Private batch manifest:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-083505.json`.
+- Private batch id: `batch_cc2e6e20733844f48e6351dcc6283026`.
+- Private response id: `resp_2fd5d079dd7246d2956328503cfab449`.
+- Private response completed with target
+  `83E199BFB1A6E3506ABF70C0A2B4C075` and conversation
+  `6a0b1594-8fc8-83ea-98be-2e6460310bcc`.
+- Materialized readouts:
+  `~/.transcripts/legacy-artifacts/ac/acdee7fa22751e3a64e2-2026-02-12 Scott Roberts Call 2 Recording.readout.json`
+  and
+  `~/.transcripts/legacy-artifacts/ac/acdee7fa22751e3a64e2-2026-02-12 Scott Roberts Call 2 Recording.readout.md`.
+- The JSON readout parsed successfully and included populated participants,
+  topics, decisions, action items, matter candidates, memory candidates, risks,
+  and next steps.
+
+Notes:
+
+- The successful private run took about eight minutes from enqueue to
+  completion, so long-running `Pro Extended` transcript readouts should not be
+  treated as stalled solely because the browser log has already reported a
+  recovered response.
+- The ChatGPT profile still contains stale Library and older transcript tabs;
+  the passing target-bound smoke proves the current run can bind to the correct
+  conversation target in their presence, but cleanup/isolation is still useful
+  operational hygiene.
+
+Next:
+
+- Scale cautiously to another small first-pass batch, preferably 2-3 items, and
+  continue requiring surfaced `first_pass_readout.json` artifacts before
+  materialization counts as successful.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
