@@ -3358,6 +3358,70 @@ Next:
   until `wsl-chrome-4` proves the same Extended thinking-control surface or is
   moved to a model selector it actually exposes.
 
+## Turn 112 | 2026-05-19
+
+Summary: Retried the three-member AuraCall dispatch pool after the
+`wsl-chrome-4` Pro Extended selector fix; all three first-pass summaries
+completed and materialized.
+
+Action:
+
+- Verified AuraCall tenant limits before submission:
+  `maxConcurrentChats=4`, `maxChatsPerHour=120`, `maxChatsPerDay=240`, and
+  `activeChats=0`.
+- Confirmed the scoped client env still targets
+  `AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool` with
+  `AURACALL_MODEL=gpt-5.2-pro` and `AURACALL_DISPATCH_MODEL=gpt-5.2-pro`.
+- Submitted a three-item live batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-210945.json`.
+- Batch id: `batch_6a07fcef576343a1a6c053ba849f2029`.
+- Limits: `maxConcurrentRuns=3`,
+  `maxBrowserInteractionsPerMinute=6`.
+
+Validation:
+
+- The batch dispatched one child to each member:
+  `pro-extended-chatgpt-consult-transcripts` on `wsl-chrome-2`,
+  `pro-extended-chatgpt-soylei-transcripts` on `wsl-chrome-3`, and
+  `pro-extended-chatgpt-ecochran76-personal-transcripts` on `wsl-chrome-4`.
+- AuraCall status showed one Chrome target and one ChatGPT conversation URL per
+  running prompt, with passive DOM evidence driving runtime state:
+  `thinking`, then `response-complete` or `response-incoming`.
+- Final counts: `total=3`, `completed=3`, `in_progress=0`, `failed=0`,
+  `cancelled=0`, `missing=0`.
+- Materialized readouts:
+  `~/.transcripts/legacy-artifacts/04/045cc4c8de501a0c1b56-20250811_Reynolds_Transcript.readout.json`,
+  `~/.transcripts/legacy-artifacts/14/14826df1928d0956a900-2026-04-07 13-30 Scott SoyLei 2026-04-07 Scott Roberts Nacu Austin Matter.readout.json`,
+  and
+  `~/.transcripts/legacy-artifacts/2f/2fad3db6017f321f7350-2026-04-14 Scott Chris C-D letter response follow up.readout.json`.
+- `scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-210945.json --format text`
+  passed with `3 pass, 0 warn, 0 fail`.
+- Live first-pass summary queue now reports 2 pending items.
+- While verifying post-run tenant usage, AuraCall initially counted four chat
+  starts for the three-request batch because `wsl-chrome-3` recovery replay
+  wrote a second `step-started` event for the same response step. The recovered
+  run reattached to the same Chrome target and same conversation URL, then
+  succeeded. AuraCall was patched and reinstalled so tenant and batch
+  rate-limit usage dedupe repeated `step-started` events for the same response
+  step.
+- After reinstall, AuraCall `/status?tenantExecutionLimits=usage` reported
+  `activeChats=0`, `chatsLastHour=4` total, and per-runtime last-hour starts:
+  `wsl-chrome-2=1`, `wsl-chrome-3=1`, `wsl-chrome-4=2` including the earlier
+  selector smoke.
+
+Notes:
+
+- The dispatch-pool path is now viable for cautious three-account dogfooding on
+  the `Transcripts` project.
+- `projectSync=none` remains an intentional consistency risk: AuraCall does not
+  reconcile project instructions, files, or settings between the tenants.
+
+Next:
+
+- Clear the final two pending first-pass summaries with the dispatch pool in a
+  small controlled batch, then re-run the quality gate and record the final
+  queue state.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
