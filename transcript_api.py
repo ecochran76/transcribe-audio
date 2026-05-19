@@ -412,6 +412,7 @@ def prepare_first_pass_summary_batch(
         store_dir=store_root,
         limit=limit,
         model=model or None,
+        dispatch_team=None,
         all=False,
         no_dedupe=False,
         manifest=manifest_path,

@@ -289,6 +289,8 @@ def test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest(tmp_path: P
                 "OPENAI_BASE_URL=http://127.0.0.1:18095/v1",
                 "OPENAI_API_KEY=test-key",
                 "AURACALL_BATCH_URL=http://127.0.0.1:18095/v1/response-batches",
+                "AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool",
+                "AURACALL_DISPATCH_MODEL=gpt-5.2-pro",
             ]
         ),
         encoding="utf-8",
@@ -333,7 +335,10 @@ def test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest(tmp_path: P
         assert payload["artifact_file"] == "first_pass_readout.json"
         assert manifest["batch"] is None
         assert manifest["request_count"] == 1
+        assert manifest["dispatch_team"] == "transcribe-audio-chatgpt-pro-pool"
+        assert manifest["model"] == "gpt-5.2-pro"
         assert manifest["batch_payload"]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
+        assert manifest["batch_payload"]["dispatch"]["team"] == "transcribe-audio-chatgpt-pro-pool"
     finally:
         server.shutdown()
         server.server_close()
@@ -360,6 +365,8 @@ def test_first_pass_summary_submit_and_status_use_prepared_manifest(tmp_path: Pa
                 f"OPENAI_BASE_URL=http://{host}:{provider_port}/v1",
                 "OPENAI_API_KEY=test-key",
                 f"AURACALL_BATCH_URL=http://{host}:{provider_port}/v1/response-batches",
+                "AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool",
+                "AURACALL_DISPATCH_MODEL=gpt-5.2-pro",
             ]
         ),
         encoding="utf-8",
@@ -422,6 +429,7 @@ def test_first_pass_summary_submit_and_status_use_prepared_manifest(tmp_path: Pa
         assert submitted["dry_run"] is False
         assert manifest["batch"]["id"] == "batch_test"
         assert manifest["dry_run"] is False
+        assert FakeAuraCallHandler.requests[0]["dispatch"]["team"] == "transcribe-audio-chatgpt-pro-pool"
         assert FakeAuraCallHandler.requests[0]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
 
         status_request = Request(

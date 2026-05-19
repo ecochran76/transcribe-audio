@@ -3490,6 +3490,54 @@ Next:
   readouts. Keep any future transcript batches small enough to observe the
   newly installed AuraCall finalization heartbeat before raising concurrency.
 
+## Turn 114 | 2026-05-19
+
+Summary: Wrote the backend roadmap handoff and audited the live P09 backend
+state after the first-pass summary queue cleared.
+
+Action:
+
+- Added
+  `docs/dev/notes/2026-05-19-backend-roadmap-audit-handoff.md`.
+- Updated `ROADMAP.md` so P09 reflects the current backend API surface,
+  first-pass summary batch actions, live store counts, and cleared first-pass
+  queue.
+- Updated `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md` so
+  the P09 implementation slice includes first-pass summary
+  prepare/submit/status operations rather than only read-only queue
+  aggregation.
+- Fixed the transcript API first-pass prepare endpoint so its internal
+  AuraCall batch namespace includes the newer dispatch-team field and honors
+  dispatch-team defaults from the configured env file.
+
+Validation:
+
+- Graphiti discovery was healthy but returned mostly older roadmap facts, so
+  repo docs, source, live API responses, and SQLite counts were used as the
+  authority.
+- Live `GET /api/health` returned `status=ok` for
+  `/home/ecochran76/.transcripts/transcripts.sqlite3`.
+- Live store counts: 240 documents, 164 transcripts, 74 readouts,
+  2 contextual readouts, 122 blobs, 144 document-blob links, and
+  6560 chunk rows.
+- Live `GET /api/review-queue?limit=100` returned `total_open=0`.
+- Live `transcript_store.py first-pass-summary-queue --format compact-json --limit 5`
+  returned `selected_count=0`.
+- Live `GET /api/search?q=SoyLei&limit=3` returned ranked readout results.
+- `transcripts.service` and `transcribe-watch.service` were active.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_transcript_store.py tests/test_review_queue_maintenance.py -q`
+  passed.
+- `python -m py_compile transcript_api.py transcript_store.py review_queue_maintenance.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+
+Next:
+
+- Start the P09 contact/speaker backend slice: add contact, identity,
+  speaker-assignment, and merge-audit tables plus reviewed API contracts before
+  adding more UI chrome.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

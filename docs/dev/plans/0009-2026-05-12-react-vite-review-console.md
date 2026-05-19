@@ -27,8 +27,9 @@ The repo already has transcript artifacts, first-pass readouts, contextual reado
 
 The first UI shell now exists under `frontend/`. It provides the navbar,
 animated pane layout, central library/review viewport, and right inspector
-surface. It is read-only and currently wires `/api/health` plus `/api/library`
-through the Vite dev proxy, with redacted fallback rows when the API is offline.
+surface. It wires `/api/health`, `/api/library`, `/api/review-queue`, and
+first-pass summary batch actions through the Vite dev proxy, with redacted
+fallback rows when the API is offline.
 
 The remaining UI layer should make the workflow operational:
 
@@ -194,7 +195,7 @@ Use a React + Vite app under `frontend/` with:
 ## Implementation Slices
 
 1. Done: product plan and route contract.
-2. In progress: backend read API for store/library/search plus audio blob route and read-only review queue aggregation. New ingests register media blobs; older stored transcripts need a migration/backfill pass to populate blob links. Older TXT/DOCX transcript outputs can be synthesized into private sidecars with `legacy_transcript_import.py` and marked for first-pass summary preparation; live historical imports inserted 70 deduped transcript rows. The first Sound Recordings import matched 44 source recordings, while targeted SoyLei Shared Drive media linking later added 16 matched blobs from an explicit `find` index. `transcript_store.py first-pass-summary-queue` now exposes the de-duped first-pass readout queue for stored transcripts, `/api/review-queue` summarizes local route-review files, filename-conflict decisions, and first-pass summary counts, and `review_queue_maintenance.py` archives stale route-review files only after explicit approval.
+2. In progress: backend read API for store/library/search plus audio blob route, read-only review queue aggregation, and manifest-scoped first-pass summary prepare/submit/status actions. New ingests register media blobs; older stored transcripts need a migration/backfill pass to populate blob links. Older TXT/DOCX transcript outputs can be synthesized into private sidecars with `legacy_transcript_import.py` and marked for first-pass summary preparation; live historical imports inserted 70 deduped transcript rows. The first Sound Recordings import matched 44 source recordings, while targeted SoyLei Shared Drive media linking later added 16 matched blobs from an explicit `find` index. `transcript_store.py first-pass-summary-queue` now exposes the de-duped first-pass readout queue for stored transcripts, `/api/review-queue` summarizes local route-review files, filename-conflict decisions, and first-pass summary counts, `review_queue_maintenance.py` archives stale route-review files only after explicit approval, and the first-pass queue is currently clear after AuraCall dispatch-pool materialization.
 3. Done: React + Vite shell with navbar, animated panes, library table, live review queue cards, and inspector wired to read API.
 4. Login guard and share-link model borrowed from `previews`.
 5. Contact/speaker review tables and merge audit.
