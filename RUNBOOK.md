@@ -3224,6 +3224,70 @@ Next:
   1, or fix the transient finalization display in AuraCall before scaling if
   operator clarity is more important than throughput.
 
+## Turn 110 | 2026-05-19
+
+Summary: Dogfooded AuraCall dispatch-pool routing for first-pass summaries with
+three ChatGPT Pro transcript agents bound to the `Transcripts` project.
+
+Action:
+
+- Created AuraCall dispatch team `transcribe-audio-chatgpt-pro-pool` with
+  `next_available` dispatch and `projectSync=none`.
+- Bound one ChatGPT Pro transcript agent per AuraCall runtime profile:
+  `wsl-chrome-2`, `wsl-chrome-3`, and `wsl-chrome-4`.
+- Updated the transcribe-audio scoped AuraCall client env to use
+  `AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool`,
+  `AURACALL_MODEL=gpt-5.2-pro`, and
+  `AURACALL_DISPATCH_MODEL=gpt-5.2-pro`.
+- Updated `scripts/auracall_legacy_enrichment_batch.py` so dispatch-team
+  batches put the team on the top-level AuraCall batch payload, keep child
+  requests provider-model based, and avoid pinning child `agent:` models or a
+  single runtime profile.
+- Prepared a three-item dry-run manifest:
+  `~/.local/state/transcribe-audio/auracall-batches/dispatch-team-prepare-20260518-194519.json`.
+- Submitted a three-item live batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-194548.json`.
+- Batch id: `batch_4f25217d09324207a48607164dcb5451`.
+
+Validation:
+
+- The dry-run manifest used model `gpt-5.2-pro`, top-level dispatch team
+  `transcribe-audio-chatgpt-pro-pool`, `projectSync=none`, and child
+  AuraCall hints containing only `service=chatgpt`, `transport=browser`, and
+  the team id.
+- The live batch dispatched one child to each member:
+  `pro-extended-chatgpt-consult-transcripts` on `wsl-chrome-2`,
+  `pro-extended-chatgpt-soylei-transcripts` on `wsl-chrome-3`, and
+  `pro-extended-chatgpt-ecochran76-personal-transcripts` on `wsl-chrome-4`.
+- `wsl-chrome-2` and `wsl-chrome-3` completed with AuraCall
+  `response-complete` browser evidence and materialized readouts:
+  `~/.transcripts/legacy-artifacts/de/de3853512ea62d394316-2026-03-03 Danielle re Nacu Soylei impersonation.readout.json`
+  and
+  `~/.transcripts/legacy-artifacts/43/438732c3e310b43f7994-2026-02-12 Jason Potter Eagle Outdoor Recording (11).readout.json`.
+- `python scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-194548.json --format text`
+  passed with `2 pass, 0 warn, 0 fail`.
+- Focused tests passed:
+  `.venv/bin/python -m pytest tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest tests/test_transcript_store.py::test_auracall_first_pass_prepare_can_use_dispatch_team -q`.
+- `py_compile` passed for the batch script and test module.
+
+Notes:
+
+- The batch status is `failed` overall because the `wsl-chrome-4` child failed
+  before submit with `Unable to find the Thinking time dropdown menu`.
+- AuraCall diagnostics showed `wsl-chrome-4` selected `Pro / Standard` and did
+  not expose the expected `Extended` thinking-time control, while the other two
+  accounts selected `Pro / Extended`.
+- Project sync is intentionally disabled for this team type, so differences in
+  existing `Transcripts` project instructions, files, or settings are an
+  operator-visible consistency risk, not an execution error.
+
+Next:
+
+- Fix or quarantine the `wsl-chrome-4` Pro Extended selector mismatch before
+  scaling first-pass summary batches through the three-account pool. Until
+  then, use the two proven agents or a selector all three accounts expose
+  consistently.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

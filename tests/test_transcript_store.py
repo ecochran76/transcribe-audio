@@ -609,6 +609,58 @@ def test_auracall_first_pass_prepare_writes_manifest(tmp_path: Path, capsys) -> 
     assert "AURACALL_BATCH_MANIFEST=" in stdout
 
 
+def test_auracall_first_pass_prepare_can_use_dispatch_team(tmp_path: Path, capsys) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_json(tmp_path / "legacy.transcript.json", legacy_transcript_payload())
+    transcript_store.ingest_artifact(transcript_path, root=store_root, embedding_provider="debug-hash")
+    env_path = tmp_path / "auracall.env"
+    env_path.write_text(
+        "\n".join(
+            [
+                "OPENAI_BASE_URL=http://127.0.0.1:18095/v1",
+                "OPENAI_API_KEY=auracall_test",
+                "AURACALL_MODEL=agent:pro-extended-chatgpt-consult-transcripts",
+                "AURACALL_DISPATCH_MODEL=gpt-5.2-pro",
+                "AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool",
+                "AURACALL_BATCH_URL=http://127.0.0.1:18095/v1/response-batches",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+
+    assert auracall_legacy_enrichment_batch.main(
+        [
+            "--env-file",
+            str(env_path),
+            "--store-dir",
+            str(store_root),
+            "prepare",
+            "--manifest",
+            str(manifest_path),
+        ]
+    ) == 0
+
+    stdout = capsys.readouterr().out
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    request = payload["batch_payload"]["requests"][0]
+    assert payload["dispatch_team"] == "transcribe-audio-chatgpt-pro-pool"
+    assert payload["batch_payload"]["metadata"]["dispatchTeam"] == "transcribe-audio-chatgpt-pro-pool"
+    assert payload["batch_payload"]["dispatch"] == {
+        "team": "transcribe-audio-chatgpt-pro-pool",
+        "mode": "next_available",
+        "projectSync": "none",
+    }
+    assert request["model"] == "gpt-5.2-pro"
+    assert request["auracall"] == {
+        "service": "chatgpt",
+        "transport": "browser",
+        "team": "transcribe-audio-chatgpt-pro-pool",
+    }
+    assert '"dispatch_team": "transcribe-audio-chatgpt-pro-pool"' in stdout
+
+
 def test_auracall_response_model_payload_reads_json_artifact(tmp_path: Path) -> None:
     artifact_path = tmp_path / "legacy_readout.json"
     artifact_path.write_text(json.dumps(readout_payload()), encoding="utf-8")

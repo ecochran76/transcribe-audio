@@ -33,6 +33,7 @@ from transcript_store import (  # noqa: E402
 from transcribe_common import TranscriptionError, extract_response_detail  # noqa: E402
 
 DEFAULT_MODEL = "agent:pro-extended-chatgpt-soylei-transcripts"
+DEFAULT_DISPATCH_MODEL = "gpt-5.2-pro"
 DEFAULT_CLIENT_ENV = Path("~/.local/state/transcribe-audio/auracall-transcripts.env")
 DEFAULT_MANIFEST_DIR = Path("~/.local/state/transcribe-audio/auracall-batches")
 DEFAULT_MAX_CONCURRENT_RUNS = 2
@@ -43,6 +44,11 @@ MANIFEST_JSON_STDOUT_PREFIX = "AURACALL_BATCH_MANIFEST="
 def add_queue_arguments(parser: argparse.ArgumentParser, *, include_dry_run: bool) -> None:
     parser.add_argument("--limit", type=int, help="Limit queued item count.")
     parser.add_argument("--model", default=None, help=f"AuraCall model. Defaults to {DEFAULT_MODEL}.")
+    parser.add_argument(
+        "--dispatch-team",
+        default=None,
+        help="AuraCall dispatch-pool team. Defaults to AURACALL_DISPATCH_TEAM.",
+    )
     parser.add_argument("--all", action="store_true", help="Include rows that already have a readout.")
     parser.add_argument("--no-dedupe", action="store_true", help="Do not collapse same-hash or same-title queue entries.")
     if include_dry_run:
@@ -124,8 +130,32 @@ def resolve_api_key(args: argparse.Namespace, env: dict[str, str]) -> str:
     return value
 
 
-def resolve_model(args: argparse.Namespace, env: dict[str, str]) -> str:
-    return args.model or env.get("AURACALL_MODEL") or DEFAULT_MODEL
+def resolve_dispatch_team(args: argparse.Namespace, env: dict[str, str]) -> str | None:
+    value = args.dispatch_team or env.get("AURACALL_DISPATCH_TEAM")
+    if not value:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def resolve_model(args: argparse.Namespace, env: dict[str, str], dispatch_team: str | None = None) -> str:
+    if not dispatch_team:
+        return args.model or env.get("AURACALL_MODEL") or DEFAULT_MODEL
+
+    if args.model:
+        if args.model.startswith("agent:"):
+            raise TranscriptionError("AuraCall dispatch-pool batches cannot use an agent: model. Pass a provider model.")
+        return args.model
+
+    dispatch_model = env.get("AURACALL_DISPATCH_MODEL")
+    if dispatch_model:
+        return dispatch_model
+
+    env_model = env.get("AURACALL_MODEL")
+    if env_model and not env_model.startswith("agent:"):
+        return env_model
+
+    return DEFAULT_DISPATCH_MODEL
 
 
 def utc_now_iso() -> str:
@@ -157,9 +187,18 @@ def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
     )
 
 
-def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
+def create_request(item: dict[str, Any], model: str, dispatch_team: str | None = None) -> dict[str, Any]:
     source_path = Path(str(item["source_path"])).expanduser().resolve()
     artifact = load_transcript_artifact(source_path)
+    auracall_hints: dict[str, Any] = {
+        "service": "chatgpt",
+        "transport": "browser",
+    }
+    if dispatch_team:
+        auracall_hints["team"] = dispatch_team
+    else:
+        auracall_hints["agent"] = model.removeprefix("agent:") if model.startswith("agent:") else None
+        auracall_hints["runtimeProfile"] = "wsl-chrome-3"
     return {
         "model": model,
         "input": [
@@ -178,12 +217,7 @@ def create_request(item: dict[str, Any], model: str) -> dict[str, Any]:
             "transcriptTitle": item.get("title"),
             "sourcePath": str(source_path),
         },
-        "auracall": {
-            "agent": model.removeprefix("agent:") if model.startswith("agent:") else None,
-            "service": "chatgpt",
-            "runtimeProfile": "wsl-chrome-3",
-            "transport": "browser",
-        },
+        "auracall": auracall_hints,
     }
 
 
@@ -288,7 +322,8 @@ def response_model_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
     env = runtime_env(args)
-    model = resolve_model(args, env)
+    dispatch_team = resolve_dispatch_team(args, env)
+    model = resolve_model(args, env, dispatch_team)
     queue = legacy_enrichment_queue(
         root=args.store_dir,
         limit=args.limit,
@@ -298,12 +333,13 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
         store_readouts=args.store,
         dedupe=not args.no_dedupe,
     )
-    requests_payload = [create_request(item, model) for item in queue["items"]]
+    requests_payload = [create_request(item, model, dispatch_team) for item in queue["items"]]
     batch_payload = {
         "metadata": {
             "workflow": "transcribe-audio-first-pass-summary",
             "createdAt": utc_now_iso(),
             "model": model,
+            "dispatchTeam": dispatch_team,
             "storeDir": queue["store_dir"],
             "selectedCount": queue["selected_count"],
             "duplicateCount": queue["duplicate_count"],
@@ -314,10 +350,17 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
         },
         "requests": requests_payload,
     }
+    if dispatch_team:
+        batch_payload["dispatch"] = {
+            "team": dispatch_team,
+            "mode": "next_available",
+            "projectSync": "none",
+        }
     manifest = {
         "object": "transcribe_audio_auracall_batch_manifest",
         "created_at": utc_now_iso(),
         "model": model,
+        "dispatch_team": dispatch_team,
         "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
         "store": bool(args.store),
         "batch_url": resolve_batch_url(args, env),
@@ -336,6 +379,7 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
                 "manifest": str(manifest_path),
                 "request_count": len(requests_payload),
                 "batch_id": (manifest["batch"] or {}).get("id"),
+                "dispatch_team": dispatch_team,
                 "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
             },
             indent=2,
