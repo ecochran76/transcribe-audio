@@ -3288,6 +3288,76 @@ Next:
   then, use the two proven agents or a selector all three accounts expose
   consistently.
 
+## Turn 111 | 2026-05-19
+
+Summary: Resumed first-pass summary scaling on the known-good SoyLei
+Transcripts agent after validating AuraCall's response-batch recovery
+diagnostics.
+
+Action:
+
+- Verified current AuraCall commits include the restart/cancel recovery fix and
+  finalizing-state surfacing:
+  `fb2bd271 Fix response batch restart recovery semantics` and
+  `f14ac6c6 Surface finalizing response-batch state`.
+- Ran targeted AuraCall regression tests:
+  `pnpm vitest run tests/runtime.store.test.ts tests/runtime.responseBatchService.test.ts --maxWorkers 1`,
+  `pnpm vitest run tests/runtime.serviceHost.test.ts -t "cancels a running run after its lease was already released|cancels a planned run before it has an active lease|cancels an active run owned" --maxWorkers 1`,
+  and
+  `pnpm vitest run tests/runtime.responsesService.test.ts -t "projects lease and passive runtime diagnostics|finalizing|detached browser response" --maxWorkers 1`.
+- Re-read batch `batch_baec0e7666d143a283a01a4f4828507d`; all three jobs now
+  report `runtimeState=terminal` with bounded lease/provider diagnostics.
+- Re-materialized the dispatch-pool dogfood batch
+  `batch_4f25217d09324207a48607164dcb5451`; the two successful children stayed
+  materialized and the `wsl-chrome-4` child remained failed on the Pro Extended
+  selector mismatch.
+- Prepared a two-item single-agent dry-run with dispatch-team env disabled:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-195603.json`.
+- Submitted the corresponding two-item live batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-195628.json`.
+- Batch id: `batch_9771bfe9f76f418bbbc0b8cde0918973`.
+- Model: `agent:pro-extended-chatgpt-soylei-transcripts`.
+- Dispatch team: none.
+- Limits: `maxConcurrentRuns=1`,
+  `maxBrowserInteractionsPerMinute=8`.
+
+Validation:
+
+- AuraCall targeted tests passed: 10 response-batch/store tests, 3
+  service-host cancel tests, and 2 response-service diagnostics tests.
+- The live two-item batch progressed with explicit operator states:
+  job 0 moved from `running` to `finalizing` to `terminal`; job 1 moved from
+  `queued` to `running` to `finalizing` to `terminal`.
+- During finalization, jobs surfaced `browserTaskState=response-complete` and
+  high-confidence `chatgpt-response-finished` provider evidence instead of a
+  bare ambiguous `in_progress` state.
+- Final counts for `batch_9771bfe9f76f418bbbc0b8cde0918973`:
+  `total=2`, `completed=2`, `in_progress=0`, `failed=0`, `cancelled=0`, and
+  `missing=0`.
+- Materialized readouts:
+  `~/.transcripts/legacy-artifacts/d6/d651c4ad15666ba39b1e-IMCD call.readout.json`
+  and
+  `~/.transcripts/legacy-artifacts/c4/c4f9ece2a93d4397b3c9-2026-01-13 11-00 Meet with Eric (ryan jaggar) My recording 150.readout.json`.
+- `scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-195628.json --format text`
+  passed with `2 pass, 0 warn, 0 fail`.
+- `auracall-api.service`, `transcribe-watch.service`, and
+  `transcripts.service` were all active after the run.
+
+Notes:
+
+- The AuraCall recovery/finalization status surface is now good enough for
+  cautious single-agent scaling: active work is distinguishable from queued,
+  finalizing, and terminal work without raw runtime-record inspection.
+- The dispatch-pool path remains blocked by `wsl-chrome-4` model/depth selector
+  parity, not by response-batch recovery.
+
+Next:
+
+- Continue first-pass summaries in small single-agent batches or a two-member
+  pool excluding `wsl-chrome-4`. Do not use the three-member Pro Extended pool
+  until `wsl-chrome-4` proves the same Extended thinking-control surface or is
+  moved to a model selector it actually exposes.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
