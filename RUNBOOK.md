@@ -3422,6 +3422,74 @@ Next:
   small controlled batch, then re-run the quality gate and record the final
   queue state.
 
+## Turn 113 | 2026-05-19
+
+Summary: Cleared the final first-pass summaries through the AuraCall
+dispatch-pool path and recorded the AuraCall lease/finalization repair exposed
+by the retry.
+
+Action:
+
+- Submitted a two-item dispatch-pool batch:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-213213.json`.
+- Batch id: `batch_984676dc867047ed8b49d0f86d8304c8`.
+- Limits: `maxConcurrentRuns=2`,
+  `maxBrowserInteractionsPerMinute=6`.
+- Materialized the completed child from that batch.
+- Submitted a one-item dispatch-pool retry for the remaining failed readout:
+  `~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-215319.json`.
+- Batch id: `batch_47814beb6daf4478aebfcc0e32130f84`.
+- Limits: `maxConcurrentRuns=1`,
+  `maxBrowserInteractionsPerMinute=6`.
+- Materialized the retry output and stored the readout artifacts.
+
+Validation:
+
+- The two-item batch dispatched through
+  `transcribe-audio-chatgpt-pro-pool` with `projectSync=none`.
+- Final two-item batch counts: `total=2`, `completed=1`, `failed=1`,
+  `cancelled=0`, `missing=0`, `in_progress=0`.
+- The completed two-item child ran on
+  `pro-extended-chatgpt-soylei-transcripts` / `wsl-chrome-3` and
+  materialized:
+  `~/.transcripts/legacy-artifacts/23/23f91fc16f5906129168-2026-04-24 16-00 Soylei 2026-04-24 Eric Cara conference.readout.json`.
+- The failed two-item child ran on
+  `pro-extended-chatgpt-consult-transcripts` / `wsl-chrome-2` and failed under
+  the older AuraCall runtime with
+  `runner_execution_failed: Stale ChatGPT assistant response detected after send.`
+- The one-item retry dispatched to
+  `pro-extended-chatgpt-consult-transcripts` / `wsl-chrome-2` and completed.
+- Final one-item retry counts: `total=1`, `completed=1`, `failed=0`,
+  `cancelled=0`, `missing=0`, `in_progress=0`.
+- Retry materialized:
+  `~/.transcripts/legacy-artifacts/e0/e067625711f67972d5de-2026-04-14 Joe Domino Follow up SABER Chemical.readout.json`.
+- `scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-213213.json --format text`
+  passed with `1 pass, 0 warn, 0 fail`.
+- `scripts/check_readout_quality.py --manifest ~/.local/state/transcribe-audio/auracall-batches/first-pass-summary-20260518-215319.json --format text`
+  passed with `1 pass, 0 warn, 0 fail`.
+- `transcript_store.py first-pass-summary-queue --format compact-json --limit 5`
+  reports `selected_count=0`.
+- `transcripts.service`, `transcribe-watch.service`, and
+  `auracall-api.service` are active.
+
+Notes:
+
+- The final one-item retry succeeded, but it exposed an AuraCall artifact
+  finalization window where provider evidence was `response-complete` and the
+  run later succeeded after the lease had already expired. AuraCall was patched
+  and reinstalled afterward to allocate restart-safe unique lease ids and emit
+  `browser-response-artifact-finalizing` runtime evidence while generated
+  artifacts are materializing.
+- The dispatch-pool team still uses `projectSync=none`, so project instruction
+  or file drift between the three ChatGPT tenants remains an operator-visible
+  consistency risk rather than a runtime error.
+
+Next:
+
+- Move from first-pass generation to review/triage of the materialized
+  readouts. Keep any future transcript batches small enough to observe the
+  newly installed AuraCall finalization heartbeat before raising concurrency.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
