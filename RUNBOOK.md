@@ -3672,6 +3672,47 @@ Next:
 - Add write-preview/update endpoints for `intelligence.config.json` so the UI
   can edit task routing safely with validation, diffs, and rollback metadata.
 
+## Turn 118 | 2026-05-20
+
+Summary: Added reviewed preview/apply updates for intelligence task routing.
+
+Action:
+
+- Added validated task update preview/apply helpers to `intelligence_config.py`.
+- Added CLI commands:
+  - `python intelligence_config.py preview-update ...`
+  - `python intelligence_config.py apply-update ... --approval-token APPLY_INTELLIGENCE_CONFIG_UPDATE`
+- Added API endpoints:
+  - `POST /api/intelligence/config/preview`
+  - `POST /api/intelligence/config/apply`
+- Apply writes only to the resolved user-scoped intelligence config path and
+  requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
+- Preview returns before/after config, resolved task values, and rollback
+  metadata without writing.
+- Made `intelligence_config.py` standalone by removing the `transcribe_common`
+  import so config inspection works outside the full virtualenv dependency set.
+- Updated `README.md` and `docs/dev/transcript-review-api.md`.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile intelligence_config.py` and
+  `.venv/bin/python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- CLI preview smoke returned `will_write=false`, rollback metadata, and
+  `resolved_after.provider=codex-exec`.
+- Restarted `transcripts.service`; live
+  `POST /api/intelligence/config/preview` returned a non-mutating preview.
+- Confirmed no live `~/.local/state/transcribe-audio/intelligence.config.json`
+  file was created by preview.
+
+Next:
+
+- Wire the React Intelligence panel to list providers, show resolved task
+  routing, preview edits, and require explicit apply approval for config writes.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

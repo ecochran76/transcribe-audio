@@ -354,6 +354,81 @@ def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> No
     assert payload["tasks"]["app_supervisor"]["provider"] == "codex-app-server"
 
 
+def test_intelligence_config_preview_and_apply_endpoints(tmp_path: Path, monkeypatch) -> None:
+    config_path = tmp_path / "intelligence.config.json"
+    monkeypatch.setenv("TRANSCRIPTS_INTELLIGENCE_CONFIG", str(config_path))
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        preview_request = Request(
+            f"http://{host}:{port}/api/intelligence/config/preview",
+            data=json.dumps(
+                {
+                    "task": "first_pass_summary",
+                    "update": {"provider": "codex-exec", "model": "gpt-preview"},
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preview = json.loads(urlopen(preview_request, timeout=5).read())
+        assert preview["will_write"] is False
+        assert not config_path.exists()
+
+        blocked_request = Request(
+            f"http://{host}:{port}/api/intelligence/config/apply",
+            data=json.dumps(
+                {
+                    "task": "first_pass_summary",
+                    "update": {"provider": "codex-exec"},
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(blocked_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 400
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("apply without approval token must fail")
+
+        apply_request = Request(
+            f"http://{host}:{port}/api/intelligence/config/apply",
+            data=json.dumps(
+                {
+                    "task": "first_pass_summary",
+                    "update": {"provider": "codex-exec", "model": "gpt-applied"},
+                    "approval_token": "APPLY_INTELLIGENCE_CONFIG_UPDATE",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        applied_response = urlopen(apply_request, timeout=5)
+        applied = json.loads(applied_response.read())
+        config = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/config", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert applied_response.status == 202
+    assert applied["applied"] is True
+    assert config["tasks"]["first_pass_summary"]["provider"] == "codex-exec"
+    assert config["tasks"]["first_pass_summary"]["model"] == "gpt-applied"
+
+
 def test_app_intelligence_run_prepare_and_read_endpoints(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),

@@ -94,3 +94,61 @@ def test_write_sample_config_contains_all_tasks(tmp_path: Path) -> None:
 
     assert payload["schema_version"] == intelligence_config.SCHEMA_VERSION
     assert set(payload["tasks"]) == set(intelligence_config.TASK_IDS)
+
+
+def test_preview_config_update_does_not_write(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+
+    preview = intelligence_config.preview_config_update(
+        task="first_pass_summary",
+        update={"provider": "codex-exec", "model": "gpt-test"},
+        path=path,
+    )
+
+    assert preview["will_write"] is False
+    assert preview["rollback"]["delete_task"] is True
+    assert preview["rollback"]["previous_task_config"] == {}
+    assert preview["after"]["tasks"]["first_pass_summary"]["provider"] == "codex-exec"
+    assert preview["resolved_after"]["model"] == "gpt-test"
+    assert not path.exists()
+
+
+def test_apply_config_update_requires_token_and_writes(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+
+    try:
+        intelligence_config.apply_config_update(
+            task="first_pass_summary",
+            update={"provider": "codex-exec"},
+            approval_token="wrong",
+            path=path,
+        )
+    except ValueError as exc:
+        assert "approval_token" in str(exc)
+    else:
+        raise AssertionError("apply without approval token must fail")
+
+    applied = intelligence_config.apply_config_update(
+        task="first_pass_summary",
+        update={"provider": "codex-exec", "fallbacks": ["openai-compatible"]},
+        approval_token=intelligence_config.APPLY_APPROVAL_TOKEN,
+        path=path,
+    )
+
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert applied["applied"] is True
+    assert stored["tasks"]["first_pass_summary"]["provider"] == "codex-exec"
+    assert intelligence_config.resolve_task_config("first_pass_summary", path=path).provider == "codex-exec"
+
+
+def test_preview_config_update_rejects_unknown_fields(tmp_path: Path) -> None:
+    try:
+        intelligence_config.preview_config_update(
+            task="first_pass_summary",
+            update={"provider": "codex-exec", "secret": "nope"},
+            path=tmp_path / "config.json",
+        )
+    except ValueError as exc:
+        assert "Unknown task config field" in str(exc)
+    else:
+        raise AssertionError("unknown fields must fail validation")

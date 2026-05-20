@@ -558,6 +558,15 @@ python transcript_api.py --store-dir ~/.transcripts --host 127.0.0.1 --port 1887
 
 The API exposes `/api/library`, `/api/review-queue`, `/api/intelligence/providers`, `/api/intelligence/config`, prepared App Intelligence run ledgers under `/api/intelligence/runs`, first-pass summary batch actions under `/api/review-queue/first-pass-summaries/`, `/api/search`, `/api/documents/<id>`, `/api/documents/<id>/context`, and range-capable `/api/blobs/<blob_id>` routes over the user-scoped store and runtime state. `intelligence_config.py` centralizes task-level provider/model/timeout routing and resolves from built-in defaults, `~/.local/state/transcribe-audio/intelligence.config.json`, `TRANSCRIPTS_INTELLIGENCE_CONFIG`, per-task environment overrides, and explicit CLI/API overrides. The first-pass prepare endpoint writes a dry-run manifest only; submit requires that prepared manifest and an approval token. The App Intelligence prepare endpoint creates only a local run ledger; it does not start app-server sessions or provider work. When `frontend/dist/` exists, the same server serves the built React console at `/`. Transcript ingestion registers existing source recordings as copied blobs under `~/.transcripts/blobs/` and links them to documents through SQLite pointers, so the UI can play recordings without streaming arbitrary original filesystem paths. If the service environment cannot find `codex` on `PATH`, set `TRANSCRIPTS_CODEX_BIN` or pass `--codex-bin /absolute/path/to/codex` so `codex-app-server` readiness can be reported. See `docs/dev/transcript-review-api.md` for the endpoint contract.
 
+Task routing can be inspected or initialized from the CLI:
+
+```bash
+python intelligence_config.py show
+python intelligence_config.py init-sample
+python intelligence_config.py preview-update --task first_pass_summary --provider codex-exec
+python intelligence_config.py apply-update --task first_pass_summary --provider codex-exec --approval-token APPLY_INTELLIGENCE_CONFIG_UPDATE
+```
+
 ### Run the watcher
 
 ```bash

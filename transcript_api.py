@@ -899,6 +899,26 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path == "/api/intelligence/config/preview":
+                body = self.read_json_body()
+                self.write_json(
+                    intelligence_config.preview_config_update(
+                        task=str(body.get("task") or ""),
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                    )
+                )
+                return
+            if parsed.path == "/api/intelligence/config/apply":
+                body = self.read_json_body()
+                self.write_json(
+                    intelligence_config.apply_config_update(
+                        task=str(body.get("task") or ""),
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        approval_token=str(body.get("approval_token") or ""),
+                    ),
+                    status=HTTPStatus.ACCEPTED,
+                )
+                return
             if parsed.path == "/api/intelligence/runs/prepare":
                 body = self.read_json_body()
                 workflow = str(body.get("workflow") or "").strip()

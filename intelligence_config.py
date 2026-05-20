@@ -5,6 +5,7 @@ Central task-based intelligence provider configuration.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -12,12 +13,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from transcribe_common import DEFAULT_OPENAI_MODEL
-
 DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
 DEFAULT_CONFIG_PATH = DEFAULT_STATE_DIR / "intelligence.config.json"
 ENV_CONFIG_PATH = "TRANSCRIPTS_INTELLIGENCE_CONFIG"
 SCHEMA_VERSION = "transcribe-audio.intelligence-config.v1"
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+APPLY_APPROVAL_TOKEN = "APPLY_INTELLIGENCE_CONFIG_UPDATE"
 
 TASK_FIRST_PASS_SUMMARY = "first_pass_summary"
 TASK_CONTEXTUAL_REREAD = "contextual_reread"
@@ -165,6 +166,14 @@ def write_sample_config(path: Optional[Path] = None) -> Path:
     return target
 
 
+def _base_config(raw: dict[str, Any]) -> dict[str, Any]:
+    tasks = raw.get("tasks") if isinstance(raw.get("tasks"), dict) else {}
+    return {
+        "schema_version": raw.get("schema_version") or SCHEMA_VERSION,
+        "tasks": copy.deepcopy(tasks),
+    }
+
+
 def _task_payload(raw: dict[str, Any], task: str) -> dict[str, Any]:
     tasks = raw.get("tasks") if isinstance(raw.get("tasks"), dict) else {}
     payload = tasks.get(task) if isinstance(tasks.get(task), dict) else {}
@@ -188,6 +197,90 @@ def _coerce_bool(value: Any, default: bool) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _validate_task_update(task: str, update: dict[str, Any]) -> dict[str, Any]:
+    if task not in TASK_IDS:
+        raise ValueError(f"Unknown intelligence task: {task}")
+    if not isinstance(update, dict):
+        raise ValueError("Task update must be an object.")
+    allowed = {"provider", "model", "base_url", "timeout", "temperature", "fallbacks", "requires_ledger", "human_review"}
+    unknown = sorted(set(update) - allowed)
+    if unknown:
+        raise ValueError(f"Unknown task config field(s): {', '.join(unknown)}")
+    normalized: dict[str, Any] = {}
+    for key, value in update.items():
+        if key in {"provider", "model", "base_url", "human_review"}:
+            normalized[key] = str(value or "")
+        elif key in {"timeout", "temperature"}:
+            normalized[key] = _coerce_float(value, float(DEFAULT_TASKS[task].get(key) or 0.0))
+        elif key == "requires_ledger":
+            normalized[key] = _coerce_bool(value, bool(DEFAULT_TASKS[task].get(key)))
+        elif key == "fallbacks":
+            if not isinstance(value, list):
+                raise ValueError("fallbacks must be a list.")
+            normalized[key] = [str(item) for item in value if str(item)]
+    if "provider" in normalized and not normalized["provider"]:
+        raise ValueError("provider cannot be empty.")
+    return normalized
+
+
+def preview_config_update(
+    *,
+    task: str,
+    update: dict[str, Any],
+    path: Optional[Path] = None,
+) -> dict[str, Any]:
+    target = config_path(path)
+    raw = read_config(target)
+    before = _base_config(raw)
+    normalized_update = _validate_task_update(task, update)
+    after = copy.deepcopy(before)
+    tasks = after.setdefault("tasks", {})
+    task_payload = tasks.get(task) if isinstance(tasks.get(task), dict) else {}
+    tasks[task] = {**task_payload, **normalized_update}
+    rollback: dict[str, Any] = {
+        "task": task,
+        "previous_task_config": copy.deepcopy(task_payload),
+        "delete_task": task not in before.get("tasks", {}),
+    }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "action": "preview_intelligence_config_update",
+        "config_path": str(target),
+        "task": task,
+        "update": normalized_update,
+        "before": before,
+        "after": after,
+        "resolved_before": resolve_task_config(task, path=target).to_dict(),
+        "resolved_after": resolve_task_config(task, path=target, overrides=normalized_update).to_dict(),
+        "rollback": rollback,
+        "requires_approval_token": APPLY_APPROVAL_TOKEN,
+        "will_write": False,
+    }
+
+
+def apply_config_update(
+    *,
+    task: str,
+    update: dict[str, Any],
+    approval_token: str,
+    path: Optional[Path] = None,
+) -> dict[str, Any]:
+    if approval_token != APPLY_APPROVAL_TOKEN:
+        raise ValueError(f"Apply requires approval_token={APPLY_APPROVAL_TOKEN}.")
+    preview = preview_config_update(task=task, update=update, path=path)
+    target = Path(preview["config_path"])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(preview["after"], indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    resolved = resolve_task_config(task, path=target)
+    return {
+        **preview,
+        "action": "apply_intelligence_config_update",
+        "will_write": True,
+        "applied": True,
+        "resolved_after": resolved.to_dict(),
+    }
 
 
 def resolve_task_config(
@@ -279,7 +372,40 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     show = subparsers.add_parser("show", help="Show all resolved task configs.")
     show.add_argument("--task", choices=TASK_IDS)
     subparsers.add_parser("init-sample", help="Write a sample config with default task routing.")
+    update = subparsers.add_parser("preview-update", help="Preview a task config update.")
+    update.add_argument("--task", choices=TASK_IDS, required=True)
+    update.add_argument("--provider")
+    update.add_argument("--model")
+    update.add_argument("--base-url")
+    update.add_argument("--timeout", type=float)
+    update.add_argument("--temperature", type=float)
+    update.add_argument("--fallback", action="append", dest="fallbacks")
+    update.add_argument("--requires-ledger", choices=("true", "false"))
+    update.add_argument("--human-review")
+
+    apply_update = subparsers.add_parser("apply-update", help="Apply a task config update.")
+    apply_update.add_argument("--task", choices=TASK_IDS, required=True)
+    apply_update.add_argument("--approval-token", required=True)
+    apply_update.add_argument("--provider")
+    apply_update.add_argument("--model")
+    apply_update.add_argument("--base-url")
+    apply_update.add_argument("--timeout", type=float)
+    apply_update.add_argument("--temperature", type=float)
+    apply_update.add_argument("--fallback", action="append", dest="fallbacks")
+    apply_update.add_argument("--requires-ledger", choices=("true", "false"))
+    apply_update.add_argument("--human-review")
     return parser.parse_args(argv)
+
+
+def update_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key in ("provider", "model", "base_url", "timeout", "temperature", "fallbacks", "human_review"):
+        value = getattr(args, key, None)
+        if value not in (None, ""):
+            payload[key] = value
+    if getattr(args, "requires_ledger", None) is not None:
+        payload["requires_ledger"] = args.requires_ledger == "true"
+    return payload
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
@@ -293,6 +419,15 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 payload = resolve_task_config(args.task, path=args.config).to_dict()
             else:
                 payload = all_task_configs(path=args.config)
+        elif args.command == "preview-update":
+            payload = preview_config_update(task=args.task, update=update_from_args(args), path=args.config)
+        elif args.command == "apply-update":
+            payload = apply_config_update(
+                task=args.task,
+                update=update_from_args(args),
+                approval_token=args.approval_token,
+                path=args.config,
+            )
         else:
             raise ValueError(f"Unknown command: {args.command}")
     except (OSError, ValueError) as exc:

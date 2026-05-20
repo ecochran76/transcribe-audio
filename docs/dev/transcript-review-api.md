@@ -23,6 +23,8 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
 - `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
+- `POST /api/intelligence/config/preview`: validate and preview a task routing update without writing.
+- `POST /api/intelligence/config/apply`: apply a validated task routing update to the user-scoped config. Requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
 - `GET /api/intelligence/runs?limit=50`: list prepared App Intelligence run ledgers under the user-scoped state directory.
 - `GET /api/intelligence/runs/<run_id>`: read one App Intelligence run ledger and recent append-only events.
 - `POST /api/intelligence/runs/prepare`: create a prepared App Intelligence run ledger without starting app-server sessions or provider work.
@@ -107,6 +109,8 @@ The central intelligence library is `intelligence_config.py`. It resolves task-l
 4. Explicit CLI or API request overrides.
 
 Current task ids are `first_pass_summary`, `contextual_reread`, `context_source_ranking`, `route_selection`, `speaker_disambiguation`, `memory_harvest_review`, `embedding`, and `app_supervisor`.
+
+Config updates use the same preview/apply pattern as other write-bearing operator flows. Preview accepts a task id plus an `update` object with allowed fields `provider`, `model`, `base_url`, `timeout`, `temperature`, `fallbacks`, `requires_ledger`, and `human_review`; it returns before/after config, resolved task values, rollback metadata, and does not write. Apply writes only to the user-scoped config path and requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
 
 ## App Intelligence Run Ledgers
 
