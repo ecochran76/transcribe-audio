@@ -24,6 +24,7 @@ from app_intelligence_ledger import (
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
     response_for_run as get_app_intelligence_run,
+    session_start_preflight as preflight_app_intelligence_session_start,
 )
 from transcript_store import (
     DEFAULT_EMBEDDING_MODEL,
@@ -948,6 +949,24 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     status=HTTPStatus.CREATED,
                 )
                 return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/session-start-preflight"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5:
+                    body = self.read_json_body()
+                    provider = codex_app_server_readiness(codex_bin=self.server.codex_bin)  # type: ignore[attr-defined]
+                    append_event_log = bool(body.get("append_event", False))
+                    self.write_json(
+                        preflight_app_intelligence_session_start(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            provider_ready=bool(provider.get("ready")),
+                            provider_status=str(provider.get("status") or ""),
+                            approval_token=str(body.get("approval_token") or ""),
+                            append_event_log=append_event_log,
+                        ),
+                        status=HTTPStatus.ACCEPTED if append_event_log else HTTPStatus.OK,
+                    )
+                    return
             if parsed.path.startswith("/api/"):
                 self.write_error(HTTPStatus.NOT_FOUND, "Not found")
                 return

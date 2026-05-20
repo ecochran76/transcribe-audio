@@ -473,6 +473,73 @@ def test_app_intelligence_run_prepare_and_read_endpoints(tmp_path: Path) -> None
     assert shown["events"][0]["event_type"] == "run_prepared"
 
 
+def test_app_intelligence_session_start_preflight_endpoint_does_not_start_work(tmp_path: Path) -> None:
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+        codex_bin=sys.executable,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        prepare_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/prepare",
+            data=json.dumps(
+                {
+                    "workflow": "app-supervisor",
+                    "purpose": "Prepare supervised work.",
+                    "run_id": "preflight-run",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(prepare_request, timeout=5).read()
+
+        preflight_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/preflight-run/session-start-preflight",
+            data=json.dumps({"approval_token": "START_APP_SERVER_SESSION"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preflight_response = urlopen(preflight_request, timeout=5)
+        preflight = json.loads(preflight_response.read())
+
+        append_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/preflight-run/session-start-preflight",
+            data=json.dumps(
+                {
+                    "approval_token": "APPEND_SESSION_START_PREFLIGHT_EVENT",
+                    "append_event": True,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        append_response = urlopen(append_request, timeout=5)
+        appended = json.loads(append_response.read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/preflight-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert preflight_response.status == 200
+    assert preflight["will_start_session"] is False
+    assert preflight["checks"]["phase_prepared"] is True
+    assert preflight["checks"]["approval_token_shape"] is True
+    assert preflight["checks"]["provider_ready"] is False
+    assert "provider_ready" in preflight["blocking_checks"]
+    assert append_response.status == 202
+    assert appended["event"]["event_type"] == "session_start_preflight"
+    assert shown["events"][-1]["event_type"] == "session_start_preflight"
+
+
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
     assert transcript_api.batch_status_counts(
         {

@@ -17,6 +17,8 @@ from typing import Any, Iterable, Optional
 DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
 RUNS_DIR_NAME = "app-intelligence-runs"
 SCHEMA_VERSION = "transcribe-audio.app-intelligence-run.v1"
+SESSION_START_APPROVAL_TOKEN = "START_APP_SERVER_SESSION"
+SESSION_START_PREFLIGHT_EVENT_TOKEN = "APPEND_SESSION_START_PREFLIGHT_EVENT"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -242,6 +244,64 @@ def response_for_run(*, state_root: Optional[Path] = None, run_id: str, event_li
         "path": str(path),
         "events": read_events(path / "events.jsonl", limit=event_limit),
         "codex_events_count": sum(1 for _ in (path / "codex_events.jsonl").open(encoding="utf-8")) if (path / "codex_events.jsonl").exists() else 0,
+    }
+
+
+def session_start_preflight(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    provider_ready: bool,
+    provider_status: str = "",
+    approval_token: str = "",
+    append_event_log: bool = False,
+) -> dict[str, Any]:
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=5)
+    run = shown["run"]
+    policy = run.get("policy") if isinstance(run.get("policy"), dict) else {}
+    allowed_actions = policy.get("allowed_actions") if isinstance(policy.get("allowed_actions"), list) else []
+    token_shape_ok = approval_token in {"", SESSION_START_APPROVAL_TOKEN, SESSION_START_PREFLIGHT_EVENT_TOKEN}
+    checks = {
+        "run_exists": True,
+        "phase_prepared": run.get("phase") == "prepared",
+        "provider_is_codex_app_server": run.get("provider") == "codex-app-server",
+        "provider_ready": bool(provider_ready),
+        "start_action_allowed": "start_app_server_session" in allowed_actions,
+        "host_owns_control_flow": policy.get("host_owns_control_flow") is True,
+        "structured_decisions_required": policy.get("structured_decisions_required") is True,
+        "approval_token_shape": token_shape_ok,
+    }
+    blocking = [name for name, ok in checks.items() if not ok]
+    event = None
+    if append_event_log:
+        if approval_token != SESSION_START_PREFLIGHT_EVENT_TOKEN:
+            raise ValueError(f"Appending a preflight event requires approval_token={SESSION_START_PREFLIGHT_EVENT_TOKEN}.")
+        event = append_event(
+            state_root=state_root,
+            run_id=run_id,
+            event_type="session_start_preflight",
+            payload={
+                "provider_status": provider_status,
+                "checks": checks,
+                "would_start_session": False,
+                "future_required_approval_token": SESSION_START_APPROVAL_TOKEN,
+            },
+        )
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-session-start-preflight.v1",
+        "action": "session_start_preflight",
+        "run_id": run_id,
+        "provider": run.get("provider") or "",
+        "provider_status": provider_status,
+        "checks": checks,
+        "blocking_checks": blocking,
+        "ok": not blocking,
+        "will_start_session": False,
+        "will_write_event": bool(append_event_log),
+        "required_approval_token_for_event": SESSION_START_PREFLIGHT_EVENT_TOKEN,
+        "future_required_approval_token_for_session_start": SESSION_START_APPROVAL_TOKEN,
+        "event": event,
+        "run": run_summary(run_dir(state_root, run_id)),
     }
 
 

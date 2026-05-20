@@ -28,6 +28,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/intelligence/runs?limit=50`: list prepared App Intelligence run ledgers under the user-scoped state directory.
 - `GET /api/intelligence/runs/<run_id>`: read one App Intelligence run ledger and recent append-only events.
 - `POST /api/intelligence/runs/prepare`: create a prepared App Intelligence run ledger without starting app-server sessions or provider work.
+- `POST /api/intelligence/runs/<run_id>/session-start-preflight`: validate session-start prerequisites without starting app-server sessions or provider work. A dry run can pass `approval_token=START_APP_SERVER_SESSION` to validate token shape. Passing `append_event=true` records only a `session_start_preflight` event and requires `approval_token=APPEND_SESSION_START_PREFLIGHT_EVENT`.
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
 - `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
 - `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`.
@@ -127,4 +128,4 @@ Each prepared run has:
 - `codex_events.jsonl`: reserved append-only capture of future app-server streamed events.
 - `branches/`, `artifacts/`, and `diffs/`: reserved user-scoped run artifacts.
 
-The prepare endpoint only creates this ledger. It does not spawn `codex app-server`, create Codex threads, fork branches, run model turns, or perform external writes. Future app-server phases must validate structured decisions against the ledger policy before the host executes any fork, rollback, write, network, or deposition action.
+The prepare endpoint only creates this ledger. It does not spawn `codex app-server`, create Codex threads, fork branches, run model turns, or perform external writes. The session-start preflight endpoint validates provider readiness, prepared ledger phase, allowed actions, host-owned policy, structured-decision policy, and approval-token shape. It never starts a session. Its optional event-append mode records only that the preflight was checked and uses a separate event token from the future session-start approval token. Future app-server phases must validate structured decisions against the ledger policy before the host executes any fork, rollback, write, network, or deposition action.

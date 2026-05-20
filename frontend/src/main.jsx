@@ -153,6 +153,7 @@ function App() {
   const [selectedRunId, setSelectedRunId] = useState("");
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [runDetailAction, setRunDetailAction] = useState({ status: "idle", message: "" });
+  const [sessionPreflight, setSessionPreflight] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -195,10 +196,11 @@ function App() {
       }
       setRunDetailAction({ status: "loading", message: "Loading selected run ledger..." });
       try {
-        const payload = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      const payload = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
         if (cancelled) return;
         setSelectedRunDetail(payload);
         setRunDetailAction({ status: "loaded", message: "" });
+        setSessionPreflight({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -379,6 +381,36 @@ function App() {
     }
   }
 
+  async function runSessionPreflight({ appendEvent = false } = {}) {
+    if (!selectedRunId) return;
+    setSessionPreflight({
+      status: appendEvent ? "recording" : "running",
+      message: appendEvent ? "Recording non-starting session preflight event..." : "Running session-start preflight...",
+      payload: sessionPreflight.payload
+    });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/session-start-preflight`, {
+        approval_token: appendEvent ? "APPEND_SESSION_START_PREFLIGHT_EVENT" : "START_APP_SERVER_SESSION",
+        append_event: appendEvent
+      });
+      if (appendEvent) {
+        const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+        setSelectedRunDetail(detail);
+      }
+      setSessionPreflight({
+        status: payload.ok ? "ok" : "blocked",
+        message: appendEvent
+          ? "Recorded preflight event; no app-server session was started."
+          : payload.ok
+            ? "Preflight passed; session start still requires a future explicit action."
+            : `Preflight blocked: ${payload.blocking_checks?.join(", ") || "unknown check"}.`,
+        payload
+      });
+    } catch (error) {
+      setSessionPreflight({ status: "error", message: `Session preflight failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -519,6 +551,8 @@ function App() {
             selectedRunId={selectedRunId}
             selectedRunDetail={selectedRunDetail}
             runDetailAction={runDetailAction}
+            sessionPreflight={sessionPreflight}
+            onRunSessionPreflight={runSessionPreflight}
             intelligence={intelligence}
           />
         </aside>
@@ -810,6 +844,8 @@ function Inspector({
   selectedRunId,
   selectedRunDetail,
   runDetailAction,
+  sessionPreflight,
+  onRunSessionPreflight,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -869,6 +905,20 @@ function Inspector({
                 <strong>Next gate: start app-server session</strong>
                 <p>Not enabled in this UI. Starting a session must be added as a separate reviewed action with an explicit approval token and ledger event.</p>
                 <code>{JSON.stringify({ approval_policy: approvalPolicy, eval_policy: evalPolicy }, null, 2)}</code>
+                <div className="notice-actions">
+                  <button onClick={() => onRunSessionPreflight({ appendEvent: false })} disabled={sessionPreflight.status === "running"} type="button">
+                    Dry-run preflight
+                  </button>
+                  <button onClick={() => onRunSessionPreflight({ appendEvent: true })} disabled={sessionPreflight.status === "recording"} type="button">
+                    Record preflight event
+                  </button>
+                </div>
+                {sessionPreflight.message && (
+                  <div className={`action-notice ${sessionPreflight.status}`}>
+                    <strong>{sessionPreflight.message}</strong>
+                    {sessionPreflight.payload && <code>{JSON.stringify(sessionPreflight.payload.checks || {}, null, 2)}</code>}
+                  </div>
+                )}
               </div>
               <div className="event-list">
                 <span>Recent Events</span>

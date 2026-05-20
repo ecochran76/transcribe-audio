@@ -50,6 +50,65 @@ def test_list_and_show_runs_are_user_scoped(tmp_path: Path) -> None:
     assert shown["run"]["workflow"] == "speaker-review"
 
 
+def test_session_start_preflight_is_non_starting_and_can_append_event(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="app-supervisor",
+        purpose="Prepare supervised work.",
+        run_id="preflight-run",
+    )
+
+    dry_run = app_intelligence_ledger.session_start_preflight(
+        state_root=tmp_path,
+        run_id="preflight-run",
+        provider_ready=True,
+        provider_status="ready",
+        approval_token=app_intelligence_ledger.SESSION_START_APPROVAL_TOKEN,
+    )
+
+    assert dry_run["ok"] is True
+    assert dry_run["will_start_session"] is False
+    assert dry_run["will_write_event"] is False
+    assert dry_run["future_required_approval_token_for_session_start"] == app_intelligence_ledger.SESSION_START_APPROVAL_TOKEN
+
+    appended = app_intelligence_ledger.session_start_preflight(
+        state_root=tmp_path,
+        run_id="preflight-run",
+        provider_ready=True,
+        provider_status="ready",
+        approval_token=app_intelligence_ledger.SESSION_START_PREFLIGHT_EVENT_TOKEN,
+        append_event_log=True,
+    )
+    shown = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="preflight-run")
+
+    assert appended["event"]["event_type"] == "session_start_preflight"
+    assert shown["events"][-1]["event_type"] == "session_start_preflight"
+    assert shown["run"]["phase"] == "prepared"
+
+
+def test_session_start_preflight_event_append_requires_event_token(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="app-supervisor",
+        purpose="Prepare supervised work.",
+        run_id="preflight-run",
+    )
+
+    try:
+        app_intelligence_ledger.session_start_preflight(
+            state_root=tmp_path,
+            run_id="preflight-run",
+            provider_ready=True,
+            provider_status="ready",
+            approval_token=app_intelligence_ledger.SESSION_START_APPROVAL_TOKEN,
+            append_event_log=True,
+        )
+    except ValueError as exc:
+        assert app_intelligence_ledger.SESSION_START_PREFLIGHT_EVENT_TOKEN in str(exc)
+    else:
+        raise AssertionError("Expected preflight event append to require event token.")
+
+
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(
         [

@@ -3840,6 +3840,55 @@ Next:
   surface first: validate provider readiness, ledger phase, approval token
   shape, and event append semantics without starting Codex app-server work.
 
+## Turn 122 | 2026-05-20
+
+Summary: Added non-starting App Intelligence session-start preflight.
+
+Action:
+
+- Added `session_start_preflight()` to `app_intelligence_ledger.py`.
+- Added `POST /api/intelligence/runs/<run_id>/session-start-preflight`.
+- Dry-run preflight validates:
+  - ledger exists and remains in `phase=prepared`;
+  - provider is `codex-app-server`;
+  - provider readiness is true;
+  - `start_app_server_session` is allowed by the ledger policy;
+  - host-owned control flow and structured decisions are required;
+  - approval-token shape matches the future session-start or preflight-event
+    token.
+- Optional event-append mode records only `session_start_preflight` and
+  requires `approval_token=APPEND_SESSION_START_PREFLIGHT_EVENT`.
+- The future session-start token is surfaced as
+  `START_APP_SERVER_SESSION`, but no endpoint starts app-server sessions yet.
+- Wired the React selected-run inspector with `Dry-run preflight` and
+  `Record preflight event` controls.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active.
+- Live `/` served rebuilt assets `index-BlMXf_Sl.js` and
+  `index-DICDSuDL.css`.
+- Live `GET /api/intelligence/providers` reported
+  `codex-app-server.status=ready`, `ready=true`, and
+  `version=codex-cli 0.131.0`.
+- Live `GET /api/intelligence/runs?limit=8` returned the user-scoped runs
+  directory with `total=0`; no live ledger was created for this smoke.
+
+Next:
+
+- Add the first real session-start implementation behind
+  `approval_token=START_APP_SERVER_SESSION`, restricted to prepared ledgers,
+  stdio/unix transport only, and host-owned event capture before any model turn.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
