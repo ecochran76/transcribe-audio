@@ -25,6 +25,7 @@ MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
     "prepare_prompt",
+    "send_model_turn",
     "start_app_server_session",
     "record_codex_event",
     "record_structured_decision",
@@ -548,6 +549,62 @@ def read_model_turn_packet(
         "prompt_text": prompt_text,
         "will_send_prompt": False,
         "future_required_approval_token_for_send": MODEL_TURN_SEND_TOKEN,
+    }
+
+
+def model_turn_send_preflight(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    packet_id: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != MODEL_TURN_SEND_TOKEN:
+        raise ValueError(f"Model-turn send preflight requires approval_token={MODEL_TURN_SEND_TOKEN}.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=5)
+    run = shown["run"]
+    packet_review = read_model_turn_packet(state_root=state_root, run_id=run_id, packet_id=packet_id)
+    policy = run.get("policy") if isinstance(run.get("policy"), dict) else {}
+    allowed_actions = policy.get("allowed_actions") if isinstance(policy.get("allowed_actions"), list) else []
+    packet = packet_review.get("packet") if isinstance(packet_review.get("packet"), dict) else {}
+    matching_summary = next(
+        (
+            summary for summary in run.get("prompt_packets", [])
+            if isinstance(summary, dict) and summary.get("packet_id") == packet_id
+        ),
+        {},
+    ) if isinstance(run.get("prompt_packets"), list) else {}
+    checks = {
+        "run_exists": True,
+        "phase_session_started": run.get("phase") == "session_started",
+        "provider_is_codex_app_server": run.get("provider") == "codex-app-server",
+        "send_action_allowed": "send_model_turn" in allowed_actions,
+        "host_owns_control_flow": policy.get("host_owns_control_flow") is True,
+        "structured_decisions_required": policy.get("structured_decisions_required") is True,
+        "packet_exists": bool(packet),
+        "packet_matches_run": packet.get("run_id") == run_id,
+        "packet_review_required": packet.get("review_required") is True,
+        "packet_not_sent": matching_summary.get("sent") is False,
+        "prompt_text_present": bool(str(packet_review.get("prompt_text") or "").strip()),
+    }
+    blocking = [name for name, ok in checks.items() if not ok]
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-model-turn-send-preflight.v1",
+        "action": "model_turn_send_preflight",
+        "run_id": run_id,
+        "packet_id": packet_id,
+        "ok": not blocking,
+        "checks": checks,
+        "blocking_checks": blocking,
+        "will_send_prompt": False,
+        "will_write_event": False,
+        "required_approval_token_checked": MODEL_TURN_SEND_TOKEN,
+        "future_action": "send_model_turn",
+        "packet": packet,
+        "packet_path": packet_review.get("packet_path") or "",
+        "prompt_path": packet_review.get("prompt_path") or "",
+        "prompt_char_count": len(str(packet_review.get("prompt_text") or "")),
+        "run": run_summary(run_dir(state_root, run_id)),
     }
 
 

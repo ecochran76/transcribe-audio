@@ -691,6 +691,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
                 timeout=5,
             ).read()
         )
+        send_preflight_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/prompt-packets/{packet['packet']['packet_id']}/send-preflight",
+            data=json.dumps({"approval_token": "SEND_APP_SERVER_MODEL_TURN"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        send_preflight_response = urlopen(send_preflight_request, timeout=5)
+        send_preflight = json.loads(send_preflight_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -706,6 +714,11 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert review["will_send_prompt"] is False
     assert review["future_required_approval_token_for_send"] == "SEND_APP_SERVER_MODEL_TURN"
     assert "Tempo Chemical samples" in review["prompt_text"]
+    assert send_preflight_response.status == 200
+    assert send_preflight["ok"] is True
+    assert send_preflight["will_send_prompt"] is False
+    assert send_preflight["will_write_event"] is False
+    assert send_preflight["prompt_char_count"] > 0
     assert shown["run"]["prompt_packets"][0]["sent"] is False
     assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
 

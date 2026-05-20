@@ -186,6 +186,22 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert reviewed["prompt_text"] == "Review this transcript."
     assert reviewed["packet"]["packet_id"] == prepared["packet"]["packet_id"]
 
+    send_preflight = app_intelligence_ledger.model_turn_send_preflight(
+        state_root=tmp_path,
+        run_id="packet-run",
+        packet_id=prepared["packet"]["packet_id"],
+        approval_token=app_intelligence_ledger.MODEL_TURN_SEND_TOKEN,
+    )
+    shown_after_send_preflight = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert send_preflight["ok"] is True
+    assert send_preflight["will_send_prompt"] is False
+    assert send_preflight["will_write_event"] is False
+    assert send_preflight["checks"]["packet_not_sent"] is True
+    assert send_preflight["prompt_char_count"] == len("Review this transcript.")
+    assert shown_after_send_preflight["run"]["prompt_packets"][0]["sent"] is False
+    assert [event["event_id"] for event in shown_after_send_preflight["events"]] == [event["event_id"] for event in shown["events"]]
+
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(

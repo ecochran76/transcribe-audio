@@ -24,6 +24,7 @@ from app_intelligence_ledger import (
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
     mark_session_started as mark_app_intelligence_session_started,
+    model_turn_send_preflight as preflight_app_intelligence_model_turn_send,
     prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
     read_model_turn_packet as read_app_intelligence_model_turn_packet,
     record_session_start_failed as record_app_intelligence_session_start_failed,
@@ -1031,6 +1032,18 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     status=HTTPStatus.CREATED,
                 )
                 return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/send-preflight"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 7 and parts[4] == "prompt-packets":
+                    body = self.read_json_body()
+                    preflight = preflight_app_intelligence_model_turn_send(
+                        state_root=self.state_root,
+                        run_id=parts[3],
+                        packet_id=parts[5],
+                        approval_token=str(body.get("approval_token") or ""),
+                    )
+                    self.write_json(preflight, status=HTTPStatus.OK if preflight.get("ok") else HTTPStatus.CONFLICT)
+                    return
             if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/session-start-preflight"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 5:

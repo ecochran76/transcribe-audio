@@ -692,6 +692,12 @@ td small {
   line-height: 1.45;
 }
 
+.gate-button {
+  justify-self: start;
+  border-color: rgba(215, 255, 115, 0.34);
+  background: rgba(215, 255, 115, 0.12);
+}
+
 .preview-card {
   display: grid;
   gap: 0.45rem;

@@ -4033,6 +4033,41 @@ Next:
 - Introduce `SEND_APP_SERVER_MODEL_TURN` as a dry-run send preflight first, or
   add the actual send implementation only after packet review approval.
 
+## Turn 126 | 2026-05-20
+
+Summary: Added non-sending App Intelligence model-turn send preflight.
+
+Action:
+
+- Added `model_turn_send_preflight()` to `app_intelligence_ledger.py`.
+- Added `send_model_turn` to the default allowed action list for newly
+  prepared ledgers.
+- Added
+  `POST /api/intelligence/runs/<run_id>/prompt-packets/<packet_id>/send-preflight`.
+- The endpoint requires `approval_token=SEND_APP_SERVER_MODEL_TURN`, validates
+  ledger phase, host-owned policy, structured decisions, packet/run match,
+  review requirement, unsent state, and prompt text presence.
+- The endpoint returns `will_send_prompt=false` and `will_write_event=false`;
+  it does not start a Codex thread, send a prompt, mutate packet state, or
+  append a ledger event.
+- Added a React `Dry-run send preflight` action in the packet review surface.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add the real model-turn send implementation behind the existing
+  `SEND_APP_SERVER_MODEL_TURN` gate, with event capture and no write-bearing
+  downstream action until structured-decision validation exists.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

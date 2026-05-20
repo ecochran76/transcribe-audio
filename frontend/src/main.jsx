@@ -158,6 +158,7 @@ function App() {
   const [modelTurnAction, setModelTurnAction] = useState({ status: "idle", message: "", payload: null });
   const [selectedPacketId, setSelectedPacketId] = useState("");
   const [packetReview, setPacketReview] = useState({ status: "idle", message: "", payload: null });
+  const [sendPreflight, setSendPreflight] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +210,7 @@ function App() {
         setModelTurnAction({ status: "idle", message: "", payload: null });
         setSelectedPacketId(payload.run?.prompt_packets?.slice(-1)[0]?.packet_id || "");
         setPacketReview({ status: "idle", message: "", payload: null });
+        setSendPreflight({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -490,6 +492,26 @@ function App() {
     }
   }
 
+  async function runModelTurnSendPreflight() {
+    if (!selectedRunId || !selectedPacketId) return;
+    setSendPreflight({ status: "running", message: "Checking model-turn send preflight; no prompt will be sent...", payload: null });
+    try {
+      const payload = await postJson(
+        `/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/prompt-packets/${encodeURIComponent(selectedPacketId)}/send-preflight`,
+        { approval_token: "SEND_APP_SERVER_MODEL_TURN" }
+      );
+      setSendPreflight({
+        status: payload.ok ? "ok" : "blocked",
+        message: payload.ok
+          ? "Send preflight passed; no prompt was sent and no event was written."
+          : `Send preflight blocked: ${payload.blocking_checks?.join(", ") || "unknown check"}.`,
+        payload
+      });
+    } catch (error) {
+      setSendPreflight({ status: "error", message: `Send preflight failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -639,6 +661,8 @@ function App() {
             selectedPacketId={selectedPacketId}
             onSelectPacket={setSelectedPacketId}
             packetReview={packetReview}
+            sendPreflight={sendPreflight}
+            onRunModelTurnSendPreflight={runModelTurnSendPreflight}
             intelligence={intelligence}
           />
         </aside>
@@ -939,6 +963,8 @@ function Inspector({
   selectedPacketId,
   onSelectPacket,
   packetReview,
+  sendPreflight,
+  onRunModelTurnSendPreflight,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1052,6 +1078,25 @@ function Inspector({
                     prompt_path: packetReview.payload.prompt_path,
                     will_send_prompt: packetReview.payload.will_send_prompt
                   }, null, 2)}</code>
+                  <button
+                    className="gate-button"
+                    disabled={sendPreflight.status === "running"}
+                    onClick={onRunModelTurnSendPreflight}
+                    type="button"
+                  >
+                    Dry-run send preflight
+                  </button>
+                  {sendPreflight.message ? (
+                    <div className={`action-notice ${sendPreflight.status}`}>
+                      <strong>{sendPreflight.message}</strong>
+                      {sendPreflight.payload && <code>{JSON.stringify({
+                        checks: sendPreflight.payload.checks,
+                        will_send_prompt: sendPreflight.payload.will_send_prompt,
+                        will_write_event: sendPreflight.payload.will_write_event,
+                        prompt_char_count: sendPreflight.payload.prompt_char_count
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
                   <pre className="prompt-preview">{packetReview.payload.prompt_text}</pre>
                 </div>
               ) : packetReview.message ? (
