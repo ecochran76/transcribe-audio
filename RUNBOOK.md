@@ -3757,6 +3757,49 @@ Next:
 - Add provider-specific readiness/detail affordances and a UI action to prepare
   supervised app-intelligence run ledgers from selected tasks.
 
+## Turn 120 | 2026-05-20
+
+Summary: Added provider-detail and App Intelligence ledger controls to the
+React Intelligence panel.
+
+Action:
+
+- Extended the Intelligence panel startup load to include
+  `GET /api/intelligence/runs?limit=8`.
+- Added provider-detail rendering for control plane, readiness, version,
+  capabilities, provider notes, and readiness check names.
+- Added a `Prepare run ledger` action that calls
+  `POST /api/intelligence/runs/prepare` with the selected task, selected
+  document id when present, and `created_by=review-console`.
+- Refreshed the recent run-ledger list after a successful prepare.
+- Added recent prepared-ledger cards to the Intelligence center viewport.
+- Updated P09 roadmap/plan text to record the Intelligence UI state and the
+  boundary that ledger preparation starts no provider work.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_intelligence_config.py tests/test_transcript_api.py -q`
+  passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active.
+- Live `GET /api/intelligence/providers` reported
+  `codex-app-server.status=ready`, `ready=true`, `version=codex-cli 0.131.0`,
+  and 4 readiness checks.
+- Live `GET /api/intelligence/runs?limit=3` returned the user-scoped runs
+  directory with `total=0` before any UI-prepared ledger was created.
+- Live `/` served the rebuilt assets
+  `index-D-TOAr_Q.js` and `index-BWeLD49c.css`.
+
+Next:
+
+- Add a selected-run inspector/detail view that can open one prepared ledger,
+  show events/policy/paths, and establish the next explicit approval gate
+  before any app-server session starts.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

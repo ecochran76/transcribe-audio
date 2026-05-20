@@ -80,7 +80,8 @@ const FALLBACK_INTELLIGENCE = {
       { id: "codex-app-server", label: "Codex app-server", status: "ready", ready: true, capabilities: { persistent_sessions: true, branching: true } }
     ],
     default_supervisor: "codex-app-server"
-  }
+  },
+  runs: { items: [], total: 0 }
 };
 
 function formatDate(value) {
@@ -97,6 +98,16 @@ function formatDate(value) {
 
 function statusLabel(status) {
   return status.replaceAll("_", " ");
+}
+
+function capabilityLabels(capabilities) {
+  if (Array.isArray(capabilities)) return capabilities;
+  if (capabilities && typeof capabilities === "object") {
+    return Object.entries(capabilities)
+      .filter(([, enabled]) => Boolean(enabled))
+      .map(([name]) => statusLabel(name));
+  }
+  return [];
 }
 
 async function fetchJson(path) {
@@ -138,23 +149,25 @@ function App() {
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
   const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
   const [configAction, setConfigAction] = useState({ status: "idle", message: "", preview: null });
+  const [runAction, setRunAction] = useState({ status: "idle", message: "", runId: "" });
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=25"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/intelligence/providers"),
-          fetchJson("/api/intelligence/config")
+          fetchJson("/api/intelligence/config"),
+          fetchJson("/api/intelligence/runs?limit=8")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
         setReviewQueue(reviewPayload);
-        setIntelligence({ providers: providerPayload, config: configPayload });
+        setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
         setApiError("");
       } catch (error) {
@@ -311,6 +324,29 @@ function App() {
     }
   }
 
+  async function prepareAppRun() {
+    const taskLabel = statusLabel(selectedTask);
+    setRunAction({ status: "running", message: `Preparing ${taskLabel} run ledger...`, runId: "" });
+    try {
+      const payload = await postJson("/api/intelligence/runs/prepare", {
+        workflow: selectedTask,
+        task: selectedTask,
+        purpose: `Prepare a supervised ${taskLabel} intelligence run from the review console.`,
+        document_id: selected?.id || "",
+        created_by: "review-console"
+      });
+      const runsPayload = await fetchJson("/api/intelligence/runs?limit=8");
+      setIntelligence((current) => ({ ...current, runs: runsPayload }));
+      setRunAction({
+        status: "prepared",
+        message: `Prepared local run ledger ${payload.run?.run_id || ""}; no provider work was started.`,
+        runId: payload.run?.run_id || ""
+      });
+    } catch (error) {
+      setRunAction({ status: "error", message: `Run prepare failed: ${error.message}`, runId: "" });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -415,14 +451,18 @@ function App() {
             <IntelligencePanel
               config={intelligence.config}
               providers={intelligence.providers}
+              runs={intelligence.runs}
               selectedTask={selectedTask}
               selectedTaskConfig={selectedTaskConfig}
               selectedProvider={selectedProvider}
+              selectedDocument={selected}
               taskDraft={taskDraft}
               setTaskDraft={setTaskDraft}
               configAction={configAction}
+              runAction={runAction}
               onPreview={previewConfigUpdate}
               onApply={applyConfigUpdate}
+              onPrepareRun={prepareAppRun}
             />
           ) : (
             <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
@@ -441,6 +481,7 @@ function App() {
             selectedTaskConfig={selectedTaskConfig}
             selectedProvider={selectedProvider}
             configAction={configAction}
+            runAction={runAction}
             intelligence={intelligence}
           />
         </aside>
@@ -452,17 +493,24 @@ function App() {
 function IntelligencePanel({
   config,
   providers,
+  runs,
   selectedTask,
   selectedTaskConfig,
   selectedProvider,
+  selectedDocument,
   taskDraft,
   setTaskDraft,
   configAction,
+  runAction,
   onPreview,
-  onApply
+  onApply,
+  onPrepareRun
 }) {
   const providerList = providers?.providers || [];
   const taskEntries = Object.entries(config?.tasks || {});
+  const recentRuns = runs?.items || [];
+  const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
+  const selectedChecks = selectedProvider?.checks && typeof selectedProvider.checks === "object" ? Object.entries(selectedProvider.checks) : [];
   return (
     <div className="intelligence-grid">
       <section className="intelligence-card task-editor">
@@ -506,13 +554,16 @@ function IntelligencePanel({
         <div className="notice-actions">
           <button onClick={onPreview} disabled={configAction.status === "running"} type="button">Preview update</button>
           <button onClick={onApply} disabled={!configAction.preview || configAction.status === "applying"} type="button">Apply with approval</button>
+          <button onClick={onPrepareRun} disabled={runAction.status === "running"} type="button">Prepare run ledger</button>
         </div>
         {configAction.message && <div className={`action-notice ${configAction.status}`}><strong>{configAction.message}</strong></div>}
+        {runAction.message && <div className={`action-notice ${runAction.status}`}><strong>{runAction.message}</strong></div>}
       </section>
 
       <section className="intelligence-card provider-map">
         <p className="eyebrow">Provider Status</p>
         <h2>{selectedProvider?.label || selectedTaskConfig?.provider || "No provider"}</h2>
+        <ProviderDetails provider={selectedProvider} capabilities={selectedCapabilities} checks={selectedChecks} />
         <div className="provider-list">
           {providerList.map((provider) => (
             <article className={provider.id === selectedTaskConfig?.provider ? "provider-row active" : "provider-row"} key={provider.id}>
@@ -529,6 +580,8 @@ function IntelligencePanel({
       <section className="intelligence-card task-map">
         <p className="eyebrow">Resolved Routes</p>
         <h2>{config?.schema_version}</h2>
+        <p className="muted">Ledger prepare uses the selected task route and links the currently selected document when one is available.</p>
+        {selectedDocument && <p className="linked-document">Selected document: <strong>{selectedDocument.title || selectedDocument.id}</strong></p>}
         <div className="task-table">
           {taskEntries.map(([task, route]) => (
             <article className={task === selectedTask ? "task-row active" : "task-row"} key={task}>
@@ -539,6 +592,63 @@ function IntelligencePanel({
           ))}
         </div>
       </section>
+
+      <section className="intelligence-card run-ledgers">
+        <p className="eyebrow">Prepared Ledgers</p>
+        <h2>Recent app runs</h2>
+        <div className="run-list">
+          {recentRuns.length ? (
+            recentRuns.map((run) => (
+              <article className="run-row" key={run.run_id}>
+                <div>
+                  <strong>{run.workflow || run.run_id}</strong>
+                  <small>{run.run_id}</small>
+                </div>
+                <span>{run.phase || run.status}</span>
+              </article>
+            ))
+          ) : (
+            <p className="muted">No prepared app-intelligence run ledgers yet.</p>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProviderDetails({ provider, capabilities, checks }) {
+  if (!provider) return <p className="muted">No provider registry details are available for this task route.</p>;
+  return (
+    <div className="provider-details">
+      <dl>
+        <dt>Control plane</dt>
+        <dd>{provider.control_plane || "unknown"}</dd>
+        <dt>Readiness</dt>
+        <dd>{provider.ready === true ? "ready" : provider.ready === false ? "not ready" : provider.status || "unknown"}</dd>
+        {provider.version && (
+          <>
+            <dt>Version</dt>
+            <dd>{provider.version}</dd>
+          </>
+        )}
+      </dl>
+      {capabilities.length ? (
+        <div className="capability-cloud">
+          {capabilities.slice(0, 12).map((capability) => <span key={capability}>{capability}</span>)}
+        </div>
+      ) : null}
+      {provider.notes?.length ? (
+        <ul className="provider-notes">
+          {provider.notes.slice(0, 3).map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      ) : null}
+      {checks.length ? (
+        <div className="provider-checks">
+          {checks.slice(0, 4).map(([name, check]) => (
+            <span className={check?.ok ? "check-ok" : "check-warn"} key={name}>{statusLabel(name)}</span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

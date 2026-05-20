@@ -505,14 +505,16 @@ td small {
 }
 
 .provider-list,
-.task-table {
+.task-table,
+.run-list {
   display: grid;
   gap: 0.55rem;
   margin-top: 0.85rem;
 }
 
 .provider-row,
-.task-row {
+.task-row,
+.run-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
@@ -536,18 +538,78 @@ td small {
 .provider-row strong,
 .provider-row small,
 .task-row strong,
-.task-row small {
+.task-row small,
+.run-row strong,
+.run-row small {
   display: block;
 }
 
 .provider-row small,
-.task-row small {
+.task-row small,
+.run-row small {
   color: var(--muted);
 }
 
 .provider-row span,
-.task-row span {
+.task-row span,
+.run-row span {
   color: var(--accent);
+}
+
+.provider-details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.85rem 0 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.provider-details dl {
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.35rem 0.7rem;
+}
+
+.provider-details dt,
+.provider-details dd {
+  margin: 0;
+}
+
+.capability-cloud,
+.provider-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.capability-cloud span,
+.provider-checks span {
+  padding: 0.28rem 0.5rem;
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.provider-checks .check-ok {
+  border-color: rgba(138, 239, 157, 0.25);
+  color: var(--ok);
+}
+
+.provider-checks .check-warn {
+  border-color: rgba(255, 201, 120, 0.25);
+  color: var(--warn);
+}
+
+.provider-notes {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+}
+
+.linked-document {
+  color: var(--muted);
 }
 
 .preview-card {
