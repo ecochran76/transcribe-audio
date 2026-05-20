@@ -21,6 +21,10 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
+- `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
+- `GET /api/intelligence/runs?limit=50`: list prepared App Intelligence run ledgers under the user-scoped state directory.
+- `GET /api/intelligence/runs/<run_id>`: read one App Intelligence run ledger and recent append-only events.
+- `POST /api/intelligence/runs/prepare`: create a prepared App Intelligence run ledger without starting app-server sessions or provider work.
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
 - `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
 - `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`.
@@ -81,3 +85,30 @@ matter candidates, and memory candidates.
 This API is currently local and exposes manifest-scoped first-pass summary batch actions. Operator login and scoped share links are planned for a later P09 slice and should follow the `previews` model: single-operator guard for operator routes and revocable token-hash-backed share links for scoped reviewer access.
 
 Do not expose this service publicly without an auth layer.
+
+## Intelligence Provider Registry
+
+`/api/intelligence/providers` is read-only. It reports provider capabilities and readiness metadata for the operator UI without launching long-running agent sessions or touching provider secrets.
+
+The registry treats `codex-app-server` as the default supervised App Intelligence surface because it supports persistent sessions, branching, rollback, streamed events, and structured decision turns under a host-owned ledger. The current readiness check is intentionally narrow: it verifies the configured `codex` binary, `codex --version`, `codex app-server --help`, and protocol generation help surfaces.
+
+If `codex` is not on the service `PATH`, configure it with `--codex-bin /absolute/path/to/codex` or `TRANSCRIPTS_CODEX_BIN=/absolute/path/to/codex`.
+
+Use `codex exec` for stateless leaf jobs. Use `codex app-server` only for workflows that need durable thread state, replayable event streams, schema-validated decisions, or branch/rollback control. WebSocket transport must remain disabled for public or non-loopback exposure until an explicit auth and network-boundary review is completed.
+
+## App Intelligence Run Ledgers
+
+App Intelligence run ledgers live under:
+
+```text
+~/.local/state/transcribe-audio/app-intelligence-runs/<run_id>/
+```
+
+Each prepared run has:
+
+- `run.json`: schema version, workflow, phase, provider, host-owned policy, current branch, Codex thread placeholders, RNG seed ledger, artifact registry, and final decision slot.
+- `events.jsonl`: append-only host event log.
+- `codex_events.jsonl`: reserved append-only capture of future app-server streamed events.
+- `branches/`, `artifacts/`, and `diffs/`: reserved user-scoped run artifacts.
+
+The prepare endpoint only creates this ledger. It does not spawn `codex app-server`, create Codex threads, fork branches, run model turns, or perform external writes. Future app-server phases must validate structured decisions against the ledger policy before the host executes any fork, rollback, write, network, or deposition action.

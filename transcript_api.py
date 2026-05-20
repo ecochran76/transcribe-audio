@@ -7,7 +7,10 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
+import shutil
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -16,6 +19,11 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
+from app_intelligence_ledger import (
+    create_run as create_app_intelligence_run,
+    list_runs as list_app_intelligence_runs,
+    response_for_run as get_app_intelligence_run,
+)
 from transcript_store import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_PROVIDER,
@@ -36,6 +44,8 @@ DEFAULT_API_PORT = 18876
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parent / "frontend" / "dist"
 DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
 DEFAULT_BATCH_ENV_FILE = Path("~/.local/state/transcribe-audio/auracall-transcripts.env")
+DEFAULT_CODEX_BIN = "codex"
+MAX_READINESS_OUTPUT_CHARS = 2000
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -172,6 +182,179 @@ def write_json_file(path: Path, payload: dict[str, Any]) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     return target
+
+
+def _run_readiness_command(args: list[str], *, timeout: int = 10, probes: Optional[list[str]] = None) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "args": args,
+            "ok": False,
+            "returncode": None,
+            "stdout": "",
+            "stderr": str(exc)[:MAX_READINESS_OUTPUT_CHARS],
+        }
+    stdout = completed.stdout[:MAX_READINESS_OUTPUT_CHARS]
+    stderr = completed.stderr[:MAX_READINESS_OUTPUT_CHARS]
+    full_text = f"{completed.stdout}\n{completed.stderr}"
+    return {
+        "args": args,
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "stdout_truncated": len(completed.stdout) > MAX_READINESS_OUTPUT_CHARS,
+        "stderr_truncated": len(completed.stderr) > MAX_READINESS_OUTPUT_CHARS,
+        "probes": {probe: probe in full_text for probe in probes or []},
+    }
+
+
+def codex_app_server_readiness(*, codex_bin: str = DEFAULT_CODEX_BIN) -> dict[str, Any]:
+    resolved = shutil.which(codex_bin) if not Path(codex_bin).is_absolute() else codex_bin
+    if not resolved:
+        return {
+            "id": "codex-app-server",
+            "label": "Codex app-server",
+            "status": "unavailable",
+            "ready": False,
+            "control_plane": "codex-app-server",
+            "capabilities": {
+                "persistent_sessions": True,
+                "branching": True,
+                "rollback": True,
+                "streamed_events": True,
+                "structured_decisions": True,
+                "remote_transport": False,
+            },
+            "transports": ["stdio"],
+            "checks": {
+                "which": {
+                    "args": ["which", codex_bin],
+                    "ok": False,
+                    "returncode": None,
+                    "stdout": "",
+                    "stderr": "codex executable not found",
+                }
+            },
+            "notes": [
+                "Use codex app-server for supervised long-lived intelligence runs.",
+                "Do not expose websocket transport without explicit auth and network-boundary review.",
+            ],
+        }
+
+    version = _run_readiness_command([resolved, "--version"])
+    app_server_help = _run_readiness_command(
+        [resolved, "app-server", "--help"],
+        probes=["--listen <URL>", "--ws-auth"],
+    )
+    schema_help = _run_readiness_command([resolved, "app-server", "generate-json-schema", "--help"])
+    ts_help = _run_readiness_command([resolved, "app-server", "generate-ts", "--help"])
+    help_probes = app_server_help.get("probes") if isinstance(app_server_help.get("probes"), dict) else {}
+    ready = all(check.get("ok") for check in [version, app_server_help, schema_help, ts_help])
+    return {
+        "id": "codex-app-server",
+        "label": "Codex app-server",
+        "status": "ready" if ready else "degraded",
+        "ready": ready,
+        "binary": resolved,
+        "control_plane": "codex-app-server",
+        "version": str(version.get("stdout") or "").strip(),
+        "capabilities": {
+            "persistent_sessions": True,
+            "branching": True,
+            "rollback": True,
+            "streamed_events": True,
+            "structured_decisions": True,
+            "schema_generation": bool(schema_help.get("ok")),
+            "typescript_generation": bool(ts_help.get("ok")),
+            "remote_transport": bool(help_probes.get("--listen <URL>")),
+            "websocket_auth": bool(help_probes.get("--ws-auth")),
+        },
+        "transports": ["stdio", "unix"] + (["websocket"] if help_probes.get("--listen <URL>") else []),
+        "recommended_transport": "stdio",
+        "checks": {
+            "version": version,
+            "app_server_help": app_server_help,
+            "generate_json_schema_help": schema_help,
+            "generate_ts_help": ts_help,
+        },
+        "notes": [
+            "Use codex app-server for supervised long-lived intelligence runs with a host-owned ledger.",
+            "Use codex exec for stateless leaf jobs and CI-style analysis.",
+            "Do not expose websocket transport without explicit auth and network-boundary review.",
+        ],
+    }
+
+
+def intelligence_provider_registry(*, codex_bin: str = DEFAULT_CODEX_BIN) -> dict[str, Any]:
+    providers = [
+        {
+            "id": "openai-compatible",
+            "label": "OpenAI-compatible API",
+            "status": "configured-by-env",
+            "capabilities": ["summarize", "contextual_reread", "classify", "extract"],
+            "control_plane": "direct-http",
+            "notes": ["Uses OPENAI_API_KEY and optional OPENAI_BASE_URL at execution time."],
+        },
+        {
+            "id": "auracall",
+            "label": "AuraCall",
+            "status": "configured-by-runtime-env",
+            "capabilities": ["summarize", "contextual_reread", "browser_backed_batch"],
+            "control_plane": "openai-compatible-or-response-batch",
+            "notes": ["Batch actions remain manifest-scoped and approval-gated."],
+        },
+        {
+            "id": "codex-exec",
+            "label": "codex exec",
+            "status": "configured-by-cli",
+            "capabilities": ["summarize", "contextual_reread", "leaf_analysis"],
+            "control_plane": "process",
+            "notes": ["Best for bounded one-shot jobs, not durable supervised sessions."],
+        },
+        codex_app_server_readiness(codex_bin=codex_bin),
+        {
+            "id": "openclaw",
+            "label": "OpenClaw transcripts agent",
+            "status": "configured-by-openclaw-runtime",
+            "capabilities": ["notification", "routing_review", "agentic_context"],
+            "control_plane": "openclaw",
+            "notes": ["Use repo-local OpenClaw contracts and runtime checks before writes."],
+        },
+        {
+            "id": "graphiti",
+            "label": "Graphiti",
+            "status": "advisory-memory",
+            "capabilities": ["memory_lookup", "matter_candidates", "reviewed_memory_harvest"],
+            "control_plane": "mcp",
+            "notes": ["Graphiti-derived claims are advisory until verified against source artifacts."],
+        },
+        {
+            "id": "local-embedder",
+            "label": "Local embedder",
+            "status": "configured-by-store",
+            "capabilities": ["embed", "semantic_search"],
+            "control_plane": "local-provider",
+            "notes": ["Current store search uses configured embedding provider/model metadata."],
+        },
+    ]
+    return {
+        "providers": providers,
+        "default_supervisor": "codex-app-server",
+        "policy": {
+            "host_owns_control_flow": True,
+            "structured_decisions_required": True,
+            "ledger_required_for_write_bearing_runs": True,
+            "remote_transport_requires_auth_review": True,
+        },
+    }
 
 
 def review_status(count: int, *, stale_count: int = 0, pending_count: int = 0) -> str:
@@ -593,6 +776,28 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path == "/api/intelligence/providers":
+                self.write_json(intelligence_provider_registry(codex_bin=self.server.codex_bin))  # type: ignore[attr-defined]
+                return
+            if parsed.path == "/api/intelligence/runs":
+                self.write_json(
+                    list_app_intelligence_runs(
+                        state_root=self.state_root,
+                        limit=parse_int(first(params, "limit"), 50, minimum=1, maximum=200),
+                    )
+                )
+                return
+            if parsed.path.startswith("/api/intelligence/runs/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4:
+                    self.write_json(
+                        get_app_intelligence_run(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            event_limit=parse_int(first(params, "event_limit"), 50, minimum=0, maximum=500),
+                        )
+                    )
+                    return
             if parsed.path == "/api/search":
                 query = first(params, "q") or first(params, "query")
                 if not query:
@@ -688,6 +893,29 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         manifest=str(body.get("manifest") or ""),
                         materialize=bool(body.get("materialize", False)),
                     )
+                )
+                return
+            if parsed.path == "/api/intelligence/runs/prepare":
+                body = self.read_json_body()
+                workflow = str(body.get("workflow") or "").strip()
+                purpose = str(body.get("purpose") or "").strip()
+                if not workflow:
+                    self.write_error(HTTPStatus.BAD_REQUEST, "Missing required field: workflow")
+                    return
+                if not purpose:
+                    self.write_error(HTTPStatus.BAD_REQUEST, "Missing required field: purpose")
+                    return
+                self.write_json(
+                    create_app_intelligence_run(
+                        state_root=self.state_root,
+                        workflow=workflow,
+                        purpose=purpose,
+                        document_id=str(body.get("document_id") or ""),
+                        provider=str(body.get("provider") or "codex-app-server"),
+                        created_by=str(body.get("created_by") or "operator"),
+                        run_id=str(body.get("run_id") or ""),
+                    ),
+                    status=HTTPStatus.CREATED,
                 )
                 return
             if parsed.path.startswith("/api/"):
@@ -789,6 +1017,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         embedding_model: str,
         state_root: Path = DEFAULT_STATE_DIR,
         batch_env_file: Path = DEFAULT_BATCH_ENV_FILE,
+        codex_bin: str = DEFAULT_CODEX_BIN,
         quiet: bool = False,
         static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
     ) -> None:
@@ -798,6 +1027,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         self.embedding_model = embedding_model
         self.state_root = state_root.expanduser()
         self.batch_env_file = batch_env_file.expanduser()
+        self.codex_bin = codex_bin
         self.quiet = quiet
         self.static_dir = static_dir
 
@@ -807,6 +1037,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--store-dir", type=Path, default=DEFAULT_STORE_DIR)
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR)
     parser.add_argument("--batch-env-file", type=Path, default=DEFAULT_BATCH_ENV_FILE)
+    parser.add_argument("--codex-bin", default=os.environ.get("TRANSCRIPTS_CODEX_BIN", DEFAULT_CODEX_BIN))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--embedding-provider", default=DEFAULT_EMBEDDING_PROVIDER)
@@ -829,6 +1060,7 @@ def serve(args: argparse.Namespace) -> None:
         embedding_model=args.embedding_model,
         state_root=args.state_dir,
         batch_env_file=args.batch_env_file,
+        codex_bin=args.codex_bin,
         quiet=bool(args.quiet),
         static_dir=None if args.no_static else args.static_dir,
     )

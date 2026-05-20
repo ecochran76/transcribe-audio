@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import threading
 from http import HTTPStatus
@@ -268,6 +269,109 @@ def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
     assert summary_bucket["label"] == "First-pass summaries"
     assert conflict_bucket["decisions"] == {"keep_target": 1, "pending": 1}
     assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}
+
+
+def test_codex_app_server_provider_readiness(monkeypatch) -> None:
+    def fake_run(args, check=False, capture_output=True, text=True, timeout=10):
+        assert check is False
+        assert capture_output is True
+        assert text is True
+        assert timeout == 10
+        stdout = "codex-cli 0.131.0\n"
+        if args[1:] == ["app-server", "--help"]:
+            stdout = "Usage: codex app-server [OPTIONS]\n      --listen <URL>\n      --ws-auth <MODE>\n"
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(transcript_api.shutil, "which", lambda name: "/usr/local/bin/codex")
+    monkeypatch.setattr(transcript_api.subprocess, "run", fake_run)
+
+    provider = transcript_api.codex_app_server_readiness()
+
+    assert provider["id"] == "codex-app-server"
+    assert provider["status"] == "ready"
+    assert provider["ready"] is True
+    assert provider["recommended_transport"] == "stdio"
+    assert provider["capabilities"]["persistent_sessions"] is True
+    assert provider["capabilities"]["remote_transport"] is True
+    assert provider["capabilities"]["websocket_auth"] is True
+
+
+def test_intelligence_providers_endpoint_includes_app_server(tmp_path: Path, monkeypatch) -> None:
+    def fake_run(args, check=False, capture_output=True, text=True, timeout=10):
+        stdout = "codex-cli 0.131.0\n"
+        if args[1:] == ["app-server", "--help"]:
+            stdout = "Usage: codex app-server [OPTIONS]\n      --listen <URL>\n      --ws-auth <MODE>\n"
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(transcript_api.shutil, "which", lambda name: "/usr/local/bin/codex")
+    monkeypatch.setattr(transcript_api.subprocess, "run", fake_run)
+
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/providers", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    providers = {provider["id"]: provider for provider in payload["providers"]}
+    assert payload["default_supervisor"] == "codex-app-server"
+    assert providers["codex-app-server"]["status"] == "ready"
+    assert providers["codex-app-server"]["control_plane"] == "codex-app-server"
+
+
+def test_app_intelligence_run_prepare_and_read_endpoints(tmp_path: Path) -> None:
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/prepare",
+            data=json.dumps(
+                {
+                    "workflow": "context-reread",
+                    "purpose": "Prepare a supervised contextual reread.",
+                    "document_id": "doc_123",
+                    "run_id": "test-run",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        prepared_response = urlopen(request, timeout=5)
+        prepared = json.loads(prepared_response.read())
+        listing = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs", timeout=5).read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/test-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert prepared_response.status == 201
+    assert prepared["run"]["run_id"] == "test-run"
+    assert prepared["run"]["phase"] == "prepared"
+    assert prepared["run"]["policy"]["host_owns_control_flow"] is True
+    assert listing["total"] == 1
+    assert shown["run"]["document_id"] == "doc_123"
+    assert shown["events"][0]["event_type"] == "run_prepared"
 
 
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:

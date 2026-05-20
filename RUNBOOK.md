@@ -3538,6 +3538,98 @@ Next:
   speaker-assignment, and merge-audit tables plus reviewed API contracts before
   adding more UI chrome.
 
+## Turn 115 | 2026-05-19
+
+Summary: Added Codex app-server as the supervised App Intelligence surface for
+the transcript console.
+
+Action:
+
+- Added a read-only intelligence provider registry at
+  `GET /api/intelligence/providers`.
+- Added `codex-app-server` readiness checks for the configured Codex binary,
+  `codex --version`, `codex app-server --help`, and protocol generation help.
+- Marked `codex-app-server` as the default supervised control plane for
+  persistent, branchable, replayable App Intelligence runs while preserving
+  `codex exec` as the stateless leaf-job provider.
+- Added `--codex-bin` and `TRANSCRIPTS_CODEX_BIN` so systemd services do not
+  depend on interactive-shell PATH.
+- Installed a user-service override at
+  `~/.config/systemd/user/transcripts.service.d/10-codex-bin.conf` pointing to
+  the current Codex CLI.
+- Updated `README.md`, `ROADMAP.md`, the P09 plan, and
+  `docs/dev/transcript-review-api.md`.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy.
+- `graphiti-runtime discover --group-id transcribe_audio_main ...` returned
+  older intelligence-provider memory, so repo docs and live checks remained
+  authoritative.
+- `python app-intelligence-automation/scripts/check_codex_app_server.py --json`
+  reported `codex-cli 0.131.0` with app-server, schema generation, TypeScript
+  generation, Unix transport, WebSocket transport, and WebSocket auth support.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed.
+- `.venv/bin/python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; live
+  `GET /api/intelligence/providers` returned `default_supervisor=codex-app-server`
+  and `codex-app-server.status=ready` using
+  `/home/ecochran76/.nvm/versions/node/v24.13.0/bin/codex`.
+
+Next:
+
+- Add the P09 App Intelligence run-ledger schema under
+  `~/.local/state/transcribe-audio/` before enabling app-server-backed branch,
+  rollback, or write-bearing workflow phases from the UI.
+
+## Turn 116 | 2026-05-19
+
+Summary: Added prepared App Intelligence run ledgers for future
+app-server-backed workflows.
+
+Action:
+
+- Added `app_intelligence_ledger.py` with a user-scoped run directory contract
+  under `~/.local/state/transcribe-audio/app-intelligence-runs/<run_id>/`.
+- Prepared ledgers now include `run.json`, `events.jsonl`,
+  `codex_events.jsonl`, `branches/`, `artifacts/`, and `diffs/`.
+- `run.json` records schema version, workflow, purpose, document id, provider,
+  phase/status, branch placeholders, Codex thread placeholders, RNG seed
+  ledger, allowed actions, approval policy, eval policy, artifact registry, and
+  final decision slot.
+- Added `GET /api/intelligence/runs`, `GET /api/intelligence/runs/<run_id>`,
+  and `POST /api/intelligence/runs/prepare` to `transcript_api.py`.
+- The prepare endpoint creates only the local ledger. It does not start
+  `codex app-server`, create Codex threads, run model turns, fork branches, or
+  perform external writes.
+- Updated `README.md`, `ROADMAP.md`, the P09 plan, and
+  `docs/dev/transcript-review-api.md`.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy.
+- `graphiti-runtime discover --group-id transcribe_audio_main ...` returned
+  older roadmap/intelligence facts only, so repo docs and skill references
+  remained authoritative.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `.venv/bin/python -m py_compile app_intelligence_ledger.py transcript_api.py`
+  passed.
+- `git diff --check` passed.
+- Temp-state CLI smoke created and listed a prepared `smoke-run` ledger.
+- Restarted `transcripts.service`; live
+  `GET /api/intelligence/runs?limit=5` returned the user-scoped runs directory
+  and `total=0` without creating live state.
+- Live `GET /api/intelligence/providers` still reported
+  `codex-app-server.status=ready`.
+
+Next:
+
+- Add structured-decision validation and event-append endpoints so future
+  app-server turns can record accepted/rejected decisions before the host
+  executes any fork, rollback, write, or external apply action.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

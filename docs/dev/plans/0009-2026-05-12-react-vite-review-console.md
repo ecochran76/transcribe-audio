@@ -168,6 +168,7 @@ Intelligence providers should be managed by capability:
 - OpenAI-compatible API using `OPENAI_API_KEY`/base URL.
 - AuraCall MCP/OpenAI-compatible endpoints.
 - `codex exec`.
+- `codex app-server` for supervised App Intelligence runs with persistent sessions, branch/fork/rollback control, streamed events, and structured decision turns under a host-owned ledger.
 - OpenClaw agent calls.
 - Graphiti memory lookup/write workflows.
 - Local embedders for semantic search.
@@ -202,6 +203,12 @@ Use a React + Vite app under `frontend/` with:
 6. Context-run and provenance-management surfaces.
 7. Intelligence-management surfaces and provider readiness smokes.
 8. Deposition/memory-harvest review UI over existing review/apply artifacts.
+
+### App Intelligence Control Plane
+
+`codex app-server` is the preferred control plane for long-lived or write-bearing intelligence workflows that need deterministic supervision. The transcript app remains the host: it owns run state, allowed actions, approval policy, eval gates, replay logs, and final apply/rollback decisions. App-server sessions are stochastic workers inside that harness, not the source of workflow authority.
+
+The first backend surfaces are readiness reporting through `/api/intelligence/providers` and prepared run-ledger management through `/api/intelligence/runs`. Readiness checks the local Codex binary and app-server protocol surfaces without starting sessions. Prepared ledgers persist under `~/.local/state/transcribe-audio/app-intelligence-runs/` with `run.json`, `events.jsonl`, `codex_events.jsonl`, branch placeholders, host-owned policy, structured-decision requirements, approval policy, eval policy, and RNG seeds. This establishes the replay boundary before enabling branch, rollback, or write-bearing phases from the UI.
 
 ## Acceptance Criteria
 
