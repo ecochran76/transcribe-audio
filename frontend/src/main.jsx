@@ -150,6 +150,9 @@ function App() {
   const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
   const [configAction, setConfigAction] = useState({ status: "idle", message: "", preview: null });
   const [runAction, setRunAction] = useState({ status: "idle", message: "", runId: "" });
+  const [selectedRunId, setSelectedRunId] = useState("");
+  const [selectedRunDetail, setSelectedRunDetail] = useState(null);
+  const [runDetailAction, setRunDetailAction] = useState({ status: "idle", message: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +172,7 @@ function App() {
         setReviewQueue(reviewPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
+        setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
       } catch (error) {
         if (cancelled) return;
@@ -180,6 +184,32 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRunDetail() {
+      if (!selectedRunId) {
+        setSelectedRunDetail(null);
+        setRunDetailAction({ status: "idle", message: "" });
+        return;
+      }
+      setRunDetailAction({ status: "loading", message: "Loading selected run ledger..." });
+      try {
+        const payload = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+        if (cancelled) return;
+        setSelectedRunDetail(payload);
+        setRunDetailAction({ status: "loaded", message: "" });
+      } catch (error) {
+        if (cancelled) return;
+        setSelectedRunDetail(null);
+        setRunDetailAction({ status: "error", message: `Run detail failed: ${error.message}` });
+      }
+    }
+    loadRunDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRunId]);
 
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -337,6 +367,8 @@ function App() {
       });
       const runsPayload = await fetchJson("/api/intelligence/runs?limit=8");
       setIntelligence((current) => ({ ...current, runs: runsPayload }));
+      setSelectedRunId(payload.run?.run_id || "");
+      setSelectedRunDetail(payload);
       setRunAction({
         status: "prepared",
         message: `Prepared local run ledger ${payload.run?.run_id || ""}; no provider work was started.`,
@@ -460,9 +492,11 @@ function App() {
               setTaskDraft={setTaskDraft}
               configAction={configAction}
               runAction={runAction}
+              selectedRunId={selectedRunId}
               onPreview={previewConfigUpdate}
               onApply={applyConfigUpdate}
               onPrepareRun={prepareAppRun}
+              onSelectRun={setSelectedRunId}
             />
           ) : (
             <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
@@ -482,6 +516,9 @@ function App() {
             selectedProvider={selectedProvider}
             configAction={configAction}
             runAction={runAction}
+            selectedRunId={selectedRunId}
+            selectedRunDetail={selectedRunDetail}
+            runDetailAction={runDetailAction}
             intelligence={intelligence}
           />
         </aside>
@@ -502,9 +539,11 @@ function IntelligencePanel({
   setTaskDraft,
   configAction,
   runAction,
+  selectedRunId,
   onPreview,
   onApply,
-  onPrepareRun
+  onPrepareRun,
+  onSelectRun
 }) {
   const providerList = providers?.providers || [];
   const taskEntries = Object.entries(config?.tasks || {});
@@ -599,13 +638,18 @@ function IntelligencePanel({
         <div className="run-list">
           {recentRuns.length ? (
             recentRuns.map((run) => (
-              <article className="run-row" key={run.run_id}>
+              <button
+                className={selectedRunId === run.run_id ? "run-row active" : "run-row"}
+                key={run.run_id}
+                onClick={() => onSelectRun(run.run_id)}
+                type="button"
+              >
                 <div>
                   <strong>{run.workflow || run.run_id}</strong>
                   <small>{run.run_id}</small>
                 </div>
                 <span>{run.phase || run.status}</span>
-              </article>
+              </button>
             ))
           ) : (
             <p className="muted">No prepared app-intelligence run ledgers yet.</p>
@@ -755,9 +799,26 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
   );
 }
 
-function Inspector({ item, activeNav, reviewQueue, selectedTask, selectedTaskConfig, selectedProvider, configAction, intelligence }) {
+function Inspector({
+  item,
+  activeNav,
+  reviewQueue,
+  selectedTask,
+  selectedTaskConfig,
+  selectedProvider,
+  configAction,
+  selectedRunId,
+  selectedRunDetail,
+  runDetailAction,
+  intelligence
+}) {
   if (activeNav === "Intelligence") {
     const preview = configAction.preview;
+    const run = selectedRunDetail?.run || null;
+    const events = selectedRunDetail?.events || [];
+    const policy = run?.policy || {};
+    const approvalPolicy = policy.approval_policy || {};
+    const evalPolicy = policy.eval_policy || {};
     return (
       <div className="inspector-content">
         <p className="eyebrow">Intelligence Inspector</p>
@@ -784,6 +845,45 @@ function Inspector({ item, activeNav, reviewQueue, selectedTask, selectedTaskCon
         ) : (
           <p className="muted">Preview a task edit to see rollback metadata here.</p>
         )}
+        <div className="run-detail-card">
+          <span>Selected Run</span>
+          {run ? (
+            <>
+              <strong>{run.workflow || run.run_id}</strong>
+              <small>{run.run_id}</small>
+              <dl>
+                <dt>Phase</dt>
+                <dd>{run.phase || run.status}</dd>
+                <dt>Provider</dt>
+                <dd>{run.provider || "Unknown"}</dd>
+                <dt>Document</dt>
+                <dd>{run.document_id || "None linked"}</dd>
+                <dt>Ledger path</dt>
+                <dd>{selectedRunDetail.path || "Unavailable"}</dd>
+                <dt>Allowed actions</dt>
+                <dd>{(policy.allowed_actions || []).join(", ") || "None"}</dd>
+                <dt>Remote transport</dt>
+                <dd>{policy.remote_transport || "Unspecified"}</dd>
+              </dl>
+              <div className="approval-gate">
+                <strong>Next gate: start app-server session</strong>
+                <p>Not enabled in this UI. Starting a session must be added as a separate reviewed action with an explicit approval token and ledger event.</p>
+                <code>{JSON.stringify({ approval_policy: approvalPolicy, eval_policy: evalPolicy }, null, 2)}</code>
+              </div>
+              <div className="event-list">
+                <span>Recent Events</span>
+                {events.length ? events.map((event) => (
+                  <article key={event.event_id || `${event.event_type}-${event.created_at}`}>
+                    <strong>{event.event_type}</strong>
+                    <small>{event.created_at}</small>
+                  </article>
+                )) : <p className="muted">No events recorded.</p>}
+              </div>
+            </>
+          ) : (
+            <p className="muted">{runDetailAction.message || (selectedRunId ? "Run detail is unavailable." : "Select or prepare a run ledger to inspect policy and events.")}</p>
+          )}
+        </div>
       </div>
     );
   }

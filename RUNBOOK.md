@@ -3800,6 +3800,46 @@ Next:
   show events/policy/paths, and establish the next explicit approval gate
   before any app-server session starts.
 
+## Turn 121 | 2026-05-20
+
+Summary: Added a read-only selected-run inspector for App Intelligence ledgers.
+
+Action:
+
+- Added selected-run state to the React Intelligence panel.
+- Fetches `GET /api/intelligence/runs/<run_id>?event_limit=12` when a prepared
+  run is selected.
+- Turns recent run ledger rows into selectable controls.
+- Shows selected ledger details in the right inspector:
+  - workflow, run id, phase, provider, linked document, and ledger path;
+  - allowed actions and remote-transport policy;
+  - approval/eval policy JSON for the next gate;
+  - recent host ledger events.
+- Preserved the boundary that inspection is read-only and starting an
+  app-server session remains a future separate approval-gated action.
+- Updated P09 roadmap/plan text for the selected-run inspector state.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active after readiness polling.
+- Live `GET /api/intelligence/runs?limit=8` returned the user-scoped runs
+  directory with `total=0`.
+- Live `/` served the rebuilt assets
+  `index-D4eizsUg.js` and `index-DICDSuDL.css`.
+
+Next:
+
+- Add the backend/session-start preflight contract as a disabled or dry-run
+  surface first: validate provider readiness, ledger phase, approval token
+  shape, and event append semantics without starting Codex app-server work.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
