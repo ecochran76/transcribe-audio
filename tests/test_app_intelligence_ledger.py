@@ -109,6 +109,37 @@ def test_session_start_preflight_event_append_requires_event_token(tmp_path: Pat
         raise AssertionError("Expected preflight event append to require event token.")
 
 
+def test_mark_session_started_updates_ledger_without_thread_turn(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="app-supervisor",
+        purpose="Prepare supervised work.",
+        run_id="session-run",
+    )
+    requested = app_intelligence_ledger.record_session_start_requested(
+        state_root=tmp_path,
+        run_id="session-run",
+        transport="stdio",
+        approval_token=app_intelligence_ledger.SESSION_START_APPROVAL_TOKEN,
+    )
+    started = app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="session-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True, "returncode": 0},
+        version_result={"ok": True, "stdout": "codex-cli 0.131.0\n"},
+    )
+    shown = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="session-run")
+
+    assert requested["event_type"] == "app_server_session_start_requested"
+    assert started["run"]["phase"] == "session_started"
+    assert started["run"]["status"] == "running"
+    assert started["run"]["state"]["active_codex_thread_id"] is None
+    assert started["run"]["state"]["app_server"]["model_turn_started"] is False
+    assert shown["events"][-1]["event_type"] == "app_server_session_started"
+
+
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(
         [

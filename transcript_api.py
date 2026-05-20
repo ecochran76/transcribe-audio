@@ -23,6 +23,9 @@ import intelligence_config
 from app_intelligence_ledger import (
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
+    mark_session_started as mark_app_intelligence_session_started,
+    record_session_start_failed as record_app_intelligence_session_start_failed,
+    record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
     session_start_preflight as preflight_app_intelligence_session_start,
 )
@@ -215,6 +218,34 @@ def _run_readiness_command(args: list[str], *, timeout: int = 10, probes: Option
         "stdout_truncated": len(completed.stdout) > MAX_READINESS_OUTPUT_CHARS,
         "stderr_truncated": len(completed.stderr) > MAX_READINESS_OUTPUT_CHARS,
         "probes": {probe: probe in full_text for probe in probes or []},
+    }
+
+
+def run_codex_command(args: list[str], *, timeout: int = 30) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "args": args,
+            "ok": False,
+            "returncode": None,
+            "stdout": "",
+            "stderr": str(exc)[:MAX_READINESS_OUTPUT_CHARS],
+        }
+    return {
+        "args": args,
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout[:MAX_READINESS_OUTPUT_CHARS],
+        "stderr": completed.stderr[:MAX_READINESS_OUTPUT_CHARS],
+        "stdout_truncated": len(completed.stdout) > MAX_READINESS_OUTPUT_CHARS,
+        "stderr_truncated": len(completed.stderr) > MAX_READINESS_OUTPUT_CHARS,
     }
 
 
@@ -965,6 +996,80 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             append_event_log=append_event_log,
                         ),
                         status=HTTPStatus.ACCEPTED if append_event_log else HTTPStatus.OK,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/session-start"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5:
+                    body = self.read_json_body()
+                    transport = str(body.get("transport") or "stdio")
+                    approval_token = str(body.get("approval_token") or "")
+                    provider = codex_app_server_readiness(codex_bin=self.server.codex_bin)  # type: ignore[attr-defined]
+                    preflight = preflight_app_intelligence_session_start(
+                        state_root=self.state_root,
+                        run_id=parts[3],
+                        provider_ready=bool(provider.get("ready")),
+                        provider_status=str(provider.get("status") or ""),
+                        approval_token=approval_token,
+                    )
+                    if not preflight.get("ok"):
+                        self.write_json(preflight, status=HTTPStatus.CONFLICT)
+                        return
+                    record_app_intelligence_session_start_requested(
+                        state_root=self.state_root,
+                        run_id=parts[3],
+                        transport=transport,
+                        approval_token=approval_token,
+                    )
+                    start_result = run_codex_command(
+                        [self.server.codex_bin, "app-server", "daemon", "start"],  # type: ignore[attr-defined]
+                        timeout=30,
+                    )
+                    if not start_result.get("ok"):
+                        event = record_app_intelligence_session_start_failed(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            transport=transport,
+                            error=str(start_result.get("stderr") or start_result.get("stdout") or "unknown start failure"),
+                        )
+                        self.write_json(
+                            {
+                                "schema_version": "transcribe-audio.app-intelligence-session-start.v1",
+                                "action": "start_app_server_session",
+                                "ok": False,
+                                "will_start_model_turn": False,
+                                "preflight": preflight,
+                                "start_result": start_result,
+                                "event": event,
+                            },
+                            status=HTTPStatus.BAD_GATEWAY,
+                        )
+                        return
+                    version_result = run_codex_command(
+                        [self.server.codex_bin, "app-server", "daemon", "version"],  # type: ignore[attr-defined]
+                        timeout=15,
+                    )
+                    started = mark_app_intelligence_session_started(
+                        state_root=self.state_root,
+                        run_id=parts[3],
+                        transport=transport,
+                        codex_bin=str(self.server.codex_bin),  # type: ignore[attr-defined]
+                        start_result=start_result,
+                        version_result=version_result,
+                    )
+                    self.write_json(
+                        {
+                            "schema_version": "transcribe-audio.app-intelligence-session-start.v1",
+                            "action": "start_app_server_session",
+                            "ok": True,
+                            "will_start_model_turn": False,
+                            "transport": transport,
+                            "preflight": preflight,
+                            "start_result": start_result,
+                            "version_result": version_result,
+                            **started,
+                        },
+                        status=HTTPStatus.ACCEPTED,
                     )
                     return
             if parsed.path.startswith("/api/"):

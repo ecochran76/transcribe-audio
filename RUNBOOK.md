@@ -3889,6 +3889,61 @@ Next:
   `approval_token=START_APP_SERVER_SESSION`, restricted to prepared ledgers,
   stdio/unix transport only, and host-owned event capture before any model turn.
 
+## Turn 123 | 2026-05-20
+
+Summary: Added approved App Intelligence control-plane session start.
+
+Action:
+
+- Added ledger helpers to record app-server session start request, failure, and
+  started events.
+- Added `POST /api/intelligence/runs/<run_id>/session-start`.
+- Session start requires:
+  - prepared ledger phase;
+  - `approval_token=START_APP_SERVER_SESSION`;
+  - provider readiness passing;
+  - `transport` set to `stdio` or `unix`;
+  - host-owned control-flow and structured-decision policy.
+- The endpoint writes `app_server_session_start_requested` before starting
+  anything.
+- The endpoint starts only the managed Codex app-server control-plane daemon
+  with `codex app-server daemon start`.
+- The endpoint records daemon version metadata, updates the ledger to
+  `phase=session_started`, and appends `app_server_session_started`.
+- No Codex thread id is created and `will_start_model_turn=false` remains part
+  of the API/ledger boundary.
+- Added a React `Start control plane` action behind an explicit confirmation.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live CLI/API evidence were used.
+- `codex app-server --help`, `codex app-server daemon --help`, and
+  `codex app-server proxy --help` showed local daemon/proxy support.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active after readiness polling.
+- Live `/` served rebuilt assets `index-B6GvXCMc.js` and
+  `index-DICDSuDL.css`.
+- Live `GET /api/intelligence/providers` reported
+  `codex-app-server.status=ready`, `ready=true`, and
+  `version=codex-cli 0.131.0`.
+- Live `GET /api/intelligence/runs?limit=8` returned the user-scoped runs
+  directory with `total=0`; the live session-start endpoint was not invoked to
+  avoid creating operator state or starting the daemon outside a selected
+  ledger.
+
+Next:
+
+- Add the first model-turn preflight, not execution: generate the initial
+  app-server prompt packet from a selected document plus task route and require
+  review before any prompt is sent.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -154,6 +154,7 @@ function App() {
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
   const [runDetailAction, setRunDetailAction] = useState({ status: "idle", message: "" });
   const [sessionPreflight, setSessionPreflight] = useState({ status: "idle", message: "", payload: null });
+  const [sessionStartAction, setSessionStartAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +202,7 @@ function App() {
         setSelectedRunDetail(payload);
         setRunDetailAction({ status: "loaded", message: "" });
         setSessionPreflight({ status: "idle", message: "", payload: null });
+        setSessionStartAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -411,6 +413,30 @@ function App() {
     }
   }
 
+  async function startAppServerSession() {
+    if (!selectedRunId) return;
+    const approved = window.confirm("Start the Codex app-server control-plane daemon for this prepared ledger? This does not start a model turn.");
+    if (!approved) return;
+    setSessionStartAction({ status: "starting", message: "Starting app-server control plane...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/session-start`, {
+        approval_token: "START_APP_SERVER_SESSION",
+        transport: "stdio"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setSessionStartAction({
+        status: payload.ok ? "started" : "blocked",
+        message: payload.ok
+          ? "App-server control plane started; no model turn was started."
+          : "App-server session start did not complete.",
+        payload
+      });
+    } catch (error) {
+      setSessionStartAction({ status: "error", message: `Session start failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -553,6 +579,8 @@ function App() {
             runDetailAction={runDetailAction}
             sessionPreflight={sessionPreflight}
             onRunSessionPreflight={runSessionPreflight}
+            sessionStartAction={sessionStartAction}
+            onStartAppServerSession={startAppServerSession}
             intelligence={intelligence}
           />
         </aside>
@@ -846,6 +874,8 @@ function Inspector({
   runDetailAction,
   sessionPreflight,
   onRunSessionPreflight,
+  sessionStartAction,
+  onStartAppServerSession,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -912,11 +942,20 @@ function Inspector({
                   <button onClick={() => onRunSessionPreflight({ appendEvent: true })} disabled={sessionPreflight.status === "recording"} type="button">
                     Record preflight event
                   </button>
+                  <button onClick={onStartAppServerSession} disabled={sessionStartAction.status === "starting" || run.phase !== "prepared"} type="button">
+                    Start control plane
+                  </button>
                 </div>
                 {sessionPreflight.message && (
                   <div className={`action-notice ${sessionPreflight.status}`}>
                     <strong>{sessionPreflight.message}</strong>
                     {sessionPreflight.payload && <code>{JSON.stringify(sessionPreflight.payload.checks || {}, null, 2)}</code>}
+                  </div>
+                )}
+                {sessionStartAction.message && (
+                  <div className={`action-notice ${sessionStartAction.status}`}>
+                    <strong>{sessionStartAction.message}</strong>
+                    {sessionStartAction.payload && <code>{JSON.stringify({ transport: sessionStartAction.payload.transport, will_start_model_turn: sessionStartAction.payload.will_start_model_turn }, null, 2)}</code>}
                   </div>
                 )}
               </div>

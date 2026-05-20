@@ -207,15 +207,15 @@ Use a React + Vite app under `frontend/` with:
    resolved task routing, reviewed config preview/apply, provider detail
    affordances, prepared App Intelligence run ledgers, and a selected-run
    inspector for events, policy, paths, plus a non-starting session-start
-   preflight that validates the future app-server session gate without starting
-   provider work.
+   preflight and control-plane daemon start that record ledger events before
+   any model turn.
 8. Deposition/memory-harvest review UI over existing review/apply artifacts.
 
 ### App Intelligence Control Plane
 
 `codex app-server` is the preferred control plane for long-lived or write-bearing intelligence workflows that need deterministic supervision. The transcript app remains the host: it owns run state, allowed actions, approval policy, eval gates, replay logs, and final apply/rollback decisions. App-server sessions are stochastic workers inside that harness, not the source of workflow authority.
 
-The first backend surfaces are readiness reporting through `/api/intelligence/providers` and prepared run-ledger management through `/api/intelligence/runs`. Readiness checks the local Codex binary and app-server protocol surfaces without starting sessions. Prepared ledgers persist under `~/.local/state/transcribe-audio/app-intelligence-runs/` with `run.json`, `events.jsonl`, `codex_events.jsonl`, branch placeholders, host-owned policy, structured-decision requirements, approval policy, eval policy, and RNG seeds. The React Intelligence panel can prepare these ledgers for the selected task and document, select an existing ledger, inspect events/policy/paths, run a non-starting session-start preflight, and optionally append a `session_start_preflight` event with a separate preflight-event token. This preserves the boundary that no app-server session, provider turn, branch, rollback, or write-bearing phase starts from ledger preparation, inspection, or preflight alone. This establishes the replay boundary before enabling branch, rollback, or write-bearing phases from the UI.
+The first backend surfaces are readiness reporting through `/api/intelligence/providers` and prepared run-ledger management through `/api/intelligence/runs`. Readiness checks the local Codex binary and app-server protocol surfaces without starting sessions. Prepared ledgers persist under `~/.local/state/transcribe-audio/app-intelligence-runs/` with `run.json`, `events.jsonl`, `codex_events.jsonl`, branch placeholders, host-owned policy, structured-decision requirements, approval policy, eval policy, and RNG seeds. The React Intelligence panel can prepare these ledgers for the selected task and document, select an existing ledger, inspect events/policy/paths, run a non-starting session-start preflight, optionally append a `session_start_preflight` event with a separate preflight-event token, and start only the managed Codex app-server control-plane daemon with `approval_token=START_APP_SERVER_SESSION`. This preserves the boundary that no provider turn, Codex thread, branch, rollback, or write-bearing phase starts from ledger preparation, inspection, preflight, or control-plane start alone. This establishes the replay boundary before enabling model turns, branch, rollback, or write-bearing phases from the UI.
 
 ## Acceptance Criteria
 

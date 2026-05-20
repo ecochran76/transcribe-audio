@@ -190,6 +190,18 @@ def append_event(*, state_root: Optional[Path] = None, run_id: str, event_type: 
     return event
 
 
+def update_run_json(*, state_root: Optional[Path] = None, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    path = run_dir(state_root, run_id)
+    ledger_path = path / "run.json"
+    if not ledger_path.exists():
+        raise FileNotFoundError(f"App Intelligence run not found: {run_id}")
+    ledger = read_json(ledger_path)
+    ledger.update(updates)
+    ledger["updated_at"] = utc_now()
+    write_json(ledger_path, ledger)
+    return ledger
+
+
 def read_events(path: Path, *, limit: int = 50) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -302,6 +314,112 @@ def session_start_preflight(
         "future_required_approval_token_for_session_start": SESSION_START_APPROVAL_TOKEN,
         "event": event,
         "run": run_summary(run_dir(state_root, run_id)),
+    }
+
+
+def record_session_start_requested(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    transport: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != SESSION_START_APPROVAL_TOKEN:
+        raise ValueError(f"Starting an app-server session requires approval_token={SESSION_START_APPROVAL_TOKEN}.")
+    if transport not in {"stdio", "unix"}:
+        raise ValueError("App-server session transport must be stdio or unix.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    if run.get("phase") != "prepared":
+        raise ValueError("App-server session start requires a prepared ledger.")
+    return append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="app_server_session_start_requested",
+        payload={
+            "transport": transport,
+            "approval_token": SESSION_START_APPROVAL_TOKEN,
+            "will_start_model_turn": False,
+        },
+    )
+
+
+def record_session_start_failed(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    transport: str,
+    error: str,
+) -> dict[str, Any]:
+    return append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="app_server_session_start_failed",
+        payload={
+            "transport": transport,
+            "error": error,
+            "started_model_turn": False,
+        },
+    )
+
+
+def mark_session_started(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    transport: str,
+    codex_bin: str,
+    start_result: dict[str, Any],
+    version_result: dict[str, Any],
+) -> dict[str, Any]:
+    if transport not in {"stdio", "unix"}:
+        raise ValueError("App-server session transport must be stdio or unix.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    state = run.get("state") if isinstance(run.get("state"), dict) else {}
+    branches = state.get("branches") if isinstance(state.get("branches"), dict) else {}
+    main_branch = branches.get("main") if isinstance(branches.get("main"), dict) else {}
+    now = utc_now()
+    main_branch = {**main_branch, "status": "session_started"}
+    branches = {**branches, "main": main_branch}
+    state = {
+        **state,
+        "branches": branches,
+        "active_codex_thread_id": None,
+        "latest_turn_id": None,
+        "app_server": {
+            "transport": transport,
+            "codex_bin": codex_bin,
+            "started_at": now,
+            "start_result": start_result,
+            "version_result": version_result,
+            "model_turn_started": False,
+        },
+    }
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={
+            "status": "running",
+            "phase": "session_started",
+            "state": state,
+        },
+    )
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="app_server_session_started",
+        payload={
+            "transport": transport,
+            "codex_bin": codex_bin,
+            "started_model_turn": False,
+            "version": version_result,
+        },
+    )
+    return {
+        "run": ledger,
+        "event": event,
+        "path": str(run_dir(state_root, run_id)),
     }
 
 

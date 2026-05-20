@@ -540,6 +540,79 @@ def test_app_intelligence_session_start_preflight_endpoint_does_not_start_work(t
     assert shown["events"][-1]["event_type"] == "session_start_preflight"
 
 
+def test_app_intelligence_session_start_endpoint_starts_daemon_without_model_turn(tmp_path: Path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        transcript_api,
+        "codex_app_server_readiness",
+        lambda codex_bin="codex": {"ready": True, "status": "ready"},
+    )
+
+    def fake_run_codex_command(args: list[str], *, timeout: int = 30) -> dict:
+        commands.append(args)
+        if args[-1] == "start":
+            return {"args": args, "ok": True, "returncode": 0, "stdout": "started\n", "stderr": ""}
+        return {"args": args, "ok": True, "returncode": 0, "stdout": '{"running": true}\n', "stderr": ""}
+
+    monkeypatch.setattr(transcript_api, "run_codex_command", fake_run_codex_command)
+
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+        codex_bin="/usr/local/bin/codex",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        prepare_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/prepare",
+            data=json.dumps(
+                {
+                    "workflow": "app-supervisor",
+                    "purpose": "Prepare supervised work.",
+                    "run_id": "session-run",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(prepare_request, timeout=5).read()
+
+        start_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/session-run/session-start",
+            data=json.dumps({"approval_token": "START_APP_SERVER_SESSION", "transport": "stdio"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        start_response = urlopen(start_request, timeout=5)
+        started = json.loads(start_response.read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/session-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert start_response.status == 202
+    assert started["ok"] is True
+    assert started["will_start_model_turn"] is False
+    assert commands == [
+        ["/usr/local/bin/codex", "app-server", "daemon", "start"],
+        ["/usr/local/bin/codex", "app-server", "daemon", "version"],
+    ]
+    assert shown["run"]["phase"] == "session_started"
+    assert shown["run"]["state"]["active_codex_thread_id"] is None
+    assert [event["event_type"] for event in shown["events"][-2:]] == [
+        "app_server_session_start_requested",
+        "app_server_session_started",
+    ]
+
+
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
     assert transcript_api.batch_status_counts(
         {
