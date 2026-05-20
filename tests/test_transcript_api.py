@@ -330,6 +330,30 @@ def test_intelligence_providers_endpoint_includes_app_server(tmp_path: Path, mon
     assert providers["codex-app-server"]["control_plane"] == "codex-app-server"
 
 
+def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/config", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["schema_version"] == "transcribe-audio.intelligence-config.v1"
+    assert payload["tasks"]["first_pass_summary"]["provider"] == "openai-compatible"
+    assert payload["tasks"]["app_supervisor"]["provider"] == "codex-app-server"
+
+
 def test_app_intelligence_run_prepare_and_read_endpoints(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),

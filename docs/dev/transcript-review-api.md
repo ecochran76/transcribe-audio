@@ -22,6 +22,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
+- `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
 - `GET /api/intelligence/runs?limit=50`: list prepared App Intelligence run ledgers under the user-scoped state directory.
 - `GET /api/intelligence/runs/<run_id>`: read one App Intelligence run ledger and recent append-only events.
 - `POST /api/intelligence/runs/prepare`: create a prepared App Intelligence run ledger without starting app-server sessions or provider work.
@@ -88,13 +89,24 @@ Do not expose this service publicly without an auth layer.
 
 ## Intelligence Provider Registry
 
-`/api/intelligence/providers` is read-only. It reports provider capabilities and readiness metadata for the operator UI without launching long-running agent sessions or touching provider secrets.
+`/api/intelligence/providers` is read-only. It reports provider capabilities and readiness metadata for the operator UI without launching long-running agent sessions or touching provider secrets. `/api/intelligence/config` reports the resolved task routing used by routines that call `intelligence_config.py`.
 
 The registry treats `codex-app-server` as the default supervised App Intelligence surface because it supports persistent sessions, branching, rollback, streamed events, and structured decision turns under a host-owned ledger. The current readiness check is intentionally narrow: it verifies the configured `codex` binary, `codex --version`, `codex app-server --help`, and protocol generation help surfaces.
 
 If `codex` is not on the service `PATH`, configure it with `--codex-bin /absolute/path/to/codex` or `TRANSCRIPTS_CODEX_BIN=/absolute/path/to/codex`.
 
 Use `codex exec` for stateless leaf jobs. Use `codex app-server` only for workflows that need durable thread state, replayable event streams, schema-validated decisions, or branch/rollback control. WebSocket transport must remain disabled for public or non-loopback exposure until an explicit auth and network-boundary review is completed.
+
+## Intelligence Task Config
+
+The central intelligence library is `intelligence_config.py`. It resolves task-level provider choices from:
+
+1. Built-in defaults.
+2. `~/.local/state/transcribe-audio/intelligence.config.json`, or `TRANSCRIPTS_INTELLIGENCE_CONFIG`.
+3. Per-task environment variables such as `TRANSCRIPTS_INTELLIGENCE_FIRST_PASS_SUMMARY_PROVIDER`.
+4. Explicit CLI or API request overrides.
+
+Current task ids are `first_pass_summary`, `contextual_reread`, `context_source_ranking`, `route_selection`, `speaker_disambiguation`, `memory_harvest_review`, `embedding`, and `app_supervisor`.
 
 ## App Intelligence Run Ledgers
 

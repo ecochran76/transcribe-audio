@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
+import intelligence_config
 from app_intelligence_ledger import (
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
@@ -779,6 +780,9 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/intelligence/providers":
                 self.write_json(intelligence_provider_registry(codex_bin=self.server.codex_bin))  # type: ignore[attr-defined]
                 return
+            if parsed.path == "/api/intelligence/config":
+                self.write_json(intelligence_config.all_task_configs())
+                return
             if parsed.path == "/api/intelligence/runs":
                 self.write_json(
                     list_app_intelligence_runs(
@@ -906,12 +910,18 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     self.write_error(HTTPStatus.BAD_REQUEST, "Missing required field: purpose")
                     return
                 self.write_json(
+                    # Explicit API provider wins; otherwise use task routing.
                     create_app_intelligence_run(
                         state_root=self.state_root,
                         workflow=workflow,
                         purpose=purpose,
                         document_id=str(body.get("document_id") or ""),
-                        provider=str(body.get("provider") or "codex-app-server"),
+                        provider=str(
+                            body.get("provider")
+                            or intelligence_config.resolve_task_config(
+                                str(body.get("task") or intelligence_config.TASK_APP_SUPERVISOR)
+                            ).provider
+                        ),
                         created_by=str(body.get("created_by") or "operator"),
                         run_id=str(body.get("run_id") or ""),
                     ),

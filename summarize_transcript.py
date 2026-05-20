@@ -15,6 +15,7 @@ from typing import Any, Iterable, Optional
 
 import requests
 
+import intelligence_config
 from readout_artifacts import Readout
 from transcript_store import TranscriptStoreError, ingest_artifact
 from transcribe_common import (
@@ -48,13 +49,14 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("artifact", type=Path, help="Path to a *.transcript.json artifact.")
     parser.add_argument("--output-dir", type=Path, help="Directory for readout outputs. Defaults beside the artifact.")
+    intelligence_config.add_cli_args(parser)
     parser.add_argument(
         "--provider",
         choices=("openai-compatible", "codex-exec", "auracall", "openclaw"),
-        default="openai-compatible",
+        default=None,
         help="Readout intelligence provider. openai-compatible and codex-exec are implemented.",
     )
-    parser.add_argument("--model", default=DEFAULT_OPENAI_MODEL, help="Model name for the readout provider.")
+    parser.add_argument("--model", default=None, help="Model name for the readout provider.")
     parser.add_argument(
         "--base-url",
         default=None,
@@ -68,8 +70,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--openai-api-key", dest="openai_api_key", help="OpenAI-compatible API key.")
     parser.add_argument("--openai-api-key-stdin", action="store_true", help="Read API key from stdin.")
     parser.add_argument("--openai-api-key-prompt", action="store_true", help="Prompt for API key interactively.")
-    parser.add_argument("--timeout", type=float, default=120.0, help="Provider request timeout in seconds.")
-    parser.add_argument("--temperature", type=float, default=0.1, help="Provider sampling temperature.")
+    parser.add_argument("--timeout", type=float, default=None, help="Provider request timeout in seconds.")
+    parser.add_argument("--temperature", type=float, default=None, help="Provider sampling temperature.")
     parser.add_argument("--store", action="store_true", help="Ingest the generated readout into ~/.transcripts.")
     parser.add_argument("--store-dir", type=Path, help="Override transcript store directory.")
     return parser.parse_args(argv)
@@ -361,6 +363,7 @@ def write_readout_from_payload(
 
 
 def generate_readout(args: argparse.Namespace) -> tuple[Path, Path]:
+    task_config = intelligence_config.apply_task_config(args, intelligence_config.TASK_FIRST_PASS_SUMMARY)
     artifact_path = args.artifact.expanduser().resolve()
     artifact = load_transcript_artifact(artifact_path)
     if args.provider not in {"openai-compatible", "codex-exec"}:
@@ -372,6 +375,11 @@ def generate_readout(args: argparse.Namespace) -> tuple[Path, Path]:
     provider_info = {
         "name": args.provider,
         "model": args.model,
+        "task": task_config.task,
+        "config_source": task_config.source,
+        "fallbacks": task_config.fallbacks,
+        "requires_ledger": task_config.requires_ledger,
+        "human_review": task_config.human_review,
     }
     if args.provider == "openai-compatible":
         api_key, api_key_source = resolve_openai_key(args)

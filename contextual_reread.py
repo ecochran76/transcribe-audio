@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+import intelligence_config
 import summarize_transcript
 from readout_artifacts import Readout
 from transcript_store import TranscriptStoreError, ingest_artifact
@@ -26,13 +27,14 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("readout", type=Path, help="Path to the prior *.readout.json artifact.")
     parser.add_argument("route", type=Path, help="Path to the *.route.json decision artifact.")
     parser.add_argument("--output-dir", type=Path, help="Directory for contextual readout outputs. Defaults beside route.")
+    intelligence_config.add_cli_args(parser)
     parser.add_argument(
         "--provider",
         choices=("openai-compatible", "codex-exec"),
-        default="openai-compatible",
+        default=None,
         help="Readout intelligence provider.",
     )
-    parser.add_argument("--model", default=summarize_transcript.DEFAULT_OPENAI_MODEL, help="Model name.")
+    parser.add_argument("--model", default=None, help="Model name.")
     parser.add_argument("--base-url", default=None, help="OpenAI-compatible API base URL.")
     parser.add_argument(
         "--api-key-file",
@@ -42,8 +44,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--openai-api-key", dest="openai_api_key", help="OpenAI-compatible API key.")
     parser.add_argument("--openai-api-key-stdin", action="store_true", help="Read API key from stdin.")
     parser.add_argument("--openai-api-key-prompt", action="store_true", help="Prompt for API key interactively.")
-    parser.add_argument("--timeout", type=float, default=120.0, help="Provider request timeout in seconds.")
-    parser.add_argument("--temperature", type=float, default=0.1, help="Provider sampling temperature.")
+    parser.add_argument("--timeout", type=float, default=None, help="Provider request timeout in seconds.")
+    parser.add_argument("--temperature", type=float, default=None, help="Provider sampling temperature.")
     parser.add_argument("--max-sources", type=int, default=12, help="Maximum supporting context sources to include.")
     parser.add_argument("--snippet-chars", type=int, default=500, help="Maximum snippet characters per source.")
     parser.add_argument("--store", action="store_true", help="Ingest the generated contextual readout into ~/.transcripts.")
@@ -265,6 +267,12 @@ def call_provider(args: argparse.Namespace, artifact: dict[str, Any], provider_i
 
 
 def generate_contextual_readout(args: argparse.Namespace) -> tuple[Path, Path]:
+    task_config = intelligence_config.apply_task_config(args, intelligence_config.TASK_CONTEXTUAL_REREAD)
+    if args.provider not in {"openai-compatible", "codex-exec"}:
+        raise TranscriptionError(
+            f"Provider '{args.provider}' is configured for contextual reread but is not implemented for this CLI yet. "
+            "Use openai-compatible or codex-exec."
+        )
     transcript_path = args.transcript.expanduser().resolve()
     readout_path = args.readout.expanduser().resolve()
     route_path = args.route.expanduser().resolve()
@@ -282,6 +290,11 @@ def generate_contextual_readout(args: argparse.Namespace) -> tuple[Path, Path]:
     provider_info = {
         "name": args.provider,
         "model": args.model,
+        "task": task_config.task,
+        "config_source": task_config.source,
+        "fallbacks": task_config.fallbacks,
+        "requires_ledger": task_config.requires_ledger,
+        "human_review": task_config.human_review,
         "mode": "contextual_reread",
         "prior_readout_path": str(readout_path),
         "route_decision_path": str(route_path),

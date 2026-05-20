@@ -182,6 +182,8 @@ Different workflow stages may use different providers. The UI should expose task
 - deposition/memory-candidate reviewer provider;
 - embedding provider.
 
+Task-level provider selection is centralized in `intelligence_config.py`. It resolves from built-in defaults, optional user-scoped config at `~/.local/state/transcribe-audio/intelligence.config.json`, `TRANSCRIPTS_INTELLIGENCE_CONFIG`, per-task environment overrides, and explicit CLI/API overrides. Existing first-pass summary and contextual reread CLIs call this library before invoking providers, and the API exposes the resolved routing at `/api/intelligence/config`.
+
 ## Frontend Layout Contract
 
 Use a React + Vite app under `frontend/` with:

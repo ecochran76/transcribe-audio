@@ -3630,6 +3630,48 @@ Next:
   app-server turns can record accepted/rejected decisions before the host
   executes any fork, rollback, write, or external apply action.
 
+## Turn 117 | 2026-05-20
+
+Summary: Centralized intelligence task selection into one library.
+
+Action:
+
+- Added `intelligence_config.py` as the central task-based intelligence routing
+  library.
+- Defined task ids for `first_pass_summary`, `contextual_reread`,
+  `context_source_ranking`, `route_selection`, `speaker_disambiguation`,
+  `memory_harvest_review`, `embedding`, and `app_supervisor`.
+- Added resolution order: built-in defaults, optional
+  `~/.local/state/transcribe-audio/intelligence.config.json` or
+  `TRANSCRIPTS_INTELLIGENCE_CONFIG`, per-task environment variables, then
+  explicit CLI/API overrides.
+- Wired `summarize_transcript.py` and `contextual_reread.py` through the new
+  library while preserving current default provider behavior.
+- Added `GET /api/intelligence/config` so the operator UI can show resolved
+  task routing.
+- Updated `README.md`, `ROADMAP.md`, the P09 plan, and
+  `docs/dev/transcript-review-api.md`.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy.
+- `graphiti-runtime discover --group-id transcribe_audio_main ...` returned
+  older intelligence-provider facts only, so repo docs and current source were
+  used as authority.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py tests/test_readouts.py tests/test_transcript_api.py -q`
+  passed.
+- `.venv/bin/python -m py_compile intelligence_config.py summarize_transcript.py contextual_reread.py transcript_api.py`
+  passed.
+- `git diff --check` passed.
+- `python intelligence_config.py show` printed all resolved default task routes.
+- Restarted `transcripts.service`; live `GET /api/intelligence/config` returned
+  the resolved default routing from the user-scoped config path.
+
+Next:
+
+- Add write-preview/update endpoints for `intelligence.config.json` so the UI
+  can edit task routing safely with validation, diffs, and rollback metadata.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
