@@ -510,6 +510,47 @@ def prepare_model_turn_packet(
     }
 
 
+def read_model_turn_packet(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    packet_id: str,
+) -> dict[str, Any]:
+    if not packet_id or "/" in packet_id or "\\" in packet_id or ".." in packet_id:
+        raise ValueError("packet_id must be a single safe path segment.")
+    path = run_dir(state_root, run_id)
+    packet_dir = (path / "artifacts" / "prompt-packets").resolve()
+    packet_path = (packet_dir / f"{packet_id}.json").resolve()
+    try:
+        packet_path.relative_to(packet_dir)
+    except ValueError as exc:
+        raise ValueError("packet_id resolves outside the prompt-packets directory.") from exc
+    if not packet_path.exists():
+        raise FileNotFoundError(f"Prompt packet not found: {packet_id}")
+    packet_payload = read_json(packet_path)
+    prompt_path = Path(str(packet_payload.get("prompt_path") or ""))
+    prompt_text = ""
+    if prompt_path.exists():
+        prompt_resolved = prompt_path.resolve()
+        try:
+            prompt_resolved.relative_to(packet_dir)
+        except ValueError as exc:
+            raise ValueError("prompt_path resolves outside the prompt-packets directory.") from exc
+        prompt_text = prompt_resolved.read_text(encoding="utf-8")
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-model-turn-packet-review.v1",
+        "action": "review_model_turn_packet",
+        "run_id": run_id,
+        "packet_id": packet_id,
+        "packet_path": str(packet_path),
+        "prompt_path": str(prompt_path),
+        "packet": packet_payload,
+        "prompt_text": prompt_text,
+        "will_send_prompt": False,
+        "future_required_approval_token_for_send": MODEL_TURN_SEND_TOKEN,
+    }
+
+
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Manage local App Intelligence run ledgers.")
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_DIR)

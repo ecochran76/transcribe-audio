@@ -3996,6 +3996,43 @@ Next:
   and require `approval_token=SEND_APP_SERVER_MODEL_TURN` before any app-server
   prompt send implementation is added.
 
+## Turn 125 | 2026-05-20
+
+Summary: Added read-only App Intelligence prompt-packet review.
+
+Action:
+
+- Added `read_model_turn_packet()` to `app_intelligence_ledger.py`.
+- Added `GET /api/intelligence/runs/<run_id>/prompt-packets/<packet_id>`.
+- The endpoint reads existing packet JSON and prompt text from the run's
+  `artifacts/prompt-packets/` directory only.
+- The review payload returns `will_send_prompt=false` and surfaces the future
+  `SEND_APP_SERVER_MODEL_TURN` token without using it.
+- The React selected-run inspector now selects prompt packets, loads packet
+  metadata, and shows the full prompt text in a review preview.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active after readiness polling.
+- Live `/` served rebuilt assets after restart.
+- Live `GET /api/intelligence/providers` reported the configured providers.
+- Live `GET /api/intelligence/runs?limit=8` returned the user-scoped runs
+  directory; no live prompt packet was created.
+
+Next:
+
+- Introduce `SEND_APP_SERVER_MODEL_TURN` as a dry-run send preflight first, or
+  add the actual send implementation only after packet review approval.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

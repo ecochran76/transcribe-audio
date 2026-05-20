@@ -25,6 +25,7 @@ from app_intelligence_ledger import (
     list_runs as list_app_intelligence_runs,
     mark_session_started as mark_app_intelligence_session_started,
     prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
+    read_model_turn_packet as read_app_intelligence_model_turn_packet,
     record_session_start_failed as record_app_intelligence_session_start_failed,
     record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
@@ -866,6 +867,15 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path.startswith("/api/intelligence/runs/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 6 and parts[4] == "prompt-packets":
+                    self.write_json(
+                        read_app_intelligence_model_turn_packet(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            packet_id=parts[5],
+                        )
+                    )
+                    return
                 if len(parts) == 4:
                     self.write_json(
                         get_app_intelligence_run(

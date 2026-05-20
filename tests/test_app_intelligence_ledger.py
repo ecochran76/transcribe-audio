@@ -175,6 +175,17 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown["run"]["prompt_packets"][0]["sent"] is False
     assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
 
+    reviewed = app_intelligence_ledger.read_model_turn_packet(
+        state_root=tmp_path,
+        run_id="packet-run",
+        packet_id=prepared["packet"]["packet_id"],
+    )
+
+    assert reviewed["will_send_prompt"] is False
+    assert reviewed["future_required_approval_token_for_send"] == app_intelligence_ledger.MODEL_TURN_SEND_TOKEN
+    assert reviewed["prompt_text"] == "Review this transcript."
+    assert reviewed["packet"]["packet_id"] == prepared["packet"]["packet_id"]
+
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(

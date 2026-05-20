@@ -156,6 +156,8 @@ function App() {
   const [sessionPreflight, setSessionPreflight] = useState({ status: "idle", message: "", payload: null });
   const [sessionStartAction, setSessionStartAction] = useState({ status: "idle", message: "", payload: null });
   const [modelTurnAction, setModelTurnAction] = useState({ status: "idle", message: "", payload: null });
+  const [selectedPacketId, setSelectedPacketId] = useState("");
+  const [packetReview, setPacketReview] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -205,6 +207,8 @@ function App() {
         setSessionPreflight({ status: "idle", message: "", payload: null });
         setSessionStartAction({ status: "idle", message: "", payload: null });
         setModelTurnAction({ status: "idle", message: "", payload: null });
+        setSelectedPacketId(payload.run?.prompt_packets?.slice(-1)[0]?.packet_id || "");
+        setPacketReview({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -216,6 +220,29 @@ function App() {
       cancelled = true;
     };
   }, [selectedRunId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPacketReview() {
+      if (!selectedRunId || !selectedPacketId) {
+        setPacketReview({ status: "idle", message: "", payload: null });
+        return;
+      }
+      setPacketReview({ status: "loading", message: "Loading prompt packet...", payload: null });
+      try {
+        const payload = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/prompt-packets/${encodeURIComponent(selectedPacketId)}`);
+        if (cancelled) return;
+        setPacketReview({ status: "loaded", message: "", payload });
+      } catch (error) {
+        if (cancelled) return;
+        setPacketReview({ status: "error", message: `Prompt packet load failed: ${error.message}`, payload: null });
+      }
+    }
+    loadPacketReview();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRunId, selectedPacketId]);
 
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -457,6 +484,7 @@ function App() {
         message: "Prompt packet prepared for review; no prompt was sent.",
         payload
       });
+      setSelectedPacketId(payload.packet?.packet_id || "");
     } catch (error) {
       setModelTurnAction({ status: "error", message: `Prompt packet preflight failed: ${error.message}`, payload: null });
     }
@@ -608,6 +636,9 @@ function App() {
             onStartAppServerSession={startAppServerSession}
             modelTurnAction={modelTurnAction}
             onPrepareModelTurnPacket={prepareModelTurnPacket}
+            selectedPacketId={selectedPacketId}
+            onSelectPacket={setSelectedPacketId}
+            packetReview={packetReview}
             intelligence={intelligence}
           />
         </aside>
@@ -905,6 +936,9 @@ function Inspector({
   onStartAppServerSession,
   modelTurnAction,
   onPrepareModelTurnPacket,
+  selectedPacketId,
+  onSelectPacket,
+  packetReview,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1001,12 +1035,27 @@ function Inspector({
                 <div className="event-list">
                   <span>Prompt Packets</span>
                   {run.prompt_packets.slice(-3).map((packet) => (
-                    <article key={packet.packet_id}>
+                    <article className={selectedPacketId === packet.packet_id ? "active" : ""} key={packet.packet_id} onClick={() => onSelectPacket(packet.packet_id)}>
                       <strong>{packet.task}</strong>
                       <small>{packet.packet_path}</small>
                     </article>
                   ))}
                 </div>
+              ) : null}
+              {packetReview.payload ? (
+                <div className="preview-card">
+                  <span>Packet Review</span>
+                  <strong>{packetReview.payload.packet_id}</strong>
+                  <p>Future send token: {packetReview.payload.future_required_approval_token_for_send}</p>
+                  <code>{JSON.stringify({
+                    packet_path: packetReview.payload.packet_path,
+                    prompt_path: packetReview.payload.prompt_path,
+                    will_send_prompt: packetReview.payload.will_send_prompt
+                  }, null, 2)}</code>
+                  <pre className="prompt-preview">{packetReview.payload.prompt_text}</pre>
+                </div>
+              ) : packetReview.message ? (
+                <p className="muted">{packetReview.message}</p>
               ) : null}
               <div className="event-list">
                 <span>Recent Events</span>
