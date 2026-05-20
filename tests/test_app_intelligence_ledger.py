@@ -224,6 +224,30 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown_after_start["events"][-1]["event_type"] == "model_turn_started"
     assert shown_after_start["codex_events_count"] == 1
 
+    captured = app_intelligence_ledger.record_model_turn_status(
+        state_root=tmp_path,
+        run_id="packet-run",
+        thread_id="thread_123",
+        turn_id="turn_123",
+        status_payload={
+            "status": "completed",
+            "completed": True,
+            "output_text": '{"summary":"ready"}',
+            "thread_read_response": {},
+            "turns_list_response": {},
+            "items_list_response": {},
+        },
+        approval_token=app_intelligence_ledger.MODEL_TURN_STATUS_TOKEN,
+    )
+    shown_after_status = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert captured["completed"] is True
+    assert captured["will_execute_structured_decision"] is False
+    assert Path(captured["artifact_path"]).exists()
+    assert shown_after_status["run"]["phase"] == "model_turn_completed"
+    assert shown_after_status["run"]["latest_model_turn_status"]["output_char_count"] == len('{"summary":"ready"}')
+    assert shown_after_status["events"][-1]["event_type"] == "model_turn_status_captured"
+
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(

@@ -172,3 +172,89 @@ def start_model_turn(
         }
     finally:
         client.close()
+
+
+def inspect_model_turn(
+    *,
+    codex_bin: str,
+    thread_id: str,
+    turn_id: str,
+    timeout_seconds: float = 30,
+) -> dict[str, Any]:
+    client = CodexAppServerClient(codex_bin=codex_bin, use_proxy=True, timeout_seconds=timeout_seconds)
+    try:
+        client.request(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": "transcribe-audio",
+                    "version": "0.1.0",
+                    "title": "Transcript App Intelligence",
+                },
+                "capabilities": {"experimentalApi": True},
+            },
+        )
+        thread_read = client.request("thread/read", {"threadId": thread_id, "includeTurns": False})
+        turns = client.request(
+            "thread/turns/list",
+            {
+                "threadId": thread_id,
+                "itemsView": "summary",
+                "limit": 25,
+                "sortDirection": "desc",
+            },
+        )
+        items = client.request(
+            "thread/turns/items/list",
+            {
+                "threadId": thread_id,
+                "turnId": turn_id,
+                "limit": 200,
+                "sortDirection": "asc",
+            },
+        )
+        turn = find_turn(turns, turn_id)
+        output_text = extract_output_text(items.get("data") if isinstance(items.get("data"), list) else [])
+        status = str(turn.get("status") or "") if isinstance(turn, dict) else ""
+        return {
+            "ok": True,
+            "thread_id": thread_id,
+            "turn_id": turn_id,
+            "status": status,
+            "completed": status == "completed",
+            "output_text": output_text,
+            "thread_read_response": thread_read,
+            "turns_list_response": turns,
+            "items_list_response": items,
+            "events": client.events,
+        }
+    finally:
+        client.close()
+
+
+def find_turn(turns_response: dict[str, Any], turn_id: str) -> dict[str, Any]:
+    turns = turns_response.get("data") if isinstance(turns_response.get("data"), list) else []
+    for turn in turns:
+        if isinstance(turn, dict) and (turn.get("id") == turn_id or turn.get("turnId") == turn_id):
+            return turn
+    return {}
+
+
+def extract_output_text(items: list[Any]) -> str:
+    chunks: list[str] = []
+    for item in items:
+        if isinstance(item, dict):
+            collect_text_fields(item, chunks)
+    return "\n".join(chunk for chunk in chunks if chunk.strip()).strip()
+
+
+def collect_text_fields(value: Any, chunks: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key in {"text", "content", "message", "finalMessage", "final_message"} and isinstance(nested, str):
+                chunks.append(nested)
+            else:
+                collect_text_fields(nested, chunks)
+    elif isinstance(value, list):
+        for nested in value:
+            collect_text_fields(nested, chunks)

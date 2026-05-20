@@ -4109,6 +4109,43 @@ Next:
 - Add a turn-status/readout endpoint that can inspect a started Codex turn and
   capture completion/output without executing structured decisions.
 
+## Turn 128 | 2026-05-20
+
+Summary: Added Codex model-turn status capture.
+
+Action:
+
+- Added `inspect_model_turn()` to `codex_app_server_client.py` using
+  `thread/read`, `thread/turns/list`, and `thread/turns/items/list`.
+- Added `record_model_turn_status()` to `app_intelligence_ledger.py`.
+- Added `POST /api/intelligence/runs/<run_id>/turn-status`.
+- The endpoint requires `approval_token=CAPTURE_MODEL_TURN_STATUS`, reads the
+  active Codex thread/turn from the run ledger by default, captures status and
+  output into `artifacts/model-turn-readouts/<turn_id>.status.json`, appends a
+  `model_turn_status_captured` event, and records any app-server events.
+- The endpoint returns `will_execute_structured_decision=false`; it does not
+  parse output into a host decision, fork, rollback, route, memory write,
+  repository write, or deposition action.
+- Added a React `Capture turn status` action and latest-status display in the
+  packet review surface.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source, generated protocol schemas, and local skill
+  references were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add structured-decision schema validation for captured turn output before
+  enabling any host action from model results.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

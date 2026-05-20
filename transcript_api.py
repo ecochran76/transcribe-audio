@@ -31,6 +31,7 @@ from app_intelligence_ledger import (
     read_model_turn_packet as read_app_intelligence_model_turn_packet,
     record_model_turn_failed as record_app_intelligence_model_turn_failed,
     record_model_turn_started as record_app_intelligence_model_turn_started,
+    record_model_turn_status as record_app_intelligence_model_turn_status,
     record_session_start_failed as record_app_intelligence_session_start_failed,
     record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
@@ -1129,6 +1130,61 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             "preflight": preflight,
                             "will_execute_downstream_action": False,
                             **started,
+                        },
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/turn-status"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5:
+                    body = self.read_json_body()
+                    run_id = parts[3]
+                    current = get_app_intelligence_run(state_root=self.state_root, run_id=run_id, event_limit=1)
+                    run = current.get("run") if isinstance(current.get("run"), dict) else {}
+                    state = run.get("state") if isinstance(run.get("state"), dict) else {}
+                    thread_id = str(body.get("thread_id") or state.get("active_codex_thread_id") or "")
+                    turn_id = str(body.get("turn_id") or state.get("latest_turn_id") or "")
+                    if not thread_id or not turn_id:
+                        self.write_error(HTTPStatus.BAD_REQUEST, "No active Codex thread/turn is recorded for this run.")
+                        return
+                    try:
+                        status_result = codex_app_server_client.inspect_model_turn(
+                            codex_bin=str(self.server.codex_bin),  # type: ignore[attr-defined]
+                            thread_id=thread_id,
+                            turn_id=turn_id,
+                            timeout_seconds=float(body.get("timeout_seconds") or 30),
+                        )
+                    except Exception as exc:
+                        self.write_json(
+                            {
+                                "schema_version": "transcribe-audio.app-intelligence-model-turn-status.v1",
+                                "action": "capture_model_turn_status",
+                                "ok": False,
+                                "codex_thread_id": thread_id,
+                                "codex_turn_id": turn_id,
+                                "will_execute_structured_decision": False,
+                                "error": str(exc),
+                            },
+                            status=HTTPStatus.BAD_GATEWAY,
+                        )
+                        return
+                    for codex_event in status_result.get("events", []):
+                        if isinstance(codex_event, dict):
+                            append_app_intelligence_codex_event(state_root=self.state_root, run_id=run_id, payload=codex_event)
+                    captured = record_app_intelligence_model_turn_status(
+                        state_root=self.state_root,
+                        run_id=run_id,
+                        thread_id=thread_id,
+                        turn_id=turn_id,
+                        status_payload=status_result,
+                        approval_token=str(body.get("approval_token") or ""),
+                    )
+                    self.write_json(
+                        {
+                            **captured,
+                            "codex_thread_id": thread_id,
+                            "codex_turn_id": turn_id,
+                            "captured_event_count": len(status_result.get("events") or []),
                         },
                         status=HTTPStatus.ACCEPTED,
                     )

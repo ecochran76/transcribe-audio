@@ -21,6 +21,7 @@ SESSION_START_APPROVAL_TOKEN = "START_APP_SERVER_SESSION"
 SESSION_START_PREFLIGHT_EVENT_TOKEN = "APPEND_SESSION_START_PREFLIGHT_EVENT"
 MODEL_TURN_PREFLIGHT_TOKEN = "PREPARE_MODEL_TURN_PREFLIGHT"
 MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
+MODEL_TURN_STATUS_TOKEN = "CAPTURE_MODEL_TURN_STATUS"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -712,6 +713,97 @@ def record_model_turn_failed(
             "started_downstream_action": False,
         },
     )
+
+
+def record_model_turn_status(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    thread_id: str,
+    turn_id: str,
+    status_payload: dict[str, Any],
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != MODEL_TURN_STATUS_TOKEN:
+        raise ValueError(f"Capturing model-turn status requires approval_token={MODEL_TURN_STATUS_TOKEN}.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    state = run.get("state") if isinstance(run.get("state"), dict) else {}
+    if state.get("active_codex_thread_id") != thread_id or state.get("latest_turn_id") != turn_id:
+        raise ValueError("Requested Codex thread/turn does not match the active run state.")
+
+    path = run_dir(state_root, run_id)
+    artifact_dir = path / "artifacts" / "model-turn-readouts"
+    artifact_path = artifact_dir / f"{turn_id}.status.json"
+    output_text = str(status_payload.get("output_text") or "")
+    payload = {
+        "schema_version": "transcribe-audio.app-intelligence-model-turn-status.v1",
+        "run_id": run_id,
+        "codex_thread_id": thread_id,
+        "codex_turn_id": turn_id,
+        "captured_at": utc_now(),
+        "status": status_payload.get("status") or "",
+        "completed": bool(status_payload.get("completed")),
+        "output_text": output_text,
+        "raw": status_payload,
+        "will_execute_structured_decision": False,
+    }
+    write_json(artifact_path, payload)
+
+    app_server_state = state.get("app_server") if isinstance(state.get("app_server"), dict) else {}
+    state = {
+        **state,
+        "app_server": {
+            **app_server_state,
+            "latest_turn_status": payload["status"],
+            "latest_turn_completed": payload["completed"],
+            "latest_turn_status_artifact": str(artifact_path),
+        },
+    }
+    phase = "model_turn_completed" if payload["completed"] else str(run.get("phase") or "model_turn_started")
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={
+            "phase": phase,
+            "state": state,
+            "latest_model_turn_status": {
+                "codex_thread_id": thread_id,
+                "codex_turn_id": turn_id,
+                "status": payload["status"],
+                "completed": payload["completed"],
+                "artifact_path": str(artifact_path),
+                "output_char_count": len(output_text),
+                "captured_at": payload["captured_at"],
+            },
+        },
+    )
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="model_turn_status_captured",
+        payload={
+            "codex_thread_id": thread_id,
+            "codex_turn_id": turn_id,
+            "status": payload["status"],
+            "completed": payload["completed"],
+            "artifact_path": str(artifact_path),
+            "output_char_count": len(output_text),
+            "will_execute_structured_decision": False,
+        },
+    )
+    return {
+        "schema_version": payload["schema_version"],
+        "action": "capture_model_turn_status",
+        "ok": True,
+        "run": ledger,
+        "event": event,
+        "artifact_path": str(artifact_path),
+        "status": payload["status"],
+        "completed": payload["completed"],
+        "output_text": output_text,
+        "will_execute_structured_decision": False,
+    }
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:

@@ -160,6 +160,7 @@ function App() {
   const [packetReview, setPacketReview] = useState({ status: "idle", message: "", payload: null });
   const [sendPreflight, setSendPreflight] = useState({ status: "idle", message: "", payload: null });
   const [sendAction, setSendAction] = useState({ status: "idle", message: "", payload: null });
+  const [turnStatusAction, setTurnStatusAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -213,6 +214,7 @@ function App() {
         setPacketReview({ status: "idle", message: "", payload: null });
         setSendPreflight({ status: "idle", message: "", payload: null });
         setSendAction({ status: "idle", message: "", payload: null });
+        setTurnStatusAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -538,6 +540,27 @@ function App() {
     }
   }
 
+  async function captureTurnStatus() {
+    if (!selectedRunId) return;
+    setTurnStatusAction({ status: "capturing", message: "Capturing Codex turn status and output...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/turn-status`, {
+        approval_token: "CAPTURE_MODEL_TURN_STATUS"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setTurnStatusAction({
+        status: payload.completed ? "completed" : "captured",
+        message: payload.completed
+          ? "Turn completion/output captured; no structured decision was executed."
+          : "Turn status captured; no structured decision was executed.",
+        payload
+      });
+    } catch (error) {
+      setTurnStatusAction({ status: "error", message: `Turn status capture failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -691,6 +714,8 @@ function App() {
             onRunModelTurnSendPreflight={runModelTurnSendPreflight}
             sendAction={sendAction}
             onSendModelTurn={sendModelTurn}
+            turnStatusAction={turnStatusAction}
+            onCaptureTurnStatus={captureTurnStatus}
             intelligence={intelligence}
           />
         </aside>
@@ -995,6 +1020,8 @@ function Inspector({
   onRunModelTurnSendPreflight,
   sendAction,
   onSendModelTurn,
+  turnStatusAction,
+  onCaptureTurnStatus,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1144,6 +1171,31 @@ function Inspector({
                         captured_event_count: sendAction.payload.captured_event_count,
                         will_execute_downstream_action: sendAction.payload.will_execute_downstream_action
                       }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button"
+                    disabled={turnStatusAction.status === "capturing" || !run.state?.latest_turn_id}
+                    onClick={onCaptureTurnStatus}
+                    type="button"
+                  >
+                    Capture turn status
+                  </button>
+                  {turnStatusAction.message ? (
+                    <div className={`action-notice ${turnStatusAction.status}`}>
+                      <strong>{turnStatusAction.message}</strong>
+                      {turnStatusAction.payload && <code>{JSON.stringify({
+                        status: turnStatusAction.payload.status,
+                        completed: turnStatusAction.payload.completed,
+                        artifact_path: turnStatusAction.payload.artifact_path,
+                        will_execute_structured_decision: turnStatusAction.payload.will_execute_structured_decision
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  {run.latest_model_turn_status ? (
+                    <div className="action-notice ok">
+                      <strong>Latest turn status: {run.latest_model_turn_status.status || "unknown"}</strong>
+                      <code>{JSON.stringify(run.latest_model_turn_status, null, 2)}</code>
                     </div>
                   ) : null}
                   <pre className="prompt-preview">{packetReview.payload.prompt_text}</pre>

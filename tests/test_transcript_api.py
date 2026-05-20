@@ -650,6 +650,25 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
 
     monkeypatch.setattr(transcript_api.codex_app_server_client, "start_model_turn", fake_start_model_turn)
 
+    def fake_inspect_model_turn(**kwargs: object) -> dict:
+        assert kwargs["codex_bin"] == "/usr/local/bin/codex"
+        assert kwargs["thread_id"] == "thread_test"
+        assert kwargs["turn_id"] == "turn_test"
+        return {
+            "ok": True,
+            "thread_id": "thread_test",
+            "turn_id": "turn_test",
+            "status": "completed",
+            "completed": True,
+            "output_text": '{"summary":"Tempo readout"}',
+            "thread_read_response": {"thread": {"id": "thread_test"}},
+            "turns_list_response": {"data": [{"id": "turn_test", "status": "completed"}]},
+            "items_list_response": {"data": [{"type": "agentMessage", "text": '{"summary":"Tempo readout"}'}]},
+            "events": [{"method": "turn/completed", "params": {"turn": {"id": "turn_test"}}}],
+        }
+
+    monkeypatch.setattr(transcript_api.codex_app_server_client, "inspect_model_turn", fake_inspect_model_turn)
+
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),
         transcript_api.TranscriptApiHandler,
@@ -722,6 +741,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         send_response = urlopen(send_request, timeout=5)
         send = json.loads(send_response.read())
+        status_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/turn-status",
+            data=json.dumps({"approval_token": "CAPTURE_MODEL_TURN_STATUS"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        status_response = urlopen(status_request, timeout=5)
+        status = json.loads(status_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -748,10 +775,16 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert send["codex_turn_id"] == "turn_test"
     assert send["will_execute_downstream_action"] is False
     assert shown["run"]["prompt_packets"][0]["sent"] is True
-    assert shown["run"]["phase"] == "model_turn_started"
+    assert status_response.status == 202
+    assert status["completed"] is True
+    assert status["will_execute_structured_decision"] is False
+    assert status["codex_thread_id"] == "thread_test"
+    assert status["codex_turn_id"] == "turn_test"
+    assert Path(status["artifact_path"]).exists()
+    assert shown["run"]["phase"] == "model_turn_completed"
     assert shown["run"]["state"]["active_codex_thread_id"] == "thread_test"
-    assert shown["events"][-1]["event_type"] == "model_turn_started"
-    assert shown["codex_events_count"] == 1
+    assert shown["events"][-1]["event_type"] == "model_turn_status_captured"
+    assert shown["codex_events_count"] == 2
 
 
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
