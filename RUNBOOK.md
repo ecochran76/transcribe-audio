@@ -3713,6 +3713,50 @@ Next:
 - Wire the React Intelligence panel to list providers, show resolved task
   routing, preview edits, and require explicit apply approval for config writes.
 
+## Turn 119 | 2026-05-20
+
+Summary: Wired the React Intelligence panel to the central provider and task
+routing APIs.
+
+Action:
+
+- Loaded `GET /api/intelligence/providers` and `GET /api/intelligence/config`
+  during review-console startup.
+- Added an Intelligence left-pane task selector, central task editor, provider
+  status cards, resolved-route table, and right-pane inspector.
+- Added reviewed config editing from the UI:
+  - Preview calls `POST /api/intelligence/config/preview` and displays
+    rollback metadata without writing config.
+  - Apply prompts the operator and calls `POST /api/intelligence/config/apply`
+    with `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
+- Kept fallback demo data for offline preview mode and improved API error
+  handling for JSON error bodies.
+- Added focused CSS for task routing, provider status, preview metadata, and
+  responsive Intelligence layouts.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery for this slice returned
+  only older repo facts, so repo source and live API evidence were used.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py tests/test_transcript_api.py -q`
+  passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active.
+- Live `GET /api/intelligence/config` returned
+  `schema_version=transcribe-audio.intelligence-config.v1` with
+  `first_pass_summary.provider=openai-compatible` and
+  `app_supervisor.provider=codex-app-server`.
+- Live `POST /api/intelligence/config/preview` returned a non-writing preview
+  with rollback metadata and `resolved_after.provider=codex-exec`.
+- Confirmed preview did not create
+  `~/.local/state/transcribe-audio/intelligence.config.json`.
+
+Next:
+
+- Add provider-specific readiness/detail affordances and a UI action to prepare
+  supervised app-intelligence run ledgers from selected tasks.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

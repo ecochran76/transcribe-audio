@@ -30,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -131,6 +132,10 @@ button {
   padding: 0.65rem 0.9rem;
 }
 
+select {
+  appearance: none;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 380px);
@@ -199,6 +204,18 @@ button {
 .filter-card button {
   display: flex;
   justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.filter-card button strong {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.filter-card button.selected-filter {
+  border-color: rgba(215, 255, 115, 0.42);
+  background: rgba(215, 255, 115, 0.14);
 }
 
 .runtime-card code {
@@ -419,6 +436,137 @@ td small {
   color: var(--accent);
 }
 
+.intelligence-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(260px, 0.9fr);
+  gap: 1rem;
+}
+
+.intelligence-card {
+  padding: 1.1rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(145deg, rgba(244, 236, 216, 0.075), rgba(0, 0, 0, 0.18)),
+    radial-gradient(circle at 100% 0%, rgba(215, 255, 115, 0.08), transparent 14rem);
+}
+
+.intelligence-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+.task-editor {
+  grid-row: span 2;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.editor-grid label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.editor-grid label span,
+.preview-card span {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.editor-grid input,
+.editor-grid select {
+  width: 100%;
+  border: 1px solid rgba(244, 236, 216, 0.16);
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ink);
+  padding: 0.65rem 0.75rem;
+}
+
+.checkbox-line {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  align-self: end;
+  padding: 0.55rem 0;
+}
+
+.checkbox-line input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.provider-list,
+.task-table {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.provider-row,
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid rgba(244, 236, 216, 0.09);
+  border-radius: 0.9rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.task-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.provider-row.active,
+.task-row.active {
+  border-color: rgba(215, 255, 115, 0.36);
+  background: rgba(215, 255, 115, 0.1);
+}
+
+.provider-row strong,
+.provider-row small,
+.task-row strong,
+.task-row small {
+  display: block;
+}
+
+.provider-row small,
+.task-row small {
+  color: var(--muted);
+}
+
+.provider-row span,
+.task-row span {
+  color: var(--accent);
+}
+
+.preview-card {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(215, 255, 115, 0.26);
+  border-radius: 1rem;
+  background: rgba(215, 255, 115, 0.08);
+}
+
+.preview-card code {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
 .queue-row.stale_reference span {
   color: var(--danger);
 }
@@ -474,7 +622,9 @@ dd {
   }
 
   .queue-list-heading,
-  .queue-row {
+  .queue-row,
+  .intelligence-grid,
+  .editor-grid {
     grid-template-columns: 1fr;
   }
 }

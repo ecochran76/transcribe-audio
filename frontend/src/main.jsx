@@ -45,6 +45,44 @@ const FALLBACK_REVIEW_QUEUE = {
   items: []
 };
 
+const FALLBACK_INTELLIGENCE = {
+  config: {
+    schema_version: "transcribe-audio.intelligence-config.v1",
+    config_path: "~/.local/state/transcribe-audio/intelligence.config.json",
+    tasks: {
+      first_pass_summary: {
+        task: "first_pass_summary",
+        provider: "openai-compatible",
+        model: "gpt-4o-mini",
+        timeout: 120,
+        temperature: 0.1,
+        fallbacks: ["codex-exec"],
+        human_review: "on_warning",
+        requires_ledger: false,
+        source: "fallback"
+      },
+      app_supervisor: {
+        task: "app_supervisor",
+        provider: "codex-app-server",
+        model: "",
+        timeout: 120,
+        temperature: 0,
+        fallbacks: ["codex-exec"],
+        human_review: "phase_policy",
+        requires_ledger: true,
+        source: "fallback"
+      }
+    }
+  },
+  providers: {
+    providers: [
+      { id: "openai-compatible", label: "OpenAI-compatible API", status: "configured-by-env", capabilities: ["summarize", "extract"] },
+      { id: "codex-app-server", label: "Codex app-server", status: "ready", ready: true, capabilities: { persistent_sessions: true, branching: true } }
+    ],
+    default_supervisor: "codex-app-server"
+  }
+};
+
 function formatDate(value) {
   if (!value) return "Unknown";
   const date = new Date(value);
@@ -73,7 +111,15 @@ async function postJson(path, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = (await response.json()).error || "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || `${response.status} ${response.statusText}`);
+  }
   return response.json();
 }
 
@@ -88,20 +134,27 @@ function App() {
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
   const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "" });
+  const [intelligence, setIntelligence] = useState(FALLBACK_INTELLIGENCE);
+  const [selectedTask, setSelectedTask] = useState("first_pass_summary");
+  const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
+  const [configAction, setConfigAction] = useState({ status: "idle", message: "", preview: null });
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=25"),
-          fetchJson("/api/review-queue?limit=100")
+          fetchJson("/api/review-queue?limit=100"),
+          fetchJson("/api/intelligence/providers"),
+          fetchJson("/api/intelligence/config")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
         setReviewQueue(reviewPayload);
+        setIntelligence({ providers: providerPayload, config: configPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
         setApiError("");
       } catch (error) {
@@ -126,6 +179,24 @@ function App() {
 
   const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
+  const taskEntries = Object.entries(intelligence.config?.tasks || {});
+  const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
+  const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
+  const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
+
+  useEffect(() => {
+    if (!selectedTaskConfig) return;
+    setTaskDraft({
+      provider: selectedTaskConfig.provider || "",
+      model: selectedTaskConfig.model || "",
+      timeout: selectedTaskConfig.timeout ?? "",
+      temperature: selectedTaskConfig.temperature ?? "",
+      fallbacks: (selectedTaskConfig.fallbacks || []).join(", "),
+      human_review: selectedTaskConfig.human_review || "",
+      requires_ledger: Boolean(selectedTaskConfig.requires_ledger)
+    });
+    setConfigAction({ status: "idle", message: "", preview: null });
+  }, [selectedTask, selectedTaskFingerprint]);
 
   async function prepareFirstPassBatch() {
     setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "" });
@@ -187,6 +258,59 @@ function App() {
     }
   }
 
+  function taskUpdatePayload() {
+    return {
+      provider: taskDraft.provider,
+      model: taskDraft.model,
+      timeout: taskDraft.timeout === "" ? "" : Number(taskDraft.timeout),
+      temperature: taskDraft.temperature === "" ? "" : Number(taskDraft.temperature),
+      fallbacks: taskDraft.fallbacks.split(",").map((item) => item.trim()).filter(Boolean),
+      human_review: taskDraft.human_review,
+      requires_ledger: taskDraft.requires_ledger
+    };
+  }
+
+  async function previewConfigUpdate() {
+    setConfigAction({ status: "running", message: "Previewing intelligence routing update...", preview: null });
+    try {
+      const payload = await postJson("/api/intelligence/config/preview", {
+        task: selectedTask,
+        update: taskUpdatePayload()
+      });
+      setConfigAction({
+        status: "previewed",
+        message: `Preview ready for ${selectedTask}; no config was written.`,
+        preview: payload
+      });
+    } catch (error) {
+      setConfigAction({ status: "error", message: `Preview failed: ${error.message}`, preview: null });
+    }
+  }
+
+  async function applyConfigUpdate() {
+    const preview = configAction.preview;
+    if (!preview) return;
+    const approved = window.confirm(`Apply intelligence routing update for ${selectedTask}?`);
+    if (!approved) return;
+    setConfigAction((current) => ({ ...current, status: "applying", message: "Applying intelligence routing update..." }));
+    try {
+      const payload = await postJson("/api/intelligence/config/apply", {
+        task: selectedTask,
+        update: taskUpdatePayload(),
+        approval_token: "APPLY_INTELLIGENCE_CONFIG_UPDATE"
+      });
+      const configPayload = await fetchJson("/api/intelligence/config");
+      setIntelligence((current) => ({ ...current, config: configPayload }));
+      setConfigAction({
+        status: "applied",
+        message: `Applied ${payload.task}; rollback metadata is available in the last preview response.`,
+        preview: payload
+      });
+    } catch (error) {
+      setConfigAction((current) => ({ ...current, status: "error", message: `Apply failed: ${error.message}` }));
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -229,21 +353,35 @@ function App() {
           <div className="pane-content">
             <p className="eyebrow">{activeNav}</p>
             <h2>Workflow filters</h2>
-            <div className="filter-card">
-              <span>Kind</span>
-              <button type="button">Transcripts</button>
-              <button type="button">Summaries</button>
-              <button type="button">Contextual readouts</button>
-            </div>
-            <div className="filter-card">
-              <span>Review buckets</span>
-              {reviewBuckets.map((bucket) => (
-                <button key={bucket.id || bucket.label} type="button">
-                  {bucket.label}
-                  <strong>{bucket.count}</strong>
-                </button>
-              ))}
-            </div>
+            {activeNav === "Intelligence" ? (
+              <div className="filter-card task-filter">
+                <span>Task routing</span>
+                {taskEntries.map(([task, config]) => (
+                  <button className={selectedTask === task ? "selected-filter" : ""} key={task} onClick={() => setSelectedTask(task)} type="button">
+                    {statusLabel(task)}
+                    <strong>{config.provider}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="filter-card">
+                  <span>Kind</span>
+                  <button type="button">Transcripts</button>
+                  <button type="button">Summaries</button>
+                  <button type="button">Contextual readouts</button>
+                </div>
+                <div className="filter-card">
+                  <span>Review buckets</span>
+                  {reviewBuckets.map((bucket) => (
+                    <button key={bucket.id || bucket.label} type="button">
+                      {bucket.label}
+                      <strong>{bucket.count}</strong>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="runtime-card">
               <span>Runtime</span>
               <code>{health.store_dir}</code>
@@ -256,11 +394,12 @@ function App() {
           <div className="view-heading">
             <div>
               <p className="eyebrow">Operator Surface</p>
-              <h1>{activeNav === "Review Queue" ? "Review queue" : "Transcript library"}</h1>
+              <h1>{activeNav === "Review Queue" ? "Review queue" : activeNav === "Intelligence" ? "Intelligence routing" : "Transcript library"}</h1>
             </div>
             <div className="summary-strip">
               <span>{library.total ?? visibleItems.length} stored rows</span>
               <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
+              {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
             </div>
           </div>
 
@@ -272,6 +411,19 @@ function App() {
               onSubmitFirstPass={submitFirstPassBatch}
               onRefreshFirstPass={refreshFirstPassBatch}
             />
+          ) : activeNav === "Intelligence" ? (
+            <IntelligencePanel
+              config={intelligence.config}
+              providers={intelligence.providers}
+              selectedTask={selectedTask}
+              selectedTaskConfig={selectedTaskConfig}
+              selectedProvider={selectedProvider}
+              taskDraft={taskDraft}
+              setTaskDraft={setTaskDraft}
+              configAction={configAction}
+              onPreview={previewConfigUpdate}
+              onApply={applyConfigUpdate}
+            />
           ) : (
             <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
           )}
@@ -281,10 +433,113 @@ function App() {
           <button className="pane-toggle" onClick={() => setRightCollapsed((value) => !value)} type="button">
             {rightCollapsed ? "Inspector +" : "Collapse inspector"}
           </button>
-          <Inspector item={selected} activeNav={activeNav} reviewQueue={reviewQueue} />
+          <Inspector
+            item={selected}
+            activeNav={activeNav}
+            reviewQueue={reviewQueue}
+            selectedTask={selectedTask}
+            selectedTaskConfig={selectedTaskConfig}
+            selectedProvider={selectedProvider}
+            configAction={configAction}
+            intelligence={intelligence}
+          />
         </aside>
       </section>
     </main>
+  );
+}
+
+function IntelligencePanel({
+  config,
+  providers,
+  selectedTask,
+  selectedTaskConfig,
+  selectedProvider,
+  taskDraft,
+  setTaskDraft,
+  configAction,
+  onPreview,
+  onApply
+}) {
+  const providerList = providers?.providers || [];
+  const taskEntries = Object.entries(config?.tasks || {});
+  return (
+    <div className="intelligence-grid">
+      <section className="intelligence-card task-editor">
+        <p className="eyebrow">Task Config</p>
+        <h2>{statusLabel(selectedTask)}</h2>
+        <p>Preview changes first. Apply writes only to the user-scoped intelligence config with an approval token.</p>
+        <div className="editor-grid">
+          <label>
+            <span>Provider</span>
+            <select value={taskDraft.provider} onChange={(event) => setTaskDraft((draft) => ({ ...draft, provider: event.target.value }))}>
+              {[...new Set([taskDraft.provider, ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
+                <option key={providerId} value={providerId}>{providerId}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Model</span>
+            <input value={taskDraft.model} onChange={(event) => setTaskDraft((draft) => ({ ...draft, model: event.target.value }))} placeholder="provider default" />
+          </label>
+          <label>
+            <span>Timeout</span>
+            <input type="number" value={taskDraft.timeout} onChange={(event) => setTaskDraft((draft) => ({ ...draft, timeout: event.target.value }))} />
+          </label>
+          <label>
+            <span>Temperature</span>
+            <input type="number" step="0.1" value={taskDraft.temperature} onChange={(event) => setTaskDraft((draft) => ({ ...draft, temperature: event.target.value }))} />
+          </label>
+          <label>
+            <span>Fallbacks</span>
+            <input value={taskDraft.fallbacks} onChange={(event) => setTaskDraft((draft) => ({ ...draft, fallbacks: event.target.value }))} placeholder="codex-exec, openai-compatible" />
+          </label>
+          <label>
+            <span>Human review</span>
+            <input value={taskDraft.human_review} onChange={(event) => setTaskDraft((draft) => ({ ...draft, human_review: event.target.value }))} />
+          </label>
+          <label className="checkbox-line">
+            <input type="checkbox" checked={taskDraft.requires_ledger} onChange={(event) => setTaskDraft((draft) => ({ ...draft, requires_ledger: event.target.checked }))} />
+            <span>Requires run ledger</span>
+          </label>
+        </div>
+        <div className="notice-actions">
+          <button onClick={onPreview} disabled={configAction.status === "running"} type="button">Preview update</button>
+          <button onClick={onApply} disabled={!configAction.preview || configAction.status === "applying"} type="button">Apply with approval</button>
+        </div>
+        {configAction.message && <div className={`action-notice ${configAction.status}`}><strong>{configAction.message}</strong></div>}
+      </section>
+
+      <section className="intelligence-card provider-map">
+        <p className="eyebrow">Provider Status</p>
+        <h2>{selectedProvider?.label || selectedTaskConfig?.provider || "No provider"}</h2>
+        <div className="provider-list">
+          {providerList.map((provider) => (
+            <article className={provider.id === selectedTaskConfig?.provider ? "provider-row active" : "provider-row"} key={provider.id}>
+              <div>
+                <strong>{provider.label || provider.id}</strong>
+                <small>{provider.id}</small>
+              </div>
+              <span>{provider.status || (provider.ready ? "ready" : "unknown")}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="intelligence-card task-map">
+        <p className="eyebrow">Resolved Routes</p>
+        <h2>{config?.schema_version}</h2>
+        <div className="task-table">
+          {taskEntries.map(([task, route]) => (
+            <article className={task === selectedTask ? "task-row active" : "task-row"} key={task}>
+              <strong>{statusLabel(task)}</strong>
+              <span>{route.provider}</span>
+              <small>{route.model || "provider default"} · {route.source}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -390,7 +645,38 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
   );
 }
 
-function Inspector({ item, activeNav, reviewQueue }) {
+function Inspector({ item, activeNav, reviewQueue, selectedTask, selectedTaskConfig, selectedProvider, configAction, intelligence }) {
+  if (activeNav === "Intelligence") {
+    const preview = configAction.preview;
+    return (
+      <div className="inspector-content">
+        <p className="eyebrow">Intelligence Inspector</p>
+        <h2>{statusLabel(selectedTask || "task")}</h2>
+        <dl>
+          <dt>Provider</dt>
+          <dd>{selectedTaskConfig?.provider || "Unknown"}</dd>
+          <dt>Model</dt>
+          <dd>{selectedTaskConfig?.model || "Provider default"}</dd>
+          <dt>Config path</dt>
+          <dd>{intelligence.config?.config_path || "Unavailable"}</dd>
+          <dt>Provider status</dt>
+          <dd>{selectedProvider?.status || "No provider status"}</dd>
+          <dt>Requires ledger</dt>
+          <dd>{selectedTaskConfig?.requires_ledger ? "yes" : "no"}</dd>
+        </dl>
+        {preview ? (
+          <div className="preview-card">
+            <span>Preview</span>
+            <strong>{preview.will_write ? "Apply response" : "No write preview"}</strong>
+            <p>{preview.resolved_before?.provider} → {preview.resolved_after?.provider}</p>
+            <code>{JSON.stringify(preview.rollback || {}, null, 2)}</code>
+          </div>
+        ) : (
+          <p className="muted">Preview a task edit to see rollback metadata here.</p>
+        )}
+      </div>
+    );
+  }
   if (activeNav === "Review Queue") {
     const routeBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "route_reviews");
     const filenameBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "filename_conflicts");
