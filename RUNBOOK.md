@@ -4186,6 +4186,44 @@ Next:
   starting with no-op `stop` and `ask_for_human_review` records before any
   fork/rollback/write-bearing host action.
 
+## Turn 130 | 2026-05-20
+
+Summary: Added ledger-only structured-decision apply records.
+
+Action:
+
+- Added `STRUCTURED_DECISION_APPLY_TOKEN=APPLY_STRUCTURED_DECISION`.
+- Added `apply_validated_structured_decision()` to require an already validated
+  decision and accept only `stop` or `ask_for_human_review`.
+- Added
+  `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/apply`.
+- The apply path writes
+  `artifacts/structured-decisions/<decision_id>.apply.json`, updates the local
+  run ledger, appends `structured_decision_applied`, and marks the run
+  `stopped` or `needs_human_review`.
+- The apply path returns explicit non-action flags:
+  `will_execute_external_action=false`,
+  `will_execute_write_bearing_action=false`, and
+  `will_fork_or_rollback=false`.
+- Added a React `Apply ledger-only decision` control for validated `stop` and
+  `ask_for_human_review` decisions.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned older broad
+  repo facts only, so repo source remained authoritative.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Make `ask_for_human_review` visible in the Review Queue before adding any
+  branch, rollback, or write-bearing apply action.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

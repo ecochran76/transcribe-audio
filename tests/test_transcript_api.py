@@ -765,6 +765,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         decision_response = urlopen(decision_request, timeout=5)
         decision = json.loads(decision_response.read())
+        apply_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/structured-decisions/{decision['decision_id']}/apply",
+            data=json.dumps({"approval_token": "APPLY_STRUCTURED_DECISION", "reviewer": "api-test"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        apply_response = urlopen(apply_request, timeout=5)
+        applied = json.loads(apply_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -801,10 +809,16 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert decision["valid"] is True
     assert decision["decision"]["action"] == "ask_for_human_review"
     assert decision["will_execute_host_action"] is False
-    assert shown["run"]["phase"] == "model_turn_completed"
+    assert apply_response.status == 202
+    assert applied["decision_action"] == "ask_for_human_review"
+    assert applied["applied_ledger_state"] is True
+    assert applied["will_execute_external_action"] is False
+    assert applied["will_execute_write_bearing_action"] is False
+    assert shown["run"]["phase"] == "human_review_requested"
+    assert shown["run"]["status"] == "needs_human_review"
     assert shown["run"]["state"]["active_codex_thread_id"] == "thread_test"
-    assert shown["run"]["decisions"][0]["status"] == "validated"
-    assert shown["events"][-1]["event_type"] == "structured_decision_validated"
+    assert shown["run"]["decisions"][0]["status"] == "applied"
+    assert shown["events"][-1]["event_type"] == "structured_decision_applied"
     assert shown["codex_events_count"] == 2
 
 

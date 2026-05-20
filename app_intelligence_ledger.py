@@ -23,6 +23,7 @@ MODEL_TURN_PREFLIGHT_TOKEN = "PREPARE_MODEL_TURN_PREFLIGHT"
 MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
 MODEL_TURN_STATUS_TOKEN = "CAPTURE_MODEL_TURN_STATUS"
 STRUCTURED_DECISION_VALIDATE_TOKEN = "VALIDATE_STRUCTURED_DECISION"
+STRUCTURED_DECISION_APPLY_TOKEN = "APPLY_STRUCTURED_DECISION"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -59,6 +60,7 @@ STRUCTURED_DECISION_ACTIONS = {
     "stop",
     "ask_for_human_review",
 }
+LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS = {"stop", "ask_for_human_review"}
 
 
 def utc_now() -> str:
@@ -953,6 +955,133 @@ def validate_latest_structured_decision(
         "decision_id": decision_id,
         "artifact_path": str(validation_path),
         "will_execute_host_action": False,
+        "run": ledger,
+        "event": event,
+    }
+
+
+def apply_validated_structured_decision(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    decision_id: str,
+    approval_token: str,
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    if approval_token != STRUCTURED_DECISION_APPLY_TOKEN:
+        raise ValueError(f"Applying structured decisions requires approval_token={STRUCTURED_DECISION_APPLY_TOKEN}.")
+    if not decision_id:
+        raise ValueError("decision_id is required.")
+
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    path = run_dir(state_root, run_id)
+    decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+    index = next((idx for idx, item in enumerate(decisions) if item.get("decision_id") == decision_id), -1)
+    if index < 0:
+        raise ValueError(f"Decision not found for run: {decision_id}")
+    summary = decisions[index]
+    if summary.get("status") != "validated" or not summary.get("valid"):
+        raise ValueError("Only validated structured decisions can be applied.")
+    if summary.get("apply_result"):
+        raise ValueError("Structured decision has already been applied.")
+
+    validation_path = Path(str(summary.get("artifact_path") or ""))
+    resolved = validation_path.resolve()
+    try:
+        resolved.relative_to(path.resolve())
+    except ValueError as exc:
+        raise ValueError("Decision artifact resolves outside the run directory.") from exc
+    if not resolved.exists():
+        raise FileNotFoundError("Decision validation artifact is missing.")
+    validation = read_json(resolved)
+    decision = validation.get("decision") if isinstance(validation.get("decision"), dict) else {}
+    action = str(decision.get("action") or summary.get("action") or "")
+    if action not in LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS:
+        raise ValueError(
+            "This apply endpoint only records ledger-only stop and ask_for_human_review decisions; "
+            f"action {action!r} is not enabled."
+        )
+
+    applied_at = utc_now()
+    status = "stopped" if action == "stop" else "needs_human_review"
+    phase = "stopped" if action == "stop" else "human_review_requested"
+    apply_artifact = {
+        "schema_version": "transcribe-audio.app-intelligence-structured-decision-apply.v1",
+        "run_id": run_id,
+        "decision_id": decision_id,
+        "action": action,
+        "applied_at": applied_at,
+        "reviewer": reviewer or "operator",
+        "note": note,
+        "source_validation_artifact": str(resolved),
+        "decision": decision,
+        "applied_ledger_state": True,
+        "will_execute_external_action": False,
+        "will_execute_downstream_action": False,
+        "will_execute_write_bearing_action": False,
+        "will_fork_or_rollback": False,
+    }
+    apply_path = path / "artifacts" / "structured-decisions" / f"{decision_id}.apply.json"
+    write_json(apply_path, apply_artifact)
+
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="structured_decision_applied",
+        payload={
+            "decision_id": decision_id,
+            "action": action,
+            "artifact_path": str(apply_path),
+            "applied_ledger_state": True,
+            "will_execute_external_action": False,
+            "will_execute_downstream_action": False,
+            "will_execute_write_bearing_action": False,
+        },
+    )
+    updated_summary = {
+        **summary,
+        "status": "applied",
+        "applied_at": applied_at,
+        "apply_event_id": event["event_id"],
+        "apply_result": {
+            "action": action,
+            "artifact_path": str(apply_path),
+            "applied_ledger_state": True,
+            "will_execute_external_action": False,
+            "will_execute_downstream_action": False,
+            "will_execute_write_bearing_action": False,
+        },
+    }
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={
+            "status": status,
+            "phase": phase,
+            "decisions": [*decisions[:index], updated_summary, *decisions[index + 1 :]],
+            "final": {
+                "decision_id": decision_id,
+                "action": action,
+                "status": status,
+                "applied_at": applied_at,
+                "ledger_only": True,
+            },
+        },
+    )
+    return {
+        "schema_version": apply_artifact["schema_version"],
+        "action": "apply_structured_decision",
+        "ok": True,
+        "decision_id": decision_id,
+        "decision_action": action,
+        "artifact_path": str(apply_path),
+        "applied_ledger_state": True,
+        "will_execute_external_action": False,
+        "will_execute_downstream_action": False,
+        "will_execute_write_bearing_action": False,
+        "will_fork_or_rollback": False,
         "run": ledger,
         "event": event,
     }

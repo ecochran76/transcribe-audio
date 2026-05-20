@@ -270,6 +270,29 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown_after_decision["run"]["decisions"][0]["status"] == "validated"
     assert shown_after_decision["events"][-1]["event_type"] == "structured_decision_validated"
 
+    applied = app_intelligence_ledger.apply_validated_structured_decision(
+        state_root=tmp_path,
+        run_id="packet-run",
+        decision_id=decision["decision_id"],
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_APPLY_TOKEN,
+        reviewer="test-operator",
+        note="Route to the review queue surface.",
+    )
+    shown_after_apply = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert applied["ok"] is True
+    assert applied["decision_action"] == "ask_for_human_review"
+    assert applied["applied_ledger_state"] is True
+    assert applied["will_execute_external_action"] is False
+    assert applied["will_execute_downstream_action"] is False
+    assert applied["will_execute_write_bearing_action"] is False
+    assert applied["will_fork_or_rollback"] is False
+    assert Path(applied["artifact_path"]).exists()
+    assert shown_after_apply["run"]["phase"] == "human_review_requested"
+    assert shown_after_apply["run"]["status"] == "needs_human_review"
+    assert shown_after_apply["run"]["decisions"][0]["status"] == "applied"
+    assert shown_after_apply["events"][-1]["event_type"] == "structured_decision_applied"
+
 
 def test_structured_decision_validation_rejects_non_decision_output(tmp_path: Path) -> None:
     app_intelligence_ledger.create_run(
@@ -313,6 +336,69 @@ def test_structured_decision_validation_rejects_non_decision_output(tmp_path: Pa
     assert decision["will_execute_host_action"] is False
     assert decision["errors"]
     assert decision["run"]["decisions"][0]["status"] == "rejected"
+
+
+def test_structured_decision_apply_blocks_write_bearing_actions(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="contextual_reread",
+        purpose="Validate fork decision output.",
+        run_id="fork-decision-run",
+    )
+    app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="fork-decision-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True},
+        version_result={"ok": True},
+    )
+    app_intelligence_ledger.record_model_turn_started(
+        state_root=tmp_path,
+        run_id="fork-decision-run",
+        packet_id="packet-1",
+        thread_id="thread_fork",
+        turn_id="turn_fork",
+        app_server_result={},
+    )
+    app_intelligence_ledger.record_model_turn_status(
+        state_root=tmp_path,
+        run_id="fork-decision-run",
+        thread_id="thread_fork",
+        turn_id="turn_fork",
+        status_payload={
+            "status": "completed",
+            "completed": True,
+            "output_text": json.dumps(
+                {
+                    "action": "fork_branches",
+                    "rationale": "Explore competing context routes.",
+                    "confidence": 0.81,
+                    "review_flags": [],
+                    "branch_count": 2,
+                    "experiments": ["drive-heavy", "graph-heavy"],
+                }
+            ),
+        },
+        approval_token=app_intelligence_ledger.MODEL_TURN_STATUS_TOKEN,
+    )
+    decision = app_intelligence_ledger.validate_latest_structured_decision(
+        state_root=tmp_path,
+        run_id="fork-decision-run",
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
+    )
+
+    try:
+        app_intelligence_ledger.apply_validated_structured_decision(
+            state_root=tmp_path,
+            run_id="fork-decision-run",
+            decision_id=decision["decision_id"],
+            approval_token=app_intelligence_ledger.STRUCTURED_DECISION_APPLY_TOKEN,
+        )
+    except ValueError as exc:
+        assert "only records ledger-only" in str(exc)
+    else:
+        raise AssertionError("Expected fork_branches to be blocked by the ledger-only apply endpoint.")
 
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:

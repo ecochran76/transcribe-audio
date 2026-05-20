@@ -23,6 +23,7 @@ import intelligence_config
 import codex_app_server_client
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
+    apply_validated_structured_decision as apply_app_intelligence_structured_decision,
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
     mark_session_started as mark_app_intelligence_session_started,
@@ -1199,6 +1200,22 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             state_root=self.state_root,
                             run_id=parts[3],
                             approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/apply"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 7 and parts[4] == "structured-decisions":
+                    body = self.read_json_body()
+                    self.write_json(
+                        apply_app_intelligence_structured_decision(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            decision_id=parts[5],
+                            approval_token=str(body.get("approval_token") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
                         ),
                         status=HTTPStatus.ACCEPTED,
                     )

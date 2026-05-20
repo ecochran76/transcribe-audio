@@ -162,6 +162,7 @@ function App() {
   const [sendAction, setSendAction] = useState({ status: "idle", message: "", payload: null });
   const [turnStatusAction, setTurnStatusAction] = useState({ status: "idle", message: "", payload: null });
   const [decisionValidation, setDecisionValidation] = useState({ status: "idle", message: "", payload: null });
+  const [decisionApply, setDecisionApply] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -217,6 +218,7 @@ function App() {
         setSendAction({ status: "idle", message: "", payload: null });
         setTurnStatusAction({ status: "idle", message: "", payload: null });
         setDecisionValidation({ status: "idle", message: "", payload: null });
+        setDecisionApply({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -584,6 +586,28 @@ function App() {
     }
   }
 
+  async function applyStructuredDecision(decisionId) {
+    if (!selectedRunId || !decisionId) return;
+    const approved = window.confirm("Record this validated ledger-only decision? This will not fork, rollback, write memory, route artifacts, or touch external systems.");
+    if (!approved) return;
+    setDecisionApply({ status: "applying", message: "Recording ledger-only structured decision...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/structured-decisions/${encodeURIComponent(decisionId)}/apply`, {
+        approval_token: "APPLY_STRUCTURED_DECISION",
+        reviewer: "operator"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setDecisionApply({
+        status: "applied",
+        message: "Ledger-only structured decision recorded; no external or write-bearing action was executed.",
+        payload
+      });
+    } catch (error) {
+      setDecisionApply({ status: "error", message: `Structured decision apply failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -741,6 +765,8 @@ function App() {
             onCaptureTurnStatus={captureTurnStatus}
             decisionValidation={decisionValidation}
             onValidateStructuredDecision={validateStructuredDecision}
+            decisionApply={decisionApply}
+            onApplyStructuredDecision={applyStructuredDecision}
             intelligence={intelligence}
           />
         </aside>
@@ -1049,6 +1075,8 @@ function Inspector({
   onCaptureTurnStatus,
   decisionValidation,
   onValidateStructuredDecision,
+  decisionApply,
+  onApplyStructuredDecision,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1058,6 +1086,11 @@ function Inspector({
     const policy = run?.policy || {};
     const approvalPolicy = policy.approval_policy || {};
     const evalPolicy = policy.eval_policy || {};
+    const decisions = run?.decisions || [];
+    const latestDecision = decisions.length ? decisions[decisions.length - 1] : null;
+    const latestDecisionCanApply =
+      latestDecision?.status === "validated" &&
+      (latestDecision.action === "stop" || latestDecision.action === "ask_for_human_review");
     return (
       <div className="inspector-content">
         <p className="eyebrow">Intelligence Inspector</p>
@@ -1241,6 +1274,39 @@ function Inspector({
                         action: decisionValidation.payload.decision?.action || "",
                         errors: decisionValidation.payload.errors || [],
                         will_execute_host_action: decisionValidation.payload.will_execute_host_action
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  {latestDecision ? (
+                    <div className="action-notice ok">
+                      <strong>Latest structured decision: {latestDecision.action || "unknown"} ({latestDecision.status})</strong>
+                      <code>{JSON.stringify({
+                        decision_id: latestDecision.decision_id,
+                        action: latestDecision.action,
+                        status: latestDecision.status,
+                        will_execute_host_action: latestDecision.will_execute_host_action,
+                        apply_result: latestDecision.apply_result || null
+                      }, null, 2)}</code>
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button"
+                    disabled={decisionApply.status === "applying" || !latestDecisionCanApply}
+                    onClick={() => onApplyStructuredDecision(latestDecision?.decision_id)}
+                    type="button"
+                  >
+                    Apply ledger-only decision
+                  </button>
+                  {decisionApply.message ? (
+                    <div className={`action-notice ${decisionApply.status}`}>
+                      <strong>{decisionApply.message}</strong>
+                      {decisionApply.payload && <code>{JSON.stringify({
+                        decision_id: decisionApply.payload.decision_id,
+                        action: decisionApply.payload.decision_action,
+                        applied_ledger_state: decisionApply.payload.applied_ledger_state,
+                        will_execute_external_action: decisionApply.payload.will_execute_external_action,
+                        will_execute_write_bearing_action: decisionApply.payload.will_execute_write_bearing_action,
+                        will_fork_or_rollback: decisionApply.payload.will_fork_or_rollback
                       }, null, 2)}</code>}
                     </div>
                   ) : null}
