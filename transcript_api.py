@@ -20,13 +20,17 @@ from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
 import intelligence_config
+import codex_app_server_client
 from app_intelligence_ledger import (
+    append_codex_event as append_app_intelligence_codex_event,
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
     mark_session_started as mark_app_intelligence_session_started,
     model_turn_send_preflight as preflight_app_intelligence_model_turn_send,
     prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
     read_model_turn_packet as read_app_intelligence_model_turn_packet,
+    record_model_turn_failed as record_app_intelligence_model_turn_failed,
+    record_model_turn_started as record_app_intelligence_model_turn_started,
     record_session_start_failed as record_app_intelligence_session_start_failed,
     record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
@@ -1043,6 +1047,91 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         approval_token=str(body.get("approval_token") or ""),
                     )
                     self.write_json(preflight, status=HTTPStatus.OK if preflight.get("ok") else HTTPStatus.CONFLICT)
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/send"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 7 and parts[4] == "prompt-packets":
+                    body = self.read_json_body()
+                    run_id = parts[3]
+                    packet_id = parts[5]
+                    preflight = preflight_app_intelligence_model_turn_send(
+                        state_root=self.state_root,
+                        run_id=run_id,
+                        packet_id=packet_id,
+                        approval_token=str(body.get("approval_token") or ""),
+                    )
+                    if not preflight.get("ok"):
+                        self.write_json(preflight, status=HTTPStatus.CONFLICT)
+                        return
+                    packet_review = read_app_intelligence_model_turn_packet(
+                        state_root=self.state_root,
+                        run_id=run_id,
+                        packet_id=packet_id,
+                    )
+                    current = get_app_intelligence_run(state_root=self.state_root, run_id=run_id, event_limit=1)
+                    current_run = current.get("run") if isinstance(current.get("run"), dict) else {}
+                    current_state = current_run.get("state") if isinstance(current_run.get("state"), dict) else {}
+                    route = packet_review.get("packet", {}).get("route") if isinstance(packet_review.get("packet"), dict) else {}
+                    model = str(route.get("model") or "") if isinstance(route, dict) else ""
+                    try:
+                        app_server_result = codex_app_server_client.start_model_turn(
+                            codex_bin=str(self.server.codex_bin),  # type: ignore[attr-defined]
+                            cwd=Path(__file__).resolve().parent,
+                            prompt_text=str(packet_review.get("prompt_text") or ""),
+                            model=model,
+                            existing_thread_id=str(current_state.get("active_codex_thread_id") or ""),
+                            timeout_seconds=float(body.get("timeout_seconds") or 30),
+                        )
+                    except Exception as exc:
+                        event = record_app_intelligence_model_turn_failed(
+                            state_root=self.state_root,
+                            run_id=run_id,
+                            packet_id=packet_id,
+                            error=str(exc),
+                        )
+                        self.write_json(
+                            {
+                                "schema_version": "transcribe-audio.app-intelligence-model-turn-send.v1",
+                                "action": "send_model_turn",
+                                "ok": False,
+                                "preflight": preflight,
+                                "event": event,
+                                "will_execute_downstream_action": False,
+                                "error": str(exc),
+                            },
+                            status=HTTPStatus.BAD_GATEWAY,
+                        )
+                        return
+                    for codex_event in app_server_result.get("events", []):
+                        if isinstance(codex_event, dict):
+                            append_app_intelligence_codex_event(state_root=self.state_root, run_id=run_id, payload=codex_event)
+                    started = record_app_intelligence_model_turn_started(
+                        state_root=self.state_root,
+                        run_id=run_id,
+                        packet_id=packet_id,
+                        thread_id=str(app_server_result.get("thread_id") or ""),
+                        turn_id=str(app_server_result.get("turn_id") or ""),
+                        app_server_result={
+                            "thread_start_response": app_server_result.get("thread_start_response") or {},
+                            "turn_start_response": app_server_result.get("turn_start_response") or {},
+                            "captured_event_count": len(app_server_result.get("events") or []),
+                        },
+                    )
+                    self.write_json(
+                        {
+                            "schema_version": "transcribe-audio.app-intelligence-model-turn-send.v1",
+                            "action": "send_model_turn",
+                            "ok": True,
+                            "packet_id": packet_id,
+                            "codex_thread_id": app_server_result.get("thread_id") or "",
+                            "codex_turn_id": app_server_result.get("turn_id") or "",
+                            "captured_event_count": len(app_server_result.get("events") or []),
+                            "preflight": preflight,
+                            "will_execute_downstream_action": False,
+                            **started,
+                        },
+                        status=HTTPStatus.ACCEPTED,
+                    )
                     return
             if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/session-start-preflight"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]

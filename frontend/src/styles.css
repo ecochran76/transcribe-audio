@@ -698,6 +698,11 @@ td small {
   background: rgba(215, 255, 115, 0.12);
 }
 
+.danger-gate {
+  border-color: rgba(255, 128, 102, 0.42);
+  background: rgba(255, 128, 102, 0.12);
+}
+
 .preview-card {
   display: grid;
   gap: 0.45rem;

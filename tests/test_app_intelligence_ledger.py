@@ -202,6 +202,28 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown_after_send_preflight["run"]["prompt_packets"][0]["sent"] is False
     assert [event["event_id"] for event in shown_after_send_preflight["events"]] == [event["event_id"] for event in shown["events"]]
 
+    app_intelligence_ledger.append_codex_event(
+        state_root=tmp_path,
+        run_id="packet-run",
+        payload={"method": "turn/started", "params": {"turn": {"id": "turn_123"}}},
+    )
+    started = app_intelligence_ledger.record_model_turn_started(
+        state_root=tmp_path,
+        run_id="packet-run",
+        packet_id=prepared["packet"]["packet_id"],
+        thread_id="thread_123",
+        turn_id="turn_123",
+        app_server_result={"captured_event_count": 1},
+    )
+    shown_after_start = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert started["run"]["phase"] == "model_turn_started"
+    assert started["run"]["state"]["active_codex_thread_id"] == "thread_123"
+    assert started["run"]["state"]["latest_turn_id"] == "turn_123"
+    assert started["run"]["prompt_packets"][0]["sent"] is True
+    assert shown_after_start["events"][-1]["event_type"] == "model_turn_started"
+    assert shown_after_start["codex_events_count"] == 1
+
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(

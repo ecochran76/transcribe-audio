@@ -635,6 +635,21 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
 
     monkeypatch.setattr(transcript_api, "run_codex_command", fake_run_codex_command)
 
+    def fake_start_model_turn(**kwargs: object) -> dict:
+        assert kwargs["codex_bin"] == "/usr/local/bin/codex"
+        assert "Tempo Chemical samples" in str(kwargs["prompt_text"])
+        assert kwargs["existing_thread_id"] == ""
+        return {
+            "ok": True,
+            "thread_id": "thread_test",
+            "turn_id": "turn_test",
+            "thread_start_response": {"thread": {"id": "thread_test"}},
+            "turn_start_response": {"turn": {"id": "turn_test"}},
+            "events": [{"method": "turn/started", "params": {"turn": {"id": "turn_test"}}}],
+        }
+
+    monkeypatch.setattr(transcript_api.codex_app_server_client, "start_model_turn", fake_start_model_turn)
+
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),
         transcript_api.TranscriptApiHandler,
@@ -699,6 +714,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         send_preflight_response = urlopen(send_preflight_request, timeout=5)
         send_preflight = json.loads(send_preflight_response.read())
+        send_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/prompt-packets/{packet['packet']['packet_id']}/send",
+            data=json.dumps({"approval_token": "SEND_APP_SERVER_MODEL_TURN"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        send_response = urlopen(send_request, timeout=5)
+        send = json.loads(send_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -719,8 +742,16 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert send_preflight["will_send_prompt"] is False
     assert send_preflight["will_write_event"] is False
     assert send_preflight["prompt_char_count"] > 0
-    assert shown["run"]["prompt_packets"][0]["sent"] is False
-    assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
+    assert send_response.status == 202
+    assert send["ok"] is True
+    assert send["codex_thread_id"] == "thread_test"
+    assert send["codex_turn_id"] == "turn_test"
+    assert send["will_execute_downstream_action"] is False
+    assert shown["run"]["prompt_packets"][0]["sent"] is True
+    assert shown["run"]["phase"] == "model_turn_started"
+    assert shown["run"]["state"]["active_codex_thread_id"] == "thread_test"
+    assert shown["events"][-1]["event_type"] == "model_turn_started"
+    assert shown["codex_events_count"] == 1
 
 
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:

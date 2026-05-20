@@ -4068,6 +4068,47 @@ Next:
   `SEND_APP_SERVER_MODEL_TURN` gate, with event capture and no write-bearing
   downstream action until structured-decision validation exists.
 
+## Turn 127 | 2026-05-20
+
+Summary: Added gated Codex app-server model-turn send.
+
+Action:
+
+- Added `codex_app_server_client.py`, a minimal JSON-RPC stdio/proxy client
+  for `initialize`, `thread/start`, and `turn/start`.
+- Added ledger helpers for captured Codex events, model-turn started state,
+  and model-turn send failure events.
+- Added
+  `POST /api/intelligence/runs/<run_id>/prompt-packets/<packet_id>/send`.
+- The send endpoint requires `approval_token=SEND_APP_SERVER_MODEL_TURN`, runs
+  the existing send preflight, starts or reuses a Codex thread, starts one
+  turn with the reviewed packet prompt, records captured app-server events in
+  `codex_events.jsonl`, marks the packet sent, and stores Codex thread/turn ids
+  in `run.json`.
+- The endpoint returns `will_execute_downstream_action=false`; it does not
+  parse model output into host decisions, fork, rollback, write memory, apply a
+  route, write a repository, or perform deposition actions.
+- Added a React `Send reviewed packet` action behind the packet review surface.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- Used the `app-intelligence-automation` skill and generated local Codex
+  app-server protocol schemas under `/tmp` to confirm JSON-RPC method shapes.
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source, generated protocol schemas, and local skill
+  references were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add a turn-status/readout endpoint that can inspect a started Codex turn and
+  capture completion/output without executing structured decisions.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

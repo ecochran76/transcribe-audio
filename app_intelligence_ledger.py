@@ -106,6 +106,18 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
+def append_codex_event(*, state_root: Optional[Path] = None, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    path = run_dir(state_root, run_id)
+    event = {
+        "schema_version": "transcribe-audio.app-intelligence-codex-event.v1",
+        "run_id": run_id,
+        "captured_at": utc_now(),
+        "payload": payload,
+    }
+    append_jsonl(path / "codex_events.jsonl", event)
+    return event
+
+
 def create_run(
     *,
     state_root: Optional[Path] = None,
@@ -606,6 +618,100 @@ def model_turn_send_preflight(
         "prompt_char_count": len(str(packet_review.get("prompt_text") or "")),
         "run": run_summary(run_dir(state_root, run_id)),
     }
+
+
+def record_model_turn_started(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    packet_id: str,
+    thread_id: str,
+    turn_id: str,
+    app_server_result: dict[str, Any],
+) -> dict[str, Any]:
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    state = run.get("state") if isinstance(run.get("state"), dict) else {}
+    branches = state.get("branches") if isinstance(state.get("branches"), dict) else {}
+    current_branch = str(state.get("current_branch") or "main")
+    branch_state = branches.get(current_branch) if isinstance(branches.get(current_branch), dict) else {}
+    branch_state = {
+        **branch_state,
+        "codex_thread_id": thread_id,
+        "latest_turn_id": turn_id,
+        "status": "model_turn_started",
+    }
+    state = {
+        **state,
+        "branches": {**branches, current_branch: branch_state},
+        "active_codex_thread_id": thread_id,
+        "latest_turn_id": turn_id,
+        "app_server": {
+            **(state.get("app_server") if isinstance(state.get("app_server"), dict) else {}),
+            "model_turn_started": True,
+            "latest_packet_id": packet_id,
+            "latest_turn_id": turn_id,
+        },
+    }
+    prompt_packets = run.get("prompt_packets") if isinstance(run.get("prompt_packets"), list) else []
+    updated_packets: list[dict[str, Any]] = []
+    for packet in prompt_packets:
+        if not isinstance(packet, dict):
+            continue
+        if packet.get("packet_id") == packet_id:
+            updated_packets.append(
+                {
+                    **packet,
+                    "sent": True,
+                    "sent_at": utc_now(),
+                    "codex_thread_id": thread_id,
+                    "codex_turn_id": turn_id,
+                }
+            )
+        else:
+            updated_packets.append(packet)
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={
+            "status": "running",
+            "phase": "model_turn_started",
+            "state": state,
+            "prompt_packets": updated_packets,
+        },
+    )
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="model_turn_started",
+        payload={
+            "packet_id": packet_id,
+            "codex_thread_id": thread_id,
+            "codex_turn_id": turn_id,
+            "will_execute_downstream_action": False,
+            "app_server_result": app_server_result,
+        },
+    )
+    return {"run": ledger, "event": event, "path": str(run_dir(state_root, run_id))}
+
+
+def record_model_turn_failed(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    packet_id: str,
+    error: str,
+) -> dict[str, Any]:
+    return append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="model_turn_send_failed",
+        payload={
+            "packet_id": packet_id,
+            "error": error,
+            "started_downstream_action": False,
+        },
+    )
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:

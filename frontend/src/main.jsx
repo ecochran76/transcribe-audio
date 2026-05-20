@@ -159,6 +159,7 @@ function App() {
   const [selectedPacketId, setSelectedPacketId] = useState("");
   const [packetReview, setPacketReview] = useState({ status: "idle", message: "", payload: null });
   const [sendPreflight, setSendPreflight] = useState({ status: "idle", message: "", payload: null });
+  const [sendAction, setSendAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +212,7 @@ function App() {
         setSelectedPacketId(payload.run?.prompt_packets?.slice(-1)[0]?.packet_id || "");
         setPacketReview({ status: "idle", message: "", payload: null });
         setSendPreflight({ status: "idle", message: "", payload: null });
+        setSendAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -512,6 +514,30 @@ function App() {
     }
   }
 
+  async function sendModelTurn() {
+    if (!selectedRunId || !selectedPacketId) return;
+    const approved = window.confirm("Send this reviewed prompt packet to Codex app-server? This starts a model turn and records ledger events, but will not execute downstream writes.");
+    if (!approved) return;
+    setSendAction({ status: "sending", message: "Sending reviewed packet to Codex app-server...", payload: null });
+    try {
+      const payload = await postJson(
+        `/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/prompt-packets/${encodeURIComponent(selectedPacketId)}/send`,
+        { approval_token: "SEND_APP_SERVER_MODEL_TURN" }
+      );
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setSendAction({
+        status: payload.ok ? "started" : "blocked",
+        message: payload.ok
+          ? "Model turn started and ledger events were recorded; no downstream action was executed."
+          : "Model turn send did not start.",
+        payload
+      });
+    } catch (error) {
+      setSendAction({ status: "error", message: `Model turn send failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -663,6 +689,8 @@ function App() {
             packetReview={packetReview}
             sendPreflight={sendPreflight}
             onRunModelTurnSendPreflight={runModelTurnSendPreflight}
+            sendAction={sendAction}
+            onSendModelTurn={sendModelTurn}
             intelligence={intelligence}
           />
         </aside>
@@ -965,6 +993,8 @@ function Inspector({
   packetReview,
   sendPreflight,
   onRunModelTurnSendPreflight,
+  sendAction,
+  onSendModelTurn,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1094,6 +1124,25 @@ function Inspector({
                         will_send_prompt: sendPreflight.payload.will_send_prompt,
                         will_write_event: sendPreflight.payload.will_write_event,
                         prompt_char_count: sendPreflight.payload.prompt_char_count
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button danger-gate"
+                    disabled={sendAction.status === "sending" || packetReview.payload.packet?.will_send_prompt === true}
+                    onClick={onSendModelTurn}
+                    type="button"
+                  >
+                    Send reviewed packet
+                  </button>
+                  {sendAction.message ? (
+                    <div className={`action-notice ${sendAction.status}`}>
+                      <strong>{sendAction.message}</strong>
+                      {sendAction.payload && <code>{JSON.stringify({
+                        codex_thread_id: sendAction.payload.codex_thread_id,
+                        codex_turn_id: sendAction.payload.codex_turn_id,
+                        captured_event_count: sendAction.payload.captured_event_count,
+                        will_execute_downstream_action: sendAction.payload.will_execute_downstream_action
                       }, null, 2)}</code>}
                     </div>
                   ) : null}
