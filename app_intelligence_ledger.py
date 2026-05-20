@@ -22,6 +22,7 @@ SESSION_START_PREFLIGHT_EVENT_TOKEN = "APPEND_SESSION_START_PREFLIGHT_EVENT"
 MODEL_TURN_PREFLIGHT_TOKEN = "PREPARE_MODEL_TURN_PREFLIGHT"
 MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
 MODEL_TURN_STATUS_TOKEN = "CAPTURE_MODEL_TURN_STATUS"
+STRUCTURED_DECISION_VALIDATE_TOKEN = "VALIDATE_STRUCTURED_DECISION"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -51,6 +52,13 @@ DEFAULT_APPROVAL_POLICY = {
 }
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9._:-]+$")
+STRUCTURED_DECISION_ACTIONS = {
+    "continue_current_branch",
+    "fork_branches",
+    "rollback",
+    "stop",
+    "ask_for_human_review",
+}
 
 
 def utc_now() -> str:
@@ -92,6 +100,31 @@ def read_json(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def extract_json_object(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("Captured turn output does not contain a JSON object.") from None
+        try:
+            payload = json.loads(stripped[start : end + 1])
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Captured turn output is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Captured turn output JSON must be an object.")
+    return payload
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -803,6 +836,125 @@ def record_model_turn_status(
         "completed": payload["completed"],
         "output_text": output_text,
         "will_execute_structured_decision": False,
+    }
+
+
+def validate_structured_decision_payload(payload: dict[str, Any]) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    action = payload.get("action")
+    if action not in STRUCTURED_DECISION_ACTIONS:
+        errors.append(f"action must be one of {sorted(STRUCTURED_DECISION_ACTIONS)}")
+    if not isinstance(payload.get("rationale"), str) or not payload.get("rationale", "").strip():
+        errors.append("rationale must be a non-empty string")
+    confidence = payload.get("confidence")
+    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= float(confidence) <= 1:
+        errors.append("confidence must be a number between 0 and 1")
+    review_flags = payload.get("review_flags")
+    if not isinstance(review_flags, list) or not all(isinstance(item, str) for item in review_flags):
+        errors.append("review_flags must be an array of strings")
+    next_prompt = payload.get("recommended_next_prompt", "")
+    if next_prompt is not None and not isinstance(next_prompt, str):
+        errors.append("recommended_next_prompt must be a string or null")
+    if payload.get("action") == "fork_branches":
+        branch_count = payload.get("branch_count")
+        if not isinstance(branch_count, int) or isinstance(branch_count, bool) or not 1 <= branch_count <= 5:
+            errors.append("branch_count must be an integer from 1 to 5 when action is fork_branches")
+        experiments = payload.get("experiments")
+        if not isinstance(experiments, list) or not experiments:
+            errors.append("experiments must be a non-empty array when action is fork_branches")
+    return not errors, errors
+
+
+def validate_latest_structured_decision(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != STRUCTURED_DECISION_VALIDATE_TOKEN:
+        raise ValueError(f"Validating structured decisions requires approval_token={STRUCTURED_DECISION_VALIDATE_TOKEN}.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    status = run.get("latest_model_turn_status") if isinstance(run.get("latest_model_turn_status"), dict) else {}
+    artifact_path = Path(str(status.get("artifact_path") or ""))
+    path = run_dir(state_root, run_id)
+    if not artifact_path.exists():
+        raise FileNotFoundError("No captured model-turn status artifact exists for this run.")
+    resolved = artifact_path.resolve()
+    try:
+        resolved.relative_to(path.resolve())
+    except ValueError as exc:
+        raise ValueError("Captured status artifact resolves outside the run directory.") from exc
+    status_payload = read_json(resolved)
+    output_text = str(status_payload.get("output_text") or "")
+    parsed: dict[str, Any] = {}
+    parse_error = ""
+    try:
+        parsed = extract_json_object(output_text)
+    except ValueError as exc:
+        parse_error = str(exc)
+    valid, errors = validate_structured_decision_payload(parsed) if parsed else (False, [parse_error])
+    decision_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-decision-{uuid.uuid4().hex[:8]}"
+    validation = {
+        "schema_version": "transcribe-audio.app-intelligence-structured-decision-validation.v1",
+        "decision_id": decision_id,
+        "run_id": run_id,
+        "codex_thread_id": status.get("codex_thread_id") or "",
+        "codex_turn_id": status.get("codex_turn_id") or "",
+        "source_status_artifact": str(resolved),
+        "validated_at": utc_now(),
+        "valid": valid,
+        "errors": errors,
+        "decision": parsed,
+        "allowed_actions": sorted(STRUCTURED_DECISION_ACTIONS),
+        "will_execute_host_action": False,
+    }
+    artifact_dir = path / "artifacts" / "structured-decisions"
+    validation_path = artifact_dir / f"{decision_id}.json"
+    write_json(validation_path, validation)
+
+    decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+    decision_summary = {
+        "decision_id": decision_id,
+        "codex_thread_id": validation["codex_thread_id"],
+        "codex_turn_id": validation["codex_turn_id"],
+        "valid": valid,
+        "action": parsed.get("action") or "",
+        "status": "validated" if valid else "rejected",
+        "artifact_path": str(validation_path),
+        "will_execute_host_action": False,
+        "created_at": validation["validated_at"],
+    }
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={"decisions": [*decisions, decision_summary]},
+    )
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="structured_decision_validated",
+        payload={
+            "decision_id": decision_id,
+            "valid": valid,
+            "action": parsed.get("action") or "",
+            "artifact_path": str(validation_path),
+            "error_count": len(errors),
+            "will_execute_host_action": False,
+        },
+    )
+    return {
+        "schema_version": validation["schema_version"],
+        "action": "validate_structured_decision",
+        "ok": True,
+        "valid": valid,
+        "errors": errors,
+        "decision": parsed,
+        "decision_id": decision_id,
+        "artifact_path": str(validation_path),
+        "will_execute_host_action": False,
+        "run": ledger,
+        "event": event,
     }
 
 

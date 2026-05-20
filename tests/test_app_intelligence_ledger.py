@@ -232,7 +232,15 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
         status_payload={
             "status": "completed",
             "completed": True,
-            "output_text": '{"summary":"ready"}',
+            "output_text": json.dumps(
+                {
+                    "action": "ask_for_human_review",
+                    "rationale": "The turn needs operator review before any host action.",
+                    "confidence": 0.72,
+                    "review_flags": ["human_review_required"],
+                    "recommended_next_prompt": "Ask for missing context.",
+                }
+            ),
             "thread_read_response": {},
             "turns_list_response": {},
             "items_list_response": {},
@@ -245,8 +253,66 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert captured["will_execute_structured_decision"] is False
     assert Path(captured["artifact_path"]).exists()
     assert shown_after_status["run"]["phase"] == "model_turn_completed"
-    assert shown_after_status["run"]["latest_model_turn_status"]["output_char_count"] == len('{"summary":"ready"}')
+    assert shown_after_status["run"]["latest_model_turn_status"]["output_char_count"] > 0
     assert shown_after_status["events"][-1]["event_type"] == "model_turn_status_captured"
+
+    decision = app_intelligence_ledger.validate_latest_structured_decision(
+        state_root=tmp_path,
+        run_id="packet-run",
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
+    )
+    shown_after_decision = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert decision["valid"] is True
+    assert decision["will_execute_host_action"] is False
+    assert decision["decision"]["action"] == "ask_for_human_review"
+    assert Path(decision["artifact_path"]).exists()
+    assert shown_after_decision["run"]["decisions"][0]["status"] == "validated"
+    assert shown_after_decision["events"][-1]["event_type"] == "structured_decision_validated"
+
+
+def test_structured_decision_validation_rejects_non_decision_output(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="contextual_reread",
+        purpose="Validate bad decision output.",
+        run_id="bad-decision-run",
+    )
+    app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="bad-decision-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True},
+        version_result={"ok": True},
+    )
+    app_intelligence_ledger.record_model_turn_started(
+        state_root=tmp_path,
+        run_id="bad-decision-run",
+        packet_id="packet-1",
+        thread_id="thread_bad",
+        turn_id="turn_bad",
+        app_server_result={},
+    )
+    app_intelligence_ledger.record_model_turn_status(
+        state_root=tmp_path,
+        run_id="bad-decision-run",
+        thread_id="thread_bad",
+        turn_id="turn_bad",
+        status_payload={"status": "completed", "completed": True, "output_text": '{"summary":"not a decision"}'},
+        approval_token=app_intelligence_ledger.MODEL_TURN_STATUS_TOKEN,
+    )
+
+    decision = app_intelligence_ledger.validate_latest_structured_decision(
+        state_root=tmp_path,
+        run_id="bad-decision-run",
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
+    )
+
+    assert decision["valid"] is False
+    assert decision["will_execute_host_action"] is False
+    assert decision["errors"]
+    assert decision["run"]["decisions"][0]["status"] == "rejected"
 
 
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:

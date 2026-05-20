@@ -660,10 +660,18 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
             "turn_id": "turn_test",
             "status": "completed",
             "completed": True,
-            "output_text": '{"summary":"Tempo readout"}',
+            "output_text": json.dumps(
+                {
+                    "action": "ask_for_human_review",
+                    "rationale": "Tempo readout requires operator review.",
+                    "confidence": 0.8,
+                    "review_flags": ["operator_review"],
+                    "recommended_next_prompt": "Validate context sources.",
+                }
+            ),
             "thread_read_response": {"thread": {"id": "thread_test"}},
             "turns_list_response": {"data": [{"id": "turn_test", "status": "completed"}]},
-            "items_list_response": {"data": [{"type": "agentMessage", "text": '{"summary":"Tempo readout"}'}]},
+            "items_list_response": {"data": []},
             "events": [{"method": "turn/completed", "params": {"turn": {"id": "turn_test"}}}],
         }
 
@@ -749,6 +757,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         status_response = urlopen(status_request, timeout=5)
         status = json.loads(status_response.read())
+        decision_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/structured-decision/validate",
+            data=json.dumps({"approval_token": "VALIDATE_STRUCTURED_DECISION"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        decision_response = urlopen(decision_request, timeout=5)
+        decision = json.loads(decision_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -781,9 +797,14 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert status["codex_thread_id"] == "thread_test"
     assert status["codex_turn_id"] == "turn_test"
     assert Path(status["artifact_path"]).exists()
+    assert decision_response.status == 202
+    assert decision["valid"] is True
+    assert decision["decision"]["action"] == "ask_for_human_review"
+    assert decision["will_execute_host_action"] is False
     assert shown["run"]["phase"] == "model_turn_completed"
     assert shown["run"]["state"]["active_codex_thread_id"] == "thread_test"
-    assert shown["events"][-1]["event_type"] == "model_turn_status_captured"
+    assert shown["run"]["decisions"][0]["status"] == "validated"
+    assert shown["events"][-1]["event_type"] == "structured_decision_validated"
     assert shown["codex_events_count"] == 2
 
 

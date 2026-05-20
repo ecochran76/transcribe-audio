@@ -36,6 +36,7 @@ from app_intelligence_ledger import (
     record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
     session_start_preflight as preflight_app_intelligence_session_start,
+    validate_latest_structured_decision as validate_app_intelligence_structured_decision,
 )
 from transcript_store import (
     DEFAULT_EMBEDDING_MODEL,
@@ -1186,6 +1187,19 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             "codex_turn_id": turn_id,
                             "captured_event_count": len(status_result.get("events") or []),
                         },
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/structured-decision/validate"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 6:
+                    body = self.read_json_body()
+                    self.write_json(
+                        validate_app_intelligence_structured_decision(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            approval_token=str(body.get("approval_token") or ""),
+                        ),
                         status=HTTPStatus.ACCEPTED,
                     )
                     return

@@ -4146,6 +4146,46 @@ Next:
 - Add structured-decision schema validation for captured turn output before
   enabling any host action from model results.
 
+## Turn 129 | 2026-05-20
+
+Summary: Added structured-decision validation for captured Codex output.
+
+Action:
+
+- Added `STRUCTURED_DECISION_VALIDATE_TOKEN=VALIDATE_STRUCTURED_DECISION`.
+- Added host-owned decision parsing and validation to
+  `app_intelligence_ledger.py`.
+- Added
+  `POST /api/intelligence/runs/<run_id>/structured-decision/validate`.
+- The validator reads the latest captured model-turn status artifact, extracts
+  a JSON object, validates `action`, `rationale`, `confidence`,
+  `review_flags`, and fork-specific fields, writes a validation artifact under
+  `artifacts/structured-decisions/`, appends a
+  `structured_decision_validated` event, and records accepted/rejected decision
+  metadata in `run.json`.
+- Allowed decision actions are `continue_current_branch`, `fork_branches`,
+  `rollback`, `stop`, and `ask_for_human_review`.
+- The endpoint returns `will_execute_host_action=false`; no fork, rollback,
+  write, memory harvest, route apply, or deposition action is executed.
+- Added a React `Validate structured decision` action and result display.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and local skill references were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 24 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add explicit apply endpoints for individual validated decision actions,
+  starting with no-op `stop` and `ask_for_human_review` records before any
+  fork/rollback/write-bearing host action.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

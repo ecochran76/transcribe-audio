@@ -161,6 +161,7 @@ function App() {
   const [sendPreflight, setSendPreflight] = useState({ status: "idle", message: "", payload: null });
   const [sendAction, setSendAction] = useState({ status: "idle", message: "", payload: null });
   const [turnStatusAction, setTurnStatusAction] = useState({ status: "idle", message: "", payload: null });
+  const [decisionValidation, setDecisionValidation] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -215,6 +216,7 @@ function App() {
         setSendPreflight({ status: "idle", message: "", payload: null });
         setSendAction({ status: "idle", message: "", payload: null });
         setTurnStatusAction({ status: "idle", message: "", payload: null });
+        setDecisionValidation({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -561,6 +563,27 @@ function App() {
     }
   }
 
+  async function validateStructuredDecision() {
+    if (!selectedRunId) return;
+    setDecisionValidation({ status: "validating", message: "Validating captured structured decision...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/structured-decision/validate`, {
+        approval_token: "VALIDATE_STRUCTURED_DECISION"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setDecisionValidation({
+        status: payload.valid ? "valid" : "rejected",
+        message: payload.valid
+          ? "Structured decision validated; no host action was executed."
+          : `Structured decision rejected: ${payload.errors?.join(", ") || "schema validation failed"}.`,
+        payload
+      });
+    } catch (error) {
+      setDecisionValidation({ status: "error", message: `Structured decision validation failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -716,6 +739,8 @@ function App() {
             onSendModelTurn={sendModelTurn}
             turnStatusAction={turnStatusAction}
             onCaptureTurnStatus={captureTurnStatus}
+            decisionValidation={decisionValidation}
+            onValidateStructuredDecision={validateStructuredDecision}
             intelligence={intelligence}
           />
         </aside>
@@ -1022,6 +1047,8 @@ function Inspector({
   onSendModelTurn,
   turnStatusAction,
   onCaptureTurnStatus,
+  decisionValidation,
+  onValidateStructuredDecision,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1196,6 +1223,25 @@ function Inspector({
                     <div className="action-notice ok">
                       <strong>Latest turn status: {run.latest_model_turn_status.status || "unknown"}</strong>
                       <code>{JSON.stringify(run.latest_model_turn_status, null, 2)}</code>
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button"
+                    disabled={decisionValidation.status === "validating" || !run.latest_model_turn_status?.artifact_path}
+                    onClick={onValidateStructuredDecision}
+                    type="button"
+                  >
+                    Validate structured decision
+                  </button>
+                  {decisionValidation.message ? (
+                    <div className={`action-notice ${decisionValidation.status}`}>
+                      <strong>{decisionValidation.message}</strong>
+                      {decisionValidation.payload && <code>{JSON.stringify({
+                        valid: decisionValidation.payload.valid,
+                        action: decisionValidation.payload.decision?.action || "",
+                        errors: decisionValidation.payload.errors || [],
+                        will_execute_host_action: decisionValidation.payload.will_execute_host_action
+                      }, null, 2)}</code>}
                     </div>
                   ) : null}
                   <pre className="prompt-preview">{packetReview.payload.prompt_text}</pre>
