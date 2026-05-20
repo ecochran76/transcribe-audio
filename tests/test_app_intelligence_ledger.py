@@ -140,6 +140,42 @@ def test_mark_session_started_updates_ledger_without_thread_turn(tmp_path: Path)
     assert shown["events"][-1]["event_type"] == "app_server_session_started"
 
 
+def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="contextual_reread",
+        purpose="Prepare supervised work.",
+        document_id="doc_123",
+        run_id="packet-run",
+    )
+    app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="packet-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True, "returncode": 0},
+        version_result={"ok": True, "stdout": "codex-cli 0.131.0\n"},
+    )
+
+    prepared = app_intelligence_ledger.prepare_model_turn_packet(
+        state_root=tmp_path,
+        run_id="packet-run",
+        task="contextual_reread",
+        route={"provider": "codex-app-server", "model": ""},
+        document={"id": "doc_123", "title": "Weekly Product Sync"},
+        prompt_text="Review this transcript.",
+        approval_token=app_intelligence_ledger.MODEL_TURN_PREFLIGHT_TOKEN,
+    )
+    shown = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert prepared["will_send_prompt"] is False
+    assert Path(prepared["packet_path"]).exists()
+    assert Path(prepared["prompt_path"]).read_text(encoding="utf-8") == "Review this transcript."
+    assert prepared["packet"]["future_required_approval_token_for_send"] == app_intelligence_ledger.MODEL_TURN_SEND_TOKEN
+    assert shown["run"]["prompt_packets"][0]["sent"] is False
+    assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
+
+
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(
         [

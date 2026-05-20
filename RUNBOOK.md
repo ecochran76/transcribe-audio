@@ -3944,6 +3944,58 @@ Next:
   app-server prompt packet from a selected document plus task route and require
   review before any prompt is sent.
 
+## Turn 124 | 2026-05-20
+
+Summary: Added reviewed App Intelligence model-turn prompt-packet preflight.
+
+Action:
+
+- Added `prepare_model_turn_packet()` to `app_intelligence_ledger.py`.
+- Added `POST /api/intelligence/runs/<run_id>/model-turn-preflight`.
+- Model-turn preflight requires:
+  - `phase=session_started`;
+  - ledger policy allowing `prepare_prompt`;
+  - `approval_token=PREPARE_MODEL_TURN_PREFLIGHT`;
+  - a stored transcript/readout document id.
+- The endpoint resolves the selected task route from `intelligence_config.py`,
+  compacts the selected stored document, and builds an initial prompt packet.
+- Prompt packet artifacts are written under
+  `artifacts/prompt-packets/<packet_id>.json` and
+  `artifacts/prompt-packets/<packet_id>.prompt.txt`.
+- The ledger records `prompt_packets[]` metadata and appends
+  `model_turn_preflight_prepared`.
+- The packet surfaces future `SEND_APP_SERVER_MODEL_TURN` approval but does not
+  use it; `will_send_prompt=false`.
+- Added a React `Prepare prompt packet` action and prompt-packet list in the
+  selected-run inspector.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned only older
+  broad repo facts, so repo source and live API evidence were used.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active after readiness polling.
+- Live `/` served rebuilt assets `index-9Z0DRraC.js` and
+  `index-DICDSuDL.css`.
+- Live `GET /api/intelligence/providers` reported
+  `codex-app-server.status=ready`, `ready=true`, and
+  `version=codex-cli 0.131.0`.
+- Live `GET /api/intelligence/runs?limit=8` returned the user-scoped runs
+  directory with `total=0`; no live model-turn preflight was invoked to avoid
+  creating operator prompt artifacts outside a selected run.
+
+Next:
+
+- Add a prompt-packet review/apply surface that can inspect packet JSON/text
+  and require `approval_token=SEND_APP_SERVER_MODEL_TURN` before any app-server
+  prompt send implementation is added.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -155,6 +155,7 @@ function App() {
   const [runDetailAction, setRunDetailAction] = useState({ status: "idle", message: "" });
   const [sessionPreflight, setSessionPreflight] = useState({ status: "idle", message: "", payload: null });
   const [sessionStartAction, setSessionStartAction] = useState({ status: "idle", message: "", payload: null });
+  const [modelTurnAction, setModelTurnAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -203,6 +204,7 @@ function App() {
         setRunDetailAction({ status: "loaded", message: "" });
         setSessionPreflight({ status: "idle", message: "", payload: null });
         setSessionStartAction({ status: "idle", message: "", payload: null });
+        setModelTurnAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -437,6 +439,29 @@ function App() {
     }
   }
 
+  async function prepareModelTurnPacket() {
+    if (!selectedRunId) return;
+    const approved = window.confirm("Prepare a reviewed prompt packet for this run? This writes a local artifact but does not send a prompt.");
+    if (!approved) return;
+    setModelTurnAction({ status: "preparing", message: "Preparing reviewed prompt packet...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/model-turn-preflight`, {
+        approval_token: "PREPARE_MODEL_TURN_PREFLIGHT",
+        task: selectedTask,
+        document_id: selected?.id || selectedRunDetail?.run?.document_id || ""
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setModelTurnAction({
+        status: "prepared",
+        message: "Prompt packet prepared for review; no prompt was sent.",
+        payload
+      });
+    } catch (error) {
+      setModelTurnAction({ status: "error", message: `Prompt packet preflight failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -581,6 +606,8 @@ function App() {
             onRunSessionPreflight={runSessionPreflight}
             sessionStartAction={sessionStartAction}
             onStartAppServerSession={startAppServerSession}
+            modelTurnAction={modelTurnAction}
+            onPrepareModelTurnPacket={prepareModelTurnPacket}
             intelligence={intelligence}
           />
         </aside>
@@ -876,6 +903,8 @@ function Inspector({
   onRunSessionPreflight,
   sessionStartAction,
   onStartAppServerSession,
+  modelTurnAction,
+  onPrepareModelTurnPacket,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -945,6 +974,9 @@ function Inspector({
                   <button onClick={onStartAppServerSession} disabled={sessionStartAction.status === "starting" || run.phase !== "prepared"} type="button">
                     Start control plane
                   </button>
+                  <button onClick={onPrepareModelTurnPacket} disabled={modelTurnAction.status === "preparing" || run.phase !== "session_started"} type="button">
+                    Prepare prompt packet
+                  </button>
                 </div>
                 {sessionPreflight.message && (
                   <div className={`action-notice ${sessionPreflight.status}`}>
@@ -958,7 +990,24 @@ function Inspector({
                     {sessionStartAction.payload && <code>{JSON.stringify({ transport: sessionStartAction.payload.transport, will_start_model_turn: sessionStartAction.payload.will_start_model_turn }, null, 2)}</code>}
                   </div>
                 )}
+                {modelTurnAction.message && (
+                  <div className={`action-notice ${modelTurnAction.status}`}>
+                    <strong>{modelTurnAction.message}</strong>
+                    {modelTurnAction.payload && <code>{JSON.stringify({ packet_path: modelTurnAction.payload.packet_path, will_send_prompt: modelTurnAction.payload.will_send_prompt }, null, 2)}</code>}
+                  </div>
+                )}
               </div>
+              {run.prompt_packets?.length ? (
+                <div className="event-list">
+                  <span>Prompt Packets</span>
+                  {run.prompt_packets.slice(-3).map((packet) => (
+                    <article key={packet.packet_id}>
+                      <strong>{packet.task}</strong>
+                      <small>{packet.packet_path}</small>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
               <div className="event-list">
                 <span>Recent Events</span>
                 {events.length ? events.map((event) => (

@@ -19,6 +19,8 @@ RUNS_DIR_NAME = "app-intelligence-runs"
 SCHEMA_VERSION = "transcribe-audio.app-intelligence-run.v1"
 SESSION_START_APPROVAL_TOKEN = "START_APP_SERVER_SESSION"
 SESSION_START_PREFLIGHT_EVENT_TOKEN = "APPEND_SESSION_START_PREFLIGHT_EVENT"
+MODEL_TURN_PREFLIGHT_TOKEN = "PREPARE_MODEL_TURN_PREFLIGHT"
+MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -420,6 +422,91 @@ def mark_session_started(
         "run": ledger,
         "event": event,
         "path": str(run_dir(state_root, run_id)),
+    }
+
+
+def prepare_model_turn_packet(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    task: str,
+    route: dict[str, Any],
+    document: dict[str, Any],
+    prompt_text: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != MODEL_TURN_PREFLIGHT_TOKEN:
+        raise ValueError(f"Model-turn preflight requires approval_token={MODEL_TURN_PREFLIGHT_TOKEN}.")
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    if run.get("phase") != "session_started":
+        raise ValueError("Model-turn preflight requires a session_started ledger.")
+    policy = run.get("policy") if isinstance(run.get("policy"), dict) else {}
+    allowed_actions = policy.get("allowed_actions") if isinstance(policy.get("allowed_actions"), list) else []
+    if "prepare_prompt" not in allowed_actions:
+        raise ValueError("Ledger policy does not allow prepare_prompt.")
+
+    path = run_dir(state_root, run_id)
+    packet_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-model-turn-{uuid.uuid4().hex[:8]}"
+    packet_dir = path / "artifacts" / "prompt-packets"
+    packet_json = packet_dir / f"{packet_id}.json"
+    packet_text = packet_dir / f"{packet_id}.prompt.txt"
+    packet = {
+        "schema_version": "transcribe-audio.app-intelligence-model-turn-preflight.v1",
+        "packet_id": packet_id,
+        "run_id": run_id,
+        "task": task,
+        "route": route,
+        "document": document,
+        "prompt_path": str(packet_text),
+        "review_required": True,
+        "will_send_prompt": False,
+        "future_required_approval_token_for_send": MODEL_TURN_SEND_TOKEN,
+        "created_at": utc_now(),
+    }
+    write_json(packet_json, {**packet, "prompt_text": prompt_text})
+    packet_text.parent.mkdir(parents=True, exist_ok=True)
+    packet_text.write_text(prompt_text, encoding="utf-8")
+
+    prompt_packets = run.get("prompt_packets") if isinstance(run.get("prompt_packets"), list) else []
+    prompt_summary = {
+        "packet_id": packet_id,
+        "task": task,
+        "document_id": document.get("id") or "",
+        "packet_path": str(packet_json),
+        "prompt_path": str(packet_text),
+        "created_at": packet["created_at"],
+        "sent": False,
+    }
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={"prompt_packets": [*prompt_packets, prompt_summary]},
+    )
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="model_turn_preflight_prepared",
+        payload={
+            "packet_id": packet_id,
+            "task": task,
+            "document_id": document.get("id") or "",
+            "packet_path": str(packet_json),
+            "prompt_path": str(packet_text),
+            "will_send_prompt": False,
+            "future_required_approval_token": MODEL_TURN_SEND_TOKEN,
+        },
+    )
+    return {
+        "schema_version": packet["schema_version"],
+        "action": "prepare_model_turn_preflight",
+        "ok": True,
+        "will_send_prompt": False,
+        "packet": packet,
+        "packet_path": str(packet_json),
+        "prompt_path": str(packet_text),
+        "event": event,
+        "run": ledger,
     }
 
 

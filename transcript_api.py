@@ -24,6 +24,7 @@ from app_intelligence_ledger import (
     create_run as create_app_intelligence_run,
     list_runs as list_app_intelligence_runs,
     mark_session_started as mark_app_intelligence_session_started,
+    prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
     record_session_start_failed as record_app_intelligence_session_start_failed,
     record_session_start_requested as record_app_intelligence_session_start_requested,
     response_for_run as get_app_intelligence_run,
@@ -180,6 +181,46 @@ def read_json_file(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def compact_document_for_prompt(document: dict[str, Any], *, max_text_chars: int = 12000) -> dict[str, Any]:
+    text = str(document.get("text_content") or "")
+    return {
+        "id": document.get("id") or "",
+        "kind": document.get("kind") or "",
+        "title": document.get("title") or "",
+        "source_path": document.get("source_path") or "",
+        "generated_at": document.get("generated_at") or "",
+        "metadata": document.get("metadata") if isinstance(document.get("metadata"), dict) else {},
+        "text_excerpt": text[:max_text_chars],
+        "text_truncated": len(text) > max_text_chars,
+        "text_chars": len(text),
+    }
+
+
+def model_turn_prompt_text(*, task: str, route: dict[str, Any], document: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "You are the Transcripts App Intelligence worker.",
+            "Do not perform external writes. Return structured analysis only.",
+            "The host application owns routing, approvals, memory writes, repository writes, and final application.",
+            "",
+            f"Task: {task}",
+            f"Provider route: {json.dumps(route, sort_keys=True, ensure_ascii=False)}",
+            "",
+            "Document:",
+            f"- id: {document.get('id')}",
+            f"- kind: {document.get('kind')}",
+            f"- title: {document.get('title')}",
+            f"- generated_at: {document.get('generated_at')}",
+            f"- text_truncated: {document.get('text_truncated')}",
+            "",
+            "Transcript or readout text:",
+            str(document.get("text_excerpt") or ""),
+            "",
+            "Return JSON with: summary, important_entities, candidate_context_sources, risks, recommended_next_actions, and review_flags.",
+        ]
+    )
 
 
 def write_json_file(path: Path, payload: dict[str, Any]) -> Path:
@@ -1070,6 +1111,33 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             **started,
                         },
                         status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/model-turn-preflight"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5:
+                    body = self.read_json_body()
+                    shown = get_app_intelligence_run(state_root=self.state_root, run_id=parts[3], event_limit=1)
+                    run = shown.get("run") if isinstance(shown.get("run"), dict) else {}
+                    task = str(body.get("task") or run.get("workflow") or intelligence_config.TASK_APP_SUPERVISOR)
+                    document_id = str(body.get("document_id") or run.get("document_id") or "")
+                    if not document_id:
+                        self.write_error(HTTPStatus.BAD_REQUEST, "Missing required document_id for model-turn preflight")
+                        return
+                    document = compact_document_for_prompt(get_document(document_id, root=self.store_root))
+                    route = intelligence_config.resolve_task_config(task).to_dict()
+                    prompt_text = model_turn_prompt_text(task=task, route=route, document=document)
+                    self.write_json(
+                        prepare_app_intelligence_model_turn_packet(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            task=task,
+                            route=route,
+                            document=document,
+                            prompt_text=prompt_text,
+                            approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
                     )
                     return
             if parsed.path.startswith("/api/"):

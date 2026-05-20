@@ -613,6 +613,94 @@ def test_app_intelligence_session_start_endpoint_starts_daemon_without_model_tur
     ]
 
 
+def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp_path: Path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+    store_root = tmp_path / "store"
+    ingest = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    monkeypatch.setattr(
+        transcript_api,
+        "codex_app_server_readiness",
+        lambda codex_bin="codex": {"ready": True, "status": "ready"},
+    )
+
+    def fake_run_codex_command(args: list[str], *, timeout: int = 30) -> dict:
+        commands.append(args)
+        return {"args": args, "ok": True, "returncode": 0, "stdout": "ok\n", "stderr": ""}
+
+    monkeypatch.setattr(transcript_api, "run_codex_command", fake_run_codex_command)
+
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+        codex_bin="/usr/local/bin/codex",
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        prepare_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/prepare",
+            data=json.dumps(
+                {
+                    "workflow": "contextual_reread",
+                    "purpose": "Prepare supervised work.",
+                    "document_id": ingest.id,
+                    "run_id": "packet-run",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(prepare_request, timeout=5).read()
+        start_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/session-start",
+            data=json.dumps({"approval_token": "START_APP_SERVER_SESSION"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(start_request, timeout=5).read()
+
+        packet_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/model-turn-preflight",
+            data=json.dumps(
+                {
+                    "approval_token": "PREPARE_MODEL_TURN_PREFLIGHT",
+                    "task": "contextual_reread",
+                    "document_id": ingest.id,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        packet_response = urlopen(packet_request, timeout=5)
+        packet = json.loads(packet_response.read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert packet_response.status == 201
+    assert packet["will_send_prompt"] is False
+    assert Path(packet["packet_path"]).exists()
+    assert Path(packet["prompt_path"]).exists()
+    assert packet["packet"]["document"]["id"] == ingest.id
+    assert packet["packet"]["route"]["task"] == "contextual_reread"
+    assert "Tempo Chemical samples" in Path(packet["prompt_path"]).read_text(encoding="utf-8")
+    assert shown["run"]["prompt_packets"][0]["sent"] is False
+    assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
+
+
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
     assert transcript_api.batch_status_counts(
         {
