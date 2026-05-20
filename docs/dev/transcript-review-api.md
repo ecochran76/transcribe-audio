@@ -20,7 +20,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
-- `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, filename-conflict reviews, and first-pass summary queue counts.
+- `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
 - `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
 - `POST /api/intelligence/config/preview`: validate and preview a task routing update without writing.
@@ -66,8 +66,8 @@ The UI should play recordings through `/api/blobs/<blob_id>` rather than using o
 
 `/api/review-queue` returns:
 
-- `buckets`: summary cards for route reviews, filename conflicts, first-pass summaries, memory harvest, and speaker ID work.
-- `items`: currently route-review files from `~/.local/state/transcribe-audio/review-queue/`.
+- `buckets`: summary cards for route reviews, App Intelligence human-review decisions, filename conflicts, first-pass summaries, memory harvest, and speaker ID work.
+- `items`: mixed review rows. Route rows come from `~/.local/state/transcribe-audio/review-queue/`; App Intelligence rows come from `~/.local/state/transcribe-audio/app-intelligence-runs/`.
 - `route_decision_exists`: whether a route-review item still points at a readable route-decision artifact.
 - `status=stale_reference`: a local review item exists, but its referenced route decision is gone, commonly from earlier pytest/temp runs.
 

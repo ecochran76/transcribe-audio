@@ -521,9 +521,57 @@ def route_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, A
     return items
 
 
+def app_intelligence_human_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+    runs = list_app_intelligence_runs(state_root=state_root, limit=500)
+    items: list[dict[str, Any]] = []
+    for summary in runs.get("items", []):
+        if not isinstance(summary, dict):
+            continue
+        run_id = str(summary.get("run_id") or "")
+        if not run_id:
+            continue
+        try:
+            shown = get_app_intelligence_run(state_root=state_root, run_id=run_id, event_limit=1)
+        except (FileNotFoundError, ValueError):
+            continue
+        run = shown.get("run") if isinstance(shown.get("run"), dict) else {}
+        decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+        for decision in decisions:
+            if not isinstance(decision, dict):
+                continue
+            if decision.get("action") != "ask_for_human_review":
+                continue
+            status = str(decision.get("status") or "")
+            if status not in {"validated", "applied"}:
+                continue
+            apply_result = decision.get("apply_result") if isinstance(decision.get("apply_result"), dict) else {}
+            items.append(
+                {
+                    "id": f"{run_id}:{decision.get('decision_id') or ''}",
+                    "bucket": "app_intelligence_human_review",
+                    "type": "app_intelligence_human_review",
+                    "label": run.get("purpose") or run.get("workflow") or run_id,
+                    "reason": "App Intelligence requested human review.",
+                    "created_at": decision.get("applied_at") or decision.get("created_at") or run.get("updated_at") or "",
+                    "run_id": run_id,
+                    "document_id": run.get("document_id") or "",
+                    "workflow": run.get("workflow") or "",
+                    "decision_id": decision.get("decision_id") or "",
+                    "decision_status": status,
+                    "status": "needs_human_review" if status == "applied" else "pending_apply",
+                    "review_path": str(shown.get("path") or ""),
+                    "artifact_path": apply_result.get("artifact_path") or decision.get("artifact_path") or "",
+                    "confidence": None,
+                    "target_kind": "app_intelligence_run",
+                }
+            )
+    return sorted(items, key=lambda item: str(item.get("created_at") or ""), reverse=True)[:limit]
+
+
 def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optional[Path] = None, limit: int = 50) -> dict[str, Any]:
     runtime_state_root = (state_root or DEFAULT_STATE_DIR).expanduser()
     route_items = route_review_items(runtime_state_root, limit=limit)
+    app_human_review_items = app_intelligence_human_review_items(runtime_state_root, limit=limit)
     stale_count = sum(1 for item in route_items if not item["route_decision_exists"])
     actionable_count = len(route_items) - stale_count
     filename_bucket = filename_conflict_summary(runtime_state_root)
@@ -556,8 +604,18 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
             if isinstance(item, dict)
         ],
     }
+    app_human_review_bucket = {
+        "id": "app_intelligence_human_review",
+        "label": "App Intelligence review",
+        "count": len(app_human_review_items),
+        "status": "pending" if app_human_review_items else "clear",
+        "detail": f"{len(app_human_review_items)} App Intelligence human-review decisions need operator attention.",
+        "pending_apply_count": sum(1 for item in app_human_review_items if item.get("status") == "pending_apply"),
+        "needs_review_count": sum(1 for item in app_human_review_items if item.get("status") == "needs_human_review"),
+    }
     buckets = [
         route_bucket,
+        app_human_review_bucket,
         filename_bucket,
         legacy_bucket,
         {
@@ -580,7 +638,7 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
         "store_dir": str(store_dir(store_root)),
         "limit": limit,
         "buckets": buckets,
-        "items": route_items,
+        "items": [*app_human_review_items, *route_items][:limit],
         "total_open": sum(int(bucket.get("count") or 0) for bucket in buckets),
     }
 

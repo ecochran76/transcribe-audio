@@ -38,6 +38,7 @@ const FALLBACK_REVIEW_QUEUE = {
   total_open: 68,
   buckets: [
   { label: "Filename conflicts", count: 0, status: "clear", detail: "Reviewed: 8 keep target, 2 preserve both" },
+  { id: "app_intelligence_human_review", label: "App Intelligence review", count: 0, status: "clear", detail: "No App Intelligence human-review decisions pending" },
   { id: "first_pass_summaries", label: "First-pass summaries", count: 68, status: "pending", detail: "Stored transcripts waiting for first-pass summaries" },
   { label: "Memory harvest", count: 0, status: "gated", detail: "Requires explicit review file approval" },
   { label: "Speaker IDs", count: 0, status: "planned", detail: "Contact dedupe tables are planned in P09" }
@@ -1025,7 +1026,7 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
       )}
       <div className="queue-list">
         <div className="queue-list-heading">
-          <h2>Route review items</h2>
+          <h2>Review items</h2>
           <span>{items.length} loaded</span>
         </div>
         {items.length ? (
@@ -1035,8 +1036,8 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
                 <strong>{item.label}</strong>
                 <small>{item.reason}</small>
               </div>
-              <span>{item.route_decision_exists ? "route available" : "stale route reference"}</span>
-              <code>{item.route_decision_path || item.review_path}</code>
+              <span>{item.type === "app_intelligence_human_review" ? statusLabel(item.decision_status || item.status) : item.route_decision_exists ? "route available" : "stale route reference"}</span>
+              <code>{item.artifact_path || item.route_decision_path || item.review_path}</code>
             </article>
           ))
         ) : (
@@ -1334,6 +1335,7 @@ function Inspector({
   }
   if (activeNav === "Review Queue") {
     const routeBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "route_reviews");
+    const appReviewBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "app_intelligence_human_review");
     const filenameBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "filename_conflicts");
     const summaryBucket = (reviewQueue.buckets || []).find((bucket) => bucket.id === "first_pass_summaries");
     return (
@@ -1346,6 +1348,8 @@ function Inspector({
           <dd>{reviewQueue.state_dir || "Unavailable"}</dd>
           <dt>Route reviews</dt>
           <dd>{routeBucket?.detail || "No route review summary."}</dd>
+          <dt>App Intelligence review</dt>
+          <dd>{appReviewBucket ? `${appReviewBucket.count} pending; ${appReviewBucket.pending_apply_count || 0} still need ledger-only apply.` : "No App Intelligence review summary."}</dd>
           <dt>Filename conflicts</dt>
           <dd>{filenameBucket?.detail || "No filename conflict summary."}</dd>
           <dt>First-pass summaries</dt>

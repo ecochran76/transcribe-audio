@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import app_intelligence_ledger
 import transcript_api
 import transcript_store
 
@@ -257,18 +258,65 @@ def test_review_queue_summary_reads_local_state(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    app_intelligence_ledger.create_run(
+        state_root=state_root,
+        workflow="contextual_reread",
+        purpose="Review app-server decision.",
+        document_id="doc-abc",
+        run_id="human-review-run",
+    )
+    run_payload = app_intelligence_ledger.response_for_run(state_root=state_root, run_id="human-review-run")["run"]
+    decision_dir = state_root / "app-intelligence-runs" / "human-review-run" / "artifacts" / "structured-decisions"
+    decision_dir.mkdir(parents=True)
+    decision_path = decision_dir / "decision-1.json"
+    decision_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "transcribe-audio.app-intelligence-structured-decision-validation.v1",
+                "decision_id": "decision-1",
+                "run_id": "human-review-run",
+                "valid": True,
+                "decision": {
+                    "action": "ask_for_human_review",
+                    "rationale": "Operator should review ambiguous context.",
+                    "confidence": 0.7,
+                    "review_flags": ["ambiguous_context"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_payload["decisions"] = [
+        {
+            "decision_id": "decision-1",
+            "valid": True,
+            "action": "ask_for_human_review",
+            "status": "validated",
+            "artifact_path": str(decision_path),
+            "will_execute_host_action": False,
+            "created_at": "2026-05-16T21:02:00Z",
+        }
+    ]
+    (state_root / "app-intelligence-runs" / "human-review-run" / "run.json").write_text(
+        json.dumps(run_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
     payload = transcript_api.review_queue_summary(state_root=state_root, store_root=store_root, limit=20)
 
     route_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "route_reviews")
+    app_review_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "app_intelligence_human_review")
     conflict_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "filename_conflicts")
     summary_bucket = next(bucket for bucket in payload["buckets"] if bucket["id"] == "first_pass_summaries")
     assert route_bucket["count"] == 1
     assert route_bucket["stale_count"] == 1
+    assert app_review_bucket["count"] == 1
+    assert app_review_bucket["pending_apply_count"] == 1
     assert conflict_bucket["count"] == 1
     assert summary_bucket["label"] == "First-pass summaries"
     assert conflict_bucket["decisions"] == {"keep_target": 1, "pending": 1}
-    assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference"}
+    assert {item["status"] for item in payload["items"]} == {"pending", "stale_reference", "pending_apply"}
+    assert any(item["bucket"] == "app_intelligence_human_review" for item in payload["items"])
 
 
 def test_codex_app_server_provider_readiness(monkeypatch) -> None:

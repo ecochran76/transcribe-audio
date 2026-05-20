@@ -4103,6 +4103,11 @@ Validation:
 - `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
   passed.
 - `npm --prefix frontend run build` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` are active.
+- Live `/api/review-queue?limit=10` returned
+  `app_intelligence_human_review` with `count=0`,
+  `pending_apply_count=0`, and `needs_review_count=0`.
 
 Next:
 
@@ -4223,6 +4228,39 @@ Next:
 
 - Make `ask_for_human_review` visible in the Review Queue before adding any
   branch, rollback, or write-bearing apply action.
+
+## Turn 131 | 2026-05-20
+
+Summary: Surfaced App Intelligence human-review decisions in the Review Queue.
+
+Action:
+
+- Added a read-only App Intelligence human-review bucket to
+  `/api/review-queue`.
+- The bucket scans user-scoped App Intelligence run ledgers under
+  `~/.local/state/transcribe-audio/app-intelligence-runs/` and includes
+  validated or ledger-applied `ask_for_human_review` decisions.
+- Mixed review items now include App Intelligence rows with run id, document
+  id, decision id, decision status, and validation/apply artifact paths.
+- Updated the React Review Queue surface so the central list is not route-only
+  and the right inspector reports App Intelligence review counts.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned older broad
+  repo facts only, so repo source remained authoritative.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add a review-detail/action surface for App Intelligence human-review items so
+  the operator can resolve, annotate, or reopen a ledger-only decision without
+  enabling fork, rollback, memory, routing, or repository writes.
 
 ## Turn 103 | 2026-05-17
 
