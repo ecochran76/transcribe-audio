@@ -1204,7 +1204,7 @@ function Inspector({
     const latestDecision = decisions.length ? decisions[decisions.length - 1] : null;
     const latestDecisionCanApply =
       latestDecision?.status === "validated" &&
-      (latestDecision.action === "stop" || latestDecision.action === "ask_for_human_review");
+      (latestDecision.action === "continue_current_branch" || latestDecision.action === "stop" || latestDecision.action === "ask_for_human_review");
     const latestDecisionCanForkPreflight =
       latestDecision?.status === "validated" && latestDecision.action === "fork_branches";
     const latestDecisionCanRollbackPreflight =

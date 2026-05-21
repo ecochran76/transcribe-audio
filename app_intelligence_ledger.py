@@ -63,7 +63,7 @@ STRUCTURED_DECISION_ACTIONS = {
     "stop",
     "ask_for_human_review",
 }
-LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS = {"stop", "ask_for_human_review"}
+LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS = {"continue_current_branch", "stop", "ask_for_human_review"}
 HUMAN_REVIEW_DECISION_ACTIONS = {"annotate", "resolve", "reopen"}
 
 
@@ -1004,13 +1004,22 @@ def apply_validated_structured_decision(
     action = str(decision.get("action") or summary.get("action") or "")
     if action not in LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS:
         raise ValueError(
-            "This apply endpoint only records ledger-only stop and ask_for_human_review decisions; "
+            "This apply endpoint only records ledger-only continue_current_branch, stop, "
+            "and ask_for_human_review decisions; "
             f"action {action!r} is not enabled."
         )
 
     applied_at = utc_now()
-    status = "stopped" if action == "stop" else "needs_human_review"
-    phase = "stopped" if action == "stop" else "human_review_requested"
+    if action == "stop":
+        status = "stopped"
+        phase = "stopped"
+    elif action == "ask_for_human_review":
+        status = "needs_human_review"
+        phase = "human_review_requested"
+    else:
+        status = "running"
+        phase = "current_branch_continued"
+    current_branch = str((run.get("state") if isinstance(run.get("state"), dict) else {}).get("current_branch") or "main")
     apply_artifact = {
         "schema_version": "transcribe-audio.app-intelligence-structured-decision-apply.v1",
         "run_id": run_id,
@@ -1021,6 +1030,7 @@ def apply_validated_structured_decision(
         "note": note,
         "source_validation_artifact": str(resolved),
         "decision": decision,
+        "current_branch": current_branch,
         "applied_ledger_state": True,
         "will_execute_external_action": False,
         "will_execute_downstream_action": False,
@@ -1039,6 +1049,7 @@ def apply_validated_structured_decision(
             "action": action,
             "artifact_path": str(apply_path),
             "applied_ledger_state": True,
+            "current_branch": current_branch,
             "will_execute_external_action": False,
             "will_execute_downstream_action": False,
             "will_execute_write_bearing_action": False,
@@ -1053,26 +1064,37 @@ def apply_validated_structured_decision(
             "action": action,
             "artifact_path": str(apply_path),
             "applied_ledger_state": True,
+            "current_branch": current_branch,
             "will_execute_external_action": False,
             "will_execute_downstream_action": False,
             "will_execute_write_bearing_action": False,
         },
     }
+    updates = {
+        "status": status,
+        "phase": phase,
+        "decisions": [*decisions[:index], updated_summary, *decisions[index + 1 :]],
+    }
+    if action == "continue_current_branch":
+        updates["latest_continuation"] = {
+            "decision_id": decision_id,
+            "action": action,
+            "current_branch": current_branch,
+            "applied_at": applied_at,
+            "ledger_only": True,
+        }
+    else:
+        updates["final"] = {
+            "decision_id": decision_id,
+            "action": action,
+            "status": status,
+            "applied_at": applied_at,
+            "ledger_only": True,
+        }
     ledger = update_run_json(
         state_root=state_root,
         run_id=run_id,
-        updates={
-            "status": status,
-            "phase": phase,
-            "decisions": [*decisions[:index], updated_summary, *decisions[index + 1 :]],
-            "final": {
-                "decision_id": decision_id,
-                "action": action,
-                "status": status,
-                "applied_at": applied_at,
-                "ledger_only": True,
-            },
-        },
+        updates=updates,
     )
     return {
         "schema_version": apply_artifact["schema_version"],

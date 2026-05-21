@@ -459,6 +459,82 @@ def test_structured_decision_apply_blocks_write_bearing_actions(tmp_path: Path) 
         raise AssertionError("Expected fork_branches to be blocked by the ledger-only apply endpoint.")
 
 
+def test_continue_current_branch_apply_is_ledger_only_and_non_terminal(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="contextual_reread",
+        purpose="Validate continue decision output.",
+        run_id="continue-decision-run",
+    )
+    app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="continue-decision-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True},
+        version_result={"ok": True},
+    )
+    app_intelligence_ledger.record_model_turn_started(
+        state_root=tmp_path,
+        run_id="continue-decision-run",
+        packet_id="packet-1",
+        thread_id="thread_continue",
+        turn_id="turn_continue",
+        app_server_result={},
+    )
+    app_intelligence_ledger.record_model_turn_status(
+        state_root=tmp_path,
+        run_id="continue-decision-run",
+        thread_id="thread_continue",
+        turn_id="turn_continue",
+        status_payload={
+            "status": "completed",
+            "completed": True,
+            "output_text": json.dumps(
+                {
+                    "action": "continue_current_branch",
+                    "rationale": "Current context route is adequate for the next supervised turn.",
+                    "confidence": 0.86,
+                    "review_flags": [],
+                    "recommended_next_prompt": "Proceed with a contextual reread on the current branch.",
+                }
+            ),
+        },
+        approval_token=app_intelligence_ledger.MODEL_TURN_STATUS_TOKEN,
+    )
+    decision = app_intelligence_ledger.validate_latest_structured_decision(
+        state_root=tmp_path,
+        run_id="continue-decision-run",
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
+    )
+
+    applied = app_intelligence_ledger.apply_validated_structured_decision(
+        state_root=tmp_path,
+        run_id="continue-decision-run",
+        decision_id=decision["decision_id"],
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_APPLY_TOKEN,
+        reviewer="test-operator",
+        note="Continue on current branch.",
+    )
+    shown_after_apply = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="continue-decision-run")
+
+    assert applied["ok"] is True
+    assert applied["decision_action"] == "continue_current_branch"
+    assert applied["applied_ledger_state"] is True
+    assert applied["will_execute_external_action"] is False
+    assert applied["will_execute_downstream_action"] is False
+    assert applied["will_execute_write_bearing_action"] is False
+    assert applied["will_fork_or_rollback"] is False
+    assert Path(applied["artifact_path"]).exists()
+    assert shown_after_apply["run"]["phase"] == "current_branch_continued"
+    assert shown_after_apply["run"]["status"] == "running"
+    assert shown_after_apply["run"]["final"] is None
+    assert shown_after_apply["run"]["latest_continuation"]["current_branch"] == "main"
+    assert shown_after_apply["run"]["decisions"][0]["status"] == "applied"
+    assert shown_after_apply["run"]["decisions"][0]["apply_result"]["current_branch"] == "main"
+    assert shown_after_apply["events"][-1]["event_type"] == "structured_decision_applied"
+
+
 def test_rollback_preflight_is_preview_only(tmp_path: Path) -> None:
     app_intelligence_ledger.create_run(
         state_root=tmp_path,

@@ -4370,6 +4370,44 @@ Next:
   every non-write-bearing structured decision has a host-owned record before
   enabling real branch, rollback, memory, route, or deposition apply actions.
 
+## Turn 135 | 2026-05-20
+
+Summary: Added ledger-only continue-current-branch apply records.
+
+Action:
+
+- Added `continue_current_branch` to the ledger-only structured-decision apply
+  allowlist.
+- The existing
+  `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/apply`
+  endpoint can now record validated `continue_current_branch` decisions with
+  `approval_token=APPLY_STRUCTURED_DECISION`.
+- Continue apply writes
+  `artifacts/structured-decisions/<decision_id>.apply.json`, appends
+  `structured_decision_applied`, marks the decision `applied`, records
+  `latest_continuation`, and leaves the run open as
+  `phase=current_branch_continued` and `status=running`.
+- Continue apply still returns no external action, no write-bearing action, no
+  fork, and no rollback.
+- Updated the React Intelligence inspector so the `Apply ledger-only decision`
+  button is enabled for validated `continue_current_branch` decisions.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add structured decision history/replay visibility in the Intelligence
+  inspector so operators can inspect more than the latest decision before real
+  fork, rollback, memory, route, or deposition apply actions.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

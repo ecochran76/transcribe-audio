@@ -977,6 +977,92 @@ def test_app_intelligence_fork_preflight_endpoint_is_preview_only(tmp_path: Path
     assert shown["events"][-1]["event_type"] == "fork_branches_preflight"
 
 
+def test_app_intelligence_continue_apply_endpoint_is_ledger_only(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    app_intelligence_ledger.create_run(
+        state_root=state_root,
+        workflow="contextual_reread",
+        purpose="Continue current branch.",
+        run_id="continue-api-run",
+    )
+    run_payload = app_intelligence_ledger.response_for_run(state_root=state_root, run_id="continue-api-run")["run"]
+    decision_dir = state_root / "app-intelligence-runs" / "continue-api-run" / "artifacts" / "structured-decisions"
+    decision_dir.mkdir(parents=True)
+    decision_path = decision_dir / "decision-continue.json"
+    decision_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "transcribe-audio.app-intelligence-structured-decision-validation.v1",
+                "decision_id": "decision-continue",
+                "run_id": "continue-api-run",
+                "valid": True,
+                "decision": {
+                    "action": "continue_current_branch",
+                    "rationale": "The current branch has enough context for the next turn.",
+                    "confidence": 0.88,
+                    "review_flags": [],
+                    "recommended_next_prompt": "Continue with the current route.",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_payload["phase"] = "model_turn_completed"
+    run_payload["status"] = "running"
+    run_payload["decisions"] = [
+        {
+            "decision_id": "decision-continue",
+            "valid": True,
+            "action": "continue_current_branch",
+            "status": "validated",
+            "artifact_path": str(decision_path),
+            "will_execute_host_action": False,
+            "created_at": "2026-05-20T12:00:00Z",
+        }
+    ]
+    (state_root / "app-intelligence-runs" / "continue-api-run" / "run.json").write_text(
+        json.dumps(run_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        apply_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/continue-api-run/structured-decisions/decision-continue/apply",
+            data=json.dumps({"approval_token": "APPLY_STRUCTURED_DECISION", "reviewer": "api-test"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        apply_response = urlopen(apply_request, timeout=5)
+        applied = json.loads(apply_response.read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/continue-api-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert apply_response.status == 202
+    assert applied["decision_action"] == "continue_current_branch"
+    assert applied["will_execute_write_bearing_action"] is False
+    assert applied["will_fork_or_rollback"] is False
+    assert Path(applied["artifact_path"]).exists()
+    assert shown["run"]["phase"] == "current_branch_continued"
+    assert shown["run"]["status"] == "running"
+    assert shown["run"]["final"] is None
+    assert shown["run"]["latest_continuation"]["current_branch"] == "main"
+    assert shown["run"]["decisions"][0]["status"] == "applied"
+    assert shown["events"][-1]["event_type"] == "structured_decision_applied"
+
+
 def test_app_intelligence_rollback_preflight_endpoint_is_preview_only(tmp_path: Path) -> None:
     state_root = tmp_path / "state"
     app_intelligence_ledger.create_run(
