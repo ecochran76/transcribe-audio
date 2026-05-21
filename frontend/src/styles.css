@@ -678,6 +678,66 @@ td small {
   display: block;
 }
 
+.decision-history-card {
+  border-color: rgba(215, 255, 115, 0.18);
+}
+
+.decision-history {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.decision-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.decision-row.latest {
+  border-color: rgba(215, 255, 115, 0.36);
+  background: rgba(215, 255, 115, 0.08);
+}
+
+.decision-row.applied {
+  border-color: rgba(118, 223, 170, 0.28);
+}
+
+.decision-row.rejected {
+  border-color: rgba(255, 111, 97, 0.34);
+}
+
+.decision-row-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.decision-row-heading span {
+  color: var(--accent);
+}
+
+.decision-row dl {
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.25rem 0.55rem;
+  margin: 0;
+}
+
+.decision-row dt,
+.decision-row dd {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.decision-row code {
+  max-height: 170px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
 .prompt-preview {
   max-height: 340px;
   overflow: auto;

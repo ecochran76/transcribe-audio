@@ -4408,6 +4408,39 @@ Next:
   inspector so operators can inspect more than the latest decision before real
   fork, rollback, memory, route, or deposition apply actions.
 
+## Turn 136 | 2026-05-20
+
+Summary: Added read-only structured-decision history in the Intelligence inspector.
+
+Action:
+
+- Added a Decision History card to the React Intelligence inspector using the
+  existing selected-run ledger payload.
+- The history shows validated, rejected, and applied structured decisions with
+  decision id, validation artifact, Codex turn id, apply artifact, apply event
+  id, action, status, and no-action flags.
+- The newest decision is highlighted, but older decisions remain inspectable so
+  operators can replay ledger state before future fork, rollback, memory,
+  route, or deposition apply actions.
+- This is read-only UI visibility; it does not add any new apply, preflight,
+  provider, branch, memory, route, or external-write behavior.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add artifact-open/read endpoints for App Intelligence run artifacts so the
+  inspector can show validation/apply/preflight JSON contents without exposing
+  arbitrary filesystem paths.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

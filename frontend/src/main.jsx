@@ -1032,6 +1032,46 @@ function ProviderDetails({ provider, capabilities, checks }) {
   );
 }
 
+function DecisionHistory({ decisions }) {
+  if (!decisions?.length) return <p className="muted">No structured decisions have been validated for this run.</p>;
+  return (
+    <div className="decision-history">
+      {decisions.slice().reverse().map((decision, index) => {
+        const applyResult = decision.apply_result || {};
+        const isLatest = index === 0;
+        return (
+          <article className={`decision-row ${decision.status || "unknown"} ${isLatest ? "latest" : ""}`} key={decision.decision_id}>
+            <div className="decision-row-heading">
+              <strong>{decision.action || "unknown action"}</strong>
+              <span>{decision.status || "unknown"}</span>
+            </div>
+            <small>{isLatest ? "Latest decision" : formatDate(decision.applied_at || decision.created_at)}</small>
+            <dl>
+              <dt>Decision id</dt>
+              <dd>{decision.decision_id || "Unavailable"}</dd>
+              <dt>Validation artifact</dt>
+              <dd>{decision.artifact_path || "Unavailable"}</dd>
+              <dt>Codex turn</dt>
+              <dd>{decision.codex_turn_id || "Unavailable"}</dd>
+              <dt>Apply artifact</dt>
+              <dd>{applyResult.artifact_path || "Not applied"}</dd>
+              <dt>Apply event</dt>
+              <dd>{decision.apply_event_id || "Not applied"}</dd>
+            </dl>
+            <code>{JSON.stringify({
+              valid: decision.valid,
+              will_execute_host_action: decision.will_execute_host_action,
+              applied_ledger_state: applyResult.applied_ledger_state ?? null,
+              current_branch: applyResult.current_branch || null,
+              will_execute_write_bearing_action: applyResult.will_execute_write_bearing_action ?? null
+            }, null, 2)}</code>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function LibraryTable({ items, selectedId, onSelect }) {
   return (
     <div className="table-shell">
@@ -1303,6 +1343,10 @@ function Inspector({
                   ))}
                 </div>
               ) : null}
+              <div className="event-list decision-history-card">
+                <span>Decision History</span>
+                <DecisionHistory decisions={decisions} />
+              </div>
               {packetReview.payload ? (
                 <div className="preview-card">
                   <span>Packet Review</span>
