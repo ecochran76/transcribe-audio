@@ -4441,6 +4441,39 @@ Next:
   inspector can show validation/apply/preflight JSON contents without exposing
   arbitrary filesystem paths.
 
+## Turn 137 | 2026-05-20
+
+Summary: Added registered App Intelligence artifact reads.
+
+Action:
+
+- Added
+  `GET /api/intelligence/runs/<run_id>/artifacts?path=<path>` for reading
+  App Intelligence run artifacts.
+- The endpoint only serves files that resolve inside the selected run directory
+  and are already referenced by the run ledger or event log.
+- The endpoint returns parsed JSON when possible, text content, byte size,
+  relative path, and explicit no-action flags.
+- The Decision History card can now open validation and apply JSON artifacts
+  in-place.
+- Preflight artifacts are also readable when their `artifact_path` is recorded
+  in the run event log.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add a small artifact picker for preflight artifacts in the Decision History
+  panel, using event-log artifact records rather than guessing filenames.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

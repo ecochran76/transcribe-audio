@@ -167,6 +167,7 @@ function App() {
   const [decisionApply, setDecisionApply] = useState({ status: "idle", message: "", payload: null });
   const [forkPreflightAction, setForkPreflightAction] = useState({ status: "idle", message: "", payload: null });
   const [rollbackPreflightAction, setRollbackPreflightAction] = useState({ status: "idle", message: "", payload: null });
+  const [runArtifactAction, setRunArtifactAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -225,6 +226,7 @@ function App() {
         setDecisionApply({ status: "idle", message: "", payload: null });
         setForkPreflightAction({ status: "idle", message: "", payload: null });
         setRollbackPreflightAction({ status: "idle", message: "", payload: null });
+        setRunArtifactAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -689,6 +691,23 @@ function App() {
     }
   }
 
+  async function loadRunArtifact(artifactPath) {
+    if (!selectedRunId || !artifactPath) return;
+    setRunArtifactAction({ status: "loading", message: "Loading registered run artifact...", payload: null });
+    try {
+      const payload = await fetchJson(
+        `/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/artifacts?path=${encodeURIComponent(artifactPath)}`
+      );
+      setRunArtifactAction({
+        status: "loaded",
+        message: `Loaded ${payload.relative_path || "artifact"}; no write or external action was executed.`,
+        payload
+      });
+    } catch (error) {
+      setRunArtifactAction({ status: "error", message: `Artifact load failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -854,6 +873,8 @@ function App() {
             onRunForkPreflight={runForkPreflight}
             rollbackPreflightAction={rollbackPreflightAction}
             onRunRollbackPreflight={runRollbackPreflight}
+            runArtifactAction={runArtifactAction}
+            onLoadRunArtifact={loadRunArtifact}
             intelligence={intelligence}
           />
         </aside>
@@ -1032,7 +1053,7 @@ function ProviderDetails({ provider, capabilities, checks }) {
   );
 }
 
-function DecisionHistory({ decisions }) {
+function DecisionHistory({ decisions, onLoadArtifact }) {
   if (!decisions?.length) return <p className="muted">No structured decisions have been validated for this run.</p>;
   return (
     <div className="decision-history">
@@ -1058,6 +1079,14 @@ function DecisionHistory({ decisions }) {
               <dt>Apply event</dt>
               <dd>{decision.apply_event_id || "Not applied"}</dd>
             </dl>
+            <div className="notice-actions">
+              {decision.artifact_path && (
+                <button onClick={() => onLoadArtifact(decision.artifact_path)} type="button">Open validation JSON</button>
+              )}
+              {applyResult.artifact_path && (
+                <button onClick={() => onLoadArtifact(applyResult.artifact_path)} type="button">Open apply JSON</button>
+              )}
+            </div>
             <code>{JSON.stringify({
               valid: decision.valid,
               will_execute_host_action: decision.will_execute_host_action,
@@ -1231,6 +1260,8 @@ function Inspector({
   onRunForkPreflight,
   rollbackPreflightAction,
   onRunRollbackPreflight,
+  runArtifactAction,
+  onLoadRunArtifact,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1345,7 +1376,25 @@ function Inspector({
               ) : null}
               <div className="event-list decision-history-card">
                 <span>Decision History</span>
-                <DecisionHistory decisions={decisions} />
+                <DecisionHistory decisions={decisions} onLoadArtifact={onLoadRunArtifact} />
+                {runArtifactAction.message ? (
+                  <div className={`action-notice ${runArtifactAction.status}`}>
+                    <strong>{runArtifactAction.message}</strong>
+                    {runArtifactAction.payload && <code>{JSON.stringify({
+                      relative_path: runArtifactAction.payload.relative_path,
+                      artifact_type: runArtifactAction.payload.artifact_type,
+                      bytes: runArtifactAction.payload.bytes,
+                      will_execute_write_bearing_action: runArtifactAction.payload.will_execute_write_bearing_action
+                    }, null, 2)}</code>}
+                    {runArtifactAction.payload && (
+                      <pre className="prompt-preview">
+                        {runArtifactAction.payload.artifact_type === "json"
+                          ? JSON.stringify(runArtifactAction.payload.json, null, 2)
+                          : runArtifactAction.payload.text}
+                      </pre>
+                    )}
+                  </div>
+                ) : null}
               </div>
               {packetReview.payload ? (
                 <div className="preview-card">

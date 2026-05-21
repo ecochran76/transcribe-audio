@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -1045,12 +1046,30 @@ def test_app_intelligence_continue_apply_endpoint_is_ledger_only(tmp_path: Path)
         )
         apply_response = urlopen(apply_request, timeout=5)
         applied = json.loads(apply_response.read())
+        artifact_response = urlopen(
+            f"http://{host}:{port}/api/intelligence/runs/continue-api-run/artifacts?path={quote(applied['artifact_path'], safe='')}",
+            timeout=5,
+        )
+        artifact = json.loads(artifact_response.read())
+        try:
+            urlopen(
+                f"http://{host}:{port}/api/intelligence/runs/continue-api-run/artifacts?path={quote(str(tmp_path / 'unregistered.json'), safe='')}",
+                timeout=5,
+            )
+        except HTTPError as exc:
+            assert exc.code == 400
+        else:
+            raise AssertionError("Expected unregistered artifact paths to be rejected.")
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/continue-api-run", timeout=5).read())
     finally:
         server.shutdown()
         server.server_close()
 
     assert apply_response.status == 202
+    assert artifact_response.status == 200
+    assert artifact["artifact_type"] == "json"
+    assert artifact["json"]["decision_id"] == "decision-continue"
+    assert artifact["will_execute_write_bearing_action"] is False
     assert applied["decision_action"] == "continue_current_branch"
     assert applied["will_execute_write_bearing_action"] is False
     assert applied["will_fork_or_rollback"] is False
@@ -1132,12 +1151,20 @@ def test_app_intelligence_rollback_preflight_endpoint_is_preview_only(tmp_path: 
         )
         preflight_response = urlopen(preflight_request, timeout=5)
         preflight = json.loads(preflight_response.read())
+        artifact_response = urlopen(
+            f"http://{host}:{port}/api/intelligence/runs/rollback-api-run/artifacts?path={quote(preflight['artifact_path'], safe='')}",
+            timeout=5,
+        )
+        artifact = json.loads(artifact_response.read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/rollback-api-run", timeout=5).read())
     finally:
         server.shutdown()
         server.server_close()
 
     assert preflight_response.status == 202
+    assert artifact_response.status == 200
+    assert artifact["json"]["decision_id"] == "decision-rollback"
+    assert artifact["will_execute_write_bearing_action"] is False
     assert preflight["target_branch"] == "main"
     assert preflight["target_event_id"] == "event_before_bad_context"
     assert preflight["target_turn_id"] == "turn_before_bad_context"

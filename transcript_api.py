@@ -64,6 +64,7 @@ DEFAULT_STATE_DIR = Path("~/.local/state/transcribe-audio")
 DEFAULT_BATCH_ENV_FILE = Path("~/.local/state/transcribe-audio/auracall-transcripts.env")
 DEFAULT_CODEX_BIN = "codex"
 MAX_READINESS_OUTPUT_CHARS = 2000
+MAX_APP_ARTIFACT_BYTES = 512 * 1024
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -193,6 +194,102 @@ def read_json_file(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def read_app_intelligence_events_file(run_path: Path) -> list[dict[str, Any]]:
+    events_path = run_path / "events.jsonl"
+    if not events_path.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def collect_app_intelligence_artifact_paths(run: dict[str, Any], run_path: Path) -> set[Path]:
+    candidates: list[str] = []
+    latest_status = run.get("latest_model_turn_status") if isinstance(run.get("latest_model_turn_status"), dict) else {}
+    candidates.append(str(latest_status.get("artifact_path") or ""))
+    for packet in run.get("prompt_packets") if isinstance(run.get("prompt_packets"), list) else []:
+        if isinstance(packet, dict):
+            candidates.append(str(packet.get("packet_path") or ""))
+            candidates.append(str(packet.get("prompt_path") or ""))
+    for decision in run.get("decisions") if isinstance(run.get("decisions"), list) else []:
+        if not isinstance(decision, dict):
+            continue
+        candidates.append(str(decision.get("artifact_path") or ""))
+        apply_result = decision.get("apply_result") if isinstance(decision.get("apply_result"), dict) else {}
+        candidates.append(str(apply_result.get("artifact_path") or ""))
+    for event in read_app_intelligence_events_file(run_path):
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        candidates.append(str(payload.get("artifact_path") or ""))
+        candidates.append(str(payload.get("packet_path") or ""))
+        candidates.append(str(payload.get("prompt_path") or ""))
+
+    root = run_path.resolve()
+    allowed: set[Path] = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate).expanduser()
+        if not path.is_absolute():
+            path = run_path / path
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        allowed.add(resolved)
+    return allowed
+
+
+def read_app_intelligence_artifact(*, state_root: Path, run_id: str, artifact_path: str) -> dict[str, Any]:
+    if not artifact_path:
+        raise ValueError("Missing required query parameter: path")
+    shown = get_app_intelligence_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown.get("run") if isinstance(shown.get("run"), dict) else {}
+    run_path = Path(str(shown.get("path") or ""))
+    requested = Path(artifact_path).expanduser()
+    if not requested.is_absolute():
+        requested = run_path / requested
+    resolved = requested.resolve()
+    run_root = run_path.resolve()
+    try:
+        relative_path = resolved.relative_to(run_root)
+    except ValueError as exc:
+        raise ValueError("Artifact path resolves outside the App Intelligence run directory.") from exc
+    if resolved not in collect_app_intelligence_artifact_paths(run, run_path):
+        raise ValueError("Artifact path is not registered in this App Intelligence run ledger or event log.")
+    if not resolved.exists() or not resolved.is_file():
+        raise FileNotFoundError("App Intelligence artifact file is missing.")
+    size = resolved.stat().st_size
+    if size > MAX_APP_ARTIFACT_BYTES:
+        raise ValueError(f"Artifact is too large to display through this endpoint: {size} bytes.")
+    raw = resolved.read_text(encoding="utf-8")
+    parsed_json: Any = None
+    artifact_type = "text"
+    try:
+        parsed_json = json.loads(raw)
+        artifact_type = "json"
+    except json.JSONDecodeError:
+        parsed_json = None
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-artifact-read.v1",
+        "run_id": run_id,
+        "path": str(resolved),
+        "relative_path": str(relative_path),
+        "artifact_type": artifact_type,
+        "bytes": size,
+        "json": parsed_json,
+        "text": raw,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+    }
 
 
 def compact_document_for_prompt(document: dict[str, Any], *, max_text_chars: int = 12000) -> dict[str, Any]:
@@ -950,6 +1047,15 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         )
                     )
                     return
+                if len(parts) == 5 and parts[4] == "artifacts":
+                    self.write_json(
+                        read_app_intelligence_artifact(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            artifact_path=first(params, "path"),
+                        )
+                    )
+                    return
                 if len(parts) == 4:
                     self.write_json(
                         get_app_intelligence_run(
@@ -1008,6 +1114,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
         except TranscriptStoreError as exc:
+            self.write_error(HTTPStatus.NOT_FOUND, str(exc))
+        except FileNotFoundError as exc:
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
         except ValueError as exc:
             self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
