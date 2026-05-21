@@ -42,6 +42,17 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/human-review`: annotate, resolve, or reopen a human-review decision. Requires `approval_token=RECORD_HUMAN_REVIEW_DECISION`, writes only to the local run ledger, appends a `human_review_decision_recorded` event, and returns no external action, write-bearing action, fork, or rollback.
 - `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/fork-preflight`: preview a validated `fork_branches` decision. Requires `approval_token=PREVIEW_FORK_BRANCHES`, writes a reviewable preflight artifact/event, and returns `will_create_thread=false`, `will_modify_branches=false`, and `will_run_provider=false`.
 - `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/rollback-preflight`: preview a validated `rollback` decision. Requires `approval_token=PREVIEW_ROLLBACK`, writes a reviewable preflight artifact/event, and returns `will_modify_branches=false`, `will_revert_artifacts=false`, `will_create_thread=false`, and `will_run_provider=false`.
+
+Replay-manifest smoke:
+
+```bash
+python scripts/smoke_app_replay_manifest.py --cleanup
+```
+
+This creates a disposable user-scoped run, verifies `/replay-manifest`, opens
+one registered artifact through `/artifacts?path=...`, checks the no-write
+flags, and deletes the run when `--cleanup` is supplied.
+
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
 - `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
 - `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`.

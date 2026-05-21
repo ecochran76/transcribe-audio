@@ -4560,6 +4560,39 @@ Next:
 - Add a focused live UI smoke that selects a run, loads the replay manifest,
   opens one manifest artifact, and records the observed no-write response.
 
+## Turn 141 | 2026-05-21
+
+Summary: Added replay-manifest live smoke helper.
+
+Action:
+
+- Added `scripts/smoke_app_replay_manifest.py`.
+- The smoke creates a disposable user-scoped App Intelligence run, prepares a
+  local prompt packet without sending it, calls the live `/replay-manifest`
+  endpoint, opens one artifact through `/artifacts?path=...`, and checks the
+  no-write response flags.
+- Added `--cleanup` so routine validation can leave no disposable run behind;
+  omitting it leaves a selectable run for manual UI review.
+- Documented the command in README and API docs, and updated the P09/ROADMAP
+  current-state notes.
+
+Validation:
+
+- `python scripts/smoke_app_replay_manifest.py --cleanup` passed against the
+  live local API and confirmed `will_execute_write_bearing_action=false`.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/smoke_app_replay_manifest.py app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add a browser-assisted operator smoke that drives the Intelligence panel
+  itself against a disposable run and captures the visible replay-manifest
+  result.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
