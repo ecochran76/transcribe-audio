@@ -166,6 +166,7 @@ function App() {
   const [decisionValidation, setDecisionValidation] = useState({ status: "idle", message: "", payload: null });
   const [decisionApply, setDecisionApply] = useState({ status: "idle", message: "", payload: null });
   const [forkPreflightAction, setForkPreflightAction] = useState({ status: "idle", message: "", payload: null });
+  const [rollbackPreflightAction, setRollbackPreflightAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +224,7 @@ function App() {
         setDecisionValidation({ status: "idle", message: "", payload: null });
         setDecisionApply({ status: "idle", message: "", payload: null });
         setForkPreflightAction({ status: "idle", message: "", payload: null });
+        setRollbackPreflightAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -667,6 +669,26 @@ function App() {
     }
   }
 
+  async function runRollbackPreflight(decisionId) {
+    if (!selectedRunId || !decisionId) return;
+    setRollbackPreflightAction({ status: "running", message: "Previewing rollback plan...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/structured-decisions/${encodeURIComponent(decisionId)}/rollback-preflight`, {
+        approval_token: "PREVIEW_ROLLBACK",
+        reviewer: "operator"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setRollbackPreflightAction({
+        status: "previewed",
+        message: "Rollback preflight recorded; no branches, artifacts, threads, or provider work were changed.",
+        payload
+      });
+    } catch (error) {
+      setRollbackPreflightAction({ status: "error", message: `Rollback preflight failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -830,6 +852,8 @@ function App() {
             onApplyStructuredDecision={applyStructuredDecision}
             forkPreflightAction={forkPreflightAction}
             onRunForkPreflight={runForkPreflight}
+            rollbackPreflightAction={rollbackPreflightAction}
+            onRunRollbackPreflight={runRollbackPreflight}
             intelligence={intelligence}
           />
         </aside>
@@ -1165,6 +1189,8 @@ function Inspector({
   onApplyStructuredDecision,
   forkPreflightAction,
   onRunForkPreflight,
+  rollbackPreflightAction,
+  onRunRollbackPreflight,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1181,6 +1207,8 @@ function Inspector({
       (latestDecision.action === "stop" || latestDecision.action === "ask_for_human_review");
     const latestDecisionCanForkPreflight =
       latestDecision?.status === "validated" && latestDecision.action === "fork_branches";
+    const latestDecisionCanRollbackPreflight =
+      latestDecision?.status === "validated" && latestDecision.action === "rollback";
     return (
       <div className="inspector-content">
         <p className="eyebrow">Intelligence Inspector</p>
@@ -1417,6 +1445,30 @@ function Inspector({
                         will_create_thread: forkPreflightAction.payload.will_create_thread,
                         will_modify_branches: forkPreflightAction.payload.will_modify_branches,
                         will_run_provider: forkPreflightAction.payload.will_run_provider
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button"
+                    disabled={rollbackPreflightAction.status === "running" || !latestDecisionCanRollbackPreflight}
+                    onClick={() => onRunRollbackPreflight(latestDecision?.decision_id)}
+                    type="button"
+                  >
+                    Preview rollback plan
+                  </button>
+                  {rollbackPreflightAction.message ? (
+                    <div className={`action-notice ${rollbackPreflightAction.status}`}>
+                      <strong>{rollbackPreflightAction.message}</strong>
+                      {rollbackPreflightAction.payload && <code>{JSON.stringify({
+                        decision_id: rollbackPreflightAction.payload.decision_id,
+                        current_branch: rollbackPreflightAction.payload.current_branch,
+                        target_branch: rollbackPreflightAction.payload.target_branch,
+                        target_event_id: rollbackPreflightAction.payload.target_event_id,
+                        target_turn_id: rollbackPreflightAction.payload.target_turn_id,
+                        warning_count: rollbackPreflightAction.payload.warnings?.length || 0,
+                        will_modify_branches: rollbackPreflightAction.payload.will_modify_branches,
+                        will_revert_artifacts: rollbackPreflightAction.payload.will_revert_artifacts,
+                        will_run_provider: rollbackPreflightAction.payload.will_run_provider
                       }, null, 2)}</code>}
                     </div>
                   ) : null}

@@ -29,6 +29,7 @@ from app_intelligence_ledger import (
     mark_session_started as mark_app_intelligence_session_started,
     model_turn_send_preflight as preflight_app_intelligence_model_turn_send,
     preflight_fork_branches as preflight_app_intelligence_fork_branches,
+    preflight_rollback as preflight_app_intelligence_rollback,
     prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
     read_model_turn_packet as read_app_intelligence_model_turn_packet,
     record_human_review_decision as record_app_intelligence_human_review_decision,
@@ -1308,6 +1309,22 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     body = self.read_json_body()
                     self.write_json(
                         preflight_app_intelligence_fork_branches(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            decision_id=parts[5],
+                            approval_token=str(body.get("approval_token") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
+                        ),
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/rollback-preflight"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 7 and parts[4] == "structured-decisions":
+                    body = self.read_json_body()
+                    self.write_json(
+                        preflight_app_intelligence_rollback(
                             state_root=self.state_root,
                             run_id=parts[3],
                             decision_id=parts[5],

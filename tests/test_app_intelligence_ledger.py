@@ -459,6 +459,95 @@ def test_structured_decision_apply_blocks_write_bearing_actions(tmp_path: Path) 
         raise AssertionError("Expected fork_branches to be blocked by the ledger-only apply endpoint.")
 
 
+def test_rollback_preflight_is_preview_only(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="contextual_reread",
+        purpose="Validate rollback decision output.",
+        run_id="rollback-decision-run",
+    )
+    app_intelligence_ledger.mark_session_started(
+        state_root=tmp_path,
+        run_id="rollback-decision-run",
+        transport="stdio",
+        codex_bin="/usr/local/bin/codex",
+        start_result={"ok": True},
+        version_result={"ok": True},
+    )
+    app_intelligence_ledger.record_model_turn_started(
+        state_root=tmp_path,
+        run_id="rollback-decision-run",
+        packet_id="packet-1",
+        thread_id="thread_rollback",
+        turn_id="turn_rollback",
+        app_server_result={},
+    )
+    app_intelligence_ledger.record_model_turn_status(
+        state_root=tmp_path,
+        run_id="rollback-decision-run",
+        thread_id="thread_rollback",
+        turn_id="turn_rollback",
+        status_payload={
+            "status": "completed",
+            "completed": True,
+            "output_text": json.dumps(
+                {
+                    "action": "rollback",
+                    "rationale": "Return to the prior reviewed branch state.",
+                    "confidence": 0.77,
+                    "review_flags": ["rollback_preview"],
+                    "target_branch": "main",
+                    "target_event_id": "event_previous",
+                    "target_turn_id": "turn_previous",
+                }
+            ),
+        },
+        approval_token=app_intelligence_ledger.MODEL_TURN_STATUS_TOKEN,
+    )
+    decision = app_intelligence_ledger.validate_latest_structured_decision(
+        state_root=tmp_path,
+        run_id="rollback-decision-run",
+        approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
+    )
+
+    preflight = app_intelligence_ledger.preflight_rollback(
+        state_root=tmp_path,
+        run_id="rollback-decision-run",
+        decision_id=decision["decision_id"],
+        approval_token=app_intelligence_ledger.ROLLBACK_PREFLIGHT_TOKEN,
+        reviewer="test-operator",
+        note="Preview only.",
+    )
+    shown_after_preflight = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="rollback-decision-run")
+
+    assert preflight["ok"] is True
+    assert preflight["target_branch"] == "main"
+    assert preflight["target_event_id"] == "event_previous"
+    assert preflight["target_turn_id"] == "turn_previous"
+    assert preflight["warnings"] == []
+    assert preflight["will_modify_branches"] is False
+    assert preflight["will_revert_artifacts"] is False
+    assert preflight["will_create_thread"] is False
+    assert preflight["will_run_provider"] is False
+    assert preflight["will_execute_write_bearing_action"] is False
+    assert Path(preflight["artifact_path"]).exists()
+    assert shown_after_preflight["run"]["phase"] == "model_turn_completed"
+    assert shown_after_preflight["run"]["decisions"][0]["status"] == "validated"
+    assert shown_after_preflight["events"][-1]["event_type"] == "rollback_preflight"
+
+    try:
+        app_intelligence_ledger.apply_validated_structured_decision(
+            state_root=tmp_path,
+            run_id="rollback-decision-run",
+            decision_id=decision["decision_id"],
+            approval_token=app_intelligence_ledger.STRUCTURED_DECISION_APPLY_TOKEN,
+        )
+    except ValueError as exc:
+        assert "only records ledger-only" in str(exc)
+    else:
+        raise AssertionError("Expected rollback to be blocked by the ledger-only apply endpoint.")
+
+
 def test_cli_create_outputs_json(tmp_path: Path, capsys) -> None:
     exit_code = app_intelligence_ledger.main(
         [

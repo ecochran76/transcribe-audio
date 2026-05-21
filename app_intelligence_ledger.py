@@ -26,6 +26,7 @@ STRUCTURED_DECISION_VALIDATE_TOKEN = "VALIDATE_STRUCTURED_DECISION"
 STRUCTURED_DECISION_APPLY_TOKEN = "APPLY_STRUCTURED_DECISION"
 HUMAN_REVIEW_DECISION_TOKEN = "RECORD_HUMAN_REVIEW_DECISION"
 FORK_BRANCHES_PREFLIGHT_TOKEN = "PREVIEW_FORK_BRANCHES"
+ROLLBACK_PREFLIGHT_TOKEN = "PREVIEW_ROLLBACK"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -1185,6 +1186,100 @@ def preflight_fork_branches(
     return {
         **preflight,
         "action": "preflight_fork_branches",
+        "ok": True,
+        "artifact_path": str(artifact_path),
+        "event": event,
+    }
+
+
+def preflight_rollback(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    decision_id: str,
+    approval_token: str,
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    if approval_token != ROLLBACK_PREFLIGHT_TOKEN:
+        raise ValueError(f"Rollback preflight requires approval_token={ROLLBACK_PREFLIGHT_TOKEN}.")
+    if not decision_id:
+        raise ValueError("decision_id is required.")
+
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    path = run_dir(state_root, run_id)
+    decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+    summary = next((item for item in decisions if item.get("decision_id") == decision_id), None)
+    if not isinstance(summary, dict):
+        raise ValueError(f"Decision not found for run: {decision_id}")
+    if summary.get("status") != "validated" or not summary.get("valid"):
+        raise ValueError("Only validated structured decisions can be preflighted.")
+    if summary.get("action") != "rollback":
+        raise ValueError("Rollback preflight requires a rollback decision.")
+
+    validation_path = Path(str(summary.get("artifact_path") or ""))
+    resolved = validation_path.resolve()
+    try:
+        resolved.relative_to(path.resolve())
+    except ValueError as exc:
+        raise ValueError("Decision artifact resolves outside the run directory.") from exc
+    if not resolved.exists():
+        raise FileNotFoundError("Decision validation artifact is missing.")
+    validation = read_json(resolved)
+    decision = validation.get("decision") if isinstance(validation.get("decision"), dict) else {}
+    state = run.get("state") if isinstance(run.get("state"), dict) else {}
+    current_branch = str(state.get("current_branch") or "main")
+    target_branch = str(decision.get("target_branch") or current_branch)
+    target_event_id = str(decision.get("target_event_id") or "")
+    target_turn_id = str(decision.get("target_turn_id") or "")
+    warnings = []
+    if not target_event_id and not target_turn_id:
+        warnings.append("Rollback target is advisory only; no target_event_id or target_turn_id was supplied.")
+
+    preflight = {
+        "schema_version": "transcribe-audio.app-intelligence-rollback-preflight.v1",
+        "run_id": run_id,
+        "decision_id": decision_id,
+        "created_at": utc_now(),
+        "reviewer": reviewer or "operator",
+        "note": note,
+        "source_validation_artifact": str(resolved),
+        "current_branch": current_branch,
+        "target_branch": target_branch,
+        "target_event_id": target_event_id,
+        "target_turn_id": target_turn_id,
+        "planned_status": "preview_only",
+        "decision": decision,
+        "warnings": warnings,
+        "will_modify_branches": False,
+        "will_revert_artifacts": False,
+        "will_create_thread": False,
+        "will_run_provider": False,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+    }
+    artifact_path = path / "artifacts" / "structured-decisions" / f"{decision_id}.rollback-preflight.json"
+    write_json(artifact_path, preflight)
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="rollback_preflight",
+        payload={
+            "decision_id": decision_id,
+            "artifact_path": str(artifact_path),
+            "current_branch": current_branch,
+            "target_branch": target_branch,
+            "target_event_id": target_event_id,
+            "target_turn_id": target_turn_id,
+            "will_modify_branches": False,
+            "will_revert_artifacts": False,
+            "will_run_provider": False,
+        },
+    )
+    return {
+        **preflight,
+        "action": "preflight_rollback",
         "ok": True,
         "artifact_path": str(artifact_path),
         "event": event,
