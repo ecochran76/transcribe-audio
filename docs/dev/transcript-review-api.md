@@ -47,11 +47,14 @@ Replay-manifest smoke:
 
 ```bash
 python scripts/smoke_app_replay_manifest.py --cleanup
+python scripts/smoke_app_replay_manifest_ui.py --cleanup
 ```
 
 This creates a disposable user-scoped run, verifies `/replay-manifest`, opens
 one registered artifact through `/artifacts?path=...`, checks the no-write
-flags, and deletes the run when `--cleanup` is supplied.
+flags, and deletes the run when `--cleanup` is supplied. The UI smoke also
+drives the React Intelligence panel with `agent-browser` and stores JSON plus
+screenshot evidence under `~/.local/state/transcribe-audio/browser-smokes/`.
 
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
 - `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.

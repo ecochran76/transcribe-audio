@@ -4593,6 +4593,40 @@ Next:
   itself against a disposable run and captures the visible replay-manifest
   result.
 
+## Turn 142 | 2026-05-21
+
+Summary: Added browser-assisted replay-manifest UI smoke.
+
+Action:
+
+- Added `scripts/smoke_app_replay_manifest_ui.py`.
+- The smoke creates or refreshes a disposable App Intelligence run, opens the
+  live React console with `agent-browser`, selects the Intelligence panel,
+  selects the disposable run, clicks a Replay Manifest artifact, and verifies
+  the visible no-write registered-reader response.
+- The smoke writes JSON and screenshot evidence under
+  `~/.local/state/transcribe-audio/browser-smokes/`.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `python scripts/smoke_app_replay_manifest.py --cleanup` passed against the
+  live local API.
+- `python scripts/smoke_app_replay_manifest_ui.py --run-id smoke-replay-manifest-ui-review --session transcript-replay-ui-smoke --cleanup`
+  passed and wrote JSON/screenshot evidence under
+  `~/.local/state/transcribe-audio/browser-smokes/`.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/smoke_app_replay_manifest.py scripts/smoke_app_replay_manifest_ui.py app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add an explicit operator cleanup command for disposable App Intelligence
+  smoke runs and browser-smoke evidence retention.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

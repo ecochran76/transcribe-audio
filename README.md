@@ -562,9 +562,12 @@ Smoke the replay-manifest and registered artifact reader against the live API:
 
 ```bash
 python scripts/smoke_app_replay_manifest.py --cleanup
+python scripts/smoke_app_replay_manifest_ui.py --cleanup
 ```
 
 Omit `--cleanup` to leave a disposable run selectable in the Intelligence panel.
+The UI smoke writes JSON and screenshot evidence under
+`~/.local/state/transcribe-audio/browser-smokes/`.
 
 Task routing can be inspected or initialized from the CLI:
 
