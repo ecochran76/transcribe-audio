@@ -4627,6 +4627,40 @@ Next:
 - Add an explicit operator cleanup command for disposable App Intelligence
   smoke runs and browser-smoke evidence retention.
 
+## Turn 143 | 2026-05-21
+
+Summary: Added App Intelligence smoke cleanup command.
+
+Action:
+
+- Added `scripts/cleanup_app_smokes.py`.
+- The cleanup command reports disposable App Intelligence smoke run dirs and
+  browser-smoke evidence files under the user-scoped runtime state.
+- The command is dry-run by default and requires `--apply` before deleting any
+  matching run directory or evidence file.
+- Documented the command in README and API docs, and updated the P09/ROADMAP
+  current-state notes.
+
+Validation:
+
+- Temp-state `python scripts/cleanup_app_smokes.py --apply` removed only
+  matching disposable smoke dirs and expired evidence while preserving kept
+  items.
+- Live `python scripts/cleanup_app_smokes.py --keep-runs 1 --keep-evidence 10 --evidence-days 14`
+  was dry-run only and reported `delete_run_count=0`,
+  `delete_evidence_count=0`.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/cleanup_app_smokes.py scripts/smoke_app_replay_manifest.py scripts/smoke_app_replay_manifest_ui.py app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add a small smoke-status panel or endpoint that surfaces the latest API/UI
+  smoke result paths in the Intelligence inspector.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
