@@ -4474,6 +4474,34 @@ Next:
 - Add a small artifact picker for preflight artifacts in the Decision History
   panel, using event-log artifact records rather than guessing filenames.
 
+## Turn 138 | 2026-05-20
+
+Summary: Added event-log preflight artifact picker.
+
+Action:
+
+- Added a Preflight Artifacts picker to the React Decision History card.
+- The picker derives rows only from selected-run events whose event type
+  includes `preflight` and whose payload contains `artifact_path`.
+- Picker buttons reuse the existing guarded registered-artifact reader; they
+  do not guess filenames or introduce a new filesystem read path.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add run-artifact affordances for prompt/status artifacts in the inspector so
+  every existing App Intelligence artifact class can be opened from the UI
+  through the same registered-read endpoint.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

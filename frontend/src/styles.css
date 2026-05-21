@@ -738,6 +738,50 @@ td small {
   color: var(--muted);
 }
 
+.preflight-picker {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.preflight-picker > span {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.preflight-artifacts {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.preflight-artifact-row {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.85rem;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--ink);
+  text-align: left;
+}
+
+.preflight-artifact-row span {
+  color: var(--accent-2);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.preflight-artifact-row small {
+  color: var(--muted);
+}
+
 .prompt-preview {
   max-height: 340px;
   overflow: auto;

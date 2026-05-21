@@ -1101,6 +1101,30 @@ function DecisionHistory({ decisions, onLoadArtifact }) {
   );
 }
 
+function PreflightArtifacts({ events, onLoadArtifact }) {
+  const artifacts = (events || [])
+    .filter((event) => event?.event_type?.includes("preflight") && event.payload?.artifact_path)
+    .slice()
+    .reverse();
+  if (!artifacts.length) return <p className="muted">No preflight artifacts are recorded for this run.</p>;
+  return (
+    <div className="preflight-artifacts">
+      {artifacts.map((event) => (
+        <button
+          className="preflight-artifact-row"
+          key={event.event_id || `${event.event_type}-${event.created_at}`}
+          onClick={() => onLoadArtifact(event.payload.artifact_path)}
+          type="button"
+        >
+          <span>{statusLabel(event.event_type || "preflight")}</span>
+          <strong>{event.payload.decision_id || "run preflight"}</strong>
+          <small>{event.created_at || event.payload.artifact_path}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function LibraryTable({ items, selectedId, onSelect }) {
   return (
     <div className="table-shell">
@@ -1377,6 +1401,10 @@ function Inspector({
               <div className="event-list decision-history-card">
                 <span>Decision History</span>
                 <DecisionHistory decisions={decisions} onLoadArtifact={onLoadRunArtifact} />
+                <div className="preflight-picker">
+                  <span>Preflight Artifacts</span>
+                  <PreflightArtifacts events={events} onLoadArtifact={onLoadRunArtifact} />
+                </div>
                 {runArtifactAction.message ? (
                   <div className={`action-notice ${runArtifactAction.status}`}>
                     <strong>{runArtifactAction.message}</strong>
