@@ -821,6 +821,22 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         apply_response = urlopen(apply_request, timeout=5)
         applied = json.loads(apply_response.read())
+        human_review_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/packet-run/structured-decisions/{decision['decision_id']}/human-review",
+            data=json.dumps(
+                {
+                    "approval_token": "RECORD_HUMAN_REVIEW_DECISION",
+                    "review_action": "resolve",
+                    "reviewer": "api-test",
+                    "note": "Reviewed in the API test.",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        human_review_response = urlopen(human_review_request, timeout=5)
+        human_review = json.loads(human_review_response.read())
+        review_queue = json.loads(urlopen(f"http://{host}:{port}/api/review-queue?limit=20", timeout=5).read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
         server.shutdown()
@@ -862,11 +878,18 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert applied["applied_ledger_state"] is True
     assert applied["will_execute_external_action"] is False
     assert applied["will_execute_write_bearing_action"] is False
+    assert human_review_response.status == 202
+    assert human_review["review_action"] == "resolve"
+    assert human_review["human_review_status"] == "resolved"
+    app_review_bucket = next(bucket for bucket in review_queue["buckets"] if bucket["id"] == "app_intelligence_human_review")
+    assert app_review_bucket["count"] == 0
+    assert any(item["status"] == "resolved" for item in review_queue["items"])
     assert shown["run"]["phase"] == "human_review_requested"
     assert shown["run"]["status"] == "needs_human_review"
     assert shown["run"]["state"]["active_codex_thread_id"] == "thread_test"
     assert shown["run"]["decisions"][0]["status"] == "applied"
-    assert shown["events"][-1]["event_type"] == "structured_decision_applied"
+    assert shown["run"]["decisions"][0]["human_review"]["status"] == "resolved"
+    assert shown["events"][-1]["event_type"] == "human_review_decision_recorded"
     assert shown["codex_events_count"] == 2
 
 

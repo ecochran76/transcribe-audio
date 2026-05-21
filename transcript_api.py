@@ -30,6 +30,7 @@ from app_intelligence_ledger import (
     model_turn_send_preflight as preflight_app_intelligence_model_turn_send,
     prepare_model_turn_packet as prepare_app_intelligence_model_turn_packet,
     read_model_turn_packet as read_app_intelligence_model_turn_packet,
+    record_human_review_decision as record_app_intelligence_human_review_decision,
     record_model_turn_failed as record_app_intelligence_model_turn_failed,
     record_model_turn_started as record_app_intelligence_model_turn_started,
     record_model_turn_status as record_app_intelligence_model_turn_status,
@@ -544,7 +545,10 @@ def app_intelligence_human_review_items(state_root: Path, *, limit: int = 50) ->
             status = str(decision.get("status") or "")
             if status not in {"validated", "applied"}:
                 continue
+            human_review = decision.get("human_review") if isinstance(decision.get("human_review"), dict) else {}
+            human_review_status = str(human_review.get("status") or "open")
             apply_result = decision.get("apply_result") if isinstance(decision.get("apply_result"), dict) else {}
+            item_status = "resolved" if human_review_status == "resolved" else "needs_human_review" if status == "applied" else "pending_apply"
             items.append(
                 {
                     "id": f"{run_id}:{decision.get('decision_id') or ''}",
@@ -558,7 +562,9 @@ def app_intelligence_human_review_items(state_root: Path, *, limit: int = 50) ->
                     "workflow": run.get("workflow") or "",
                     "decision_id": decision.get("decision_id") or "",
                     "decision_status": status,
-                    "status": "needs_human_review" if status == "applied" else "pending_apply",
+                    "human_review_status": human_review_status,
+                    "human_review_note_count": len(human_review.get("notes") if isinstance(human_review.get("notes"), list) else []),
+                    "status": item_status,
                     "review_path": str(shown.get("path") or ""),
                     "artifact_path": apply_result.get("artifact_path") or decision.get("artifact_path") or "",
                     "confidence": None,
@@ -607,9 +613,9 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
     app_human_review_bucket = {
         "id": "app_intelligence_human_review",
         "label": "App Intelligence review",
-        "count": len(app_human_review_items),
-        "status": "pending" if app_human_review_items else "clear",
-        "detail": f"{len(app_human_review_items)} App Intelligence human-review decisions need operator attention.",
+        "count": sum(1 for item in app_human_review_items if item.get("status") != "resolved"),
+        "status": "pending" if any(item.get("status") != "resolved" for item in app_human_review_items) else "clear",
+        "detail": f"{sum(1 for item in app_human_review_items if item.get('status') != 'resolved')} App Intelligence human-review decisions need operator attention.",
         "pending_apply_count": sum(1 for item in app_human_review_items if item.get("status") == "pending_apply"),
         "needs_review_count": sum(1 for item in app_human_review_items if item.get("status") == "needs_human_review"),
     }
@@ -1271,6 +1277,23 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             state_root=self.state_root,
                             run_id=parts[3],
                             decision_id=parts[5],
+                            approval_token=str(body.get("approval_token") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
+                        ),
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+            if parsed.path.startswith("/api/intelligence/runs/") and parsed.path.endswith("/human-review"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 7 and parts[4] == "structured-decisions":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_app_intelligence_human_review_decision(
+                            state_root=self.state_root,
+                            run_id=parts[3],
+                            decision_id=parts[5],
+                            review_action=str(body.get("review_action") or ""),
                             approval_token=str(body.get("approval_token") or ""),
                             reviewer=str(body.get("reviewer") or "operator"),
                             note=str(body.get("note") or ""),

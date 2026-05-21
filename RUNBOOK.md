@@ -4262,6 +4262,42 @@ Next:
   the operator can resolve, annotate, or reopen a ledger-only decision without
   enabling fork, rollback, memory, routing, or repository writes.
 
+## Turn 132 | 2026-05-20
+
+Summary: Added local App Intelligence human-review actions.
+
+Action:
+
+- Added `HUMAN_REVIEW_DECISION_TOKEN=RECORD_HUMAN_REVIEW_DECISION`.
+- Added `record_human_review_decision()` for `annotate`, `resolve`, and
+  `reopen` actions on `ask_for_human_review` decisions.
+- Added
+  `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/human-review`.
+- Human-review actions update only `run.json`, append
+  `human_review_decision_recorded`, and return explicit no-action flags for
+  external actions, write-bearing actions, fork, and rollback.
+- Updated `/api/review-queue` so resolved App Intelligence human-review items
+  remain visible as resolved rows but do not count as open.
+- Added Review Queue UI buttons for annotating, resolving, and reopening App
+  Intelligence human-review items.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned older broad
+  repo facts only, so repo source remained authoritative.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add a guarded branch/fork preflight endpoint for App Intelligence that
+  computes what would happen for `fork_branches` without creating threads,
+  modifying branches, or running provider work.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

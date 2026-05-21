@@ -24,6 +24,7 @@ MODEL_TURN_SEND_TOKEN = "SEND_APP_SERVER_MODEL_TURN"
 MODEL_TURN_STATUS_TOKEN = "CAPTURE_MODEL_TURN_STATUS"
 STRUCTURED_DECISION_VALIDATE_TOKEN = "VALIDATE_STRUCTURED_DECISION"
 STRUCTURED_DECISION_APPLY_TOKEN = "APPLY_STRUCTURED_DECISION"
+HUMAN_REVIEW_DECISION_TOKEN = "RECORD_HUMAN_REVIEW_DECISION"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -61,6 +62,7 @@ STRUCTURED_DECISION_ACTIONS = {
     "ask_for_human_review",
 }
 LEDGER_ONLY_STRUCTURED_DECISION_ACTIONS = {"stop", "ask_for_human_review"}
+HUMAN_REVIEW_DECISION_ACTIONS = {"annotate", "resolve", "reopen"}
 
 
 def utc_now() -> str:
@@ -1078,6 +1080,107 @@ def apply_validated_structured_decision(
         "decision_action": action,
         "artifact_path": str(apply_path),
         "applied_ledger_state": True,
+        "will_execute_external_action": False,
+        "will_execute_downstream_action": False,
+        "will_execute_write_bearing_action": False,
+        "will_fork_or_rollback": False,
+        "run": ledger,
+        "event": event,
+    }
+
+
+def record_human_review_decision(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    decision_id: str,
+    review_action: str,
+    approval_token: str,
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    if approval_token != HUMAN_REVIEW_DECISION_TOKEN:
+        raise ValueError(f"Recording human-review decisions requires approval_token={HUMAN_REVIEW_DECISION_TOKEN}.")
+    if review_action not in HUMAN_REVIEW_DECISION_ACTIONS:
+        raise ValueError(f"review_action must be one of {sorted(HUMAN_REVIEW_DECISION_ACTIONS)}.")
+    if not note.strip() and review_action in {"resolve", "reopen"}:
+        raise ValueError("A note is required when resolving or reopening a human-review decision.")
+
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+    index = next((idx for idx, item in enumerate(decisions) if item.get("decision_id") == decision_id), -1)
+    if index < 0:
+        raise ValueError(f"Decision not found for run: {decision_id}")
+    summary = decisions[index]
+    if summary.get("action") != "ask_for_human_review":
+        raise ValueError("Only ask_for_human_review decisions can be recorded through this endpoint.")
+    if summary.get("status") not in {"validated", "applied"} or not summary.get("valid"):
+        raise ValueError("Only validated or ledger-applied human-review decisions can be recorded.")
+    if review_action in {"resolve", "reopen"} and summary.get("status") != "applied":
+        raise ValueError("Resolve and reopen require a ledger-applied human-review decision.")
+
+    recorded_at = utc_now()
+    previous_state = summary.get("human_review") if isinstance(summary.get("human_review"), dict) else {}
+    previous_notes = previous_state.get("notes") if isinstance(previous_state.get("notes"), list) else []
+    state_status = str(previous_state.get("status") or "open")
+    if review_action == "resolve":
+        state_status = "resolved"
+    elif review_action == "reopen":
+        state_status = "open"
+    note_record = {
+        "action": review_action,
+        "note": note,
+        "reviewer": reviewer or "operator",
+        "recorded_at": recorded_at,
+    }
+    updated_summary = {
+        **summary,
+        "human_review": {
+            **previous_state,
+            "status": state_status,
+            "updated_at": recorded_at,
+            "updated_by": reviewer or "operator",
+            "notes": [*previous_notes, note_record],
+        },
+    }
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="human_review_decision_recorded",
+        payload={
+            "decision_id": decision_id,
+            "review_action": review_action,
+            "human_review_status": state_status,
+            "reviewer": reviewer or "operator",
+            "note": note,
+            "will_execute_external_action": False,
+            "will_execute_downstream_action": False,
+            "will_execute_write_bearing_action": False,
+            "will_fork_or_rollback": False,
+        },
+    )
+    final = run.get("final") if isinstance(run.get("final"), dict) else None
+    if final and final.get("decision_id") == decision_id:
+        final = {**final, "human_review_status": state_status, "human_review_updated_at": recorded_at}
+    ledger = update_run_json(
+        state_root=state_root,
+        run_id=run_id,
+        updates={
+            "decisions": [*decisions[:index], updated_summary, *decisions[index + 1 :]],
+            "final": final,
+        },
+    )
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-human-review-decision.v1",
+        "action": "record_human_review_decision",
+        "ok": True,
+        "run_id": run_id,
+        "decision_id": decision_id,
+        "review_action": review_action,
+        "human_review_status": state_status,
+        "reviewer": reviewer or "operator",
+        "note": note,
         "will_execute_external_action": False,
         "will_execute_downstream_action": False,
         "will_execute_write_bearing_action": False,

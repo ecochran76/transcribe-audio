@@ -293,6 +293,42 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown_after_apply["run"]["decisions"][0]["status"] == "applied"
     assert shown_after_apply["events"][-1]["event_type"] == "structured_decision_applied"
 
+    annotated = app_intelligence_ledger.record_human_review_decision(
+        state_root=tmp_path,
+        run_id="packet-run",
+        decision_id=decision["decision_id"],
+        review_action="annotate",
+        approval_token=app_intelligence_ledger.HUMAN_REVIEW_DECISION_TOKEN,
+        reviewer="test-operator",
+        note="Need a second source check.",
+    )
+    resolved = app_intelligence_ledger.record_human_review_decision(
+        state_root=tmp_path,
+        run_id="packet-run",
+        decision_id=decision["decision_id"],
+        review_action="resolve",
+        approval_token=app_intelligence_ledger.HUMAN_REVIEW_DECISION_TOKEN,
+        reviewer="test-operator",
+        note="Reviewed and accepted no further action.",
+    )
+    reopened = app_intelligence_ledger.record_human_review_decision(
+        state_root=tmp_path,
+        run_id="packet-run",
+        decision_id=decision["decision_id"],
+        review_action="reopen",
+        approval_token=app_intelligence_ledger.HUMAN_REVIEW_DECISION_TOKEN,
+        reviewer="test-operator",
+        note="Reopened for another operator pass.",
+    )
+    shown_after_review = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="packet-run")
+
+    assert annotated["human_review_status"] == "open"
+    assert resolved["human_review_status"] == "resolved"
+    assert reopened["human_review_status"] == "open"
+    assert shown_after_review["run"]["decisions"][0]["human_review"]["status"] == "open"
+    assert len(shown_after_review["run"]["decisions"][0]["human_review"]["notes"]) == 3
+    assert shown_after_review["events"][-1]["event_type"] == "human_review_decision_recorded"
+
 
 def test_structured_decision_validation_rejects_non_decision_output(tmp_path: Path) -> None:
     app_intelligence_ledger.create_run(

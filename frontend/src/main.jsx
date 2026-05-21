@@ -146,6 +146,7 @@ function App() {
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
   const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "" });
+  const [humanReviewAction, setHumanReviewAction] = useState({ status: "idle", message: "", payload: null });
   const [intelligence, setIntelligence] = useState(FALLBACK_INTELLIGENCE);
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
   const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
@@ -342,6 +343,41 @@ function App() {
       });
     } catch (error) {
       setReviewAction((current) => ({ ...current, status: "error", message: `Status check failed: ${error.message}` }));
+    }
+  }
+
+  async function recordHumanReviewDecision(item, reviewActionName) {
+    if (!item?.run_id || !item?.decision_id) return;
+    const label = reviewActionName === "resolve" ? "Resolve" : reviewActionName === "reopen" ? "Reopen" : "Annotate";
+    const defaultNote = reviewActionName === "annotate" ? "" : `${label} human-review item.`;
+    const note = window.prompt(`${label} this App Intelligence human-review item. Add a local ledger note:`, defaultNote);
+    if (note === null) return;
+    if (!note.trim() && reviewActionName !== "annotate") {
+      setHumanReviewAction({ status: "error", message: `${label} requires a note.`, payload: null });
+      return;
+    }
+    setHumanReviewAction({ status: "running", message: `${label} human-review item...`, payload: null });
+    try {
+      const payload = await postJson(
+        `/api/intelligence/runs/${encodeURIComponent(item.run_id)}/structured-decisions/${encodeURIComponent(item.decision_id)}/human-review`,
+        {
+          approval_token: "RECORD_HUMAN_REVIEW_DECISION",
+          review_action: reviewActionName,
+          reviewer: "operator",
+          note
+        }
+      );
+      const reviewPayload = await fetchJson("/api/review-queue?limit=100");
+      const runsPayload = await fetchJson("/api/intelligence/runs?limit=8");
+      setReviewQueue(reviewPayload);
+      setIntelligence((current) => ({ ...current, runs: runsPayload }));
+      setHumanReviewAction({
+        status: "recorded",
+        message: `${label} recorded in the local App Intelligence ledger; no external action was executed.`,
+        payload
+      });
+    } catch (error) {
+      setHumanReviewAction({ status: "error", message: `${label} failed: ${error.message}`, payload: null });
     }
   }
 
@@ -708,6 +744,8 @@ function App() {
               onPrepareFirstPass={prepareFirstPassBatch}
               onSubmitFirstPass={submitFirstPassBatch}
               onRefreshFirstPass={refreshFirstPassBatch}
+              humanReviewAction={humanReviewAction}
+              onRecordHumanReview={recordHumanReviewDecision}
             />
           ) : activeNav === "Intelligence" ? (
             <IntelligencePanel
@@ -981,7 +1019,7 @@ function LibraryTable({ items, selectedId, onSelect }) {
   );
 }
 
-function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass }) {
+function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, humanReviewAction, onRecordHumanReview }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
   return (
@@ -1024,6 +1062,18 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
           </div>
         </div>
       )}
+      {humanReviewAction.message && (
+        <div className={`action-notice ${humanReviewAction.status}`}>
+          <strong>{humanReviewAction.message}</strong>
+          {humanReviewAction.payload && <code>{JSON.stringify({
+            run_id: humanReviewAction.payload.run_id,
+            decision_id: humanReviewAction.payload.decision_id,
+            review_action: humanReviewAction.payload.review_action,
+            human_review_status: humanReviewAction.payload.human_review_status,
+            will_execute_external_action: humanReviewAction.payload.will_execute_external_action
+          }, null, 2)}</code>}
+        </div>
+      )}
       <div className="queue-list">
         <div className="queue-list-heading">
           <h2>Review items</h2>
@@ -1038,6 +1088,17 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
               </div>
               <span>{item.type === "app_intelligence_human_review" ? statusLabel(item.decision_status || item.status) : item.route_decision_exists ? "route available" : "stale route reference"}</span>
               <code>{item.artifact_path || item.route_decision_path || item.review_path}</code>
+              {item.type === "app_intelligence_human_review" && (
+                <div className="notice-actions">
+                  <button onClick={() => onRecordHumanReview(item, "annotate")} type="button">Annotate</button>
+                  {item.status === "needs_human_review" && (
+                    <button onClick={() => onRecordHumanReview(item, "resolve")} type="button">Resolve</button>
+                  )}
+                  {item.human_review_status === "resolved" && (
+                    <button onClick={() => onRecordHumanReview(item, "reopen")} type="button">Reopen</button>
+                  )}
+                </div>
+              )}
             </article>
           ))
         ) : (
