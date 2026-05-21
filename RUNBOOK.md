@@ -4688,6 +4688,41 @@ Next:
 - Add operator affordances for running smoke commands from the UI as queued,
   approval-gated local jobs rather than separate shell commands.
 
+## Turn 145 | 2026-05-21
+
+Summary: Added approval-gated smoke job queueing to the review console.
+
+Action:
+
+- Added `GET/POST /api/intelligence/smoke-jobs`.
+- Smoke jobs are allowlisted to API replay smoke, browser replay smoke, and
+  smoke cleanup; they require explicit approval tokens and never accept
+  arbitrary shell input.
+- Job records, stdout paths, and stderr paths are stored under the user-scoped
+  state directory at `~/.local/state/transcribe-audio/smoke-jobs/`.
+- Updated the React Smoke Status card with queue buttons and recent job
+  status rows.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `python -m py_compile transcript_api.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command -q`
+  passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 32 tests.
+- `npm --prefix frontend run build` passed.
+- Live `POST /api/intelligence/smoke-jobs` queued
+  `api_replay_smoke-20260521T234447Z-c59848a0`, and
+  `GET /api/intelligence/smoke-jobs?limit=1` reported `status=succeeded`,
+  `returncode=0`, `will_execute_external_action=false`, and
+  `will_execute_write_bearing_action=false`.
+
+Next:
+
+- Run a live UI-queued browser smoke through the service, then add automatic
+  short polling while a queued smoke job is running.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -83,7 +83,8 @@ const FALLBACK_INTELLIGENCE = {
     default_supervisor: "codex-app-server"
   },
   runs: { items: [], total: 0 },
-  smokes: { latest_report: null, reports: [], runs: [], report_count: 0, run_count: 0 }
+  smokes: { latest_report: null, reports: [], runs: [], report_count: 0, run_count: 0 },
+  smokeJobs: { items: [], total: 0, available_job_types: [] }
 };
 
 function formatDate(value) {
@@ -170,25 +171,27 @@ function App() {
   const [forkPreflightAction, setForkPreflightAction] = useState({ status: "idle", message: "", payload: null });
   const [rollbackPreflightAction, setRollbackPreflightAction] = useState({ status: "idle", message: "", payload: null });
   const [runArtifactAction, setRunArtifactAction] = useState({ status: "idle", message: "", payload: null });
+  const [smokeJobAction, setSmokeJobAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload, smokesPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=25"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/intelligence/providers"),
           fetchJson("/api/intelligence/config"),
           fetchJson("/api/intelligence/runs?limit=8"),
-          fetchJson("/api/intelligence/smokes?limit=5")
+          fetchJson("/api/intelligence/smokes?limit=5"),
+          fetchJson("/api/intelligence/smoke-jobs?limit=5")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
         setReviewQueue(reviewPayload);
-        setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload });
+        setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
@@ -280,6 +283,49 @@ function App() {
     setSelectedRunDetail(detail);
     setRunReplayManifest(replayManifest);
     return detail;
+  }
+
+  async function refreshSmokeEvidence() {
+    const [smokesPayload, smokeJobsPayload, runsPayload] = await Promise.all([
+      fetchJson("/api/intelligence/smokes?limit=5"),
+      fetchJson("/api/intelligence/smoke-jobs?limit=5"),
+      fetchJson("/api/intelligence/runs?limit=8")
+    ]);
+    setIntelligence((current) => ({ ...current, smokes: smokesPayload, smokeJobs: smokeJobsPayload, runs: runsPayload }));
+    return { smokes: smokesPayload, smokeJobs: smokeJobsPayload };
+  }
+
+  async function startSmokeJob(jobType, { applyCleanup = false } = {}) {
+    const labels = {
+      api_replay_smoke: "API replay smoke",
+      browser_replay_smoke: "browser replay smoke",
+      cleanup_smokes: applyCleanup ? "smoke cleanup apply" : "smoke cleanup dry-run"
+    };
+    if (jobType === "browser_replay_smoke") {
+      const approved = window.confirm("Run the browser replay smoke through agent-browser? This is a fixed command and records local smoke artifacts.");
+      if (!approved) return;
+    }
+    if (jobType === "cleanup_smokes" && applyCleanup) {
+      const approved = window.confirm("Apply smoke artifact cleanup? This deletes only allowlisted disposable smoke artifacts.");
+      if (!approved) return;
+    }
+    setSmokeJobAction({ status: "queueing", message: `Queueing ${labels[jobType] || jobType}...`, payload: null });
+    try {
+      const payload = await postJson("/api/intelligence/smoke-jobs", {
+        job_type: jobType,
+        approval_token: jobType === "cleanup_smokes" && applyCleanup ? "CLEANUP_APP_SMOKE_ARTIFACTS" : "RUN_APP_SMOKE_JOB",
+        cleanup: true,
+        apply_cleanup: applyCleanup
+      });
+      await refreshSmokeEvidence();
+      setSmokeJobAction({
+        status: "queued",
+        message: `Queued ${payload.job?.job_id || labels[jobType]}; refresh to watch completion.`,
+        payload
+      });
+    } catch (error) {
+      setSmokeJobAction({ status: "error", message: `Smoke job failed to queue: ${error.message}`, payload: null });
+    }
   }
 
   const visibleItems = useMemo(() => {
@@ -828,6 +874,10 @@ function App() {
               providers={intelligence.providers}
               runs={intelligence.runs}
               smokes={intelligence.smokes}
+              smokeJobs={intelligence.smokeJobs}
+              smokeJobAction={smokeJobAction}
+              onStartSmokeJob={startSmokeJob}
+              onRefreshSmokeEvidence={refreshSmokeEvidence}
               selectedTask={selectedTask}
               selectedTaskConfig={selectedTaskConfig}
               selectedProvider={selectedProvider}
@@ -902,6 +952,10 @@ function IntelligencePanel({
   providers,
   runs,
   smokes,
+  smokeJobs,
+  smokeJobAction,
+  onStartSmokeJob,
+  onRefreshSmokeEvidence,
   selectedTask,
   selectedTaskConfig,
   selectedProvider,
@@ -919,6 +973,7 @@ function IntelligencePanel({
   const providerList = providers?.providers || [];
   const taskEntries = Object.entries(config?.tasks || {});
   const recentRuns = runs?.items || [];
+  const recentSmokeJobs = smokeJobs?.items || [];
   const latestSmoke = smokes?.latest_report || null;
   const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
@@ -1056,6 +1111,37 @@ function IntelligencePanel({
         ) : (
           <p className="muted">Run `python scripts/smoke_app_replay_manifest_ui.py --cleanup` to generate browser-smoke evidence.</p>
         )}
+        <div className="notice-actions">
+          <button onClick={() => onStartSmokeJob("api_replay_smoke")} disabled={smokeJobAction.status === "queueing"} type="button">
+            Queue API smoke
+          </button>
+          <button onClick={() => onStartSmokeJob("browser_replay_smoke")} disabled={smokeJobAction.status === "queueing"} type="button">
+            Queue browser smoke
+          </button>
+          <button onClick={() => onStartSmokeJob("cleanup_smokes")} disabled={smokeJobAction.status === "queueing"} type="button">
+            Cleanup dry-run
+          </button>
+          <button onClick={onRefreshSmokeEvidence} type="button">
+            Refresh smoke state
+          </button>
+        </div>
+        {smokeJobAction.message && (
+          <div className={`action-notice ${smokeJobAction.status}`}>
+            <strong>{smokeJobAction.message}</strong>
+            {smokeJobAction.payload?.job && <code>{JSON.stringify(smokeJobAction.payload.job, null, 2)}</code>}
+          </div>
+        )}
+        {recentSmokeJobs.length ? (
+          <div className="task-table">
+            {recentSmokeJobs.slice(0, 3).map((job) => (
+              <article className="task-row" key={job.job_id}>
+                <strong>{statusLabel(job.job_type || "smoke job")}</strong>
+                <span>{job.status}</span>
+                <small>{job.job_id}</small>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </section>
     </div>
   );

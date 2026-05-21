@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -437,6 +438,80 @@ def test_intelligence_smokes_endpoint_reports_latest_evidence(tmp_path: Path) ->
     assert payload["latest_report"]["screenshot_exists"] is True
     assert payload["latest_report"]["checks"]["hasReplayManifest"] is True
     assert payload["runs"][0]["run_id"] == "smoke-replay-manifest-test"
+
+
+def test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command(tmp_path: Path, monkeypatch) -> None:
+    def fake_run(args, cwd=None, check=False, capture_output=True, text=True, timeout=180):
+        assert "smoke_app_replay_manifest.py" in args[1]
+        assert "--state-root" in args
+        assert check is False
+        assert capture_output is True
+        assert text is True
+        return subprocess.CompletedProcess(args, 0, stdout='APP_REPLAY_MANIFEST_SMOKE_JSON={"status":"pass"}\n', stderr="")
+
+    monkeypatch.setattr(transcript_api.subprocess, "run", fake_run)
+    state_root = tmp_path / "state"
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        try:
+            urlopen(
+                Request(
+                    f"http://{host}:{port}/api/intelligence/smoke-jobs",
+                    data=json.dumps({"job_type": "api_replay_smoke"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                ),
+                timeout=5,
+            )
+        except HTTPError as exc:
+            assert exc.code == HTTPStatus.BAD_REQUEST
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("smoke job without approval token must fail")
+        created = json.loads(
+            urlopen(
+                Request(
+                    f"http://{host}:{port}/api/intelligence/smoke-jobs",
+                    data=json.dumps(
+                        {
+                            "job_type": "api_replay_smoke",
+                            "approval_token": "RUN_APP_SMOKE_JOB",
+                        }
+                    ).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                ),
+                timeout=5,
+            ).read()
+        )
+        job_id = created["job"]["job_id"]
+        for _ in range(20):
+            payload = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/smoke-jobs", timeout=5).read())
+            job = next(item for item in payload["items"] if item["job_id"] == job_id)
+            if job["status"] == "succeeded":
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("smoke job did not complete")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert created["will_execute_arbitrary_shell"] is False
+    assert job["will_read_artifact_content"] is False
+    assert job["will_execute_write_bearing_action"] is False
+    assert job["stdout_exists"] is True
 
 
 def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:

@@ -23,6 +23,8 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
 - `GET /api/intelligence/smokes`: latest App Intelligence smoke run and browser-smoke evidence metadata. It reports paths, status, and check booleans only; it does not read screenshot bytes or artifact contents.
+- `GET /api/intelligence/smoke-jobs?limit=10`: list recent allowlisted smoke jobs and stdout/stderr artifact paths without reading artifact contents.
+- `POST /api/intelligence/smoke-jobs`: queue an allowlisted smoke job. Supported `job_type` values are `api_replay_smoke`, `browser_replay_smoke`, and `cleanup_smokes`. API/browser smoke jobs require `approval_token=RUN_APP_SMOKE_JOB`; cleanup with `apply_cleanup=true` requires `approval_token=CLEANUP_APP_SMOKE_ARTIFACTS`. The endpoint writes a job record under `~/.local/state/transcribe-audio/smoke-jobs/`, starts a background worker, and never accepts arbitrary shell input.
 - `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
 - `POST /api/intelligence/config/preview`: validate and preview a task routing update without writing.
 - `POST /api/intelligence/config/apply`: apply a validated task routing update to the user-scoped config. Requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.

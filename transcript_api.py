@@ -12,6 +12,8 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import threading
+import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -67,6 +69,10 @@ MAX_READINESS_OUTPUT_CHARS = 2000
 MAX_APP_ARTIFACT_BYTES = 512 * 1024
 APP_SMOKE_RUN_PREFIX = "smoke-replay-manifest"
 APP_BROWSER_SMOKE_DIRNAME = "browser-smokes"
+APP_SMOKE_JOB_DIRNAME = "smoke-jobs"
+APP_SMOKE_JOB_TOKEN = "RUN_APP_SMOKE_JOB"
+APP_SMOKE_CLEANUP_TOKEN = "CLEANUP_APP_SMOKE_ARTIFACTS"
+APP_SMOKE_JOB_TIMEOUT_SECONDS = 180
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -263,6 +269,227 @@ def app_intelligence_smoke_status(*, state_root: Path, limit: int = 5) -> dict[s
         "will_read_artifact_content": False,
         "will_execute_external_action": False,
         "will_execute_write_bearing_action": False,
+    }
+
+
+def smoke_jobs_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / APP_SMOKE_JOB_DIRNAME
+
+
+def app_smoke_job_path(state_root: Path, job_id: str) -> Path:
+    if not job_id or "/" in job_id or "\\" in job_id or job_id.startswith("."):
+        raise ValueError("Invalid smoke job id.")
+    return smoke_jobs_dir(state_root) / f"{job_id}.json"
+
+
+def app_smoke_job_command(
+    *,
+    job_type: str,
+    state_root: Path,
+    base_url: str,
+    cleanup: bool = True,
+    apply_cleanup: bool = False,
+) -> tuple[list[str], int, str]:
+    repo_root = Path(__file__).resolve().parent
+    state_root = state_root.expanduser()
+    if job_type == "api_replay_smoke":
+        command = [
+            sys.executable,
+            str(repo_root / "scripts" / "smoke_app_replay_manifest.py"),
+            "--base-url",
+            base_url.rstrip("/"),
+            "--state-root",
+            str(state_root),
+        ]
+        if cleanup:
+            command.append("--cleanup")
+        return command, APP_SMOKE_JOB_TIMEOUT_SECONDS, APP_SMOKE_JOB_TOKEN
+    if job_type == "browser_replay_smoke":
+        command = [
+            sys.executable,
+            str(repo_root / "scripts" / "smoke_app_replay_manifest_ui.py"),
+            "--base-url",
+            base_url.rstrip("/"),
+            "--state-root",
+            str(state_root),
+        ]
+        if cleanup:
+            command.append("--cleanup")
+        return command, APP_SMOKE_JOB_TIMEOUT_SECONDS, APP_SMOKE_JOB_TOKEN
+    if job_type == "cleanup_smokes":
+        command = [
+            sys.executable,
+            str(repo_root / "scripts" / "cleanup_app_smokes.py"),
+            "--state-root",
+            str(state_root),
+            "--format",
+            "json",
+        ]
+        if apply_cleanup:
+            command.append("--apply")
+        return command, 60, APP_SMOKE_CLEANUP_TOKEN if apply_cleanup else APP_SMOKE_JOB_TOKEN
+    raise ValueError(f"Unsupported smoke job type: {job_type}")
+
+
+def write_app_smoke_job(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def subprocess_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def summarize_smoke_job(path: Path) -> dict[str, Any]:
+    payload = read_json_file(path)
+    if not payload:
+        return {}
+    stdout_path = Path(str(payload.get("stdout_path") or ""))
+    stderr_path = Path(str(payload.get("stderr_path") or ""))
+    return {
+        "job_id": str(payload.get("job_id") or path.stem),
+        "job_type": str(payload.get("job_type") or ""),
+        "status": str(payload.get("status") or "unknown"),
+        "created_at": str(payload.get("created_at") or ""),
+        "started_at": str(payload.get("started_at") or ""),
+        "finished_at": str(payload.get("finished_at") or ""),
+        "returncode": payload.get("returncode"),
+        "path": str(path),
+        "stdout_path": str(stdout_path) if str(stdout_path) else "",
+        "stderr_path": str(stderr_path) if str(stderr_path) else "",
+        "stdout_exists": bool(str(stdout_path)) and stdout_path.exists(),
+        "stderr_exists": bool(str(stderr_path)) and stderr_path.exists(),
+        "will_execute_write_bearing_action": bool(payload.get("will_execute_write_bearing_action")),
+        "will_execute_external_action": bool(payload.get("will_execute_external_action")),
+        "will_read_artifact_content": False,
+    }
+
+
+def list_app_smoke_jobs(*, state_root: Path, limit: int = 10) -> dict[str, Any]:
+    root = smoke_jobs_dir(state_root)
+    paths = sorted(
+        [path for path in root.glob("*.json") if path.is_file()] if root.exists() else [],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return {
+        "schema_version": "transcribe-audio.app-smoke-jobs.v1",
+        "job_dir": str(root),
+        "items": [summarize_smoke_job(path) for path in paths[:limit]],
+        "total": len(paths),
+        "available_job_types": [
+            "api_replay_smoke",
+            "browser_replay_smoke",
+            "cleanup_smokes",
+        ],
+        "will_read_artifact_content": False,
+    }
+
+
+def run_app_smoke_job(job_path: Path) -> None:
+    payload = read_json_file(job_path)
+    if not payload:
+        return
+    command = payload.get("command") if isinstance(payload.get("command"), list) else []
+    timeout = int(payload.get("timeout_seconds") or APP_SMOKE_JOB_TIMEOUT_SECONDS)
+    started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload.update({"status": "running", "started_at": started_at})
+    write_app_smoke_job(job_path, payload)
+    stdout_path = Path(str(payload.get("stdout_path") or ""))
+    stderr_path = Path(str(payload.get("stderr_path") or ""))
+    try:
+        completed = subprocess.run(
+            [str(part) for part in command],
+            cwd=Path(__file__).resolve().parent,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        stdout_path.write_text(completed.stdout or "", encoding="utf-8")
+        stderr_path.write_text(completed.stderr or "", encoding="utf-8")
+        payload.update(
+            {
+                "status": "succeeded" if completed.returncode == 0 else "failed",
+                "returncode": completed.returncode,
+                "stdout_tail": (completed.stdout or "")[-2000:],
+                "stderr_tail": (completed.stderr or "")[-2000:],
+            }
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout_text = subprocess_text(exc.stdout)
+        stderr_text = subprocess_text(exc.stderr)
+        stdout_path.write_text(stdout_text, encoding="utf-8")
+        stderr_path.write_text(stderr_text, encoding="utf-8")
+        payload.update(
+            {
+                "status": "failed",
+                "returncode": None,
+                "error": f"Timed out after {timeout} seconds.",
+                "stdout_tail": stdout_text[-2000:],
+                "stderr_tail": stderr_text[-2000:],
+            }
+        )
+    except OSError as exc:
+        payload.update({"status": "failed", "returncode": None, "error": str(exc)})
+    payload["finished_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    write_app_smoke_job(job_path, payload)
+
+
+def enqueue_app_smoke_job(
+    *,
+    state_root: Path,
+    job_type: str,
+    approval_token: str,
+    base_url: str,
+    cleanup: bool = True,
+    apply_cleanup: bool = False,
+    start_thread: bool = True,
+) -> dict[str, Any]:
+    command, timeout, required_token = app_smoke_job_command(
+        job_type=job_type,
+        state_root=state_root,
+        base_url=base_url,
+        cleanup=cleanup,
+        apply_cleanup=apply_cleanup,
+    )
+    if approval_token != required_token:
+        raise ValueError(f"{job_type} requires approval_token={required_token}.")
+    root = smoke_jobs_dir(state_root)
+    root.mkdir(parents=True, exist_ok=True)
+    job_id = f"{job_type}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
+    job_path = root / f"{job_id}.json"
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload = {
+        "schema_version": "transcribe-audio.app-smoke-job.v1",
+        "job_id": job_id,
+        "job_type": job_type,
+        "status": "queued",
+        "created_at": created_at,
+        "base_url": base_url.rstrip("/"),
+        "command": command,
+        "timeout_seconds": timeout,
+        "stdout_path": str(root / f"{job_id}.stdout.txt"),
+        "stderr_path": str(root / f"{job_id}.stderr.txt"),
+        "cleanup": cleanup,
+        "apply_cleanup": apply_cleanup,
+        "will_execute_external_action": job_type == "browser_replay_smoke",
+        "will_execute_write_bearing_action": job_type == "cleanup_smokes" and apply_cleanup,
+        "will_read_artifact_content": False,
+    }
+    write_app_smoke_job(job_path, payload)
+    if start_thread:
+        threading.Thread(target=run_app_smoke_job, args=(job_path,), daemon=True).start()
+    return {
+        "schema_version": "transcribe-audio.app-smoke-job-enqueue.v1",
+        "job": summarize_smoke_job(job_path),
+        "required_approval_token_checked": required_token,
+        "will_start_background_job": bool(start_thread),
+        "will_execute_arbitrary_shell": False,
     }
 
 
@@ -1244,6 +1471,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def state_root(self) -> Path:
         return self.server.state_root  # type: ignore[attr-defined]
 
+    def local_base_url(self) -> str:
+        port = self.server.server_address[1]  # type: ignore[attr-defined]
+        return f"http://127.0.0.1:{port}"
+
     def log_message(self, fmt: str, *args: Any) -> None:
         if self.server.quiet:  # type: ignore[attr-defined]
             return
@@ -1283,6 +1514,14 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     app_intelligence_smoke_status(
                         state_root=self.state_root,
                         limit=parse_int(first(params, "limit"), 5, minimum=1, maximum=50),
+                    )
+                )
+                return
+            if parsed.path == "/api/intelligence/smoke-jobs":
+                self.write_json(
+                    list_app_smoke_jobs(
+                        state_root=self.state_root,
+                        limit=parse_int(first(params, "limit"), 10, minimum=1, maximum=100),
                     )
                 )
                 return
@@ -1449,6 +1688,20 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         task=str(body.get("task") or ""),
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
                         approval_token=str(body.get("approval_token") or ""),
+                    ),
+                    status=HTTPStatus.ACCEPTED,
+                )
+                return
+            if parsed.path == "/api/intelligence/smoke-jobs":
+                body = self.read_json_body()
+                self.write_json(
+                    enqueue_app_smoke_job(
+                        state_root=self.state_root,
+                        job_type=str(body.get("job_type") or ""),
+                        approval_token=str(body.get("approval_token") or ""),
+                        base_url=str(body.get("base_url") or self.local_base_url()),
+                        cleanup=bool(body.get("cleanup", True)),
+                        apply_cleanup=bool(body.get("apply_cleanup", False)),
                     ),
                     status=HTTPStatus.ACCEPTED,
                 )
