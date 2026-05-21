@@ -25,6 +25,7 @@ MODEL_TURN_STATUS_TOKEN = "CAPTURE_MODEL_TURN_STATUS"
 STRUCTURED_DECISION_VALIDATE_TOKEN = "VALIDATE_STRUCTURED_DECISION"
 STRUCTURED_DECISION_APPLY_TOKEN = "APPLY_STRUCTURED_DECISION"
 HUMAN_REVIEW_DECISION_TOKEN = "RECORD_HUMAN_REVIEW_DECISION"
+FORK_BRANCHES_PREFLIGHT_TOKEN = "PREVIEW_FORK_BRANCHES"
 
 DEFAULT_ALLOWED_ACTIONS = [
     "inspect_context",
@@ -1085,6 +1086,107 @@ def apply_validated_structured_decision(
         "will_execute_write_bearing_action": False,
         "will_fork_or_rollback": False,
         "run": ledger,
+        "event": event,
+    }
+
+
+def preflight_fork_branches(
+    *,
+    state_root: Optional[Path] = None,
+    run_id: str,
+    decision_id: str,
+    approval_token: str,
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    if approval_token != FORK_BRANCHES_PREFLIGHT_TOKEN:
+        raise ValueError(f"Fork branch preflight requires approval_token={FORK_BRANCHES_PREFLIGHT_TOKEN}.")
+    if not decision_id:
+        raise ValueError("decision_id is required.")
+
+    shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown["run"]
+    path = run_dir(state_root, run_id)
+    decisions = run.get("decisions") if isinstance(run.get("decisions"), list) else []
+    summary = next((item for item in decisions if item.get("decision_id") == decision_id), None)
+    if not isinstance(summary, dict):
+        raise ValueError(f"Decision not found for run: {decision_id}")
+    if summary.get("status") != "validated" or not summary.get("valid"):
+        raise ValueError("Only validated structured decisions can be preflighted.")
+    if summary.get("action") != "fork_branches":
+        raise ValueError("Fork preflight requires a fork_branches decision.")
+
+    validation_path = Path(str(summary.get("artifact_path") or ""))
+    resolved = validation_path.resolve()
+    try:
+        resolved.relative_to(path.resolve())
+    except ValueError as exc:
+        raise ValueError("Decision artifact resolves outside the run directory.") from exc
+    if not resolved.exists():
+        raise FileNotFoundError("Decision validation artifact is missing.")
+    validation = read_json(resolved)
+    decision = validation.get("decision") if isinstance(validation.get("decision"), dict) else {}
+    branch_count = int(decision.get("branch_count") or 0)
+    experiments = decision.get("experiments") if isinstance(decision.get("experiments"), list) else []
+    if branch_count < 1 or not experiments:
+        raise ValueError("Fork decision is missing branch_count or experiments.")
+
+    current_branch = str((run.get("state") if isinstance(run.get("state"), dict) else {}).get("current_branch") or "main")
+    planned_at = utc_now()
+    planned_branches = []
+    for index in range(branch_count):
+        experiment = str(experiments[index] if index < len(experiments) else f"experiment-{index + 1}")
+        slug = re.sub(r"[^A-Za-z0-9]+", "-", experiment.strip().lower()).strip("-") or f"branch-{index + 1}"
+        branch_id = f"{current_branch}-fork-{index + 1}-{slug[:32]}"
+        planned_branches.append(
+            {
+                "branch_id": branch_id,
+                "parent_branch": current_branch,
+                "experiment": experiment,
+                "planned_status": "preview_only",
+                "will_create_codex_thread": False,
+                "will_modify_ledger_branch_state": False,
+                "will_run_provider": False,
+            }
+        )
+
+    preflight = {
+        "schema_version": "transcribe-audio.app-intelligence-fork-branches-preflight.v1",
+        "run_id": run_id,
+        "decision_id": decision_id,
+        "created_at": planned_at,
+        "reviewer": reviewer or "operator",
+        "note": note,
+        "source_validation_artifact": str(resolved),
+        "current_branch": current_branch,
+        "requested_branch_count": branch_count,
+        "planned_branches": planned_branches,
+        "will_create_thread": False,
+        "will_modify_branches": False,
+        "will_run_provider": False,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+    }
+    artifact_path = path / "artifacts" / "structured-decisions" / f"{decision_id}.fork-preflight.json"
+    write_json(artifact_path, preflight)
+    event = append_event(
+        state_root=state_root,
+        run_id=run_id,
+        event_type="fork_branches_preflight",
+        payload={
+            "decision_id": decision_id,
+            "artifact_path": str(artifact_path),
+            "planned_branch_count": len(planned_branches),
+            "will_create_thread": False,
+            "will_modify_branches": False,
+            "will_run_provider": False,
+        },
+    )
+    return {
+        **preflight,
+        "action": "preflight_fork_branches",
+        "ok": True,
+        "artifact_path": str(artifact_path),
         "event": event,
     }
 

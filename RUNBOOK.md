@@ -4298,6 +4298,41 @@ Next:
   computes what would happen for `fork_branches` without creating threads,
   modifying branches, or running provider work.
 
+## Turn 133 | 2026-05-20
+
+Summary: Added App Intelligence fork-branches preflight.
+
+Action:
+
+- Added `FORK_BRANCHES_PREFLIGHT_TOKEN=PREVIEW_FORK_BRANCHES`.
+- Added `preflight_fork_branches()` for validated `fork_branches` decisions.
+- Added
+  `POST /api/intelligence/runs/<run_id>/structured-decisions/<decision_id>/fork-preflight`.
+- The preflight writes
+  `artifacts/structured-decisions/<decision_id>.fork-preflight.json`, appends
+  `fork_branches_preflight`, and returns planned branch records.
+- The preflight explicitly returns `will_create_thread=false`,
+  `will_modify_branches=false`, `will_run_provider=false`, and
+  `will_execute_write_bearing_action=false`.
+- Added an Intelligence inspector `Preview fork plan` button for the latest
+  validated `fork_branches` decision.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` returned healthy; discovery returned older broad
+  repo facts only, so repo source remained authoritative.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add rollback preflight for validated `rollback` decisions, still preview-only
+  and without modifying branch state.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

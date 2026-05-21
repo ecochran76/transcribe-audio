@@ -893,6 +893,90 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert shown["codex_events_count"] == 2
 
 
+def test_app_intelligence_fork_preflight_endpoint_is_preview_only(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    app_intelligence_ledger.create_run(
+        state_root=state_root,
+        workflow="contextual_reread",
+        purpose="Preview branch alternatives.",
+        run_id="fork-api-run",
+    )
+    run_payload = app_intelligence_ledger.response_for_run(state_root=state_root, run_id="fork-api-run")["run"]
+    decision_dir = state_root / "app-intelligence-runs" / "fork-api-run" / "artifacts" / "structured-decisions"
+    decision_dir.mkdir(parents=True)
+    decision_path = decision_dir / "decision-fork.json"
+    decision_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "transcribe-audio.app-intelligence-structured-decision-validation.v1",
+                "decision_id": "decision-fork",
+                "run_id": "fork-api-run",
+                "valid": True,
+                "decision": {
+                    "action": "fork_branches",
+                    "rationale": "Explore two context strategies.",
+                    "confidence": 0.82,
+                    "review_flags": [],
+                    "branch_count": 2,
+                    "experiments": ["Drive-heavy context", "Graph-heavy context"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_payload["phase"] = "model_turn_completed"
+    run_payload["decisions"] = [
+        {
+            "decision_id": "decision-fork",
+            "valid": True,
+            "action": "fork_branches",
+            "status": "validated",
+            "artifact_path": str(decision_path),
+            "will_execute_host_action": False,
+            "created_at": "2026-05-20T12:00:00Z",
+        }
+    ]
+    (state_root / "app-intelligence-runs" / "fork-api-run" / "run.json").write_text(
+        json.dumps(run_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        preflight_request = Request(
+            f"http://{host}:{port}/api/intelligence/runs/fork-api-run/structured-decisions/decision-fork/fork-preflight",
+            data=json.dumps({"approval_token": "PREVIEW_FORK_BRANCHES", "reviewer": "api-test"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preflight_response = urlopen(preflight_request, timeout=5)
+        preflight = json.loads(preflight_response.read())
+        shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/fork-api-run", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert preflight_response.status == 202
+    assert preflight["planned_branches"][0]["branch_id"].startswith("main-fork-1")
+    assert preflight["will_create_thread"] is False
+    assert preflight["will_modify_branches"] is False
+    assert preflight["will_run_provider"] is False
+    assert Path(preflight["artifact_path"]).exists()
+    assert shown["run"]["phase"] == "model_turn_completed"
+    assert shown["run"]["decisions"][0]["status"] == "validated"
+    assert shown["events"][-1]["event_type"] == "fork_branches_preflight"
+
+
 def test_batch_status_counts_prefers_provider_aggregate_counts() -> None:
     assert transcript_api.batch_status_counts(
         {

@@ -165,6 +165,7 @@ function App() {
   const [turnStatusAction, setTurnStatusAction] = useState({ status: "idle", message: "", payload: null });
   const [decisionValidation, setDecisionValidation] = useState({ status: "idle", message: "", payload: null });
   const [decisionApply, setDecisionApply] = useState({ status: "idle", message: "", payload: null });
+  const [forkPreflightAction, setForkPreflightAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +222,7 @@ function App() {
         setTurnStatusAction({ status: "idle", message: "", payload: null });
         setDecisionValidation({ status: "idle", message: "", payload: null });
         setDecisionApply({ status: "idle", message: "", payload: null });
+        setForkPreflightAction({ status: "idle", message: "", payload: null });
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
@@ -645,6 +647,26 @@ function App() {
     }
   }
 
+  async function runForkPreflight(decisionId) {
+    if (!selectedRunId || !decisionId) return;
+    setForkPreflightAction({ status: "running", message: "Previewing branch fork plan...", payload: null });
+    try {
+      const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/structured-decisions/${encodeURIComponent(decisionId)}/fork-preflight`, {
+        approval_token: "PREVIEW_FORK_BRANCHES",
+        reviewer: "operator"
+      });
+      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+      setSelectedRunDetail(detail);
+      setForkPreflightAction({
+        status: "previewed",
+        message: "Fork preflight recorded; no threads, branches, or provider work were started.",
+        payload
+      });
+    } catch (error) {
+      setForkPreflightAction({ status: "error", message: `Fork preflight failed: ${error.message}`, payload: null });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -806,6 +828,8 @@ function App() {
             onValidateStructuredDecision={validateStructuredDecision}
             decisionApply={decisionApply}
             onApplyStructuredDecision={applyStructuredDecision}
+            forkPreflightAction={forkPreflightAction}
+            onRunForkPreflight={runForkPreflight}
             intelligence={intelligence}
           />
         </aside>
@@ -1139,6 +1163,8 @@ function Inspector({
   onValidateStructuredDecision,
   decisionApply,
   onApplyStructuredDecision,
+  forkPreflightAction,
+  onRunForkPreflight,
   intelligence
 }) {
   if (activeNav === "Intelligence") {
@@ -1153,6 +1179,8 @@ function Inspector({
     const latestDecisionCanApply =
       latestDecision?.status === "validated" &&
       (latestDecision.action === "stop" || latestDecision.action === "ask_for_human_review");
+    const latestDecisionCanForkPreflight =
+      latestDecision?.status === "validated" && latestDecision.action === "fork_branches";
     return (
       <div className="inspector-content">
         <p className="eyebrow">Intelligence Inspector</p>
@@ -1369,6 +1397,26 @@ function Inspector({
                         will_execute_external_action: decisionApply.payload.will_execute_external_action,
                         will_execute_write_bearing_action: decisionApply.payload.will_execute_write_bearing_action,
                         will_fork_or_rollback: decisionApply.payload.will_fork_or_rollback
+                      }, null, 2)}</code>}
+                    </div>
+                  ) : null}
+                  <button
+                    className="gate-button"
+                    disabled={forkPreflightAction.status === "running" || !latestDecisionCanForkPreflight}
+                    onClick={() => onRunForkPreflight(latestDecision?.decision_id)}
+                    type="button"
+                  >
+                    Preview fork plan
+                  </button>
+                  {forkPreflightAction.message ? (
+                    <div className={`action-notice ${forkPreflightAction.status}`}>
+                      <strong>{forkPreflightAction.message}</strong>
+                      {forkPreflightAction.payload && <code>{JSON.stringify({
+                        decision_id: forkPreflightAction.payload.decision_id,
+                        planned_branch_count: forkPreflightAction.payload.planned_branches?.length || 0,
+                        will_create_thread: forkPreflightAction.payload.will_create_thread,
+                        will_modify_branches: forkPreflightAction.payload.will_modify_branches,
+                        will_run_provider: forkPreflightAction.payload.will_run_provider
                       }, null, 2)}</code>}
                     </div>
                   ) : null}

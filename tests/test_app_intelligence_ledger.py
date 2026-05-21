@@ -424,6 +424,28 @@ def test_structured_decision_apply_blocks_write_bearing_actions(tmp_path: Path) 
         approval_token=app_intelligence_ledger.STRUCTURED_DECISION_VALIDATE_TOKEN,
     )
 
+    preflight = app_intelligence_ledger.preflight_fork_branches(
+        state_root=tmp_path,
+        run_id="fork-decision-run",
+        decision_id=decision["decision_id"],
+        approval_token=app_intelligence_ledger.FORK_BRANCHES_PREFLIGHT_TOKEN,
+        reviewer="test-operator",
+        note="Preview only.",
+    )
+    shown_after_preflight = app_intelligence_ledger.response_for_run(state_root=tmp_path, run_id="fork-decision-run")
+
+    assert preflight["ok"] is True
+    assert preflight["requested_branch_count"] == 2
+    assert len(preflight["planned_branches"]) == 2
+    assert preflight["will_create_thread"] is False
+    assert preflight["will_modify_branches"] is False
+    assert preflight["will_run_provider"] is False
+    assert preflight["will_execute_write_bearing_action"] is False
+    assert Path(preflight["artifact_path"]).exists()
+    assert shown_after_preflight["run"]["phase"] == "model_turn_completed"
+    assert shown_after_preflight["run"]["decisions"][0]["status"] == "validated"
+    assert shown_after_preflight["events"][-1]["event_type"] == "fork_branches_preflight"
+
     try:
         app_intelligence_ledger.apply_validated_structured_decision(
             state_root=tmp_path,
