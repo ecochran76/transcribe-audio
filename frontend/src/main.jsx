@@ -154,6 +154,7 @@ function App() {
   const [runAction, setRunAction] = useState({ status: "idle", message: "", runId: "" });
   const [selectedRunId, setSelectedRunId] = useState("");
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
+  const [runReplayManifest, setRunReplayManifest] = useState(null);
   const [runDetailAction, setRunDetailAction] = useState({ status: "idle", message: "" });
   const [sessionPreflight, setSessionPreflight] = useState({ status: "idle", message: "", payload: null });
   const [sessionStartAction, setSessionStartAction] = useState({ status: "idle", message: "", payload: null });
@@ -205,14 +206,19 @@ function App() {
     async function loadRunDetail() {
       if (!selectedRunId) {
         setSelectedRunDetail(null);
+        setRunReplayManifest(null);
         setRunDetailAction({ status: "idle", message: "" });
         return;
       }
       setRunDetailAction({ status: "loading", message: "Loading selected run ledger..." });
       try {
-      const payload = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
+        const [payload, replayManifest] = await Promise.all([
+          fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`),
+          fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/replay-manifest`)
+        ]);
         if (cancelled) return;
         setSelectedRunDetail(payload);
+        setRunReplayManifest(replayManifest);
         setRunDetailAction({ status: "loaded", message: "" });
         setSessionPreflight({ status: "idle", message: "", payload: null });
         setSessionStartAction({ status: "idle", message: "", payload: null });
@@ -230,6 +236,7 @@ function App() {
       } catch (error) {
         if (cancelled) return;
         setSelectedRunDetail(null);
+        setRunReplayManifest(null);
         setRunDetailAction({ status: "error", message: `Run detail failed: ${error.message}` });
       }
     }
@@ -261,6 +268,17 @@ function App() {
       cancelled = true;
     };
   }, [selectedRunId, selectedPacketId]);
+
+  async function refreshSelectedRun(runId = selectedRunId) {
+    if (!runId) return null;
+    const [detail, replayManifest] = await Promise.all([
+      fetchJson(`/api/intelligence/runs/${encodeURIComponent(runId)}?event_limit=12`),
+      fetchJson(`/api/intelligence/runs/${encodeURIComponent(runId)}/replay-manifest`)
+    ]);
+    setSelectedRunDetail(detail);
+    setRunReplayManifest(replayManifest);
+    return detail;
+  }
 
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -455,6 +473,7 @@ function App() {
       setIntelligence((current) => ({ ...current, runs: runsPayload }));
       setSelectedRunId(payload.run?.run_id || "");
       setSelectedRunDetail(payload);
+      setRunReplayManifest(null);
       setRunAction({
         status: "prepared",
         message: `Prepared local run ledger ${payload.run?.run_id || ""}; no provider work was started.`,
@@ -478,8 +497,7 @@ function App() {
         append_event: appendEvent
       });
       if (appendEvent) {
-        const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-        setSelectedRunDetail(detail);
+        await refreshSelectedRun();
       }
       setSessionPreflight({
         status: payload.ok ? "ok" : "blocked",
@@ -505,8 +523,7 @@ function App() {
         approval_token: "START_APP_SERVER_SESSION",
         transport: "stdio"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setSessionStartAction({
         status: payload.ok ? "started" : "blocked",
         message: payload.ok
@@ -530,8 +547,7 @@ function App() {
         task: selectedTask,
         document_id: selected?.id || selectedRunDetail?.run?.document_id || ""
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setModelTurnAction({
         status: "prepared",
         message: "Prompt packet prepared for review; no prompt was sent.",
@@ -573,8 +589,7 @@ function App() {
         `/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/prompt-packets/${encodeURIComponent(selectedPacketId)}/send`,
         { approval_token: "SEND_APP_SERVER_MODEL_TURN" }
       );
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setSendAction({
         status: payload.ok ? "started" : "blocked",
         message: payload.ok
@@ -594,8 +609,7 @@ function App() {
       const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/turn-status`, {
         approval_token: "CAPTURE_MODEL_TURN_STATUS"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setTurnStatusAction({
         status: payload.completed ? "completed" : "captured",
         message: payload.completed
@@ -615,8 +629,7 @@ function App() {
       const payload = await postJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}/structured-decision/validate`, {
         approval_token: "VALIDATE_STRUCTURED_DECISION"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setDecisionValidation({
         status: payload.valid ? "valid" : "rejected",
         message: payload.valid
@@ -639,8 +652,7 @@ function App() {
         approval_token: "APPLY_STRUCTURED_DECISION",
         reviewer: "operator"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setDecisionApply({
         status: "applied",
         message: "Ledger-only structured decision recorded; no external or write-bearing action was executed.",
@@ -659,8 +671,7 @@ function App() {
         approval_token: "PREVIEW_FORK_BRANCHES",
         reviewer: "operator"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setForkPreflightAction({
         status: "previewed",
         message: "Fork preflight recorded; no threads, branches, or provider work were started.",
@@ -679,8 +690,7 @@ function App() {
         approval_token: "PREVIEW_ROLLBACK",
         reviewer: "operator"
       });
-      const detail = await fetchJson(`/api/intelligence/runs/${encodeURIComponent(selectedRunId)}?event_limit=12`);
-      setSelectedRunDetail(detail);
+      await refreshSelectedRun();
       setRollbackPreflightAction({
         status: "previewed",
         message: "Rollback preflight recorded; no branches, artifacts, threads, or provider work were changed.",
@@ -849,6 +859,7 @@ function App() {
             runAction={runAction}
             selectedRunId={selectedRunId}
             selectedRunDetail={selectedRunDetail}
+            runReplayManifest={runReplayManifest}
             runDetailAction={runDetailAction}
             sessionPreflight={sessionPreflight}
             onRunSessionPreflight={runSessionPreflight}
@@ -1125,6 +1136,28 @@ function PreflightArtifacts({ events, onLoadArtifact }) {
   );
 }
 
+function ReplayManifest({ manifest, onLoadArtifact }) {
+  const artifacts = manifest?.artifacts || [];
+  if (!artifacts.length) return <p className="muted">No replay artifacts are registered for this run.</p>;
+  return (
+    <div className="preflight-artifacts">
+      {artifacts.map((artifact) => (
+        <button
+          className="preflight-artifact-row"
+          disabled={!artifact.can_read_via_artifact_endpoint}
+          key={artifact.artifact_id || artifact.path}
+          onClick={() => onLoadArtifact(artifact.path)}
+          type="button"
+        >
+          <span>{statusLabel(artifact.artifact_role || "artifact")}</span>
+          <strong>{artifact.label || artifact.relative_path}</strong>
+          <small>{artifact.created_at || artifact.relative_path}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function LibraryTable({ items, selectedId, onSelect }) {
   return (
     <div className="table-shell">
@@ -1260,6 +1293,7 @@ function Inspector({
   configAction,
   selectedRunId,
   selectedRunDetail,
+  runReplayManifest,
   runDetailAction,
   sessionPreflight,
   onRunSessionPreflight,
@@ -1425,6 +1459,10 @@ function Inspector({
               <div className="event-list decision-history-card">
                 <span>Decision History</span>
                 <DecisionHistory decisions={decisions} onLoadArtifact={onLoadRunArtifact} />
+                <div className="preflight-picker">
+                  <span>Replay Manifest</span>
+                  <ReplayManifest manifest={runReplayManifest} onLoadArtifact={onLoadRunArtifact} />
+                </div>
                 <div className="preflight-picker">
                   <span>Preflight Artifacts</span>
                   <PreflightArtifacts events={events} onLoadArtifact={onLoadRunArtifact} />

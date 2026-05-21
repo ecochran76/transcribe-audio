@@ -248,6 +248,189 @@ def collect_app_intelligence_artifact_paths(run: dict[str, Any], run_path: Path)
     return allowed
 
 
+def app_intelligence_replay_manifest(*, state_root: Path, run_id: str) -> dict[str, Any]:
+    shown = get_app_intelligence_run(state_root=state_root, run_id=run_id, event_limit=1)
+    run = shown.get("run") if isinstance(shown.get("run"), dict) else {}
+    run_path = Path(str(shown.get("path") or ""))
+    allowed_paths = collect_app_intelligence_artifact_paths(run, run_path)
+    events = read_app_intelligence_events_file(run_path)
+    seen: set[Path] = set()
+    artifacts: list[dict[str, Any]] = []
+
+    def resolve_registered(path_value: str) -> Optional[Path]:
+        if not path_value:
+            return None
+        path = Path(path_value).expanduser()
+        if not path.is_absolute():
+            path = run_path / path
+        resolved = path.resolve()
+        if resolved not in allowed_paths:
+            return None
+        return resolved
+
+    def add_artifact(
+        path_value: str,
+        *,
+        artifact_role: str,
+        label: str,
+        source: str,
+        created_at: str = "",
+        event_id: str = "",
+        event_type: str = "",
+        packet_id: str = "",
+        decision_id: str = "",
+        codex_turn_id: str = "",
+    ) -> None:
+        resolved = resolve_registered(path_value)
+        if resolved is None or resolved in seen:
+            return
+        seen.add(resolved)
+        exists = resolved.exists() and resolved.is_file()
+        suffix = resolved.suffix.lower()
+        artifacts.append(
+            {
+                "artifact_id": f"artifact-{len(artifacts) + 1:03d}",
+                "artifact_role": artifact_role,
+                "label": label,
+                "path": str(resolved),
+                "relative_path": str(resolved.relative_to(run_path.resolve())),
+                "artifact_type": "json" if suffix == ".json" else "text",
+                "exists": exists,
+                "bytes": resolved.stat().st_size if exists else None,
+                "source": source,
+                "created_at": created_at,
+                "event_id": event_id,
+                "event_type": event_type,
+                "packet_id": packet_id,
+                "decision_id": decision_id,
+                "codex_turn_id": codex_turn_id,
+                "can_read_via_artifact_endpoint": exists,
+            }
+        )
+
+    for event in events:
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        event_type = str(event.get("event_type") or "")
+        event_id = str(event.get("event_id") or "")
+        created_at = str(event.get("created_at") or "")
+        packet_id = str(payload.get("packet_id") or "")
+        decision_id = str(payload.get("decision_id") or "")
+        codex_turn_id = str(payload.get("codex_turn_id") or "")
+        if payload.get("packet_path"):
+            add_artifact(
+                str(payload.get("packet_path") or ""),
+                artifact_role="prompt_packet_json",
+                label=f"Prompt packet {packet_id or len(artifacts) + 1}",
+                source="event_log",
+                created_at=created_at,
+                event_id=event_id,
+                event_type=event_type,
+                packet_id=packet_id,
+            )
+        if payload.get("prompt_path"):
+            add_artifact(
+                str(payload.get("prompt_path") or ""),
+                artifact_role="prompt_text",
+                label=f"Prompt text {packet_id or len(artifacts) + 1}",
+                source="event_log",
+                created_at=created_at,
+                event_id=event_id,
+                event_type=event_type,
+                packet_id=packet_id,
+            )
+        artifact_path = str(payload.get("artifact_path") or "")
+        if artifact_path:
+            if event_type == "model_turn_status_captured":
+                role = "model_turn_status"
+                label = f"Turn status {codex_turn_id or len(artifacts) + 1}"
+            elif event_type == "structured_decision_validated":
+                role = "structured_decision_validation"
+                label = f"Decision validation {decision_id or len(artifacts) + 1}"
+            elif event_type == "structured_decision_applied":
+                role = "structured_decision_apply"
+                label = f"Decision apply {decision_id or len(artifacts) + 1}"
+            elif "preflight" in event_type:
+                role = "preflight"
+                label = event_type.replace("_", " ").title()
+            else:
+                role = "event_artifact"
+                label = event_type.replace("_", " ").title() or "Event artifact"
+            add_artifact(
+                artifact_path,
+                artifact_role=role,
+                label=label,
+                source="event_log",
+                created_at=created_at,
+                event_id=event_id,
+                event_type=event_type,
+                packet_id=packet_id,
+                decision_id=decision_id,
+                codex_turn_id=codex_turn_id,
+            )
+
+    for packet in run.get("prompt_packets") if isinstance(run.get("prompt_packets"), list) else []:
+        if not isinstance(packet, dict):
+            continue
+        packet_id = str(packet.get("packet_id") or "")
+        add_artifact(
+            str(packet.get("packet_path") or ""),
+            artifact_role="prompt_packet_json",
+            label=f"Prompt packet {packet_id or len(artifacts) + 1}",
+            source="run_ledger",
+            created_at=str(packet.get("created_at") or ""),
+            packet_id=packet_id,
+        )
+        add_artifact(
+            str(packet.get("prompt_path") or ""),
+            artifact_role="prompt_text",
+            label=f"Prompt text {packet_id or len(artifacts) + 1}",
+            source="run_ledger",
+            created_at=str(packet.get("created_at") or ""),
+            packet_id=packet_id,
+        )
+    latest_status = run.get("latest_model_turn_status") if isinstance(run.get("latest_model_turn_status"), dict) else {}
+    add_artifact(
+        str(latest_status.get("artifact_path") or ""),
+        artifact_role="model_turn_status",
+        label=f"Turn status {latest_status.get('codex_turn_id') or len(artifacts) + 1}",
+        source="run_ledger",
+        created_at=str(latest_status.get("captured_at") or ""),
+        codex_turn_id=str(latest_status.get("codex_turn_id") or ""),
+    )
+    for decision in run.get("decisions") if isinstance(run.get("decisions"), list) else []:
+        if not isinstance(decision, dict):
+            continue
+        decision_id = str(decision.get("decision_id") or "")
+        add_artifact(
+            str(decision.get("artifact_path") or ""),
+            artifact_role="structured_decision_validation",
+            label=f"Decision validation {decision_id or len(artifacts) + 1}",
+            source="run_ledger",
+            created_at=str(decision.get("created_at") or ""),
+            decision_id=decision_id,
+        )
+        apply_result = decision.get("apply_result") if isinstance(decision.get("apply_result"), dict) else {}
+        add_artifact(
+            str(apply_result.get("artifact_path") or ""),
+            artifact_role="structured_decision_apply",
+            label=f"Decision apply {decision_id or len(artifacts) + 1}",
+            source="run_ledger",
+            created_at=str(decision.get("applied_at") or ""),
+            decision_id=decision_id,
+        )
+
+    return {
+        "schema_version": "transcribe-audio.app-intelligence-replay-manifest.v1",
+        "run_id": run_id,
+        "run_path": str(run_path),
+        "artifact_count": len(artifacts),
+        "artifacts": artifacts,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+        "will_read_artifact_content": False,
+    }
+
+
 def read_app_intelligence_artifact(*, state_root: Path, run_id: str, artifact_path: str) -> dict[str, Any]:
     if not artifact_path:
         raise ValueError("Missing required query parameter: path")
@@ -1044,6 +1227,14 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             state_root=self.state_root,
                             run_id=parts[3],
                             packet_id=parts[5],
+                        )
+                    )
+                    return
+                if len(parts) == 5 and parts[4] == "replay-manifest":
+                    self.write_json(
+                        app_intelligence_replay_manifest(
+                            state_root=self.state_root,
+                            run_id=parts[3],
                         )
                     )
                     return

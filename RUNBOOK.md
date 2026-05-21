@@ -4531,6 +4531,35 @@ Next:
   decision, and preflight artifacts from the ledger/event log so the UI no
   longer has to derive replay structure from scattered fields.
 
+## Turn 140 | 2026-05-21
+
+Summary: Added App Intelligence replay manifests.
+
+Action:
+
+- Added `GET /api/intelligence/runs/<run_id>/replay-manifest`.
+- The endpoint returns ordered registered artifact metadata for prompt packets,
+  prompt text, turn status, structured-decision validation/apply artifacts,
+  and preflight artifacts without reading artifact contents.
+- Wired the React Intelligence inspector to load the replay manifest with run
+  detail and display it as the primary replay artifact picker.
+- Kept artifact content reads behind the existing registered artifact endpoint.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add a focused live UI smoke that selects a run, loads the replay manifest,
+  opens one manifest artifact, and records the observed no-write response.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

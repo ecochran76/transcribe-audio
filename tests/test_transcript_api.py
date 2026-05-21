@@ -837,6 +837,9 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
         )
         human_review_response = urlopen(human_review_request, timeout=5)
         human_review = json.loads(human_review_response.read())
+        replay_manifest = json.loads(
+            urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run/replay-manifest", timeout=5).read()
+        )
         review_queue = json.loads(urlopen(f"http://{host}:{port}/api/review-queue?limit=20", timeout=5).read())
         shown = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/runs/packet-run", timeout=5).read())
     finally:
@@ -892,6 +895,17 @@ def test_app_intelligence_model_turn_preflight_endpoint_writes_prompt_packet(tmp
     assert shown["run"]["decisions"][0]["human_review"]["status"] == "resolved"
     assert shown["events"][-1]["event_type"] == "human_review_decision_recorded"
     assert shown["codex_events_count"] == 2
+    assert replay_manifest["schema_version"] == "transcribe-audio.app-intelligence-replay-manifest.v1"
+    assert replay_manifest["will_execute_write_bearing_action"] is False
+    assert replay_manifest["will_read_artifact_content"] is False
+    assert [item["artifact_role"] for item in replay_manifest["artifacts"]] == [
+        "prompt_packet_json",
+        "prompt_text",
+        "model_turn_status",
+        "structured_decision_validation",
+        "structured_decision_apply",
+    ]
+    assert all(item["can_read_via_artifact_endpoint"] for item in replay_manifest["artifacts"])
 
 
 def test_app_intelligence_fork_preflight_endpoint_is_preview_only(tmp_path: Path) -> None:
