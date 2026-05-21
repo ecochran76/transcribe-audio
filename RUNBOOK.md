@@ -4502,6 +4502,35 @@ Next:
   every existing App Intelligence artifact class can be opened from the UI
   through the same registered-read endpoint.
 
+## Turn 139 | 2026-05-20
+
+Summary: Added prompt/status artifact opener controls.
+
+Action:
+
+- Added prompt-packet buttons for opening packet JSON and prompt text through
+  the registered artifact reader.
+- Added a latest turn-status button for opening the captured status JSON
+  artifact through the same guarded endpoint.
+- Kept the UI read-only; these buttons reuse recorded ledger paths and do not
+  introduce a new filesystem read route.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 30 tests.
+- `python -m py_compile app_intelligence_ledger.py transcript_api.py codex_app_server_client.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add a run replay manifest endpoint that returns ordered prompt, status,
+  decision, and preflight artifacts from the ledger/event log so the UI no
+  longer has to derive replay structure from scattered fields.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

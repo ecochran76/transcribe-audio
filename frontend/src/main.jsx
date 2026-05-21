@@ -1394,6 +1394,30 @@ function Inspector({
                     <article className={selectedPacketId === packet.packet_id ? "active" : ""} key={packet.packet_id} onClick={() => onSelectPacket(packet.packet_id)}>
                       <strong>{packet.task}</strong>
                       <small>{packet.packet_path}</small>
+                      <div className="notice-actions">
+                        {packet.packet_path ? (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onLoadRunArtifact(packet.packet_path);
+                            }}
+                            type="button"
+                          >
+                            Open packet JSON
+                          </button>
+                        ) : null}
+                        {packet.prompt_path ? (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onLoadRunArtifact(packet.prompt_path);
+                            }}
+                            type="button"
+                          >
+                            Open prompt text
+                          </button>
+                        ) : null}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -1494,6 +1518,13 @@ function Inspector({
                   {run.latest_model_turn_status ? (
                     <div className="action-notice ok">
                       <strong>Latest turn status: {run.latest_model_turn_status.status || "unknown"}</strong>
+                      {run.latest_model_turn_status.artifact_path ? (
+                        <div className="notice-actions">
+                          <button onClick={() => onLoadRunArtifact(run.latest_model_turn_status.artifact_path)} type="button">
+                            Open status JSON
+                          </button>
+                        </div>
+                      ) : null}
                       <code>{JSON.stringify(run.latest_model_turn_status, null, 2)}</code>
                     </div>
                   ) : null}
