@@ -4661,6 +4661,33 @@ Next:
 - Add a small smoke-status panel or endpoint that surfaces the latest API/UI
   smoke result paths in the Intelligence inspector.
 
+## Turn 144 | 2026-05-21
+
+Summary: Added App Intelligence smoke status endpoint and panel.
+
+Action:
+
+- Added `GET /api/intelligence/smokes`.
+- The endpoint reports latest App Intelligence browser-smoke report metadata,
+  screenshot path/existence, smoke check booleans, and disposable smoke run
+  summaries without reading screenshot bytes or artifact contents.
+- Added a Smoke Status card to the React Intelligence panel.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 31 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py app_intelligence_ledger.py codex_app_server_client.py scripts/cleanup_app_smokes.py scripts/smoke_app_replay_manifest.py scripts/smoke_app_replay_manifest_ui.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add operator affordances for running smoke commands from the UI as queued,
+  approval-gated local jobs rather than separate shell commands.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

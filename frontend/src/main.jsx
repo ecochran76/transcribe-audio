@@ -82,7 +82,8 @@ const FALLBACK_INTELLIGENCE = {
     ],
     default_supervisor: "codex-app-server"
   },
-  runs: { items: [], total: 0 }
+  runs: { items: [], total: 0 },
+  smokes: { latest_report: null, reports: [], runs: [], report_count: 0, run_count: 0 }
 };
 
 function formatDate(value) {
@@ -174,19 +175,20 @@ function App() {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload, smokesPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=25"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/intelligence/providers"),
           fetchJson("/api/intelligence/config"),
-          fetchJson("/api/intelligence/runs?limit=8")
+          fetchJson("/api/intelligence/runs?limit=8"),
+          fetchJson("/api/intelligence/smokes?limit=5")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
         setReviewQueue(reviewPayload);
-        setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload });
+        setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
@@ -825,6 +827,7 @@ function App() {
               config={intelligence.config}
               providers={intelligence.providers}
               runs={intelligence.runs}
+              smokes={intelligence.smokes}
               selectedTask={selectedTask}
               selectedTaskConfig={selectedTaskConfig}
               selectedProvider={selectedProvider}
@@ -898,6 +901,7 @@ function IntelligencePanel({
   config,
   providers,
   runs,
+  smokes,
   selectedTask,
   selectedTaskConfig,
   selectedProvider,
@@ -915,6 +919,8 @@ function IntelligencePanel({
   const providerList = providers?.providers || [];
   const taskEntries = Object.entries(config?.tasks || {});
   const recentRuns = runs?.items || [];
+  const latestSmoke = smokes?.latest_report || null;
+  const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
   const selectedChecks = selectedProvider?.checks && typeof selectedProvider.checks === "object" ? Object.entries(selectedProvider.checks) : [];
   return (
@@ -1022,6 +1028,34 @@ function IntelligencePanel({
             <p className="muted">No prepared app-intelligence run ledgers yet.</p>
           )}
         </div>
+      </section>
+
+      <section className="intelligence-card run-ledgers">
+        <p className="eyebrow">Smoke Status</p>
+        <h2>{latestSmoke ? `${latestSmoke.status || "unknown"} latest smoke` : "No smoke evidence"}</h2>
+        {latestSmoke ? (
+          <>
+            <dl>
+              <dt>Run</dt>
+              <dd>{latestSmoke.run_id || "Unavailable"}</dd>
+              <dt>Report</dt>
+              <dd>{latestSmoke.path || "Unavailable"}</dd>
+              <dt>Screenshot</dt>
+              <dd>{latestSmoke.screenshot_exists ? latestSmoke.screenshot_path : "Unavailable"}</dd>
+              <dt>Evidence</dt>
+              <dd>{smokes?.report_count || 0} reports · {smokes?.run_count || 0} smoke runs</dd>
+            </dl>
+            {latestSmokeChecks.length ? (
+              <div className="provider-checks">
+                {latestSmokeChecks.slice(0, 7).map(([name, ok]) => (
+                  <span className={ok ? "check-ok" : "check-warn"} key={name}>{statusLabel(name)}</span>
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="muted">Run `python scripts/smoke_app_replay_manifest_ui.py --cleanup` to generate browser-smoke evidence.</p>
+        )}
       </section>
     </div>
   );

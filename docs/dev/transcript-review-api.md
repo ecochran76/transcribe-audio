@@ -22,6 +22,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
+- `GET /api/intelligence/smokes`: latest App Intelligence smoke run and browser-smoke evidence metadata. It reports paths, status, and check booleans only; it does not read screenshot bytes or artifact contents.
 - `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
 - `POST /api/intelligence/config/preview`: validate and preview a task routing update without writing.
 - `POST /api/intelligence/config/apply`: apply a validated task routing update to the user-scoped config. Requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.

@@ -379,6 +379,66 @@ def test_intelligence_providers_endpoint_includes_app_server(tmp_path: Path, mon
     assert providers["codex-app-server"]["control_plane"] == "codex-app-server"
 
 
+def test_intelligence_smokes_endpoint_reports_latest_evidence(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    run_dir = state_root / "app-intelligence-runs" / "smoke-replay-manifest-test"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run.json").write_text(
+        json.dumps(
+            {
+                "run_id": "smoke-replay-manifest-test",
+                "workflow": "app_replay_manifest_smoke",
+                "status": "running",
+                "phase": "session_started",
+                "updated_at": "2026-05-21T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence_dir = state_root / "browser-smokes"
+    evidence_dir.mkdir(parents=True)
+    screenshot = evidence_dir / "smoke.png"
+    screenshot.write_bytes(b"png")
+    report = evidence_dir / "smoke.json"
+    report.write_text(
+        json.dumps(
+            {
+                "status": "pass",
+                "run_id": "smoke-replay-manifest-test",
+                "screenshot_path": str(screenshot),
+                "missing_checks": [],
+                "checks": {"hasReplayManifest": True, "hasNoWriteFlag": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(urlopen(f"http://{host}:{port}/api/intelligence/smokes", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["schema_version"] == "transcribe-audio.app-smoke-status.v1"
+    assert payload["will_read_artifact_content"] is False
+    assert payload["will_execute_write_bearing_action"] is False
+    assert payload["latest_report"]["status"] == "pass"
+    assert payload["latest_report"]["screenshot_exists"] is True
+    assert payload["latest_report"]["checks"]["hasReplayManifest"] is True
+    assert payload["runs"][0]["run_id"] == "smoke-replay-manifest-test"
+
+
 def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),

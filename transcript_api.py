@@ -65,6 +65,8 @@ DEFAULT_BATCH_ENV_FILE = Path("~/.local/state/transcribe-audio/auracall-transcri
 DEFAULT_CODEX_BIN = "codex"
 MAX_READINESS_OUTPUT_CHARS = 2000
 MAX_APP_ARTIFACT_BYTES = 512 * 1024
+APP_SMOKE_RUN_PREFIX = "smoke-replay-manifest"
+APP_BROWSER_SMOKE_DIRNAME = "browser-smokes"
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -194,6 +196,74 @@ def read_json_file(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def app_intelligence_smoke_status(*, state_root: Path, limit: int = 5) -> dict[str, Any]:
+    state_root = state_root.expanduser()
+    runs_dir = state_root / "app-intelligence-runs"
+    browser_smoke_dir = state_root / APP_BROWSER_SMOKE_DIRNAME
+    run_dirs = sorted(
+        [
+            path
+            for path in runs_dir.iterdir()
+            if path.is_dir() and path.name.startswith(APP_SMOKE_RUN_PREFIX)
+        ] if runs_dir.exists() else [],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    reports = sorted(
+        [path for path in browser_smoke_dir.glob("*.json") if path.is_file()] if browser_smoke_dir.exists() else [],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+
+    report_items: list[dict[str, Any]] = []
+    for path in reports[:limit]:
+        payload = read_json_file(path)
+        checks = payload.get("checks") if isinstance(payload.get("checks"), dict) else {}
+        screenshot_path = Path(str(payload.get("screenshot_path") or ""))
+        report_items.append(
+            {
+                "path": str(path),
+                "status": str(payload.get("status") or "unknown"),
+                "run_id": str(payload.get("run_id") or ""),
+                "created_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                "screenshot_path": str(screenshot_path) if str(screenshot_path) else "",
+                "screenshot_exists": bool(str(screenshot_path)) and screenshot_path.exists(),
+                "missing_checks": payload.get("missing_checks") if isinstance(payload.get("missing_checks"), list) else [],
+                "checks": checks,
+            }
+        )
+
+    run_items: list[dict[str, Any]] = []
+    for path in run_dirs[:limit]:
+        ledger = read_json_file(path / "run.json")
+        run_items.append(
+            {
+                "run_id": str(ledger.get("run_id") or path.name),
+                "workflow": str(ledger.get("workflow") or ""),
+                "status": str(ledger.get("status") or ""),
+                "phase": str(ledger.get("phase") or ""),
+                "path": str(path),
+                "updated_at": str(ledger.get("updated_at") or ""),
+            }
+        )
+
+    return {
+        "schema_version": "transcribe-audio.app-smoke-status.v1",
+        "state_root": str(state_root),
+        "run_prefix": APP_SMOKE_RUN_PREFIX,
+        "runs_dir": str(runs_dir),
+        "browser_smoke_dir": str(browser_smoke_dir),
+        "latest_report": report_items[0] if report_items else None,
+        "reports": report_items,
+        "report_count": len(reports),
+        "runs": run_items,
+        "run_count": len(run_dirs),
+        "will_read_artifact_content": False,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+    }
 
 
 def read_app_intelligence_events_file(run_path: Path) -> list[dict[str, Any]]:
@@ -1207,6 +1277,14 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/intelligence/providers":
                 self.write_json(intelligence_provider_registry(codex_bin=self.server.codex_bin))  # type: ignore[attr-defined]
+                return
+            if parsed.path == "/api/intelligence/smokes":
+                self.write_json(
+                    app_intelligence_smoke_status(
+                        state_root=self.state_root,
+                        limit=parse_int(first(params, "limit"), 5, minimum=1, maximum=50),
+                    )
+                )
                 return
             if parsed.path == "/api/intelligence/config":
                 self.write_json(intelligence_config.all_task_configs())
