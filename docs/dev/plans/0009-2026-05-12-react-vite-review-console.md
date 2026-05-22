@@ -223,7 +223,8 @@ Use a React + Vite app under `frontend/` with:
    Review Queue can now record local-only annotations, resolutions, and
    reopens for App Intelligence human-review decisions, and shows structured
    request/status/count/materialization details for first-pass summary batch
-   prepare, submit, and status responses.
+   prepare, submit, and status responses, plus a read-only recent manifest list
+   for resuming status checks after reload.
    Fork preflight can preview validated `fork_branches` decisions without
    creating threads, modifying branch state, or running provider work.
    Rollback preflight can preview validated `rollback` decisions without

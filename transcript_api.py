@@ -1381,6 +1381,55 @@ def batch_action_response(
     }
 
 
+def summarize_first_pass_batch_manifest(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    batch = payload.get("batch") if isinstance(payload.get("batch"), dict) else {}
+    batch_payload = payload.get("batch_payload") if isinstance(payload.get("batch_payload"), dict) else {}
+    last_status = payload.get("last_status") if isinstance(payload.get("last_status"), dict) else {}
+    materialized = payload.get("materialized") if isinstance(payload.get("materialized"), list) else []
+    materialization_errors = payload.get("materialization_errors") if isinstance(payload.get("materialization_errors"), list) else []
+    try:
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    except OSError:
+        mtime = ""
+    status = str(last_status.get("status") or ("submitted" if batch else "prepared"))
+    return {
+        "schema_version": "transcribe-audio.first-pass-summary-batch-manifest-summary.v1",
+        "manifest": str(path),
+        "updated_at": mtime,
+        "status": status,
+        "request_count": int(payload.get("request_count") or 0),
+        "dry_run": bool(payload.get("dry_run")),
+        "batch_id": str(batch.get("id") or ""),
+        "workflow": (batch_payload.get("metadata") or {}).get("workflow") if isinstance(batch_payload.get("metadata"), dict) else "",
+        "batch_counts": batch_status_counts(last_status),
+        "materialized_count": len(materialized),
+        "materialization_error_count": len(materialization_errors),
+        "will_read_request_payloads": False,
+        "will_read_transcript_content": False,
+    }
+
+
+def list_first_pass_summary_batch_manifests(*, state_root: Path, limit: int = 10) -> dict[str, Any]:
+    root = state_root.expanduser() / "first-pass-summary-batches"
+    paths = sorted(
+        [path for path in root.glob("*.json") if path.is_file()] if root.exists() else [],
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    items = [summarize_first_pass_batch_manifest(path, read_json_file(path)) for path in paths[:limit]]
+    return {
+        "schema_version": "transcribe-audio.first-pass-summary-batch-manifests.v1",
+        "manifest_dir": str(root),
+        "items": items,
+        "total": len(paths),
+        "limit": limit,
+        "will_read_request_payloads": False,
+        "will_read_transcript_content": False,
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+    }
+
+
 def prepare_first_pass_summary_batch(
     *,
     state_root: Path,
@@ -1595,6 +1644,14 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     app_intelligence_smoke_status(
                         state_root=self.state_root,
                         limit=parse_int(first(params, "limit"), 5, minimum=1, maximum=50),
+                    )
+                )
+                return
+            if parsed.path == "/api/review-queue/first-pass-summaries/manifests":
+                self.write_json(
+                    list_first_pass_summary_batch_manifests(
+                        state_root=self.state_root,
+                        limit=parse_int(first(params, "limit"), 10, minimum=1, maximum=100),
                     )
                 )
                 return

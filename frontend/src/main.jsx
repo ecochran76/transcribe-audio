@@ -187,6 +187,7 @@ function App() {
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
   const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "", payload: null });
+  const [firstPassBatchManifests, setFirstPassBatchManifests] = useState({ items: [], total: 0, limit: 0 });
   const [humanReviewAction, setHumanReviewAction] = useState({ status: "idle", message: "", payload: null });
   const [intelligence, setIntelligence] = useState(FALLBACK_INTELLIGENCE);
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
@@ -217,10 +218,11 @@ function App() {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=25"),
           fetchJson("/api/review-queue?limit=100"),
+          fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5"),
           fetchJson("/api/intelligence/providers"),
           fetchJson("/api/intelligence/config"),
           fetchJson("/api/intelligence/runs?limit=8"),
@@ -231,6 +233,7 @@ function App() {
         setHealth(healthPayload);
         setLibrary(libraryPayload);
         setReviewQueue(reviewPayload);
+        setFirstPassBatchManifests(batchManifestPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
         setSelectedId(libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
@@ -452,6 +455,8 @@ function App() {
     setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "", payload: null });
     try {
       const payload = await postJson("/api/review-queue/first-pass-summaries/prepare", { limit: 5, store: true });
+      const manifests = await fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5");
+      setFirstPassBatchManifests(manifests);
       setReviewAction({
         status: "prepared",
         message: `Prepared ${payload.request_count} dry-run requests; no provider work was submitted.`,
@@ -475,6 +480,8 @@ function App() {
         manifest: reviewAction.manifest,
         approval_token: "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
       });
+      const manifests = await fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5");
+      setFirstPassBatchManifests(manifests);
       setReviewAction({
         status: payload.status || "submitted",
         message: `Submitted ${payload.request_count} requests; batch ${payload.batch_id || "pending id"}.`,
@@ -495,6 +502,8 @@ function App() {
         manifest: reviewAction.manifest,
         materialize: true
       });
+      const manifests = await fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5");
+      setFirstPassBatchManifests(manifests);
       const counts = payload.batch_counts || {};
       const countText = Object.entries(counts).map(([key, value]) => `${key}: ${value}`).join(", ");
       setReviewAction({
@@ -509,6 +518,23 @@ function App() {
     } catch (error) {
       setReviewAction((current) => ({ ...current, status: "error", message: `Status check failed: ${error.message}` }));
     }
+  }
+
+  function selectFirstPassBatchManifest(item) {
+    if (!item?.manifest) return;
+    setReviewAction({
+      status: item.status || "selected",
+      message: `Selected saved first-pass batch manifest with ${item.request_count || 0} requests.`,
+      manifest: item.manifest,
+      batchId: item.batch_id || "",
+      payload: {
+        ...item,
+        batch_id: item.batch_id || null,
+        batch_counts: item.batch_counts || {},
+        materialized: Array.from({ length: item.materialized_count || 0 }),
+        materialization_errors: Array.from({ length: item.materialization_error_count || 0 })
+      }
+    });
   }
 
   async function recordHumanReviewDecision(item, reviewActionName) {
@@ -955,9 +981,11 @@ function App() {
             <ReviewQueue
               queue={reviewQueue}
               reviewAction={reviewAction}
+              batchManifests={firstPassBatchManifests}
               onPrepareFirstPass={prepareFirstPassBatch}
               onSubmitFirstPass={submitFirstPassBatch}
               onRefreshFirstPass={refreshFirstPassBatch}
+              onSelectFirstPassManifest={selectFirstPassBatchManifest}
               humanReviewAction={humanReviewAction}
               onRecordHumanReview={recordHumanReviewDecision}
             />
@@ -1463,9 +1491,10 @@ function LibraryTable({ items, selectedId, onSelect }) {
   );
 }
 
-function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, humanReviewAction, onRecordHumanReview }) {
+function ReviewQueue({ queue, reviewAction, batchManifests, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, onSelectFirstPassManifest, humanReviewAction, onRecordHumanReview }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
+  const recentBatchManifests = batchManifests?.items || [];
   const batchPayload = reviewAction.payload || null;
   const batchCounts = batchPayload?.batch_counts || {};
   const batchCountEntries = Object.entries(batchCounts);
@@ -1543,6 +1572,31 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
           </div>
         </div>
       )}
+      {recentBatchManifests.length ? (
+        <section className="saved-batch-panel">
+          <div className="saved-batch-heading">
+            <strong>Recent first-pass batches</strong>
+            <span>{recentBatchManifests.length} of {batchManifests.total || recentBatchManifests.length}</span>
+          </div>
+          <div className="saved-batch-list">
+            {recentBatchManifests.map((item) => (
+              <button
+                className={reviewAction.manifest === item.manifest ? "saved-batch-row active" : "saved-batch-row"}
+                key={item.manifest}
+                onClick={() => onSelectFirstPassManifest(item)}
+                type="button"
+              >
+                <div>
+                  <strong>{item.batch_id || (item.dry_run ? "prepared manifest" : "submitted manifest")}</strong>
+                  <small>{item.manifest}</small>
+                </div>
+                <span>{item.status}</span>
+                <small>{item.request_count || 0} requests · {item.materialized_count || 0} materialized</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {humanReviewAction.message && (
         <div className={`action-notice ${humanReviewAction.status}`}>
           <strong>{humanReviewAction.message}</strong>

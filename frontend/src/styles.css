@@ -415,6 +415,62 @@ td small {
   border-color: rgba(255, 111, 97, 0.35);
 }
 
+.saved-batch-panel {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.saved-batch-heading,
+.saved-batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.saved-batch-heading {
+  color: var(--muted);
+}
+
+.saved-batch-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.saved-batch-row {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 0.85rem;
+  background: rgba(244, 236, 216, 0.04);
+  color: var(--ink);
+  text-align: left;
+}
+
+.saved-batch-row.active {
+  border-color: rgba(215, 255, 115, 0.36);
+  background: rgba(215, 255, 115, 0.1);
+}
+
+.saved-batch-row strong,
+.saved-batch-row small {
+  display: block;
+}
+
+.saved-batch-row small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.saved-batch-row span {
+  color: var(--accent);
+}
+
 .notice-actions {
   display: flex;
   flex-wrap: wrap;

@@ -64,6 +64,7 @@ The cleanup command is dry-run by default; pass `--apply` only after reviewing
 the reported run and evidence paths.
 
 - `POST /api/review-queue/first-pass-summaries/prepare`: create a dry-run first-pass summary batch manifest without submitting provider work.
+- `GET /api/review-queue/first-pass-summaries/manifests?limit=10`: list recent first-pass summary batch manifests as redacted summaries for resuming status checks after reload. It reports request counts, batch id/status, provider counts, materialized count, and materialization error count without reading request payloads or transcript content.
 - `POST /api/review-queue/first-pass-summaries/submit`: submit an existing prepared manifest. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
 - `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`. The Review Queue renders returned request counts, batch id/status, provider counts, materialized count, and materialization error count.
 - `GET /api/search?q=<query>&kind=transcript&limit=10`: lexical/semantic search over stored artifacts.

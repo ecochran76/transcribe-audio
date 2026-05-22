@@ -5061,6 +5061,45 @@ Next:
 - Add a read-only recent first-pass batch manifest list so operators can
   resume status checks after a page reload.
 
+## Turn 156 | 2026-05-22
+
+Summary: Added recent first-pass batch manifests.
+
+Action:
+
+- Added `GET /api/review-queue/first-pass-summaries/manifests` to list recent
+  first-pass summary batch manifests under the user-scoped state directory.
+- Manifest summaries report request count, batch id/status, provider counts,
+  materialized count, and materialization error count without exposing request
+  payloads or transcript content.
+- Updated the Review Queue to load recent manifests on page load, refresh them
+  after prepare/submit/status actions, and select a saved manifest for status
+  checks after reload.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_first_pass_summary_manifests_endpoint_lists_redacted_summaries tests/test_transcript_api.py::test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest tests/test_transcript_api.py::test_first_pass_summary_submit_and_status_use_prepared_manifest -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 38 tests.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned rebuilt console HTML with the new
+  asset names.
+- Live `GET /api/review-queue/first-pass-summaries/manifests?limit=3`
+  returned 3 redacted summaries out of 9 total manifests with
+  `will_read_request_payloads=false` and `will_read_transcript_content=false`.
+
+Next:
+
+- Add a small reload-resume smoke that exercises selecting a saved manifest and
+  polling status from the Review Queue UI.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

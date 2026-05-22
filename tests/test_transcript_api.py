@@ -1680,3 +1680,60 @@ def test_first_pass_summary_submit_and_status_use_prepared_manifest(tmp_path: Pa
         server.server_close()
         provider.shutdown()
         provider.server_close()
+
+
+def test_first_pass_summary_manifests_endpoint_lists_redacted_summaries(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    manifest_root = state_root / "first-pass-summary-batches"
+    manifest_root.mkdir(parents=True)
+    manifest_path = manifest_root / "first-pass-summary-prepare-test.json"
+    transcript_api.write_json_file(
+        manifest_path,
+        {
+            "request_count": 2,
+            "dry_run": False,
+            "batch": {"id": "batch_visible"},
+            "last_status": {"status": "running", "counts": {"running": 2}},
+            "materialized": [{"document_id": "doc1"}],
+            "materialization_errors": [{"request_id": "req2"}],
+            "batch_payload": {
+                "metadata": {"workflow": "transcribe-audio-first-pass-summary"},
+                "requests": [{"input": [{"content": "private transcript text"}]}],
+            },
+        },
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(
+            urlopen(
+                f"http://{host}:{port}/api/review-queue/first-pass-summaries/manifests?limit=5",
+                timeout=5,
+            ).read()
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["schema_version"] == "transcribe-audio.first-pass-summary-batch-manifests.v1"
+    assert payload["will_read_request_payloads"] is False
+    assert payload["will_read_transcript_content"] is False
+    assert payload["total"] == 1
+    item = payload["items"][0]
+    assert item["manifest"] == str(manifest_path)
+    assert item["batch_id"] == "batch_visible"
+    assert item["status"] == "running"
+    assert item["batch_counts"] == {"running": 2}
+    assert item["materialized_count"] == 1
+    assert item["materialization_error_count"] == 1
+    assert "private transcript text" not in json.dumps(item)
