@@ -186,7 +186,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
-  const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "" });
+  const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "", payload: null });
   const [humanReviewAction, setHumanReviewAction] = useState({ status: "idle", message: "", payload: null });
   const [intelligence, setIntelligence] = useState(FALLBACK_INTELLIGENCE);
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
@@ -449,18 +449,19 @@ function App() {
   }, [smokeJobsActive]);
 
   async function prepareFirstPassBatch() {
-    setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "" });
+    setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "", payload: null });
     try {
       const payload = await postJson("/api/review-queue/first-pass-summaries/prepare", { limit: 5, store: true });
       setReviewAction({
         status: "prepared",
         message: `Prepared ${payload.request_count} dry-run requests; no provider work was submitted.`,
         manifest: payload.manifest || "",
-        batchId: payload.batch_id || ""
+        batchId: payload.batch_id || "",
+        payload
       });
       setApiError("");
     } catch (error) {
-      setReviewAction({ status: "error", message: `Prepare failed: ${error.message}`, manifest: "", batchId: "" });
+      setReviewAction({ status: "error", message: `Prepare failed: ${error.message}`, manifest: "", batchId: "", payload: null });
     }
   }
 
@@ -478,7 +479,8 @@ function App() {
         status: payload.status || "submitted",
         message: `Submitted ${payload.request_count} requests; batch ${payload.batch_id || "pending id"}.`,
         manifest: payload.manifest || reviewAction.manifest,
-        batchId: payload.batch_id || ""
+        batchId: payload.batch_id || "",
+        payload
       });
     } catch (error) {
       setReviewAction((current) => ({ ...current, status: "error", message: `Submit failed: ${error.message}` }));
@@ -501,7 +503,8 @@ function App() {
           ? `Batch status ${payload.status}; ${countText}. Materialized ${payload.materialized?.length || 0}.`
           : `Batch status ${payload.status}.`,
         manifest: payload.manifest || reviewAction.manifest,
-        batchId: payload.batch_id || reviewAction.batchId || ""
+        batchId: payload.batch_id || reviewAction.batchId || "",
+        payload
       });
     } catch (error) {
       setReviewAction((current) => ({ ...current, status: "error", message: `Status check failed: ${error.message}` }));
@@ -1463,6 +1466,11 @@ function LibraryTable({ items, selectedId, onSelect }) {
 function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, humanReviewAction, onRecordHumanReview }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
+  const batchPayload = reviewAction.payload || null;
+  const batchCounts = batchPayload?.batch_counts || {};
+  const batchCountEntries = Object.entries(batchCounts);
+  const materializedCount = batchPayload?.materialized?.length || 0;
+  const materializationErrorCount = batchPayload?.materialization_errors?.length || 0;
   return (
     <>
       <div className="review-grid">
@@ -1489,6 +1497,38 @@ function ReviewQueue({ queue, reviewAction, onPrepareFirstPass, onSubmitFirstPas
         <div className={`action-notice ${reviewAction.status}`}>
           <strong>{reviewAction.message}</strong>
           {reviewAction.manifest && <code>{reviewAction.manifest}</code>}
+          {batchPayload && (
+            <div className="batch-status-panel">
+              <div>
+                <span>Requests</span>
+                <strong>{batchPayload.request_count || 0}</strong>
+              </div>
+              <div>
+                <span>Batch</span>
+                <strong>{batchPayload.batch_id || (batchPayload.dry_run ? "prepared only" : "pending")}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>{batchPayload.status || reviewAction.status}</strong>
+              </div>
+              <div>
+                <span>Materialized</span>
+                <strong>{materializedCount}</strong>
+              </div>
+              {batchCountEntries.length ? (
+                <div className="batch-counts">
+                  <span>Provider counts</span>
+                  <p>{batchCountEntries.map(([key, value]) => `${statusLabel(key)} ${value}`).join(" · ")}</p>
+                </div>
+              ) : null}
+              {materializationErrorCount ? (
+                <div className="batch-counts warning">
+                  <span>Materialization errors</span>
+                  <p>{materializationErrorCount}</p>
+                </div>
+              ) : null}
+            </div>
+          )}
           <div className="notice-actions">
             {reviewAction.manifest && !reviewAction.batchId && (
               <button disabled={reviewAction.status === "submitting"} onClick={onSubmitFirstPass} type="button">

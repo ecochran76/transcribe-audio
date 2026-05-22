@@ -374,6 +374,47 @@ td small {
   overflow-wrap: anywhere;
 }
 
+.batch-status-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.batch-status-panel > div {
+  padding: 0.65rem;
+  border: 1px solid rgba(244, 236, 216, 0.09);
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.batch-status-panel span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.batch-status-panel strong {
+  display: block;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.batch-status-panel .batch-counts {
+  grid-column: 1 / -1;
+}
+
+.batch-status-panel .batch-counts p {
+  margin: 0.25rem 0 0;
+  color: var(--ink);
+}
+
+.batch-status-panel .warning {
+  border-color: rgba(255, 111, 97, 0.35);
+}
+
 .notice-actions {
   display: flex;
   flex-wrap: wrap;

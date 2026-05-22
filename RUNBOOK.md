@@ -5029,6 +5029,38 @@ Next:
 - Start the next operator workflow slice outside smoke-status polish, likely
   review-console support for first-pass summary batch visibility.
 
+## Turn 155 | 2026-05-22
+
+Summary: Added first-pass batch visibility.
+
+Action:
+
+- Preserved the full first-pass summary batch response in Review Queue action
+  state after prepare, submit, and status checks.
+- Added a structured batch status panel showing request count, batch id/status,
+  provider counts, materialized count, and materialization error count.
+- Kept the existing manifest-scoped backend contract unchanged.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest tests/test_transcript_api.py::test_first_pass_summary_submit_and_status_use_prepared_manifest tests/test_transcript_api.py::test_batch_status_counts_prefers_provider_aggregate_counts -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned rebuilt console HTML with the new
+  asset names.
+
+Next:
+
+- Add a read-only recent first-pass batch manifest list so operators can
+  resume status checks after a page reload.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
