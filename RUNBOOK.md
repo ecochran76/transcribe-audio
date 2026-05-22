@@ -4998,6 +4998,37 @@ Next:
 - Add a small "loaded count vs total jobs" hint so operators understand when
   the grouped list is only showing the current API page.
 
+## Turn 154 | 2026-05-22
+
+Summary: Added smoke-job loaded-vs-total hint.
+
+Action:
+
+- Added a Smoke Status hint showing how many smoke jobs are loaded from the
+  current API page versus the total retained smoke-job records.
+- Reused the existing `/api/intelligence/smoke-jobs` `total` field; no backend
+  contract change was required.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail tests/test_transcript_api.py::test_cleanup_smoke_job_summary_tolerates_bad_count_fields tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned rebuilt console HTML with the new
+  asset names.
+
+Next:
+
+- Start the next operator workflow slice outside smoke-status polish, likely
+  review-console support for first-pass summary batch visibility.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

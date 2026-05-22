@@ -1068,6 +1068,7 @@ function IntelligencePanel({
   const taskEntries = Object.entries(config?.tasks || {});
   const recentRuns = runs?.items || [];
   const recentSmokeJobs = smokeJobs?.items || [];
+  const totalSmokeJobs = smokeJobs?.total || recentSmokeJobs.length;
   const latestSmoke = smokes?.latest_report || null;
   const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
@@ -1237,6 +1238,9 @@ function IntelligencePanel({
               <span className="risk-badge read-only">read-only</span>
               <small>Inspects status, tails, or dry-run cleanup counts without deleting artifacts.</small>
             </div>
+            <p className="smoke-job-page-hint">
+              Showing {recentSmokeJobs.length} of {totalSmokeJobs} smoke jobs from the current API page.
+            </p>
             {smokeJobGroups.map((group) => (
               <section className="smoke-job-group" key={group.key}>
                 <div className="smoke-job-group-heading">
