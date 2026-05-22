@@ -620,6 +620,26 @@ td small {
   color: var(--muted);
 }
 
+.smoke-job-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.smoke-job-group-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.smoke-job-group-heading span {
+  color: var(--accent);
+}
+
 .smoke-job-row small,
 .smoke-job-row .notice-actions {
   grid-column: 1 / -1;

@@ -4966,6 +4966,38 @@ Next:
 - Continue smoke-status ergonomics by grouping recent jobs by action type when
   the recent list grows beyond a few rows.
 
+## Turn 153 | 2026-05-22
+
+Summary: Grouped recent smoke jobs by action type.
+
+Action:
+
+- Added frontend grouping for loaded recent smoke jobs by `job_type`.
+- Rendered group headings with loaded counts while preserving newest-first
+  order within each group.
+- Removed the previous three-row cap so all loaded jobs from the existing
+  `limit=5` request are visible.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail tests/test_transcript_api.py::test_cleanup_smoke_job_summary_tolerates_bad_count_fields tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned rebuilt console HTML with the new
+  asset names.
+
+Next:
+
+- Add a small "loaded count vs total jobs" hint so operators understand when
+  the grouped list is only showing the current API page.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

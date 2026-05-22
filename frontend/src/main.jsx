@@ -138,6 +138,20 @@ function smokeJobTiming(job) {
   return parts.join(" · ");
 }
 
+function groupSmokeJobsByType(jobs) {
+  const groups = [];
+  for (const job of jobs || []) {
+    const key = job?.job_type || "smoke_job";
+    let group = groups.find((item) => item.key === key);
+    if (!group) {
+      group = { key, label: statusLabel(key), jobs: [] };
+      groups.push(group);
+    }
+    group.jobs.push(job);
+  }
+  return groups;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1058,6 +1072,7 @@ function IntelligencePanel({
   const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
   const selectedChecks = selectedProvider?.checks && typeof selectedProvider.checks === "object" ? Object.entries(selectedProvider.checks) : [];
+  const smokeJobGroups = groupSmokeJobsByType(recentSmokeJobs);
   return (
     <div className="intelligence-grid">
       <section className="intelligence-card task-editor">
@@ -1222,29 +1237,37 @@ function IntelligencePanel({
               <span className="risk-badge read-only">read-only</span>
               <small>Inspects status, tails, or dry-run cleanup counts without deleting artifacts.</small>
             </div>
-            {recentSmokeJobs.slice(0, 3).map((job) => {
-              const timing = smokeJobTiming(job);
-              return (
-                <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
-                  <strong>{statusLabel(job.job_type || "smoke job")}</strong>
-                  <span>{job.status}</span>
-                  <span className={job.will_execute_write_bearing_action ? "risk-badge write-bearing" : "risk-badge read-only"}>
-                    {job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}
-                  </span>
-                  <small>{job.job_id}</small>
-                  {timing && <small className="job-timing">{timing}</small>}
-                  {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
-                  <div className="notice-actions">
-                    <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
-                      stderr tail
-                    </button>
-                    <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
-                      stdout tail
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+            {smokeJobGroups.map((group) => (
+              <section className="smoke-job-group" key={group.key}>
+                <div className="smoke-job-group-heading">
+                  <strong>{group.label}</strong>
+                  <span>{group.jobs.length} loaded</span>
+                </div>
+                {group.jobs.map((job) => {
+                  const timing = smokeJobTiming(job);
+                  return (
+                    <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
+                      <strong>{statusLabel(job.job_type || "smoke job")}</strong>
+                      <span>{job.status}</span>
+                      <span className={job.will_execute_write_bearing_action ? "risk-badge write-bearing" : "risk-badge read-only"}>
+                        {job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}
+                      </span>
+                      <small>{job.job_id}</small>
+                      {timing && <small className="job-timing">{timing}</small>}
+                      {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
+                      <div className="notice-actions">
+                        <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
+                          stderr tail
+                        </button>
+                        <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
+                          stdout tail
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            ))}
           </div>
         ) : null}
         {smokeTailAction.message && (
