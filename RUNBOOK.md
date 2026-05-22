@@ -5100,6 +5100,41 @@ Next:
 - Add a small reload-resume smoke that exercises selecting a saved manifest and
   polling status from the Review Queue UI.
 
+## Turn 157 | 2026-05-22
+
+Summary: Added first-pass reload-resume UI smoke.
+
+Action:
+
+- Added `scripts/smoke_first_pass_batch_resume_ui.py`.
+- The smoke creates a disposable prepared first-pass summary manifest under the
+  user-scoped runtime state, opens the Review Queue, selects the saved manifest,
+  and clicks `Check and materialize`.
+- The disposable manifest has no submitted batch, so the status check returns
+  `prepared` without contacting AuraCall or materializing readouts.
+- The smoke stores JSON and screenshot evidence under
+  `~/.local/state/transcribe-audio/browser-smokes/` and supports `--cleanup`.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `python -m py_compile scripts/smoke_first_pass_batch_resume_ui.py` passed.
+- Live `python scripts/smoke_first_pass_batch_resume_ui.py --base-url http://127.0.0.1:18876 --cleanup`
+  passed with all checks true after tightening rendered-text assertions.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_first_pass_summary_manifests_endpoint_lists_redacted_summaries tests/test_transcript_api.py::test_prepare_first_pass_summary_endpoint_writes_dry_run_manifest tests/test_transcript_api.py::test_first_pass_summary_submit_and_status_use_prepared_manifest -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 38 tests.
+- `python -m py_compile scripts/smoke_first_pass_batch_resume_ui.py scripts/smoke_app_replay_manifest_ui.py transcript_api.py`
+  passed.
+- `git diff --check` passed.
+
+Next:
+
+- Add this smoke to the allowlisted smoke-job queue if we want operators to
+  run it from the Smoke Status card instead of the terminal.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

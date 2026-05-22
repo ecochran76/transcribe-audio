@@ -52,6 +52,7 @@ Replay-manifest smoke:
 ```bash
 python scripts/smoke_app_replay_manifest.py --cleanup
 python scripts/smoke_app_replay_manifest_ui.py --cleanup
+python scripts/smoke_first_pass_batch_resume_ui.py --cleanup
 python scripts/cleanup_app_smokes.py
 ```
 
@@ -60,6 +61,9 @@ one registered artifact through `/artifacts?path=...`, checks the no-write
 flags, and deletes the run when `--cleanup` is supplied. The UI smoke also
 drives the React Intelligence panel with `agent-browser` and stores JSON plus
 screenshot evidence under `~/.local/state/transcribe-audio/browser-smokes/`.
+The first-pass resume UI smoke creates a disposable prepared manifest, selects
+it from the Review Queue after page load, and checks prepared status without
+submitting provider work.
 The cleanup command is dry-run by default; pass `--apply` only after reviewing
 the reported run and evidence paths.
 
