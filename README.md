@@ -569,6 +569,8 @@ python scripts/cleanup_app_smokes.py
 Omit `--cleanup` to leave a disposable run selectable in the Intelligence panel.
 The UI smoke writes JSON and screenshot evidence under
 `~/.local/state/transcribe-audio/browser-smokes/`.
+If the service environment cannot find `agent-browser`, set `AGENT_BROWSER_BIN`
+or install the shim at `~/.local/bin/agent-browser`.
 `cleanup_app_smokes.py` is dry-run by default; add `--apply` to delete matching
 disposable run directories and expired browser-smoke evidence.
 

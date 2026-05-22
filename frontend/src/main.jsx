@@ -113,6 +113,10 @@ function capabilityLabels(capabilities) {
   return [];
 }
 
+function hasActiveSmokeJob(smokeJobs) {
+  return (smokeJobs?.items || []).some((job) => ["queued", "running"].includes(job.status));
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -320,7 +324,7 @@ function App() {
       await refreshSmokeEvidence();
       setSmokeJobAction({
         status: "queued",
-        message: `Queued ${payload.job?.job_id || labels[jobType]}; refresh to watch completion.`,
+        message: `Queued ${payload.job?.job_id || labels[jobType]}; polling will continue until it finishes.`,
         payload
       });
     } catch (error) {
@@ -343,6 +347,7 @@ function App() {
   const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
+  const smokeJobsActive = hasActiveSmokeJob(intelligence.smokeJobs);
 
   useEffect(() => {
     if (!selectedTaskConfig) return;
@@ -357,6 +362,33 @@ function App() {
     });
     setConfigAction({ status: "idle", message: "", preview: null });
   }, [selectedTask, selectedTaskFingerprint]);
+
+  useEffect(() => {
+    if (!smokeJobsActive) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        await refreshSmokeEvidence();
+        if (!cancelled) {
+          setSmokeJobAction((current) => (
+            current.status === "queued" || current.status === "polling"
+              ? { ...current, status: "polling", message: "Smoke job running; polling every 2 seconds..." }
+              : current
+          ));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSmokeJobAction({ status: "error", message: `Smoke job polling failed: ${error.message}`, payload: null });
+        }
+      }
+    };
+    const interval = window.setInterval(poll, 2000);
+    poll();
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [smokeJobsActive]);
 
   async function prepareFirstPassBatch() {
     setReviewAction({ status: "running", message: "Preparing a 5-item dry-run batch...", manifest: "", batchId: "" });

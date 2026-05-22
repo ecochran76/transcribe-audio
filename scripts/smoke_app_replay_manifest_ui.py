@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -32,9 +34,23 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def resolve_agent_browser_bin() -> str:
+    configured = os.environ.get("AGENT_BROWSER_BIN", "").strip()
+    candidates = [
+        configured,
+        shutil.which("agent-browser") or "",
+        str(Path("~/.local/bin/agent-browser").expanduser()),
+        str(Path("~/.local/share/pnpm/agent-browser").expanduser()),
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return candidate
+    raise FileNotFoundError("agent-browser is not on PATH; set AGENT_BROWSER_BIN or install ~/.local/bin/agent-browser.")
+
+
 def run_agent_browser(session: str, command: list[str], *, timeout: int = 30) -> str:
     proc = subprocess.run(
-        ["agent-browser", "--session", session, *command],
+        [resolve_agent_browser_bin(), "--session", session, *command],
         check=True,
         text=True,
         capture_output=True,

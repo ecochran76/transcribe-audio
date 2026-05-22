@@ -4723,6 +4723,43 @@ Next:
 - Run a live UI-queued browser smoke through the service, then add automatic
   short polling while a queued smoke job is running.
 
+## Turn 146 | 2026-05-21
+
+Summary: Added smoke-job polling and verified a queued browser smoke.
+
+Action:
+
+- Added a React polling effect for the Smoke Status card. While any loaded
+  smoke job is `queued` or `running`, the console refreshes smoke evidence,
+  smoke jobs, and recent App Intelligence runs every 2 seconds.
+- Updated queued smoke copy so operators know polling continues until the job
+  finishes.
+- Hardened `scripts/smoke_app_replay_manifest_ui.py` so service-launched
+  browser smoke can resolve `agent-browser` through `AGENT_BROWSER_BIN`,
+  `PATH`, `~/.local/bin/agent-browser`, or the pnpm shim.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/smoke_app_replay_manifest_ui.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active.
+- Live `POST /api/intelligence/smoke-jobs` queued
+  `browser_replay_smoke-20260522T024851Z-75f5bb4f`.
+- Live `GET /api/intelligence/smoke-jobs?limit=1` reported
+  `status=succeeded`, `returncode=0`, `will_execute_external_action=true`,
+  and `will_execute_write_bearing_action=false`.
+- Live `GET /api/intelligence/smokes?limit=1` reported latest browser smoke
+  `status=pass`, all checks true, and screenshot evidence at
+  `/home/ecochran76/.local/state/transcribe-audio/browser-smokes/20260522T024858Z-smoke-replay-manifest-ui-review.png`.
+
+Next:
+
+- Add a small read-only stdout/stderr tail endpoint for smoke jobs so failed
+  jobs can be diagnosed from the UI without arbitrary artifact reads.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
