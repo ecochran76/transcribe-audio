@@ -4869,6 +4869,41 @@ Next:
 - Add a compact visual distinction for write-bearing smoke jobs so cleanup
   apply entries stand out from dry-runs without requiring JSON inspection.
 
+## Turn 150 | 2026-05-22
+
+Summary: Added write-bearing smoke-job visual badges.
+
+Action:
+
+- Updated recent Smoke Status job rows with `write-bearing` or `read-only`
+  risk badges based on `will_execute_write_bearing_action`.
+- Added an orange row treatment for write-bearing cleanup apply jobs and a
+  quieter green read-only treatment for dry-runs and read-only smoke jobs.
+- Updated API docs, ROADMAP, and the P09 plan to document the operator-visible
+  distinction.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail tests/test_transcript_api.py::test_cleanup_smoke_job_summary_tolerates_bad_count_fields tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned the rebuilt console HTML with the new
+  asset names.
+- Live `GET /api/intelligence/smoke-jobs?limit=1` returned
+  `will_execute_write_bearing_action=true` for the latest cleanup apply job,
+  which drives the write-bearing badge.
+
+Next:
+
+- Add a small legend to the Smoke Status card so the risk badges are
+  self-explanatory for operators who have not read the docs.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

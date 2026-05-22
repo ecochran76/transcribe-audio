@@ -559,6 +559,53 @@ td small {
   color: var(--accent);
 }
 
+.smoke-job-row {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.smoke-job-row.write-bearing {
+  border-color: rgba(255, 159, 90, 0.52);
+  background:
+    linear-gradient(135deg, rgba(255, 159, 90, 0.16), rgba(0, 0, 0, 0.16)),
+    rgba(0, 0, 0, 0.14);
+  box-shadow: inset 3px 0 0 rgba(255, 159, 90, 0.72);
+}
+
+.smoke-job-row.read-only {
+  border-color: rgba(118, 223, 170, 0.18);
+}
+
+.risk-badge {
+  justify-self: end;
+  width: max-content;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.risk-badge.write-bearing {
+  border-color: rgba(255, 159, 90, 0.56);
+  background: rgba(255, 159, 90, 0.16);
+  color: var(--accent-2);
+}
+
+.risk-badge.read-only {
+  border-color: rgba(118, 223, 170, 0.32);
+  background: rgba(118, 223, 170, 0.1);
+  color: var(--ok);
+}
+
+.smoke-job-row small,
+.smoke-job-row .notice-actions {
+  grid-column: 1 / -1;
+}
+
 .provider-details {
   display: grid;
   gap: 0.75rem;

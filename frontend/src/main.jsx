@@ -1202,9 +1202,12 @@ function IntelligencePanel({
         {recentSmokeJobs.length ? (
           <div className="task-table">
             {recentSmokeJobs.slice(0, 3).map((job) => (
-              <article className="task-row" key={job.job_id}>
+              <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
                 <strong>{statusLabel(job.job_type || "smoke job")}</strong>
                 <span>{job.status}</span>
+                <span className={job.will_execute_write_bearing_action ? "risk-badge write-bearing" : "risk-badge read-only"}>
+                  {job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}
+                </span>
                 <small>{job.job_id}</small>
                 {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
                 <div className="notice-actions">
