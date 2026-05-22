@@ -4834,6 +4834,41 @@ Next:
 - Add a small operator-visible smoke artifact retention summary so the cleanup
   dry-run counts are visible without opening stdout tails.
 
+## Turn 149 | 2026-05-22
+
+Summary: Added operator-visible cleanup retention summaries.
+
+Action:
+
+- Added backend parsing for the structured `APP_SMOKE_CLEANUP_JSON=` line
+  stored in each smoke job's bounded `stdout_tail`.
+- Exposed a redacted `cleanup_summary` on smoke-job summaries with matched,
+  kept, and delete counts but without delete-path lists.
+- Updated the React Smoke Status recent-job list to show cleanup dry-run/apply
+  retention counts inline.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail tests/test_transcript_api.py::test_cleanup_smoke_job_summary_tolerates_bad_count_fields tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token tests/test_transcript_api.py::test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command -q`
+  passed with 4 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py scripts/cleanup_app_smokes.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- Live `GET /api/intelligence/smoke-jobs?limit=3` returned
+  `cleanup_summary` for recent cleanup jobs with apply/dry-run mode,
+  matched/delete counts, and no delete-path lists.
+
+Next:
+
+- Add a compact visual distinction for write-bearing smoke jobs so cleanup
+  apply entries stand out from dry-runs without requiring JSON inspection.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

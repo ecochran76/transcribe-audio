@@ -347,13 +347,45 @@ def subprocess_text(value: Any) -> str:
     return str(value)
 
 
+def cleanup_count(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_smoke_cleanup_summary(text: str) -> dict[str, Any] | None:
+    prefix = "APP_SMOKE_CLEANUP_JSON="
+    for line in str(text or "").splitlines():
+        if not line.startswith(prefix):
+            continue
+        try:
+            payload = json.loads(line[len(prefix) :])
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        return {
+            "schema_version": str(payload.get("schema_version") or "transcribe-audio.app-smoke-cleanup.v1"),
+            "apply": bool(payload.get("apply")),
+            "matched_run_count": cleanup_count(payload.get("matched_run_count")),
+            "kept_run_count": cleanup_count(payload.get("kept_run_count")),
+            "delete_run_count": cleanup_count(payload.get("delete_run_count")),
+            "matched_evidence_count": cleanup_count(payload.get("matched_evidence_count")),
+            "keep_evidence": cleanup_count(payload.get("keep_evidence")),
+            "evidence_days": cleanup_count(payload.get("evidence_days")),
+            "delete_evidence_count": cleanup_count(payload.get("delete_evidence_count")),
+        }
+    return None
+
+
 def summarize_smoke_job(path: Path) -> dict[str, Any]:
     payload = read_json_file(path)
     if not payload:
         return {}
     stdout_path = Path(str(payload.get("stdout_path") or ""))
     stderr_path = Path(str(payload.get("stderr_path") or ""))
-    return {
+    summary = {
         "job_id": str(payload.get("job_id") or path.stem),
         "job_type": str(payload.get("job_type") or ""),
         "status": str(payload.get("status") or "unknown"),
@@ -370,6 +402,10 @@ def summarize_smoke_job(path: Path) -> dict[str, Any]:
         "will_execute_external_action": bool(payload.get("will_execute_external_action")),
         "will_read_artifact_content": False,
     }
+    cleanup_summary = parse_smoke_cleanup_summary(str(payload.get("stdout_tail") or ""))
+    if cleanup_summary is not None:
+        summary["cleanup_summary"] = cleanup_summary
+    return summary
 
 
 def resolve_smoke_job_output_path(*, state_root: Path, job: dict[str, Any], stream: str) -> Path:

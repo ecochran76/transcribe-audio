@@ -117,6 +117,12 @@ function hasActiveSmokeJob(smokeJobs) {
   return (smokeJobs?.items || []).some((job) => ["queued", "running"].includes(job.status));
 }
 
+function cleanupSummaryLabel(summary) {
+  if (!summary) return "";
+  const mode = summary.apply ? "applied" : "dry-run";
+  return `${mode}: delete ${summary.delete_run_count || 0}/${summary.matched_run_count || 0} runs · delete ${summary.delete_evidence_count || 0}/${summary.matched_evidence_count || 0} evidence · keep ${summary.keep_evidence || 0} newest/${summary.evidence_days || 0}d`;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1200,6 +1206,7 @@ function IntelligencePanel({
                 <strong>{statusLabel(job.job_type || "smoke job")}</strong>
                 <span>{job.status}</span>
                 <small>{job.job_id}</small>
+                {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
                 <div className="notice-actions">
                   <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
                     stderr tail

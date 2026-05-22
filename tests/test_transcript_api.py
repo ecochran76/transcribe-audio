@@ -625,6 +625,70 @@ def test_smoke_job_write_is_atomic(tmp_path: Path) -> None:
     assert not list(job_path.parent.glob("*.tmp"))
 
 
+def test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail(tmp_path: Path) -> None:
+    job_path = tmp_path / "state" / "smoke-jobs" / "cleanup.json"
+    cleanup_payload = {
+        "schema_version": "transcribe-audio.app-smoke-cleanup.v1",
+        "apply": False,
+        "matched_run_count": 4,
+        "kept_run_count": 1,
+        "delete_run_count": 3,
+        "matched_evidence_count": 12,
+        "keep_evidence": 10,
+        "evidence_days": 14,
+        "delete_evidence_count": 2,
+        "delete_run_paths": ["/not/exposed"],
+        "delete_evidence_paths": ["/also/not/exposed"],
+    }
+    transcript_api.write_app_smoke_job(
+        job_path,
+        {
+            "job_id": "cleanup",
+            "job_type": "cleanup_smokes",
+            "status": "succeeded",
+            "stdout_tail": f"APP_SMOKE_CLEANUP_JSON={json.dumps(cleanup_payload)}\n",
+        },
+    )
+
+    summary = transcript_api.summarize_smoke_job(job_path)
+
+    assert summary["cleanup_summary"] == {
+        "schema_version": "transcribe-audio.app-smoke-cleanup.v1",
+        "apply": False,
+        "matched_run_count": 4,
+        "kept_run_count": 1,
+        "delete_run_count": 3,
+        "matched_evidence_count": 12,
+        "keep_evidence": 10,
+        "evidence_days": 14,
+        "delete_evidence_count": 2,
+    }
+
+
+def test_cleanup_smoke_job_summary_tolerates_bad_count_fields(tmp_path: Path) -> None:
+    job_path = tmp_path / "state" / "smoke-jobs" / "cleanup.json"
+    cleanup_payload = {
+        "schema_version": "transcribe-audio.app-smoke-cleanup.v1",
+        "apply": False,
+        "matched_run_count": "bad",
+        "delete_evidence_count": None,
+    }
+    transcript_api.write_app_smoke_job(
+        job_path,
+        {
+            "job_id": "cleanup",
+            "job_type": "cleanup_smokes",
+            "status": "succeeded",
+            "stdout_tail": f"APP_SMOKE_CLEANUP_JSON={json.dumps(cleanup_payload)}\n",
+        },
+    )
+
+    summary = transcript_api.summarize_smoke_job(job_path)
+
+    assert summary["cleanup_summary"]["matched_run_count"] == 0
+    assert summary["cleanup_summary"]["delete_evidence_count"] == 0
+
+
 def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),
