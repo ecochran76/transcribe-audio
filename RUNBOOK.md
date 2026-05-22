@@ -4798,6 +4798,42 @@ Next:
   gate, then use it to prune stale smoke failures while retaining recent pass
   evidence.
 
+## Turn 148 | 2026-05-22
+
+Summary: Added typed cleanup-apply gating for smoke jobs.
+
+Action:
+
+- Added an `Apply cleanup` button to the React Smoke Status card.
+- Cleanup apply now requires typing `CLEANUP_APP_SMOKE_ARTIFACTS` in the UI
+  before queueing the allowlisted cleanup job.
+- Added a regression test that cleanup apply rejects the normal smoke-job
+  token and records `--apply` only with the cleanup approval token.
+- Fixed smoke-job JSON writes to use atomic replacement so background workers
+  cannot race list/enqueue responses into empty job summaries.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token tests/test_transcript_api.py::test_smoke_job_write_is_atomic -q`
+  passed with 2 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `/api/health` returned `status=ok`.
+- Live cleanup dry-run job `cleanup_smokes-20260522T113924Z-7c0bd0d3`
+  succeeded with `delete_run_count=0`, `delete_evidence_count=0`, and
+  `will_execute_write_bearing_action=false`.
+- Live cleanup apply job `cleanup_smokes-20260522T113940Z-d4008bbc`
+  succeeded as a no-op with `required_approval_token_checked=CLEANUP_APP_SMOKE_ARTIFACTS`,
+  `will_execute_write_bearing_action=true`, `delete_run_count=0`, and
+  `delete_evidence_count=0`.
+
+Next:
+
+- Add a small operator-visible smoke artifact retention summary so the cleanup
+  dry-run counts are visible without opening stdout tails.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

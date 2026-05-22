@@ -334,7 +334,9 @@ def app_smoke_job_command(
 
 def write_app_smoke_job(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def subprocess_text(value: Any) -> str:

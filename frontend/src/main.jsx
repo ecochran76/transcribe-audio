@@ -311,8 +311,13 @@ function App() {
       if (!approved) return;
     }
     if (jobType === "cleanup_smokes" && applyCleanup) {
-      const approved = window.confirm("Apply smoke artifact cleanup? This deletes only allowlisted disposable smoke artifacts.");
-      if (!approved) return;
+      const confirmation = window.prompt(
+        "Apply smoke artifact cleanup? This deletes only allowlisted disposable smoke artifacts. Type CLEANUP_APP_SMOKE_ARTIFACTS to continue:"
+      );
+      if (confirmation !== "CLEANUP_APP_SMOKE_ARTIFACTS") {
+        setSmokeJobAction({ status: "idle", message: "Smoke cleanup apply cancelled; typed confirmation did not match.", payload: null });
+        return;
+      }
     }
     setSmokeJobAction({ status: "queueing", message: `Queueing ${labels[jobType] || jobType}...`, payload: null });
     try {
@@ -1174,6 +1179,9 @@ function IntelligencePanel({
           </button>
           <button onClick={() => onStartSmokeJob("cleanup_smokes")} disabled={smokeJobAction.status === "queueing"} type="button">
             Cleanup dry-run
+          </button>
+          <button onClick={() => onStartSmokeJob("cleanup_smokes", { applyCleanup: true })} disabled={smokeJobAction.status === "queueing"} type="button">
+            Apply cleanup
           </button>
           <button onClick={onRefreshSmokeEvidence} type="button">
             Refresh smoke state

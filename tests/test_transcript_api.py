@@ -583,6 +583,48 @@ def test_intelligence_smoke_job_tail_endpoint_is_path_confined(tmp_path: Path) -
     assert payload["will_execute_write_bearing_action"] is False
 
 
+def test_cleanup_smoke_job_apply_requires_cleanup_token(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    try:
+        transcript_api.enqueue_app_smoke_job(
+            state_root=state_root,
+            job_type="cleanup_smokes",
+            approval_token="RUN_APP_SMOKE_JOB",
+            base_url="http://127.0.0.1:18876",
+            apply_cleanup=True,
+            start_thread=False,
+        )
+    except ValueError as exc:
+        assert "CLEANUP_APP_SMOKE_ARTIFACTS" in str(exc)
+    else:
+        raise AssertionError("cleanup apply must require the cleanup approval token")
+
+    payload = transcript_api.enqueue_app_smoke_job(
+        state_root=state_root,
+        job_type="cleanup_smokes",
+        approval_token="CLEANUP_APP_SMOKE_ARTIFACTS",
+        base_url="http://127.0.0.1:18876",
+        apply_cleanup=True,
+        start_thread=False,
+    )
+
+    job = payload["job"]
+    job_record = json.loads(Path(job["path"]).read_text(encoding="utf-8"))
+    assert payload["required_approval_token_checked"] == "CLEANUP_APP_SMOKE_ARTIFACTS"
+    assert job["will_execute_write_bearing_action"] is True
+    assert job_record["apply_cleanup"] is True
+    assert "--apply" in job_record["command"]
+
+
+def test_smoke_job_write_is_atomic(tmp_path: Path) -> None:
+    job_path = tmp_path / "state" / "smoke-jobs" / "job.json"
+    transcript_api.write_app_smoke_job(job_path, {"job_id": "job", "status": "queued"})
+    transcript_api.write_app_smoke_job(job_path, {"job_id": "job", "status": "running"})
+
+    assert json.loads(job_path.read_text(encoding="utf-8"))["status"] == "running"
+    assert not list(job_path.parent.glob("*.tmp"))
+
+
 def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),
