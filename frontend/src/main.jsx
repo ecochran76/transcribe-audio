@@ -176,6 +176,7 @@ function App() {
   const [rollbackPreflightAction, setRollbackPreflightAction] = useState({ status: "idle", message: "", payload: null });
   const [runArtifactAction, setRunArtifactAction] = useState({ status: "idle", message: "", payload: null });
   const [smokeJobAction, setSmokeJobAction] = useState({ status: "idle", message: "", payload: null });
+  const [smokeTailAction, setSmokeTailAction] = useState({ status: "idle", message: "", payload: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -329,6 +330,23 @@ function App() {
       });
     } catch (error) {
       setSmokeJobAction({ status: "error", message: `Smoke job failed to queue: ${error.message}`, payload: null });
+    }
+  }
+
+  async function loadSmokeJobTail(jobId, stream = "stderr") {
+    if (!jobId) return;
+    setSmokeTailAction({ status: "loading", message: `Loading ${stream} tail for ${jobId}...`, payload: null });
+    try {
+      const payload = await fetchJson(
+        `/api/intelligence/smoke-jobs/${encodeURIComponent(jobId)}/tail?stream=${encodeURIComponent(stream)}&chars=6000`
+      );
+      setSmokeTailAction({
+        status: "loaded",
+        message: `Loaded ${stream} tail for ${jobId}; no arbitrary file read was allowed.`,
+        payload
+      });
+    } catch (error) {
+      setSmokeTailAction({ status: "error", message: `Smoke job tail failed: ${error.message}`, payload: null });
     }
   }
 
@@ -908,7 +926,9 @@ function App() {
               smokes={intelligence.smokes}
               smokeJobs={intelligence.smokeJobs}
               smokeJobAction={smokeJobAction}
+              smokeTailAction={smokeTailAction}
               onStartSmokeJob={startSmokeJob}
+              onLoadSmokeJobTail={loadSmokeJobTail}
               onRefreshSmokeEvidence={refreshSmokeEvidence}
               selectedTask={selectedTask}
               selectedTaskConfig={selectedTaskConfig}
@@ -986,7 +1006,9 @@ function IntelligencePanel({
   smokes,
   smokeJobs,
   smokeJobAction,
+  smokeTailAction,
   onStartSmokeJob,
+  onLoadSmokeJobTail,
   onRefreshSmokeEvidence,
   selectedTask,
   selectedTaskConfig,
@@ -1170,10 +1192,33 @@ function IntelligencePanel({
                 <strong>{statusLabel(job.job_type || "smoke job")}</strong>
                 <span>{job.status}</span>
                 <small>{job.job_id}</small>
+                <div className="notice-actions">
+                  <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
+                    stderr tail
+                  </button>
+                  <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
+                    stdout tail
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         ) : null}
+        {smokeTailAction.message && (
+          <div className={`action-notice ${smokeTailAction.status}`}>
+            <strong>{smokeTailAction.message}</strong>
+            {smokeTailAction.payload && <code>{JSON.stringify({
+              job_id: smokeTailAction.payload.job_id,
+              stream: smokeTailAction.payload.stream,
+              exists: smokeTailAction.payload.exists,
+              bytes: smokeTailAction.payload.bytes,
+              will_read_arbitrary_file: smokeTailAction.payload.will_read_arbitrary_file
+            }, null, 2)}</code>}
+            {smokeTailAction.payload && (
+              <pre className="prompt-preview">{smokeTailAction.payload.tail || "(empty)"}</pre>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -4760,6 +4760,44 @@ Next:
 - Add a small read-only stdout/stderr tail endpoint for smoke jobs so failed
   jobs can be diagnosed from the UI without arbitrary artifact reads.
 
+## Turn 147 | 2026-05-22
+
+Summary: Added read-only smoke-job stdout/stderr diagnostics.
+
+Action:
+
+- Added `GET /api/intelligence/smoke-jobs/<job_id>/tail`.
+- The endpoint validates the job id as one path segment, restricts `stream` to
+  `stdout` or `stderr`, caps tail length, and rejects output paths outside
+  `~/.local/state/transcribe-audio/smoke-jobs/`.
+- Added stdout/stderr tail buttons and a diagnostic preview to the React Smoke
+  Status card.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_intelligence_smoke_job_tail_endpoint_is_path_confined -q`
+  passed.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 33 tests.
+- `python -m py_compile transcript_api.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were both active.
+- Live stderr tail for failed job
+  `browser_replay_smoke-20260522T024747Z-3e2989e6` returned the
+  `agent-browser` PATH error with `will_read_arbitrary_file=false`.
+- Live stdout tail for successful job
+  `browser_replay_smoke-20260522T024851Z-75f5bb4f` returned the browser-smoke
+  JSON tail with `will_execute_write_bearing_action=false`.
+
+Next:
+
+- Add an optional UI affordance for cleanup apply with a stronger confirmation
+  gate, then use it to prune stale smoke failures while retaining recent pass
+  evidence.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

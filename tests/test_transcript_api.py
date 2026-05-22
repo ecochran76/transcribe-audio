@@ -514,6 +514,75 @@ def test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command(tmp_path: P
     assert job["stdout_exists"] is True
 
 
+def test_intelligence_smoke_job_tail_endpoint_is_path_confined(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    job_root = state_root / "smoke-jobs"
+    job_root.mkdir(parents=True)
+    stdout_path = job_root / "job.stdout.txt"
+    stderr_path = job_root / "job.stderr.txt"
+    stdout_path.write_text("line one\nline two\n", encoding="utf-8")
+    stderr_path.write_text("failure detail\n", encoding="utf-8")
+    (job_root / "job.json").write_text(
+        json.dumps(
+            {
+                "job_id": "job",
+                "job_type": "api_replay_smoke",
+                "status": "failed",
+                "stdout_path": str(stdout_path),
+                "stderr_path": str(stderr_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (job_root / "escape.json").write_text(
+        json.dumps(
+            {
+                "job_id": "escape",
+                "job_type": "api_replay_smoke",
+                "status": "failed",
+                "stdout_path": str(tmp_path / "outside.txt"),
+                "stderr_path": str(tmp_path / "outside.txt"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(
+            urlopen(
+                f"http://{host}:{port}/api/intelligence/smoke-jobs/job/tail?stream=stdout&chars=8",
+                timeout=5,
+            ).read()
+        )
+        try:
+            urlopen(f"http://{host}:{port}/api/intelligence/smoke-jobs/escape/tail?stream=stderr", timeout=5)
+        except HTTPError as exc:
+            assert exc.code == HTTPStatus.BAD_REQUEST
+            assert "outside" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("tail endpoint must reject paths outside smoke job directory")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload["schema_version"] == "transcribe-audio.app-smoke-job-tail.v1"
+    assert payload["stream"] == "stdout"
+    assert payload["tail"] == "ine two\n"
+    assert payload["will_read_arbitrary_file"] is False
+    assert payload["will_execute_write_bearing_action"] is False
+
+
 def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> None:
     server = transcript_api.TranscriptApiServer(
         ("127.0.0.1", 0),

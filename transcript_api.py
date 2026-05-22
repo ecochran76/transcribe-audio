@@ -73,6 +73,7 @@ APP_SMOKE_JOB_DIRNAME = "smoke-jobs"
 APP_SMOKE_JOB_TOKEN = "RUN_APP_SMOKE_JOB"
 APP_SMOKE_CLEANUP_TOKEN = "CLEANUP_APP_SMOKE_ARTIFACTS"
 APP_SMOKE_JOB_TIMEOUT_SECONDS = 180
+MAX_SMOKE_JOB_TAIL_CHARS = 20000
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -366,6 +367,48 @@ def summarize_smoke_job(path: Path) -> dict[str, Any]:
         "will_execute_write_bearing_action": bool(payload.get("will_execute_write_bearing_action")),
         "will_execute_external_action": bool(payload.get("will_execute_external_action")),
         "will_read_artifact_content": False,
+    }
+
+
+def resolve_smoke_job_output_path(*, state_root: Path, job: dict[str, Any], stream: str) -> Path:
+    if stream not in {"stdout", "stderr"}:
+        raise ValueError("stream must be stdout or stderr.")
+    root = smoke_jobs_dir(state_root).resolve()
+    candidate = Path(str(job.get(f"{stream}_path") or "")).expanduser()
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        raise FileNotFoundError(str(candidate)) from exc
+    if resolved != root and root not in resolved.parents:
+        raise ValueError("Smoke job output path is outside the smoke job directory.")
+    return resolved
+
+
+def read_app_smoke_job_tail(*, state_root: Path, job_id: str, stream: str = "stderr", chars: int = 4000) -> dict[str, Any]:
+    job_path = app_smoke_job_path(state_root, job_id)
+    job = read_json_file(job_path)
+    if not job:
+        raise FileNotFoundError(str(job_path))
+    output_path = resolve_smoke_job_output_path(state_root=state_root, job=job, stream=stream)
+    if not output_path.exists() or not output_path.is_file():
+        text = ""
+    else:
+        text = output_path.read_text(encoding="utf-8", errors="replace")
+    limit = max(1, min(chars, MAX_SMOKE_JOB_TAIL_CHARS))
+    return {
+        "schema_version": "transcribe-audio.app-smoke-job-tail.v1",
+        "job": summarize_smoke_job(job_path),
+        "job_id": str(job.get("job_id") or job_path.stem),
+        "stream": stream,
+        "path": str(output_path),
+        "exists": output_path.exists(),
+        "bytes": output_path.stat().st_size if output_path.exists() else 0,
+        "char_count": len(text),
+        "tail_chars": limit,
+        "tail": text[-limit:],
+        "will_execute_external_action": False,
+        "will_execute_write_bearing_action": False,
+        "will_read_arbitrary_file": False,
     }
 
 
@@ -1525,6 +1568,23 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path.startswith("/api/intelligence/smoke-jobs/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5 and parts[4] == "tail":
+                    self.write_json(
+                        read_app_smoke_job_tail(
+                            state_root=self.state_root,
+                            job_id=parts[3],
+                            stream=first(params, "stream", "stderr"),
+                            chars=parse_int(
+                                first(params, "chars"),
+                                4000,
+                                minimum=1,
+                                maximum=MAX_SMOKE_JOB_TAIL_CHARS,
+                            ),
+                        )
+                    )
+                    return
             if parsed.path == "/api/intelligence/config":
                 self.write_json(intelligence_config.all_task_configs())
                 return
