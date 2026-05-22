@@ -4904,6 +4904,38 @@ Next:
 - Add a small legend to the Smoke Status card so the risk badges are
   self-explanatory for operators who have not read the docs.
 
+## Turn 151 | 2026-05-22
+
+Summary: Added a Smoke Status risk legend.
+
+Action:
+
+- Added an inline legend above recent smoke-job rows explaining
+  `write-bearing` and `read-only` badges.
+- Reused the existing badge colors so the legend matches the row treatments:
+  write-bearing cleanup apply can delete allowlisted smoke artifacts after
+  typed approval, while read-only jobs inspect status/tails or dry-run counts.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_cleanup_smoke_job_summary_is_exposed_from_stdout_tail tests/test_transcript_api.py::test_cleanup_smoke_job_summary_tolerates_bad_count_fields tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token -q`
+  passed with 3 tests.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 37 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` were active.
+- `curl http://127.0.0.1:18876/api/health` returned `status=ok`.
+- `GET /` from the live service returned rebuilt console HTML with the new
+  asset names.
+
+Next:
+
+- Continue with a small smoke-status ergonomics pass, likely grouping recent
+  jobs by action type or adding timestamps in a friendlier format.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

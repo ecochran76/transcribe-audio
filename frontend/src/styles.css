@@ -601,6 +601,25 @@ td small {
   color: var(--ok);
 }
 
+.smoke-risk-legend {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.4rem 0.6rem;
+  align-items: center;
+  padding: 0.65rem;
+  border: 1px solid rgba(244, 236, 216, 0.09);
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.smoke-risk-legend .risk-badge {
+  justify-self: start;
+}
+
+.smoke-risk-legend small {
+  color: var(--muted);
+}
+
 .smoke-job-row small,
 .smoke-job-row .notice-actions {
   grid-column: 1 / -1;

@@ -1201,6 +1201,12 @@ function IntelligencePanel({
         )}
         {recentSmokeJobs.length ? (
           <div className="task-table">
+            <div className="smoke-risk-legend" aria-label="Smoke job risk legend">
+              <span className="risk-badge write-bearing">write-bearing</span>
+              <small>Can delete allowlisted disposable smoke artifacts after typed approval.</small>
+              <span className="risk-badge read-only">read-only</span>
+              <small>Inspects status, tails, or dry-run cleanup counts without deleting artifacts.</small>
+            </div>
             {recentSmokeJobs.slice(0, 3).map((job) => (
               <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
                 <strong>{statusLabel(job.job_type || "smoke job")}</strong>
