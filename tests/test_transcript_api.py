@@ -514,6 +514,28 @@ def test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command(tmp_path: P
     assert job["stdout_exists"] is True
 
 
+def test_first_pass_resume_ui_smoke_job_is_allowlisted(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    payload = transcript_api.enqueue_app_smoke_job(
+        state_root=state_root,
+        job_type="first_pass_resume_ui_smoke",
+        approval_token="RUN_APP_SMOKE_JOB",
+        base_url="http://127.0.0.1:18876",
+        start_thread=False,
+    )
+
+    job = payload["job"]
+    job_record = json.loads(Path(job["path"]).read_text(encoding="utf-8"))
+
+    assert payload["will_execute_arbitrary_shell"] is False
+    assert payload["required_approval_token_checked"] == "RUN_APP_SMOKE_JOB"
+    assert job["will_execute_external_action"] is True
+    assert job["will_execute_write_bearing_action"] is False
+    assert "smoke_first_pass_batch_resume_ui.py" in job_record["command"][1]
+    assert "--cleanup" in job_record["command"]
+    assert job_record["cleanup"] is True
+
+
 def test_intelligence_smoke_job_tail_endpoint_is_path_confined(tmp_path: Path) -> None:
     state_root = tmp_path / "state"
     job_root = state_root / "smoke-jobs"

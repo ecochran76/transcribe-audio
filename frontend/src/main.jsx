@@ -342,10 +342,11 @@ function App() {
     const labels = {
       api_replay_smoke: "API replay smoke",
       browser_replay_smoke: "browser replay smoke",
+      first_pass_resume_ui_smoke: "first-pass resume UI smoke",
       cleanup_smokes: applyCleanup ? "smoke cleanup apply" : "smoke cleanup dry-run"
     };
-    if (jobType === "browser_replay_smoke") {
-      const approved = window.confirm("Run the browser replay smoke through agent-browser? This is a fixed command and records local smoke artifacts.");
+    if (jobType === "browser_replay_smoke" || jobType === "first_pass_resume_ui_smoke") {
+      const approved = window.confirm(`Run the ${labels[jobType]} through agent-browser? This is a fixed command and records local smoke artifacts.`);
       if (!approved) return;
     }
     if (jobType === "cleanup_smokes" && applyCleanup) {
@@ -1244,6 +1245,9 @@ function IntelligencePanel({
           </button>
           <button onClick={() => onStartSmokeJob("browser_replay_smoke")} disabled={smokeJobAction.status === "queueing"} type="button">
             Queue browser smoke
+          </button>
+          <button onClick={() => onStartSmokeJob("first_pass_resume_ui_smoke")} disabled={smokeJobAction.status === "queueing"} type="button">
+            Queue resume UI smoke
           </button>
           <button onClick={() => onStartSmokeJob("cleanup_smokes")} disabled={smokeJobAction.status === "queueing"} type="button">
             Cleanup dry-run

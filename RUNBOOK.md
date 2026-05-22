@@ -5135,6 +5135,46 @@ Next:
 - Add this smoke to the allowlisted smoke-job queue if we want operators to
   run it from the Smoke Status card instead of the terminal.
 
+## Turn 158 | 2026-05-22
+
+Summary: Queued first-pass resume UI smoke from the Smoke Status card.
+
+Action:
+
+- Added `first_pass_resume_ui_smoke` as an allowlisted smoke-job type.
+- The fixed command runs `scripts/smoke_first_pass_batch_resume_ui.py` with the
+  configured base URL, user-scoped state root, and `--cleanup`.
+- Marked the job as external-action because it uses `agent-browser`, but not
+  write-bearing because it only creates and removes disposable runtime smoke
+  artifacts.
+- Added a Smoke Status button for queueing the resume UI smoke.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_intelligence_smoke_jobs_endpoint_queues_allowlisted_command tests/test_transcript_api.py::test_first_pass_resume_ui_smoke_job_is_allowlisted tests/test_transcript_api.py::test_cleanup_smoke_job_apply_requires_cleanup_token -q`
+  passed with 3 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py scripts/smoke_first_pass_batch_resume_ui.py`
+  passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `POST /api/intelligence/smoke-jobs` queued
+  `first_pass_resume_ui_smoke-20260522T224946Z-a6184a73`.
+- Live `GET /api/intelligence/smoke-jobs?limit=1` reported
+  `status=succeeded`, `returncode=0`, and
+  `available_job_types` including `first_pass_resume_ui_smoke`.
+- Live stdout tail included `FIRST_PASS_RESUME_UI_SMOKE_JSON=` with
+  `"status":"pass"` and all Review Queue checks true.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 39 tests.
+- `git diff --check` passed.
+
+Next:
+
+- Add a compact UI affordance to open the latest resume-smoke screenshot/report
+  from the Smoke Status job row.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

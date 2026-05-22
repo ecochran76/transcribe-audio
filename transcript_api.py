@@ -317,6 +317,18 @@ def app_smoke_job_command(
         if cleanup:
             command.append("--cleanup")
         return command, APP_SMOKE_JOB_TIMEOUT_SECONDS, APP_SMOKE_JOB_TOKEN
+    if job_type == "first_pass_resume_ui_smoke":
+        command = [
+            sys.executable,
+            str(repo_root / "scripts" / "smoke_first_pass_batch_resume_ui.py"),
+            "--base-url",
+            base_url.rstrip("/"),
+            "--state-root",
+            str(state_root),
+        ]
+        if cleanup:
+            command.append("--cleanup")
+        return command, APP_SMOKE_JOB_TIMEOUT_SECONDS, APP_SMOKE_JOB_TOKEN
     if job_type == "cleanup_smokes":
         command = [
             sys.executable,
@@ -465,6 +477,7 @@ def list_app_smoke_jobs(*, state_root: Path, limit: int = 10) -> dict[str, Any]:
         "available_job_types": [
             "api_replay_smoke",
             "browser_replay_smoke",
+            "first_pass_resume_ui_smoke",
             "cleanup_smokes",
         ],
         "will_read_artifact_content": False,
@@ -558,7 +571,7 @@ def enqueue_app_smoke_job(
         "stderr_path": str(root / f"{job_id}.stderr.txt"),
         "cleanup": cleanup,
         "apply_cleanup": apply_cleanup,
-        "will_execute_external_action": job_type == "browser_replay_smoke",
+        "will_execute_external_action": job_type in {"browser_replay_smoke", "first_pass_resume_ui_smoke"},
         "will_execute_write_bearing_action": job_type == "cleanup_smokes" and apply_cleanup,
         "will_read_artifact_content": False,
     }
