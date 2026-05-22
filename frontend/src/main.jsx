@@ -123,6 +123,21 @@ function cleanupSummaryLabel(summary) {
   return `${mode}: delete ${summary.delete_run_count || 0}/${summary.matched_run_count || 0} runs · delete ${summary.delete_evidence_count || 0}/${summary.matched_evidence_count || 0} evidence · keep ${summary.keep_evidence || 0} newest/${summary.evidence_days || 0}d`;
 }
 
+function smokeJobTiming(job) {
+  const createdAt = job?.created_at || "";
+  const startedAt = job?.started_at || "";
+  const finishedAt = job?.finished_at || "";
+  const start = new Date(startedAt || createdAt);
+  const end = new Date(finishedAt || "");
+  const parts = [];
+  if (createdAt) parts.push(`queued ${formatDate(createdAt)}`);
+  if (finishedAt) parts.push(`finished ${formatDate(finishedAt)}`);
+  if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+    parts.push(`${Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))}s runtime`);
+  }
+  return parts.join(" · ");
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1207,25 +1222,29 @@ function IntelligencePanel({
               <span className="risk-badge read-only">read-only</span>
               <small>Inspects status, tails, or dry-run cleanup counts without deleting artifacts.</small>
             </div>
-            {recentSmokeJobs.slice(0, 3).map((job) => (
-              <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
-                <strong>{statusLabel(job.job_type || "smoke job")}</strong>
-                <span>{job.status}</span>
-                <span className={job.will_execute_write_bearing_action ? "risk-badge write-bearing" : "risk-badge read-only"}>
-                  {job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}
-                </span>
-                <small>{job.job_id}</small>
-                {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
-                <div className="notice-actions">
-                  <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
-                    stderr tail
-                  </button>
-                  <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
-                    stdout tail
-                  </button>
-                </div>
-              </article>
-            ))}
+            {recentSmokeJobs.slice(0, 3).map((job) => {
+              const timing = smokeJobTiming(job);
+              return (
+                <article className={`task-row smoke-job-row ${job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}`} key={job.job_id}>
+                  <strong>{statusLabel(job.job_type || "smoke job")}</strong>
+                  <span>{job.status}</span>
+                  <span className={job.will_execute_write_bearing_action ? "risk-badge write-bearing" : "risk-badge read-only"}>
+                    {job.will_execute_write_bearing_action ? "write-bearing" : "read-only"}
+                  </span>
+                  <small>{job.job_id}</small>
+                  {timing && <small className="job-timing">{timing}</small>}
+                  {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
+                  <div className="notice-actions">
+                    <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
+                      stderr tail
+                    </button>
+                    <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
+                      stdout tail
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : null}
         {smokeTailAction.message && (

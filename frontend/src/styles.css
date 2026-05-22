@@ -625,6 +625,10 @@ td small {
   grid-column: 1 / -1;
 }
 
+.smoke-job-row .job-timing {
+  color: rgba(244, 236, 216, 0.72);
+}
+
 .provider-details {
   display: grid;
   gap: 0.75rem;
