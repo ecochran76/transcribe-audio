@@ -5923,6 +5923,42 @@ Next:
 - Add a committed `agent-browser` smoke script for the Library deep-link/share
   flow so the exact browser checks from this turn are repeatable.
 
+## Turn 178 | 2026-05-23
+
+Summary: Added a repeatable Library deep-link/share browser smoke.
+
+Action:
+
+- Added `scripts/smoke_library_deeplink_share_ui.py`.
+- The smoke uses an isolated `agent-browser` profile by default, opens
+  `/?kind=readout&q=Cara&conversation=1&workflow=context`, verifies Library
+  URL state and the Context workbench deep link, closes the workspace, clicks
+  `Copy workspace link`, and accepts either clipboard success or the
+  non-blocking manual-copy URL field.
+- The smoke writes JSON and screenshot evidence under
+  `~/.local/state/transcribe-audio/browser-smokes/`.
+- Updated README, ROADMAP, and the P09 plan to record the repeatable smoke.
+
+Validation:
+
+- `python -m py_compile scripts/smoke_library_deeplink_share_ui.py scripts/smoke_app_replay_manifest_ui.py transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- `python scripts/smoke_library_deeplink_share_ui.py --base-url http://127.0.0.1:18876 --session transcript-library-share-ui-smoke-final --profile /tmp/transcript-library-share-ui-smoke-final-profile --viewport 1280x820` passed.
+- The live smoke wrote report
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T144114Z-library-share-ui-smoke.json`
+  and screenshot
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T144114Z-library-share-ui-smoke.png`.
+- `transcripts.service` and `transcribe-watch.service` both reported active.
+
+Next:
+
+- Decide whether this Library deep-link/share smoke should become an
+  allowlisted UI-triggered smoke job beside the existing replay and first-pass
+  resume browser smokes.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

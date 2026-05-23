@@ -54,7 +54,9 @@ control with clipboard feedback and non-blocking manual-copy fallback. A
 browser-reviewed density pass tightened topbar navigation, pane/card spacing,
 Library and inspector headings, workflow tabs, and conversation workspace chrome
 so the three-pane and modal workflows expose more useful controls in the first
-viewport.
+viewport. `scripts/smoke_library_deeplink_share_ui.py` makes the Library
+deep-link/share checks repeatable with `agent-browser`, persisted JSON evidence,
+and a screenshot artifact.
 The conversation workspace loads `/api/conversations/<document_id>`
 so transcript, summary, final readout, artifact membership, participants,
 and media arrive in one payload. Library columns are operator-resizable, and

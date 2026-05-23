@@ -565,12 +565,16 @@ Smoke the replay-manifest and registered artifact reader against the live API:
 ```bash
 python scripts/smoke_app_replay_manifest.py --cleanup
 python scripts/smoke_app_replay_manifest_ui.py --cleanup
+python scripts/smoke_library_deeplink_share_ui.py
 python scripts/cleanup_app_smokes.py
 ```
 
 Omit `--cleanup` to leave a disposable run selectable in the Intelligence panel.
 The UI smoke writes JSON and screenshot evidence under
 `~/.local/state/transcribe-audio/browser-smokes/`.
+The Library deep-link/share smoke verifies `kind`, `q`, `conversation`, and
+`workflow` URL state, then clicks `Copy workspace link` and requires either a
+successful clipboard status or the non-blocking manual-copy URL field.
 If the service environment cannot find `agent-browser`, set `AGENT_BROWSER_BIN`
 or install the shim at `~/.local/bin/agent-browser`.
 `cleanup_app_smokes.py` is dry-run by default; add `--apply` to delete matching
