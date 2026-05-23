@@ -442,7 +442,7 @@ function App() {
   const [selectedConversationDetailAction, setSelectedConversationDetailAction] = useState({ status: "idle", message: "" });
   const [conversationOpen, setConversationOpen] = useState(initialUrlState.conversationOpen);
   const [activeWorkflowView, setActiveWorkflowView] = useState(initialUrlState.activeWorkflowView);
-  const [shareAction, setShareAction] = useState({ status: "idle", message: "" });
+  const [shareAction, setShareAction] = useState({ status: "idle", message: "", url: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -798,12 +798,12 @@ function App() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable.");
       await navigator.clipboard.writeText(url);
-      setShareAction({ status: "ok", message: "Copied current workspace link." });
+      setShareAction({ status: "ok", message: "Copied current workspace link.", url });
     } catch (error) {
-      window.prompt("Copy this transcript workspace link:", url);
       setShareAction({
         status: "blocked",
-        message: `Clipboard write was unavailable; surfaced the link for manual copy. ${error.message}`
+        message: "Clipboard blocked. Select the link below to copy it manually.",
+        url
       });
     }
   }
@@ -1481,7 +1481,15 @@ function App() {
           </div>
           {activeNav === "Library" && shareAction.message ? (
             <div className={`share-link-notice ${shareAction.status}`} role="status">
-              {shareAction.message}
+              <span>{shareAction.message}</span>
+              {shareAction.url && (
+                <input
+                  aria-label="Current workspace link"
+                  onFocus={(event) => event.target.select()}
+                  readOnly
+                  value={shareAction.url}
+                />
+              )}
             </div>
           ) : null}
           <TestStatusStrip

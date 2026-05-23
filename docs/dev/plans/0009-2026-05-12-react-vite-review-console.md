@@ -50,7 +50,11 @@ and paginated server-backed results can be extended with a `Load more` control.
 Library query, kind filter, selected document, open workspace state, and active
 workspace tab are URL-addressable so dogfooding feedback can include
 reproducible links, and the Library header exposes a copy-workspace-link
-control with clipboard feedback and manual-copy fallback.
+control with clipboard feedback and non-blocking manual-copy fallback. A
+browser-reviewed density pass tightened topbar navigation, pane/card spacing,
+Library and inspector headings, workflow tabs, and conversation workspace chrome
+so the three-pane and modal workflows expose more useful controls in the first
+viewport.
 The conversation workspace loads `/api/conversations/<document_id>`
 so transcript, summary, final readout, artifact membership, participants,
 and media arrive in one payload. Library columns are operator-resizable, and

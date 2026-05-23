@@ -5878,6 +5878,51 @@ Next:
 - Add a lightweight browser smoke for the Library deep-link/share flow so URL
   state and copy affordance regressions are caught automatically.
 
+## Turn 177 | 2026-05-23
+
+Summary: Used agent-browser to tighten Library and conversation workspace
+density.
+
+Action:
+
+- Ran `agent-browser` against the live `transcripts.service` UI at desktop and
+  narrower three-pane widths.
+- Captured before/after screenshots for the Library and deep-linked
+  conversation workspace under `/tmp/transcripts-ux-density-*.png`.
+- Reduced topbar, pane, card, test-strip, workflow-tab, and modal chrome
+  spacing so useful controls appear earlier in the viewport.
+- Reduced Library, inspector, and workflow heading sizes for the constrained
+  three-pane layout.
+- Hid the topbar horizontal scrollbar while preserving horizontal nav
+  scrollability.
+- Replaced the blocking JavaScript prompt share fallback with an inline
+  selectable URL field after `agent-browser` exposed the prompt as automation-
+  and operator-hostile.
+- Updated ROADMAP and the P09 plan with the browser-reviewed density pass.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- `agent-browser` captured and reviewed
+  `/tmp/transcripts-ux-density-library-1280-after.png`,
+  `/tmp/transcripts-ux-density-modal-after.png`, and
+  `/tmp/transcripts-ux-density-share-final.png`.
+- `agent-browser` click on `Copy workspace link` produced a non-blocking
+  `Current workspace link` textbox instead of a JavaScript prompt.
+- Live built assets contained the short clipboard fallback text and
+  `scrollbar-width:none` for the compact topbar navigation.
+
+Next:
+
+- Add a committed `agent-browser` smoke script for the Library deep-link/share
+  flow so the exact browser checks from this turn are repeatable.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
