@@ -5710,6 +5710,58 @@ Next:
 - Decide whether to submit the latest five-item prepared batch from the UI or
   keep batch execution paused until the next provider-readiness check.
 
+## Turn 111 | 2026-05-22
+
+Summary: Fixed Library pane ergonomics and readout/audio inspection.
+
+Action:
+
+- Replaced text-only pane collapse controls with accessible SVG icon controls.
+- Added mouse drag and keyboard arrow resizing for the left filter pane and
+  right inspector pane.
+- Added selected-document detail loading in the Library inspector.
+- Changed the Library inspector from raw JSON-first to human-readable readout
+  preview cards with people, topics, actions, and risks when present.
+- Kept raw context JSON behind a developer-labelled secondary link.
+- Followed readout `source_artifact_path` metadata to the matching source
+  transcript so readouts can surface source-transcript audio even when the
+  readout itself has no blob.
+- Increased the initial Library load to the API cap of 200 rows so current
+  source-link resolution can find older source transcripts until a dedicated
+  related-document endpoint exists.
+- Verified the 2026-04-24 Cara/ColorBiotics readout points to source transcript
+  `646f58f133108230a67c`, which has blob `f363a21cdc716795bd3c` linked to the
+  original `.m4a`.
+- Updated `ROADMAP.md` and the P09 plan for the UX/data-model correction.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main "pane resize
+  collapse controls human readable context audio missing Cara conference UX"`
+  returned repo memory and no conflicting UX direction.
+- `curl http://127.0.0.1:18876/api/documents/e2a67052289d1ad1d891`
+  confirmed the readout has `source_artifact_path` pointing at the transcript
+  sidecar.
+- `curl http://127.0.0.1:18876/api/documents/646f58f133108230a67c`
+  confirmed source recording playback/download URLs for blob
+  `f363a21cdc716795bd3c`.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Browser smoke against `http://transcripts.localhost/` selected the Cara row,
+  verified the table shows `Source blob`, the inspector includes the human
+  summary text, the raw JSON link is labelled `Developer: raw context JSON`,
+  the old `Open context JSON` primary link is gone, the audio element points to
+  `/api/blobs/f363a21cdc716795bd3c`, and both pane resize handles plus collapse
+  controls are present with accessible labels.
+
+Next:
+
+- Add a dedicated related-document API endpoint for readout-to-source transcript
+  resolution, then wire playback speed controls and richer transcript/readout
+  tabs in the selected-artifact inspector.
+
 ## Turn 94 | 2026-05-16
 
 Summary: Added a provider-neutral Review Queue action for first-pass summary

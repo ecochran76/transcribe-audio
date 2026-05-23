@@ -125,6 +125,10 @@ function capabilityLabels(capabilities) {
   return [];
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function hasActiveSmokeJob(smokeJobs) {
   return (smokeJobs?.items || []).some((job) => ["queued", "running"].includes(job.status));
 }
@@ -171,6 +175,33 @@ function filterSmokeJobs(jobs, filter) {
   return jobs;
 }
 
+function sourceArtifactPath(item) {
+  return item?.metadata?.source_artifact_path || item?.json_payload?.source_artifact_path || "";
+}
+
+function findSourceDocument(item, items) {
+  const sourcePath = sourceArtifactPath(item);
+  if (!sourcePath) return null;
+  return (items || []).find((candidate) => candidate.source_path === sourcePath) || null;
+}
+
+function mediaForItem(item, sourceDocument) {
+  return item?.media_blob?.playback_url ? item.media_blob : sourceDocument?.media_blob?.playback_url ? sourceDocument.media_blob : null;
+}
+
+function documentSummaryText(detail) {
+  const payload = detail?.json_payload || {};
+  return payload.summary || payload.readout || detail?.text_content || "";
+}
+
+function displayLabel(value, fallback = "Item") {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    return value.name || value.email || value.label || value.title || value.text || value.task || fallback;
+  }
+  return fallback;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -199,6 +230,8 @@ function App() {
   const [activeNav, setActiveNav] = useState("Library");
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(300);
+  const [rightPaneWidth, setRightPaneWidth] = useState(380);
   const [kindFilter, setKindFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [library, setLibrary] = useState({ items: FALLBACK_LIBRARY, total: FALLBACK_LIBRARY.length });
@@ -233,6 +266,8 @@ function App() {
   const [runArtifactAction, setRunArtifactAction] = useState({ status: "idle", message: "", payload: null });
   const [smokeJobAction, setSmokeJobAction] = useState({ status: "idle", message: "", payload: null });
   const [smokeTailAction, setSmokeTailAction] = useState({ status: "idle", message: "", payload: null });
+  const [selectedDocumentDetail, setSelectedDocumentDetail] = useState(null);
+  const [selectedDocumentDetailAction, setSelectedDocumentDetailAction] = useState({ status: "idle", message: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -240,7 +275,7 @@ function App() {
       try {
         const [healthPayload, libraryPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
           fetchJson("/api/health"),
-          fetchJson("/api/library?limit=25"),
+          fetchJson("/api/library?limit=200"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5"),
           fetchJson("/api/intelligence/providers"),
@@ -414,6 +449,37 @@ function App() {
     }
   }
 
+  function resizePane(pane, startEvent) {
+    startEvent.preventDefault();
+    const startX = startEvent.clientX;
+    const initialWidth = pane === "left" ? leftPaneWidth : rightPaneWidth;
+    const onPointerMove = (event) => {
+      const delta = event.clientX - startX;
+      if (pane === "left") {
+        setLeftPaneWidth(clamp(initialWidth + delta, 240, 520));
+      } else {
+        setRightPaneWidth(clamp(initialWidth - delta, 300, 560));
+      }
+    };
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+  }
+
+  function resizePaneWithKeyboard(pane, event) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    if (pane === "left") {
+      setLeftPaneWidth((value) => clamp(value + direction * 16, 240, 520));
+    } else {
+      setRightPaneWidth((value) => clamp(value - direction * 16, 300, 560));
+    }
+  }
+
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (library.items || []).filter((item) => {
@@ -431,6 +497,32 @@ function App() {
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
   const smokeJobsActive = hasActiveSmokeJob(intelligence.smokeJobs);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSelectedDocumentDetail() {
+      if (!selected?.id || activeNav !== "Library") {
+        setSelectedDocumentDetail(null);
+        setSelectedDocumentDetailAction({ status: "idle", message: "" });
+        return;
+      }
+      setSelectedDocumentDetailAction({ status: "loading", message: "Loading document details..." });
+      try {
+        const payload = await fetchJson(`/api/documents/${encodeURIComponent(selected.id)}`);
+        if (cancelled) return;
+        setSelectedDocumentDetail(payload);
+        setSelectedDocumentDetailAction({ status: "loaded", message: "" });
+      } catch (error) {
+        if (cancelled) return;
+        setSelectedDocumentDetail(null);
+        setSelectedDocumentDetailAction({ status: "error", message: `Document detail failed: ${error.message}` });
+      }
+    }
+    loadSelectedDocumentDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNav, selected?.id]);
 
   useEffect(() => {
     if (!selectedTaskConfig) return;
@@ -945,11 +1037,26 @@ function App() {
           leftCollapsed ? "left-collapsed" : "",
           rightCollapsed ? "right-collapsed" : ""
         ].join(" ")}
+        style={{
+          "--left-pane-width": `${leftPaneWidth}px`,
+          "--right-pane-width": `${rightPaneWidth}px`
+        }}
       >
         <aside className="left-pane">
-          <button className="pane-toggle" onClick={() => setLeftCollapsed((value) => !value)} type="button">
-            {leftCollapsed ? "Filters +" : "Collapse filters"}
-          </button>
+          <PaneToggleButton
+            collapsed={leftCollapsed}
+            label={leftCollapsed ? "Expand filters pane" : "Collapse filters pane"}
+            onClick={() => setLeftCollapsed((value) => !value)}
+            side="left"
+          />
+          {!leftCollapsed && (
+            <PaneResizeHandle
+              label="Resize filters pane"
+              onKeyDown={(event) => resizePaneWithKeyboard("left", event)}
+              onPointerDown={(event) => resizePane("left", event)}
+              side="left"
+            />
+          )}
           <div className="pane-content">
             <p className="eyebrow">{activeNav}</p>
             <h2>Workflow filters</h2>
@@ -1061,17 +1168,32 @@ function App() {
               onSelectRun={setSelectedRunId}
             />
           ) : (
-            <LibraryTable items={visibleItems} selectedId={selected?.id} onSelect={setSelectedId} />
+            <LibraryTable items={visibleItems} allItems={library.items || []} selectedId={selected?.id} onSelect={setSelectedId} />
           )}
         </section>
 
         <aside className="right-pane">
-          <button className="pane-toggle" onClick={() => setRightCollapsed((value) => !value)} type="button">
-            {rightCollapsed ? "Inspector +" : "Collapse inspector"}
-          </button>
+          <PaneToggleButton
+            collapsed={rightCollapsed}
+            label={rightCollapsed ? "Expand inspector pane" : "Collapse inspector pane"}
+            onClick={() => setRightCollapsed((value) => !value)}
+            side="right"
+          />
+          {!rightCollapsed && (
+            <PaneResizeHandle
+              label="Resize inspector pane"
+              onKeyDown={(event) => resizePaneWithKeyboard("right", event)}
+              onPointerDown={(event) => resizePane("right", event)}
+              side="right"
+            />
+          )}
           <Inspector
             item={selected}
+            items={library.items || []}
             activeNav={activeNav}
+            documentDetail={selectedDocumentDetail}
+            documentDetailAction={selectedDocumentDetailAction}
+            onSelectDocument={setSelectedId}
             reviewQueue={reviewQueue}
             selectedTask={selectedTask}
             selectedTaskConfig={selectedTaskConfig}
@@ -1151,6 +1273,44 @@ function TestStatusStrip({
       </div>
       <p>{target}</p>
     </section>
+  );
+}
+
+function PaneToggleButton({ collapsed, label, onClick, side }) {
+  const points = side === "left"
+    ? collapsed ? "10 8 16 12 10 16" : "16 8 10 12 16 16"
+    : collapsed ? "14 8 8 12 14 16" : "8 8 14 12 8 16";
+  return (
+    <button
+      aria-label={label}
+      aria-pressed={collapsed}
+      className={`pane-toggle icon-pane-toggle ${side}`}
+      onClick={onClick}
+      title={label}
+      type="button"
+    >
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+        <rect x="4" y="5" width="16" height="14" rx="3" />
+        <line x1={side === "left" ? "9" : "15"} y1="6" x2={side === "left" ? "9" : "15"} y2="18" />
+        <polyline points={points} />
+      </svg>
+      <span>{side === "left" ? "Filters" : "Inspector"}</span>
+    </button>
+  );
+}
+
+function PaneResizeHandle({ label, onKeyDown, onPointerDown, side }) {
+  return (
+    <div
+      aria-label={label}
+      aria-orientation="vertical"
+      className={`pane-resizer ${side}`}
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      role="separator"
+      tabIndex={0}
+      title={`${label}. Drag or use arrow keys.`}
+    />
   );
 }
 
@@ -1616,7 +1776,7 @@ function ReplayManifest({ manifest, onLoadArtifact }) {
   );
 }
 
-function LibraryTable({ items, selectedId, onSelect }) {
+function LibraryTable({ items, allItems, selectedId, onSelect }) {
   return (
     <div className="table-shell">
       <table>
@@ -1632,6 +1792,8 @@ function LibraryTable({ items, selectedId, onSelect }) {
         <tbody>
           {items.map((item) => {
             const calendar = item.metadata?.event?.summary || item.metadata?.route?.label || "No context yet";
+            const sourceDocument = findSourceDocument(item, allItems);
+            const linkedMedia = mediaForItem(item, sourceDocument);
             return (
               <tr className={selectedId === item.id ? "selected" : ""} key={item.id} onClick={() => onSelect(item.id)}>
                 <td>
@@ -1641,7 +1803,7 @@ function LibraryTable({ items, selectedId, onSelect }) {
                 <td><span className="chip">{statusLabel(item.kind || "unknown")}</span></td>
                 <td>{calendar}</td>
                 <td>{formatDate(item.generated_at || item.updated_at)}</td>
-                <td>{item.media_blob?.playback_url ? "Blob linked" : "No blob"}</td>
+                <td>{linkedMedia ? (item.media_blob?.playback_url ? "Blob linked" : "Source blob") : "No blob"}</td>
               </tr>
             );
           })}
@@ -1806,7 +1968,11 @@ function ReviewQueue({ queue, reviewAction, batchManifests, onPrepareFirstPass, 
 
 function Inspector({
   item,
+  items,
   activeNav,
+  documentDetail,
+  documentDetailAction,
+  onSelectDocument,
   reviewQueue,
   selectedTask,
   selectedTaskConfig,
@@ -2233,6 +2399,14 @@ function Inspector({
   if (!item) {
     return <div className="inspector-content"><h2>No selection</h2></div>;
   }
+  const sourceDocument = findSourceDocument(item, items);
+  const linkedMedia = mediaForItem(item, sourceDocument);
+  const summaryText = documentSummaryText(documentDetail);
+  const payload = documentDetail?.json_payload || {};
+  const participants = Array.isArray(payload.participants) ? payload.participants : [];
+  const topics = Array.isArray(payload.topics) ? payload.topics : [];
+  const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
+  const risks = Array.isArray(payload.risks) ? payload.risks : [];
   return (
     <div className="inspector-content">
       <p className="eyebrow">Inspector</p>
@@ -2242,20 +2416,87 @@ function Inspector({
         <dd>{statusLabel(item.kind || "unknown")}</dd>
         <dt>Source</dt>
         <dd>{item.source_path || "Unknown"}</dd>
-        <dt>Blob</dt>
-        <dd>{item.media_blob?.id || "No media blob linked"}</dd>
+        <dt>Audio</dt>
+        <dd>
+          {item.media_blob?.id || (sourceDocument?.media_blob?.id ? `Inherited from source transcript ${sourceDocument.id}` : "No media blob linked")}
+        </dd>
       </dl>
-      {item.media_blob?.playback_url ? (
+      {linkedMedia ? (
         <div className="player-card">
-          <audio controls src={item.media_blob.playback_url} />
-          <a href={item.media_blob.download_url}>Download source recording</a>
+          <span>{item.media_blob?.playback_url ? "Source recording" : "Source transcript recording"}</span>
+          <audio controls src={linkedMedia.playback_url} />
+          <a href={linkedMedia.download_url}>Download source recording</a>
+          {sourceDocument && sourceDocument.id !== item.id ? (
+            <button className="inline-action" onClick={() => onSelectDocument(sourceDocument.id)} type="button">
+              Open source transcript
+            </button>
+          ) : null}
         </div>
       ) : (
-        <p className="muted">Playback appears here once a stored blob is linked.</p>
+        <div className="media-diagnostic-card">
+          <span>No linked audio</span>
+          <p>
+            {sourceArtifactPath(item)
+              ? "This artifact points to a source transcript, but the current library page does not include a matching transcript with a stored blob."
+              : "This artifact has no direct source recording link yet. Run media backfill or select the source transcript when available."}
+          </p>
+        </div>
       )}
+      <section className="readout-card" aria-label="Human-readable artifact preview">
+        <span>Readout</span>
+        {documentDetailAction.status === "loading" ? (
+          <p className="muted">Loading readout...</p>
+        ) : summaryText ? (
+          <p>{summaryText.length > 900 ? `${summaryText.slice(0, 900)}...` : summaryText}</p>
+        ) : (
+          <p className="muted">{documentDetailAction.message || "No human-readable text is available for this artifact yet."}</p>
+        )}
+        {participants.length ? (
+          <div className="mini-section">
+            <strong>People</strong>
+            <div className="chip-cloud">
+              {participants.slice(0, 8).map((participant) => (
+                <span key={displayLabel(participant, "Participant")}>{displayLabel(participant, "Participant")}</span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {topics.length ? (
+          <div className="mini-section">
+            <strong>Topics</strong>
+            <div className="chip-cloud">
+              {topics.slice(0, 8).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}
+            </div>
+          </div>
+        ) : null}
+        {actionItems.length || risks.length ? (
+          <div className="readout-columns">
+            {actionItems.length ? (
+              <div>
+                <strong>Actions</strong>
+                <ul>
+                  {actionItems.slice(0, 4).map((action, index) => (
+                    <li key={`${index}-${displayLabel(action, "Action item")}`}>{displayLabel(action, "Action item")}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {risks.length ? (
+              <div>
+                <strong>Risks</strong>
+                <ul>
+                  {risks.slice(0, 4).map((risk, index) => (
+                    <li key={`${index}-${displayLabel(risk, "Risk")}`}>{displayLabel(risk, "Risk")}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
       <div className="action-stack">
-        <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">
-          Open context JSON
+        <a className="developer-link" href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">
+          Developer: raw context JSON
         </a>
         <button disabled title="Share-link workflow is planned but not wired yet." type="button">Prepare share link (planned)</button>
         <button disabled title="Speaker/contact review is planned but not wired yet." type="button">Review speakers (planned)</button>

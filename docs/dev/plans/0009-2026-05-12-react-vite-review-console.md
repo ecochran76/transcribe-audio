@@ -31,6 +31,13 @@ surface. It wires `/api/health`, `/api/library`, `/api/review-queue`, and
 first-pass summary batch actions through the Vite dev proxy, with redacted
 fallback rows when the API is offline.
 
+The Library panes now support SVG collapse controls and mouse/keyboard width
+resizing. The selected-artifact inspector loads document detail on demand,
+shows readouts as human-readable summaries with people/topics/actions/risks
+when present, keeps raw context JSON as a developer-labelled affordance, and
+uses `source_artifact_path` to surface source-transcript audio for readouts that
+do not own a media blob directly.
+
 The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
@@ -65,8 +72,8 @@ Working rule:
 
 Immediate wiring order:
 
-1. Library detail: document JSON/context, playback speed, transcript/readout
-   visibility, and source metadata.
+1. Library detail: human-readable document detail/context, playback speed,
+   transcript/readout visibility, and source metadata.
 2. First-pass/context actions: prepare/check/materialize from the selected
    document without switching mental contexts.
 3. Review Queue: route human-review decisions to the selected artifact or
@@ -230,7 +237,8 @@ Use a React + Vite app under `frontend/` with:
 
 - A sticky dark topbar inspired by `../buffer-cli/frontend/src/App.jsx`.
 - CSS variables and a distinct transcript-console visual system, not a generic template.
-- Animated left and right panes using CSS grid width transitions.
+- Animated left and right panes using CSS grid width transitions, accessible
+  SVG collapse controls, and mouse/keyboard pane resizing.
 - Table viewport with sortable columns and status chips.
 - Detail inspector actions kept to the right pane.
 - No hard-coded private data in fixtures; use redacted local development seed data only.

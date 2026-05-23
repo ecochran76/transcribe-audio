@@ -161,7 +161,7 @@ select {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-columns: minmax(240px, var(--left-pane-width, 300px)) minmax(0, 1fr) minmax(300px, var(--right-pane-width, 380px));
   gap: 1rem;
   min-height: calc(100vh - 4.45rem);
   padding: 1rem;
@@ -169,11 +169,11 @@ select {
 }
 
 .workspace.left-collapsed {
-  grid-template-columns: 58px minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-columns: 58px minmax(0, 1fr) minmax(300px, var(--right-pane-width, 380px));
 }
 
 .workspace.right-collapsed {
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) 58px;
+  grid-template-columns: minmax(240px, var(--left-pane-width, 300px)) minmax(0, 1fr) 58px;
 }
 
 .workspace.left-collapsed.right-collapsed {
@@ -193,12 +193,89 @@ select {
 
 .left-pane,
 .right-pane {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
 }
 
 .pane-toggle {
   margin: 0.75rem;
+}
+
+.icon-pane-toggle {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  border-color: rgba(215, 255, 115, 0.26);
+  background:
+    linear-gradient(145deg, rgba(215, 255, 115, 0.14), rgba(244, 236, 216, 0.04)),
+    rgba(0, 0, 0, 0.16);
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.icon-pane-toggle svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.icon-pane-toggle[aria-pressed="true"] {
+  width: calc(100% - 1.5rem);
+  min-width: 2.8rem;
+  padding-inline: 0.55rem;
+}
+
+.icon-pane-toggle[aria-pressed="true"] span {
+  display: none;
+}
+
+.pane-resizer {
+  position: absolute;
+  top: 4.25rem;
+  bottom: 1rem;
+  z-index: 2;
+  width: 0.8rem;
+  cursor: col-resize;
+}
+
+.pane-resizer.left {
+  right: -0.45rem;
+}
+
+.pane-resizer.right {
+  left: -0.45rem;
+}
+
+.pane-resizer::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.22rem;
+  height: 4.2rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(215, 255, 115, 0.92), rgba(255, 159, 90, 0.78));
+  box-shadow: 0 0 0 1px rgba(18, 18, 15, 0.7), 0 0 22px rgba(215, 255, 115, 0.18);
+  content: "";
+  opacity: 0.48;
+  transform: translate(-50%, -50%);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.pane-resizer:hover::before,
+.pane-resizer:focus-visible::before {
+  opacity: 1;
+  transform: translate(-50%, -50%) scaleX(1.4);
 }
 
 .pane-content,
@@ -1207,8 +1284,81 @@ dd {
   width: 100%;
 }
 
+.player-card > span,
+.media-diagnostic-card > span,
+.readout-card > span {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .player-card a {
   color: var(--accent);
+}
+
+.media-diagnostic-card,
+.readout-card {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.media-diagnostic-card {
+  border-color: rgba(255, 159, 90, 0.28);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 159, 90, 0.14), transparent 12rem),
+    rgba(0, 0, 0, 0.14);
+}
+
+.media-diagnostic-card p,
+.readout-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mini-section {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.2rem;
+}
+
+.chip-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip-cloud span {
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 999px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--muted);
+  padding: 0.3rem 0.52rem;
+  font-size: 0.78rem;
+}
+
+.readout-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.readout-columns ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.readout-columns li {
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .action-stack {
@@ -1225,6 +1375,12 @@ dd {
   padding: 0.55rem 0.85rem;
   text-align: center;
   text-decoration: none;
+}
+
+.action-stack a.developer-link {
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .action-stack button:disabled {
@@ -1248,6 +1404,10 @@ dd {
   .right-collapsed .inspector-content {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  .pane-resizer {
+    display: none;
   }
 
   .queue-list-heading,
