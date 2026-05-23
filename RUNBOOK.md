@@ -5313,6 +5313,48 @@ Next:
 - Add a compact selected-job detail drawer or inline expansion so one job's
   command, risk flags, evidence, and tails are easier to inspect together.
 
+## Turn 163 | 2026-05-22
+
+Summary: Reframed the frontend around dogfoodable UX.
+
+Action:
+
+- Paused additive UX polish to audit what is wired versus placeholder.
+- Added a P09 dogfooding UX direction: every visible control must either
+  execute a real local action, open a real read-only route/artifact, or be
+  explicitly disabled with planned-state copy.
+- Disabled planned navbar sections instead of letting them switch to an
+  unrelated Library-like viewport.
+- Wired the Library inspector `Open context JSON` action to the real
+  `/api/documents/<id>/context` endpoint.
+- Marked share-link and speaker-review inspector actions as planned/disabled.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/library?limit=1` returned selected transcript
+  `2596e459aeb3812de321`.
+- Live `GET /api/documents/2596e459aeb3812de321/context?context_chunks=2`
+  returned a read-only context response for the selected document.
+- Live browser check confirmed only Library, Review Queue, and Intelligence are
+  enabled; Context Runs, Contacts, Provenance, Depositions, and Settings are
+  disabled with `PLANNED` labels.
+- Live browser check confirmed the selected Library artifact exposes
+  `/api/documents/2596e459aeb3812de321/context?context_chunks=2` as
+  `Open context JSON`, while share-link and speaker-review actions are disabled
+  as planned.
+
+Next:
+
+- Continue wiring the beginning of the dogfooding path from Library detail:
+  add document JSON/context preview inside the inspector instead of opening a
+  raw JSON tab.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

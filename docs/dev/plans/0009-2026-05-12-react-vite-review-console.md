@@ -41,6 +41,41 @@ The remaining UI layer should make the workflow operational:
 6. Review deposition and memory-harvest candidates.
 7. Share selected artifacts for human review without exposing the full operator surface.
 
+## Dogfooding UX Direction
+
+The console should evolve from a broad prototype into a beginning-to-end
+operator workflow. Until a workflow is wired, the UI must not present it as a
+working affordance.
+
+Working rule:
+
+- Visible controls must either execute a real local action, open a real
+  read-only API route/artifact, or be explicitly disabled with planned-state
+  copy.
+- Primary navigation should show only dogfoodable sections as enabled. Planned
+  sections may remain visible for orientation, but disabled controls must not
+  switch views or reuse the Library viewport.
+- The first dogfooding path is `Library -> selected recording/transcript ->
+  playback/source metadata -> context JSON -> first-pass/context enrichment ->
+  Review Queue -> Intelligence smoke/debug`.
+- New workflow slices should wire this path from left to right before adding
+  more product areas.
+- Placeholder UX is acceptable only in docs/plans, not as an active button that
+  appears to work.
+
+Immediate wiring order:
+
+1. Library detail: document JSON/context, playback speed, transcript/readout
+   visibility, and source metadata.
+2. First-pass/context actions: prepare/check/materialize from the selected
+   document without switching mental contexts.
+3. Review Queue: route human-review decisions to the selected artifact or
+   batch.
+4. Contacts/speakers: expose unassigned speakers and planned contact review as
+   a disabled state until contact tables exist.
+5. Share/review links: reuse the `previews` contract only after a scoped local
+   share model exists.
+
 ## Information Architecture
 
 ### Navbar

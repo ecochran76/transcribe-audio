@@ -3,14 +3,14 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const NAV_ITEMS = [
-  "Library",
-  "Review Queue",
-  "Context Runs",
-  "Contacts",
-  "Provenance",
-  "Intelligence",
-  "Depositions",
-  "Settings"
+  { id: "Library", label: "Library", enabled: true },
+  { id: "Review Queue", label: "Review Queue", enabled: true },
+  { id: "Context Runs", label: "Context Runs", enabled: false },
+  { id: "Contacts", label: "Contacts", enabled: false },
+  { id: "Provenance", label: "Provenance", enabled: false },
+  { id: "Intelligence", label: "Intelligence", enabled: true },
+  { id: "Depositions", label: "Depositions", enabled: false },
+  { id: "Settings", label: "Settings", enabled: false }
 ];
 
 const LIBRARY_KIND_FILTERS = [
@@ -920,13 +920,16 @@ function App() {
         <nav className="nav-tabs" aria-label="Primary">
           {NAV_ITEMS.map((item) => (
             <button
-              className={activeNav === item ? "active" : ""}
-              aria-current={activeNav === item ? "page" : undefined}
-              key={item}
-              onClick={() => setActiveNav(item)}
+              className={activeNav === item.id ? "active" : ""}
+              aria-current={activeNav === item.id ? "page" : undefined}
+              disabled={!item.enabled}
+              key={item.id}
+              onClick={() => item.enabled && setActiveNav(item.id)}
+              title={item.enabled ? "" : `${item.label} is planned and not wired yet.`}
               type="button"
             >
-              {item}
+              {item.label}
+              {!item.enabled && <span>planned</span>}
             </button>
           ))}
         </nav>
@@ -2251,9 +2254,11 @@ function Inspector({
         <p className="muted">Playback appears here once a stored blob is linked.</p>
       )}
       <div className="action-stack">
-        <button type="button">Open context packet</button>
-        <button type="button">Prepare share link</button>
-        <button type="button">Review speakers</button>
+        <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">
+          Open context JSON
+        </a>
+        <button disabled title="Share-link workflow is planned but not wired yet." type="button">Prepare share link (planned)</button>
+        <button disabled title="Speaker/contact review is planned but not wired yet." type="button">Review speakers (planned)</button>
       </div>
     </div>
   );
