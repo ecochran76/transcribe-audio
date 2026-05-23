@@ -243,6 +243,117 @@ def test_retranscription_preflight_endpoint_is_dry_run_only(tmp_path: Path) -> N
     assert payload["will_write_files"] is False
 
 
+def test_enqueue_retranscription_job_writes_manifest_without_running_backend(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.enqueue_retranscription_job(
+        readout.id,
+        root=store_root,
+        state_root=state_root,
+        backend="assemblyai",
+        approval_token="QUEUE_RETRANSCRIPTION_JOB",
+    )
+
+    job_path = Path(payload["job"]["path"])
+    job_payload = json.loads(job_path.read_text(encoding="utf-8"))
+    assert payload["ok"] is True
+    assert payload["status"] == "queued"
+    assert payload["required_approval_token_checked"] == "QUEUE_RETRANSCRIPTION_JOB"
+    assert payload["will_start_background_job"] is False
+    assert payload["will_run_transcription"] is False
+    assert payload["will_write_files"] is False
+    assert payload["future_required_approval_token_for_run"] == "RUN_RETRANSCRIPTION_JOB"
+    assert job_path.parent == state_root / "retranscription-jobs"
+    assert job_payload["status"] == "queued"
+    assert job_payload["selected_backend"] == "assemblyai"
+    assert job_payload["will_run_transcription"] is False
+    assert job_payload["will_write_files"] is False
+
+
+def test_retranscription_queue_endpoint_requires_approval_token(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_transcript_artifact(tmp_path)
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        try:
+            urlopen(
+                Request(
+                    f"http://{host}:{port}/api/documents/{quote(readout.id)}/retranscription/queue",
+                    data=json.dumps({"backend": "faster_whisper"}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                ),
+                timeout=5,
+            )
+        except HTTPError as exc:
+            assert exc.code == HTTPStatus.BAD_REQUEST
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("retranscription queue without approval token must fail")
+        response = urlopen(
+            Request(
+                f"http://{host}:{port}/api/documents/{quote(readout.id)}/retranscription/queue",
+                data=json.dumps(
+                    {
+                        "backend": "faster_whisper",
+                        "approval_token": "QUEUE_RETRANSCRIPTION_JOB",
+                    }
+                ).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            ),
+            timeout=5,
+        )
+        payload = json.loads(response.read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert response.status == HTTPStatus.CREATED
+    assert payload["ok"] is True
+    assert payload["job"]["status"] == "queued"
+    assert payload["will_start_background_job"] is False
+    assert payload["will_run_transcription"] is False
+    assert payload["will_write_files"] is False
+
+
 def test_library_and_search_use_store_documents(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     transcript_store.ingest_artifact(

@@ -44,9 +44,10 @@ audio, re-transcription, first-pass/raw summary, context workbench,
 speaker/contact identity resolution, and final context-enriched readout. The
 re-transcription stage now has a dry-run preflight action that resolves source
 blob, backend, output paths, command preview, and explicit no-write/no-queue
-safety flags before any future job queueing endpoint can exist. Unwired
-workflow actions remain disabled and labelled as planned until reviewed backend
-contracts exist.
+safety flags. It can also write a reviewed queue manifest under user-scoped
+runtime state after `QUEUE_RETRANSCRIPTION_JOB`, but that queue step still does
+not start a backend or write transcript outputs. Unwired workflow actions
+remain disabled and labelled as planned until reviewed backend contracts exist.
 
 The remaining UI layer should make the workflow operational:
 

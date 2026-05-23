@@ -5495,6 +5495,57 @@ Next:
   job record first and running no speech backend until the operator approves
   the dry-run plan.
 
+## Turn 167 | 2026-05-23
+
+Summary: Added reviewed re-transcription queue manifests.
+
+Action:
+
+- Added `POST /api/documents/<document_id>/retranscription/queue`.
+- The endpoint requires `approval_token=QUEUE_RETRANSCRIPTION_JOB`.
+- Queueing reuses the preflight resolver, blocks when the source blob is
+  missing, and writes a durable job manifest under
+  `~/.local/state/transcribe-audio/retranscription-jobs/`.
+- The queued manifest records the source document, source blob, selected
+  backend, planned outputs, command preview, and future
+  `RUN_RETRANSCRIPTION_JOB` gate.
+- Queueing remains non-executing: it returns `will_start_background_job=false`,
+  `will_run_transcription=false`, and `will_write_files=false`.
+- Wired the conversation modal to enable `Queue manifest` only after a
+  successful preflight, then show job id, manifest path, run gate, and safety
+  flags.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main
+  "retranscription queue endpoint approval token job manifest no backend
+  execution modal"` returned older advisory memory and no conflicting
+  direction.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  35 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live queue API smoke without the approval token returned HTTP 400.
+- Live `POST /api/documents/e2a67052289d1ad1d891/retranscription/queue`
+  with `approval_token=QUEUE_RETRANSCRIPTION_JOB` wrote queued job manifest
+  `retranscription-20260523T032352Z-435317b4`, source blob
+  `f363a21cdc716795bd3c`, `RUN_RETRANSCRIPTION_JOB`, and all no-run/no-write
+  flags false.
+- Browser smoke on `transcripts.localhost` confirmed the Cara readout modal
+  enables `Queue manifest` after preflight and then displays the queued
+  manifest result with `RUN_RETRANSCRIPTION_JOB` and no-run/no-write flags.
+
+Next:
+
+- Add the separate `RUN_RETRANSCRIPTION_JOB` execution preflight/status model,
+  with explicit safeguards around output overwrites and backend-specific
+  command construction.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

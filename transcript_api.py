@@ -77,6 +77,7 @@ MAX_SMOKE_JOB_TAIL_CHARS = 20000
 MAX_SMOKE_EVIDENCE_BYTES = 5 * 1024 * 1024
 RETRANSCRIPTION_PREFLIGHT_TOKEN = "QUEUE_RETRANSCRIPTION_JOB"
 RETRANSCRIPTION_BACKENDS = {"faster_whisper", "assemblyai"}
+RETRANSCRIPTION_JOB_DIRNAME = "retranscription-jobs"
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -322,6 +323,105 @@ def read_json_file(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def retranscription_jobs_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / RETRANSCRIPTION_JOB_DIRNAME
+
+
+def summarize_retranscription_job(path: Path) -> dict[str, Any]:
+    payload = read_json_file(path)
+    preflight = payload.get("preflight") if isinstance(payload.get("preflight"), dict) else {}
+    return {
+        "job_id": str(payload.get("job_id") or path.stem),
+        "status": str(payload.get("status") or "unknown"),
+        "created_at": str(payload.get("created_at") or ""),
+        "path": str(path),
+        "document_id": str(payload.get("document_id") or ""),
+        "source_document_id": str(payload.get("source_document_id") or ""),
+        "selected_backend": str(payload.get("selected_backend") or ""),
+        "source_blob_id": str(payload.get("source_blob_id") or ""),
+        "planned_outputs": preflight.get("planned_outputs") if isinstance(preflight.get("planned_outputs"), dict) else {},
+        "will_run_transcription": bool(payload.get("will_run_transcription")),
+        "will_write_files": bool(payload.get("will_write_files")),
+        "will_execute_external_action": bool(payload.get("will_execute_external_action")),
+    }
+
+
+def enqueue_retranscription_job(
+    document_id: str,
+    *,
+    root: Optional[Path] = None,
+    state_root: Path = DEFAULT_STATE_DIR,
+    backend: str = "faster_whisper",
+    output_dir: str = "",
+    approval_token: str = "",
+) -> dict[str, Any]:
+    if approval_token != RETRANSCRIPTION_PREFLIGHT_TOKEN:
+        raise ValueError(f"Queueing requires approval_token={RETRANSCRIPTION_PREFLIGHT_TOKEN}.")
+    preflight = retranscription_preflight(
+        document_id,
+        root=root,
+        state_root=state_root,
+        backend=backend,
+        output_dir=output_dir,
+    )
+    if not preflight.get("ok"):
+        return {
+            "schema_version": "transcribe-audio.retranscription-job-queue.v1",
+            "ok": False,
+            "status": "blocked",
+            "preflight": preflight,
+            "blocking_checks": preflight.get("blocking_checks") or [],
+            "will_create_job_record": False,
+            "will_run_transcription": False,
+            "will_write_files": False,
+            "will_execute_external_action": False,
+        }
+    job_root = retranscription_jobs_dir(state_root)
+    job_root.mkdir(parents=True, exist_ok=True)
+    job_id = f"retranscription-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
+    job_path = job_root / f"{job_id}.json"
+    source_document = preflight.get("source_document") if isinstance(preflight.get("source_document"), dict) else {}
+    source_blob = preflight.get("source_blob") if isinstance(preflight.get("source_blob"), dict) else {}
+    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload = {
+        "schema_version": "transcribe-audio.retranscription-job.v1",
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": created_at,
+        "document_id": document_id,
+        "source_document_id": str(source_document.get("id") or ""),
+        "selected_backend": str(preflight.get("selected_backend") or ""),
+        "source_blob_id": str(source_blob.get("id") or ""),
+        "preflight": preflight,
+        "approval_token_checked": RETRANSCRIPTION_PREFLIGHT_TOKEN,
+        "will_run_transcription": False,
+        "will_write_files": False,
+        "will_execute_external_action": False,
+        "future_required_approval_token_for_run": "RUN_RETRANSCRIPTION_JOB",
+    }
+    write_json_atomic(job_path, payload)
+    return {
+        "schema_version": "transcribe-audio.retranscription-job-queue.v1",
+        "ok": True,
+        "status": "queued",
+        "job": summarize_retranscription_job(job_path),
+        "preflight": preflight,
+        "required_approval_token_checked": RETRANSCRIPTION_PREFLIGHT_TOKEN,
+        "will_start_background_job": False,
+        "will_run_transcription": False,
+        "will_write_files": False,
+        "will_execute_external_action": False,
+        "future_required_approval_token_for_run": "RUN_RETRANSCRIPTION_JOB",
+    }
+
+
 def app_intelligence_smoke_status(*, state_root: Path, limit: int = 5) -> dict[str, Any]:
     state_root = state_root.expanduser()
     runs_dir = state_root / "app-intelligence-runs"
@@ -462,10 +562,7 @@ def app_smoke_job_command(
 
 
 def write_app_smoke_job(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-    tmp_path.replace(path)
+    write_json_atomic(path, payload)
 
 
 def subprocess_text(value: Any) -> str:
@@ -1989,6 +2086,20 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         output_dir=str(body.get("output_dir") or ""),
                     )
                     self.write_json(preflight, status=HTTPStatus.OK if preflight.get("ok") else HTTPStatus.CONFLICT)
+                    return
+            if parsed.path.startswith("/api/documents/") and parsed.path.endswith("/retranscription/queue"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5 and parts[3] == "retranscription" and parts[4] == "queue":
+                    body = self.read_json_body()
+                    queued = enqueue_retranscription_job(
+                        parts[2],
+                        root=self.store_root,
+                        state_root=self.state_root,
+                        backend=str(body.get("backend") or "faster_whisper"),
+                        output_dir=str(body.get("output_dir") or ""),
+                        approval_token=str(body.get("approval_token") or ""),
+                    )
+                    self.write_json(queued, status=HTTPStatus.CREATED if queued.get("ok") else HTTPStatus.CONFLICT)
                     return
             if parsed.path == "/api/review-queue/first-pass-summaries/prepare":
                 body = self.read_json_body()

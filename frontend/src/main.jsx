@@ -2573,6 +2573,7 @@ function ConversationWorkflowModal({
 }) {
   const [retranscriptionBackend, setRetranscriptionBackend] = useState("faster_whisper");
   const [retranscriptionPreflight, setRetranscriptionPreflight] = useState({ status: "idle", message: "", payload: null });
+  const [retranscriptionQueue, setRetranscriptionQueue] = useState({ status: "idle", message: "", payload: null });
   const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const linkedMedia = mediaForItem(item, sourceDocument);
   const payload = documentDetail?.json_payload || {};
@@ -2592,6 +2593,7 @@ function ConversationWorkflowModal({
   ];
   async function previewRetranscription() {
     setRetranscriptionPreflight({ status: "running", message: "Previewing retranscription plan...", payload: null });
+    setRetranscriptionQueue({ status: "idle", message: "", payload: null });
     try {
       const payload = await postJson(
         `/api/documents/${encodeURIComponent(item.id)}/retranscription/preflight`,
@@ -2608,6 +2610,32 @@ function ConversationWorkflowModal({
       setRetranscriptionPreflight({
         status: "error",
         message: `Preflight failed: ${error.message}`,
+        payload: null
+      });
+    }
+  }
+
+  async function queueRetranscription() {
+    setRetranscriptionQueue({ status: "running", message: "Writing re-transcription job manifest...", payload: null });
+    try {
+      const payload = await postJson(
+        `/api/documents/${encodeURIComponent(item.id)}/retranscription/queue`,
+        {
+          backend: retranscriptionBackend,
+          approval_token: retranscriptionPreflight.payload?.future_required_approval_token_for_queue || "QUEUE_RETRANSCRIPTION_JOB"
+        }
+      );
+      setRetranscriptionQueue({
+        status: payload.ok ? "ok" : "blocked",
+        message: payload.ok
+          ? "Re-transcription job manifest queued; no backend was started."
+          : `Queue blocked: ${(payload.blocking_checks || []).join(", ") || "source unavailable"}.`,
+        payload
+      });
+    } catch (error) {
+      setRetranscriptionQueue({
+        status: "error",
+        message: `Queue failed: ${error.message}`,
         payload: null
       });
     }
@@ -2672,7 +2700,14 @@ function ConversationWorkflowModal({
             <p>Use this stage to rerun speech-to-text from the linked source recording, compare outputs, and preserve the old transcript as provenance.</p>
             <label className="workflow-field">
               Backend
-              <select value={retranscriptionBackend} onChange={(event) => setRetranscriptionBackend(event.target.value)}>
+              <select
+                value={retranscriptionBackend}
+                onChange={(event) => {
+                  setRetranscriptionBackend(event.target.value);
+                  setRetranscriptionPreflight({ status: "idle", message: "", payload: null });
+                  setRetranscriptionQueue({ status: "idle", message: "", payload: null });
+                }}
+              >
                 <option value="faster_whisper">faster-whisper local</option>
                 <option value="assemblyai">AssemblyAI</option>
               </select>
@@ -2681,8 +2716,13 @@ function ConversationWorkflowModal({
               <button onClick={previewRetranscription} disabled={retranscriptionPreflight.status === "running"} type="button">
                 Preview re-transcription
               </button>
-              <button disabled title="Queueing needs an explicit approval-token endpoint after this dry-run contract is reviewed." type="button">
-                Queue re-transcription (planned)
+              <button
+                disabled={!retranscriptionPreflight.payload?.ok || retranscriptionQueue.status === "running"}
+                onClick={queueRetranscription}
+                title={retranscriptionPreflight.payload?.ok ? "Write a queued job manifest without starting a backend." : "Run preflight before queueing."}
+                type="button"
+              >
+                Queue manifest
               </button>
               <button disabled title="Transcript diffing is planned after versioned transcript artifacts exist." type="button">Compare versions (planned)</button>
             </div>
@@ -2702,6 +2742,26 @@ function ConversationWorkflowModal({
                       queue={String(retranscriptionPreflight.payload.will_queue)} /
                       run={String(retranscriptionPreflight.payload.will_run_transcription)} /
                       write={String(retranscriptionPreflight.payload.will_write_files)}
+                    </dd>
+                  </dl>
+                ) : null}
+              </div>
+            ) : null}
+            {retranscriptionQueue.message ? (
+              <div className={`action-notice ${retranscriptionQueue.status}`}>
+                <strong>{retranscriptionQueue.message}</strong>
+                {retranscriptionQueue.payload ? (
+                  <dl className="preflight-summary">
+                    <dt>Job</dt>
+                    <dd>{retranscriptionQueue.payload.job?.job_id || "Not created"}</dd>
+                    <dt>Manifest</dt>
+                    <dd>{retranscriptionQueue.payload.job?.path || "Unavailable"}</dd>
+                    <dt>Run gate</dt>
+                    <dd>{retranscriptionQueue.payload.future_required_approval_token_for_run || "Unavailable"}</dd>
+                    <dt>Safety</dt>
+                    <dd>
+                      run={String(retranscriptionQueue.payload.will_run_transcription)} /
+                      write={String(retranscriptionQueue.payload.will_write_files)}
                     </dd>
                   </dl>
                 ) : null}
