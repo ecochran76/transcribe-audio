@@ -19,7 +19,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable, Optional
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import intelligence_config
 import codex_app_server_client
@@ -74,6 +74,7 @@ APP_SMOKE_JOB_TOKEN = "RUN_APP_SMOKE_JOB"
 APP_SMOKE_CLEANUP_TOKEN = "CLEANUP_APP_SMOKE_ARTIFACTS"
 APP_SMOKE_JOB_TIMEOUT_SECONDS = 180
 MAX_SMOKE_JOB_TAIL_CHARS = 20000
+MAX_SMOKE_EVIDENCE_BYTES = 5 * 1024 * 1024
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -391,6 +392,38 @@ def parse_smoke_cleanup_summary(text: str) -> dict[str, Any] | None:
     return None
 
 
+def parse_smoke_evidence_summary(text: str) -> dict[str, Any] | None:
+    prefixes = [
+        "APP_REPLAY_MANIFEST_UI_SMOKE_JSON=",
+        "FIRST_PASS_RESUME_UI_SMOKE_JSON=",
+    ]
+    for line in str(text or "").splitlines():
+        prefix = next((item for item in prefixes if line.startswith(item)), "")
+        if not prefix:
+            continue
+        try:
+            payload = json.loads(line[len(prefix) :])
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        checks = payload.get("checks") if isinstance(payload.get("checks"), dict) else {}
+        report_path = str(payload.get("report_path") or "")
+        screenshot_path = str(payload.get("screenshot_path") or "")
+        return {
+            "schema_version": str(payload.get("schema_version") or "transcribe-audio.smoke-evidence.v1"),
+            "stdout_prefix": prefix.removesuffix("="),
+            "status": str(payload.get("status") or "unknown"),
+            "report_path": report_path,
+            "screenshot_path": screenshot_path,
+            "report_url": f"/api/intelligence/smoke-evidence?path={quote(report_path, safe='')}" if report_path else "",
+            "screenshot_url": f"/api/intelligence/smoke-evidence?path={quote(screenshot_path, safe='')}" if screenshot_path else "",
+            "check_count": len(checks),
+            "failed_check_count": len([value for value in checks.values() if value is not True]),
+        }
+    return None
+
+
 def summarize_smoke_job(path: Path) -> dict[str, Any]:
     payload = read_json_file(path)
     if not payload:
@@ -417,7 +450,30 @@ def summarize_smoke_job(path: Path) -> dict[str, Any]:
     cleanup_summary = parse_smoke_cleanup_summary(str(payload.get("stdout_tail") or ""))
     if cleanup_summary is not None:
         summary["cleanup_summary"] = cleanup_summary
+    evidence_summary = parse_smoke_evidence_summary(str(payload.get("stdout_tail") or ""))
+    if evidence_summary is not None:
+        summary["evidence_summary"] = evidence_summary
     return summary
+
+
+def resolve_smoke_evidence_path(*, state_root: Path, path_value: str) -> Path:
+    if not path_value:
+        raise ValueError("Missing smoke evidence path.")
+    root = (state_root.expanduser() / APP_BROWSER_SMOKE_DIRNAME).resolve()
+    candidate = Path(path_value).expanduser()
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        raise FileNotFoundError(str(candidate)) from exc
+    if resolved != root and root not in resolved.parents:
+        raise ValueError("Smoke evidence path is outside the browser-smokes directory.")
+    if resolved.suffix.lower() not in {".json", ".png"}:
+        raise ValueError("Smoke evidence must be a JSON report or PNG screenshot.")
+    if not resolved.exists() or not resolved.is_file():
+        raise FileNotFoundError(str(resolved))
+    if resolved.stat().st_size > MAX_SMOKE_EVIDENCE_BYTES:
+        raise ValueError("Smoke evidence file is too large to serve.")
+    return resolved
 
 
 def resolve_smoke_job_output_path(*, state_root: Path, job: dict[str, Any], stream: str) -> Path:
@@ -1676,6 +1732,9 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path == "/api/intelligence/smoke-evidence":
+                self.write_smoke_evidence(first(params, "path"))
+                return
             if parsed.path.startswith("/api/intelligence/smoke-jobs/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 5 and parts[4] == "tail":
@@ -2281,6 +2340,17 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
 
     def write_error(self, status: HTTPStatus, message: str) -> None:
         self.write_json({"error": message, "status": status.value}, status=status)
+
+    def write_smoke_evidence(self, path_value: str) -> None:
+        path = resolve_smoke_evidence_path(state_root=self.state_root, path_value=path_value)
+        body = path.read_bytes()
+        mime_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mime_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def write_static(self, request_path: str) -> bool:
         static_dir = self.server.static_dir  # type: ignore[attr-defined]

@@ -605,6 +605,87 @@ def test_intelligence_smoke_job_tail_endpoint_is_path_confined(tmp_path: Path) -
     assert payload["will_execute_write_bearing_action"] is False
 
 
+def test_smoke_job_summary_exposes_known_evidence_paths(tmp_path: Path) -> None:
+    browser_smoke_root = tmp_path / "state" / "browser-smokes"
+    browser_smoke_root.mkdir(parents=True)
+    report_path = browser_smoke_root / "resume.json"
+    screenshot_path = browser_smoke_root / "resume.png"
+    report_path.write_text("{}", encoding="utf-8")
+    screenshot_path.write_bytes(b"png")
+    job_path = tmp_path / "state" / "smoke-jobs" / "resume.json"
+    transcript_api.write_app_smoke_job(
+        job_path,
+        {
+            "job_id": "resume",
+            "job_type": "first_pass_resume_ui_smoke",
+            "status": "succeeded",
+            "stdout_tail": "FIRST_PASS_RESUME_UI_SMOKE_JSON="
+            + json.dumps(
+                {
+                    "schema_version": "transcribe-audio.first-pass-resume-ui-smoke.v1",
+                    "status": "pass",
+                    "report_path": str(report_path),
+                    "screenshot_path": str(screenshot_path),
+                    "checks": {"hasReviewQueue": True, "hasManifest": True},
+                }
+            )
+            + "\n",
+        },
+    )
+
+    summary = transcript_api.summarize_smoke_job(job_path)
+
+    assert summary["evidence_summary"]["status"] == "pass"
+    assert summary["evidence_summary"]["check_count"] == 2
+    assert summary["evidence_summary"]["failed_check_count"] == 0
+    assert "smoke-evidence?path=" in summary["evidence_summary"]["report_url"]
+    assert str(report_path) not in summary["evidence_summary"]["report_url"]
+
+
+def test_smoke_evidence_endpoint_is_path_confined(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    browser_smoke_root = state_root / "browser-smokes"
+    browser_smoke_root.mkdir(parents=True)
+    report_path = browser_smoke_root / "report.json"
+    report_path.write_text('{"status":"pass"}', encoding="utf-8")
+    outside_path = tmp_path / "outside.json"
+    outside_path.write_text("{}", encoding="utf-8")
+    bad_suffix = browser_smoke_root / "bad.txt"
+    bad_suffix.write_text("nope", encoding="utf-8")
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = urlopen(
+            f"http://{host}:{port}/api/intelligence/smoke-evidence?path={quote(str(report_path))}",
+            timeout=5,
+        ).read()
+        for path in (outside_path, bad_suffix):
+            try:
+                urlopen(
+                    f"http://{host}:{port}/api/intelligence/smoke-evidence?path={quote(str(path))}",
+                    timeout=5,
+                )
+            except HTTPError as exc:
+                assert exc.code == HTTPStatus.BAD_REQUEST
+            else:
+                raise AssertionError("smoke evidence endpoint must reject unsafe paths")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert payload == b'{"status":"pass"}'
+
+
 def test_cleanup_smoke_job_apply_requires_cleanup_token(tmp_path: Path) -> None:
     state_root = tmp_path / "state"
     try:

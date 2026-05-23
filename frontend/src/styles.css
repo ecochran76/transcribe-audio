@@ -800,12 +800,39 @@ td small {
 }
 
 .smoke-job-row small,
-.smoke-job-row .notice-actions {
+.smoke-job-row .notice-actions,
+.smoke-job-row .smoke-evidence-card {
   grid-column: 1 / -1;
 }
 
 .smoke-job-row .job-timing {
   color: rgba(244, 236, 216, 0.72);
+}
+
+.smoke-evidence-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(215, 255, 115, 0.18);
+  border-radius: 0.8rem;
+  background: rgba(215, 255, 115, 0.07);
+}
+
+.smoke-evidence-card > span {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.notice-actions a {
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 999px;
+  background: rgba(244, 236, 216, 0.08);
+  color: var(--ink);
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
 }
 
 .provider-details {

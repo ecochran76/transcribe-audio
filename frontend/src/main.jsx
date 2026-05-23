@@ -1367,6 +1367,24 @@ function IntelligencePanel({
                       <small>{job.job_id}</small>
                       {timing && <small className="job-timing">{timing}</small>}
                       {job.cleanup_summary && <small>{cleanupSummaryLabel(job.cleanup_summary)}</small>}
+                      {job.evidence_summary && (
+                        <div className="smoke-evidence-card">
+                          <span>Evidence {job.evidence_summary.status}</span>
+                          <small>{job.evidence_summary.check_count || 0} checks · {job.evidence_summary.failed_check_count || 0} failed</small>
+                          <div className="notice-actions">
+                            {job.evidence_summary.report_url && (
+                              <a href={job.evidence_summary.report_url} rel="noreferrer" target="_blank">
+                                Open report JSON
+                              </a>
+                            )}
+                            {job.evidence_summary.screenshot_url && (
+                              <a href={job.evidence_summary.screenshot_url} rel="noreferrer" target="_blank">
+                                Open screenshot
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="notice-actions">
                         <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
                           stderr tail

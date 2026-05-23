@@ -5208,6 +5208,46 @@ Next:
 - Add direct report/screenshot links for smoke-job evidence and improve the
   Smoke Status card hierarchy so failed jobs are easier to debug.
 
+## Turn 160 | 2026-05-22
+
+Summary: Added direct Smoke Status evidence links.
+
+Action:
+
+- Added parsing for known browser-smoke stdout JSON prefixes into smoke-job
+  `evidence_summary` metadata.
+- Added `GET /api/intelligence/smoke-evidence?path=...` to serve JSON reports
+  and PNG screenshots only from the user-scoped `browser-smokes` directory.
+- Added Smoke Status row affordances for `Open report JSON` and
+  `Open screenshot` when a completed job exposes known evidence.
+- Updated API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_smoke_job_summary_exposes_known_evidence_paths tests/test_transcript_api.py::test_smoke_evidence_endpoint_is_path_confined tests/test_transcript_api.py::test_intelligence_smoke_job_tail_endpoint_is_path_confined -q`
+  passed with 3 tests after tightening URL path encoding.
+- `.venv/bin/python -m pytest tests/test_app_intelligence_ledger.py tests/test_transcript_api.py -q`
+  passed with 41 tests.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/intelligence/smoke-jobs?limit=1` returned
+  `evidence_summary` for
+  `first_pass_resume_ui_smoke-20260522T224946Z-a6184a73`, including encoded
+  report and screenshot URLs.
+- Live `GET /api/intelligence/smoke-evidence` returned the report JSON with
+  `status=pass` and returned a PNG screenshot; `/etc/passwd` was rejected with
+  HTTP 400.
+- Live browser check on the Intelligence tab found both `Open report JSON` and
+  `Open screenshot`.
+
+Next:
+
+- Add a failed-job-first grouping or alert band so the Smoke Status card makes
+  failures more prominent than older successful jobs.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
