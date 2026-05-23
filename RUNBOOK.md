@@ -5280,6 +5280,39 @@ Next:
   failed-only, write-bearing, and evidence-bearing jobs without reading the
   whole history.
 
+## Turn 162 | 2026-05-22
+
+Summary: Added Smoke Status job filters.
+
+Action:
+
+- Added local Smoke Status filter toggles for all, failed, write-bearing, and
+  evidence-bearing jobs.
+- Filter counts are computed from the loaded 20-job smoke page and use
+  `aria-pressed` active state.
+- The failed alert band remains first when failures match the current filter,
+  and non-failed grouped history is filtered separately to avoid duplicates.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live browser check on the Intelligence tab showed filter counts
+  `All 7`, `Failed 1`, `Write-bearing 1`, and `Evidence 2`.
+- Live browser check confirmed the write-bearing filter shows the cleanup apply
+  job and hides the failed browser job.
+- Live browser check confirmed the evidence filter shows evidence links and
+  hides the failed browser job.
+
+Next:
+
+- Add a compact selected-job detail drawer or inline expansion so one job's
+  command, risk flags, evidence, and tails are easier to inspect together.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

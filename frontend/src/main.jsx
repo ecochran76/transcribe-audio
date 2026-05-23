@@ -164,6 +164,13 @@ function groupSmokeJobsByType(jobs) {
   return groups;
 }
 
+function filterSmokeJobs(jobs, filter) {
+  if (filter === "failed") return jobs.filter((job) => job.status === "failed");
+  if (filter === "write_bearing") return jobs.filter((job) => job.will_execute_write_bearing_action);
+  if (filter === "evidence") return jobs.filter((job) => Boolean(job.evidence_summary));
+  return jobs;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1169,17 +1176,25 @@ function IntelligencePanel({
   onPrepareRun,
   onSelectRun
 }) {
+  const [smokeJobFilter, setSmokeJobFilter] = useState("all");
   const providerList = providers?.providers || [];
   const taskEntries = Object.entries(config?.tasks || {});
   const recentRuns = runs?.items || [];
   const recentSmokeJobs = smokeJobs?.items || [];
   const totalSmokeJobs = smokeJobs?.total || recentSmokeJobs.length;
-  const failedSmokeJobs = recentSmokeJobs.filter((job) => job.status === "failed");
+  const filteredSmokeJobs = filterSmokeJobs(recentSmokeJobs, smokeJobFilter);
+  const failedSmokeJobs = filteredSmokeJobs.filter((job) => job.status === "failed");
   const latestSmoke = smokes?.latest_report || null;
   const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
   const selectedChecks = selectedProvider?.checks && typeof selectedProvider.checks === "object" ? Object.entries(selectedProvider.checks) : [];
-  const smokeJobGroups = groupSmokeJobsByType(recentSmokeJobs.filter((job) => job.status !== "failed"));
+  const smokeJobGroups = groupSmokeJobsByType(filteredSmokeJobs.filter((job) => job.status !== "failed"));
+  const smokeJobFilters = [
+    { id: "all", label: "All", count: recentSmokeJobs.length },
+    { id: "failed", label: "Failed", count: recentSmokeJobs.filter((job) => job.status === "failed").length },
+    { id: "write_bearing", label: "Write-bearing", count: recentSmokeJobs.filter((job) => job.will_execute_write_bearing_action).length },
+    { id: "evidence", label: "Evidence", count: recentSmokeJobs.filter((job) => Boolean(job.evidence_summary)).length }
+  ];
   return (
     <div className="intelligence-grid">
       <section className="intelligence-card task-editor">
@@ -1348,8 +1363,22 @@ function IntelligencePanel({
               <small>Inspects status, tails, or dry-run cleanup counts without deleting artifacts.</small>
             </div>
             <p className="smoke-job-page-hint">
-              Showing {recentSmokeJobs.length} of {totalSmokeJobs} smoke jobs from the current API page.
+              Showing {filteredSmokeJobs.length} of {recentSmokeJobs.length} loaded smoke jobs from the current API page ({totalSmokeJobs} retained).
             </p>
+            <div className="smoke-job-filters" aria-label="Smoke job filters">
+              {smokeJobFilters.map((filter) => (
+                <button
+                  aria-pressed={smokeJobFilter === filter.id}
+                  className={smokeJobFilter === filter.id ? "active" : ""}
+                  key={filter.id}
+                  onClick={() => setSmokeJobFilter(filter.id)}
+                  type="button"
+                >
+                  {filter.label}
+                  <strong>{filter.count}</strong>
+                </button>
+              ))}
+            </div>
             {failedSmokeJobs.length ? (
               <section className="smoke-failure-band" aria-label="Failed smoke jobs">
                 <div className="smoke-failure-heading">
@@ -1378,9 +1407,9 @@ function IntelligencePanel({
                 })}
               </section>
             ) : (
-              <p className="smoke-job-page-hint">No failed smoke jobs in the loaded page.</p>
+              <p className="smoke-job-page-hint">No failed smoke jobs in this filtered view.</p>
             )}
-            {smokeJobGroups.map((group) => (
+            {smokeJobGroups.length ? smokeJobGroups.map((group) => (
               <section className="smoke-job-group" key={group.key}>
                 <div className="smoke-job-group-heading">
                   <strong>{group.label}</strong>
@@ -1428,7 +1457,9 @@ function IntelligencePanel({
                   );
                 })}
               </section>
-            ))}
+            )) : (
+              <p className="smoke-job-page-hint">No non-failed smoke jobs match this filter.</p>
+            )}
           </div>
         ) : null}
         {smokeTailAction.message && (
