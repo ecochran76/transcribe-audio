@@ -2,6 +2,34 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 91 | 2026-05-23
+
+Summary: Reframed P09 around the M1 dogfoodable conversation review loop.
+
+Changes:
+
+- Added `docs/dev/plans/0010-2026-05-23-dogfoodable-conversation-review-loop.md`
+  as the bounded milestone plan for an end-to-end operator workflow.
+- Updated `ROADMAP.md` to list the new plan under P09 and make M1 the active
+  milestone focus.
+- Defined the milestone as one selected conversation moving through source
+  audio, transcript review, first-pass summary, speaker/contact review, context
+  gathering, contextual readout, and deposition/memory preview review.
+- Kept unattended external writes, broad provider expansion, and unrelated App
+  Intelligence branch/fork/rollback polish out of scope for this milestone.
+
+Validation:
+
+- Re-read planning, architecture/productization, and memory/context-routing
+  policies before editing.
+- Ran Graphiti discovery against `transcribe_audio_main`; results were
+  advisory and verified against current repo planning files.
+
+Next:
+
+- Start the M1 conversation contract audit by comparing
+  `/api/conversations/<id>` with the workflow fields required by the new plan.
+
 ## Turn 1 | 2026-05-04
 
 Summary: Adopted repo-local policy and planning surfaces for the expanded transcription platform scope.

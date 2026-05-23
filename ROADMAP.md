@@ -168,6 +168,18 @@ The Library now calls `/api/conversations` with active query/kind filters to gro
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
+- `docs/dev/plans/0010-2026-05-23-dogfoodable-conversation-review-loop.md`
+
+Milestone Focus:
+
+- Active milestone M1 is the dogfoodable conversation review loop: a single
+  selected conversation can move through source-audio verification, transcript
+  review, first-pass summary, speaker/contact review, context workbench,
+  contextual readout, and deposition/memory preview review without unattended
+  external writes.
+- P09 remains the UI/backend lane, but M1 deliberately binds P04 contextual
+  routing, P05 deposition/memory preview, and P06 service visibility into the
+  operator workflow instead of continuing isolated UI increments.
 
 Definition of Done:
 
