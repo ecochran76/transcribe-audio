@@ -3530,6 +3530,15 @@ Validation:
 - `python -m py_compile transcript_api.py transcript_store.py review_queue_maintenance.py`
   passed.
 - `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Browser smoke against `http://transcripts.localhost/` opened the conversation
+  workspace for the 2026-04-24 Cara readout, confirmed the modal title,
+  section nav labels, human summary text, inherited audio source
+  `/api/blobs/f363a21cdc716795bd3c`, planned disabled action labels, and Escape
+  close behavior.
 - `git diff --check` passed.
 
 Next:
@@ -5354,6 +5363,42 @@ Next:
 - Continue wiring the beginning of the dogfooding path from Library detail:
   add document JSON/context preview inside the inspector instead of opening a
   raw JSON tab.
+
+## Turn 164 | 2026-05-22
+
+Summary: Added a modal conversation workspace for Library artifacts.
+
+Action:
+
+- Kept the right inspector as a compact selected-artifact preview and launcher.
+- Added `Open conversation workspace` from the inspector.
+- Added double-click row opening from the Library table.
+- Added an accessible modal dialog with Escape and backdrop close behavior.
+- Organized the conversation workflow into addressable sections: raw audio,
+  re-transcription, raw summary, context workbench, speaker/contact identity,
+  and final readout.
+- Surfaced linked source audio and download in the modal, including inherited
+  source-transcript blobs for readouts.
+- Kept unwired mutation paths disabled and labelled as planned for
+  re-transcription, context runs, contact linking, final readout generation,
+  and final readout sharing.
+- Updated `ROADMAP.md` and the P09 plan to make the modal workspace the primary
+  conversation lifecycle surface.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main "modal inspector
+  conversation workflow audio retranscription raw summary context workbench
+  speakers final readout UX"` returned repo memory and no conflicting UX
+  direction.
+- `npm --prefix frontend run build` passed.
+
+Next:
+
+- Add a dedicated related-document API endpoint and wire the modal's
+  re-transcription/context/final-readout actions to reviewed backend dry-run
+  contracts one stage at a time.
 
 ## Turn 103 | 2026-05-17
 

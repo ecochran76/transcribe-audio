@@ -268,6 +268,7 @@ function App() {
   const [smokeTailAction, setSmokeTailAction] = useState({ status: "idle", message: "", payload: null });
   const [selectedDocumentDetail, setSelectedDocumentDetail] = useState(null);
   const [selectedDocumentDetailAction, setSelectedDocumentDetailAction] = useState({ status: "idle", message: "" });
+  const [conversationOpen, setConversationOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -523,6 +524,19 @@ function App() {
       cancelled = true;
     };
   }, [activeNav, selected?.id]);
+
+  useEffect(() => {
+    if (activeNav !== "Library") setConversationOpen(false);
+  }, [activeNav]);
+
+  useEffect(() => {
+    if (!conversationOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setConversationOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [conversationOpen]);
 
   useEffect(() => {
     if (!selectedTaskConfig) return;
@@ -1168,7 +1182,13 @@ function App() {
               onSelectRun={setSelectedRunId}
             />
           ) : (
-            <LibraryTable items={visibleItems} allItems={library.items || []} selectedId={selected?.id} onSelect={setSelectedId} />
+            <LibraryTable
+              items={visibleItems}
+              allItems={library.items || []}
+              selectedId={selected?.id}
+              onOpenConversation={() => setConversationOpen(true)}
+              onSelect={setSelectedId}
+            />
           )}
         </section>
 
@@ -1193,6 +1213,7 @@ function App() {
             activeNav={activeNav}
             documentDetail={selectedDocumentDetail}
             documentDetailAction={selectedDocumentDetailAction}
+            onOpenConversation={() => setConversationOpen(true)}
             onSelectDocument={setSelectedId}
             reviewQueue={reviewQueue}
             selectedTask={selectedTask}
@@ -1233,6 +1254,16 @@ function App() {
           />
         </aside>
       </section>
+      {conversationOpen && activeNav === "Library" && selected ? (
+        <ConversationWorkflowModal
+          documentDetail={selectedDocumentDetail}
+          documentDetailAction={selectedDocumentDetailAction}
+          item={selected}
+          items={library.items || []}
+          onClose={() => setConversationOpen(false)}
+          onSelectDocument={setSelectedId}
+        />
+      ) : null}
     </main>
   );
 }
@@ -1776,7 +1807,7 @@ function ReplayManifest({ manifest, onLoadArtifact }) {
   );
 }
 
-function LibraryTable({ items, allItems, selectedId, onSelect }) {
+function LibraryTable({ items, allItems, selectedId, onOpenConversation, onSelect }) {
   return (
     <div className="table-shell">
       <table>
@@ -1795,7 +1826,15 @@ function LibraryTable({ items, allItems, selectedId, onSelect }) {
             const sourceDocument = findSourceDocument(item, allItems);
             const linkedMedia = mediaForItem(item, sourceDocument);
             return (
-              <tr className={selectedId === item.id ? "selected" : ""} key={item.id} onClick={() => onSelect(item.id)}>
+              <tr
+                className={selectedId === item.id ? "selected" : ""}
+                key={item.id}
+                onClick={() => onSelect(item.id)}
+                onDoubleClick={() => {
+                  onSelect(item.id);
+                  onOpenConversation();
+                }}
+              >
                 <td>
                   <strong>{item.title || "Untitled artifact"}</strong>
                   <small>{item.id}</small>
@@ -1972,6 +2011,7 @@ function Inspector({
   activeNav,
   documentDetail,
   documentDetailAction,
+  onOpenConversation,
   onSelectDocument,
   reviewQueue,
   selectedTask,
@@ -2421,6 +2461,9 @@ function Inspector({
           {item.media_blob?.id || (sourceDocument?.media_blob?.id ? `Inherited from source transcript ${sourceDocument.id}` : "No media blob linked")}
         </dd>
       </dl>
+      <button className="conversation-launch" onClick={onOpenConversation} type="button">
+        Open conversation workspace
+      </button>
       {linkedMedia ? (
         <div className="player-card">
           <span>{item.media_blob?.playback_url ? "Source recording" : "Source transcript recording"}</span>
@@ -2501,6 +2544,166 @@ function Inspector({
         <button disabled title="Share-link workflow is planned but not wired yet." type="button">Prepare share link (planned)</button>
         <button disabled title="Speaker/contact review is planned but not wired yet." type="button">Review speakers (planned)</button>
       </div>
+    </div>
+  );
+}
+
+function ConversationWorkflowModal({
+  documentDetail,
+  documentDetailAction,
+  item,
+  items,
+  onClose,
+  onSelectDocument
+}) {
+  const sourceDocument = findSourceDocument(item, items);
+  const linkedMedia = mediaForItem(item, sourceDocument);
+  const payload = documentDetail?.json_payload || {};
+  const summaryText = documentSummaryText(documentDetail);
+  const participants = Array.isArray(payload.participants) ? payload.participants : [];
+  const topics = Array.isArray(payload.topics) ? payload.topics : [];
+  const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
+  const risks = Array.isArray(payload.risks) ? payload.risks : [];
+  const finalReadoutReady = item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
+  const workflowSteps = [
+    { id: "raw-audio", label: "Raw audio" },
+    { id: "retranscription", label: "Re-transcription" },
+    { id: "raw-summary", label: "Raw summary" },
+    { id: "context-workbench", label: "Context workbench" },
+    { id: "speakers", label: "Speakers and contacts" },
+    { id: "final-readout", label: "Final readout" }
+  ];
+  return (
+    <div className="conversation-modal-backdrop" onMouseDown={onClose}>
+      <section
+        aria-labelledby="conversation-modal-title"
+        aria-modal="true"
+        className="conversation-modal"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header className="conversation-modal-header">
+          <div>
+            <p className="eyebrow">Conversation Workflow</p>
+            <h2 id="conversation-modal-title">{item.title || "Untitled artifact"}</h2>
+            <p className="muted">{statusLabel(item.kind || "artifact")} · {formatDate(item.generated_at || item.updated_at)}</p>
+          </div>
+          <button aria-label="Close conversation workspace" className="modal-close" onClick={onClose} type="button">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+              <line x1="7" y1="7" x2="17" y2="17" />
+              <line x1="17" y1="7" x2="7" y2="17" />
+            </svg>
+          </button>
+        </header>
+        <nav className="workflow-step-nav" aria-label="Conversation workflow sections">
+          {workflowSteps.map((step) => (
+            <a href={`#${step.id}`} key={step.id}>{step.label}</a>
+          ))}
+        </nav>
+        <div className="conversation-modal-grid">
+          <section className="workflow-panel hero-panel" id="raw-audio">
+            <span>Raw audio</span>
+            <h3>Source recording</h3>
+            {linkedMedia ? (
+              <>
+                <audio controls src={linkedMedia.playback_url} />
+                <div className="notice-actions">
+                  <a href={linkedMedia.download_url}>Download source recording</a>
+                  {sourceDocument && sourceDocument.id !== item.id ? (
+                    <button onClick={() => onSelectDocument(sourceDocument.id)} type="button">
+                      Select source transcript
+                    </button>
+                  ) : null}
+                </div>
+                <p className="muted">
+                  {item.media_blob?.playback_url
+                    ? "Audio is linked directly to this artifact."
+                    : `Audio is inherited from source transcript ${sourceDocument?.id || "unknown"}.`}
+                </p>
+              </>
+            ) : (
+              <p className="muted">No source recording is linked yet. This should be handled by media backfill or source-transcript resolution.</p>
+            )}
+          </section>
+
+          <section className="workflow-panel" id="retranscription">
+            <span>Re-transcription</span>
+            <h3>Transcript regeneration</h3>
+            <p>Use this stage to rerun speech-to-text from the linked source recording, compare outputs, and preserve the old transcript as provenance.</p>
+            <div className="workflow-action-row">
+              <button disabled title="Needs a reviewed retranscription endpoint before it can execute." type="button">Queue re-transcription (planned)</button>
+              <button disabled title="Transcript diffing is planned after versioned transcript artifacts exist." type="button">Compare versions (planned)</button>
+            </div>
+          </section>
+
+          <section className="workflow-panel wide-panel" id="raw-summary">
+            <span>Raw summary</span>
+            <h3>First-pass readout</h3>
+            {documentDetailAction.status === "loading" ? (
+              <p className="muted">Loading summary...</p>
+            ) : summaryText ? (
+              <p>{summaryText}</p>
+            ) : (
+              <p className="muted">{documentDetailAction.message || "No first-pass summary text is available yet."}</p>
+            )}
+            {topics.length ? (
+              <div className="chip-cloud">{topics.slice(0, 10).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}</div>
+            ) : null}
+          </section>
+
+          <section className="workflow-panel" id="context-workbench">
+            <span>Context workbench</span>
+            <h3>Provenance and context gathering</h3>
+            <p>Collect calendar, GWS, msgcli, Odollo, Graphiti, local-store, and matter-routing evidence before the final readout.</p>
+            <div className="workflow-action-row">
+              <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">Open raw context JSON</a>
+              <button disabled title="Context-run creation needs a reviewed backend contract." type="button">Start context run (planned)</button>
+              <button disabled title="Recurring-meeting recipes are planned for deterministic context acquisition." type="button">Apply recurring recipe (planned)</button>
+            </div>
+          </section>
+
+          <section className="workflow-panel" id="speakers">
+            <span>Speakers and contacts</span>
+            <h3>Identity resolution</h3>
+            {participants.length ? (
+              <div className="identity-list">
+                {participants.map((participant, index) => (
+                  <article key={`${index}-${displayLabel(participant, "Participant")}`}>
+                    <strong>{displayLabel(participant, "Participant")}</strong>
+                    <small>Contact linking is planned; retain as extracted participant for now.</small>
+                    <button disabled title="Contact DB and merge workflow are planned in P09." type="button">Link contact (planned)</button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No participants were extracted for this artifact yet.</p>
+            )}
+          </section>
+
+          <section className="workflow-panel wide-panel" id="final-readout">
+            <span>Final readout</span>
+            <h3>{finalReadoutReady ? "Context-enriched readout" : "Context-enriched readout not generated yet"}</h3>
+            <div className="readout-columns">
+              {actionItems.length ? (
+                <div>
+                  <strong>Actions</strong>
+                  <ul>{actionItems.slice(0, 6).map((action, index) => <li key={`${index}-${displayLabel(action, "Action item")}`}>{displayLabel(action, "Action item")}</li>)}</ul>
+                </div>
+              ) : null}
+              {risks.length ? (
+                <div>
+                  <strong>Risks</strong>
+                  <ul>{risks.slice(0, 6).map((risk, index) => <li key={`${index}-${displayLabel(risk, "Risk")}`}>{displayLabel(risk, "Risk")}</li>)}</ul>
+                </div>
+              ) : null}
+            </div>
+            <div className="workflow-action-row">
+              <button disabled title="Final readout generation needs context-run output and a reviewed provider action." type="button">Generate final readout (planned)</button>
+              <button disabled title="Share links are planned after scoped artifact sharing is wired." type="button">Share final readout (planned)</button>
+            </div>
+          </section>
+        </div>
+      </section>
     </div>
   );
 }

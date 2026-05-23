@@ -38,6 +38,13 @@ when present, keeps raw context JSON as a developer-labelled affordance, and
 uses `source_artifact_path` to surface source-transcript audio for readouts that
 do not own a media blob directly.
 
+The right pane is now a compact inspector/launcher for a modal conversation
+workspace. The modal is the intended home for the conversation lifecycle: raw
+audio, re-transcription, first-pass/raw summary, context workbench,
+speaker/contact identity resolution, and final context-enriched readout.
+Unwired workflow actions remain disabled and labelled as planned until reviewed
+backend contracts exist.
+
 The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
@@ -63,8 +70,9 @@ Working rule:
   sections may remain visible for orientation, but disabled controls must not
   switch views or reuse the Library viewport.
 - The first dogfooding path is `Library -> selected recording/transcript ->
-  playback/source metadata -> context JSON -> first-pass/context enrichment ->
-  Review Queue -> Intelligence smoke/debug`.
+  conversation workspace -> playback/source metadata -> first-pass summary ->
+  context workbench -> speaker/contact identity -> final readout -> Review
+  Queue -> Intelligence smoke/debug`.
 - New workflow slices should wire this path from left to right before adding
   more product areas.
 - Placeholder UX is acceptable only in docs/plans, not as an active button that
