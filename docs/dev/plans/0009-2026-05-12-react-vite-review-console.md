@@ -35,8 +35,8 @@ The Library panes now support SVG collapse controls and mouse/keyboard width
 resizing. The selected-artifact inspector loads document detail on demand,
 shows readouts as human-readable summaries with people/topics/actions/risks
 when present, keeps raw context JSON as a developer-labelled affordance, and
-uses `source_artifact_path` to surface source-transcript audio for readouts that
-do not own a media blob directly.
+uses `/api/documents/<id>/related` to resolve `source_artifact_path` and surface
+source-transcript audio for readouts that do not own a media blob directly.
 
 The right pane is now a compact inspector/launcher for a modal conversation
 workspace. The modal is the intended home for the conversation lifecycle: raw

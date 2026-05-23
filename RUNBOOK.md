@@ -5400,6 +5400,54 @@ Next:
   re-transcription/context/final-readout actions to reviewed backend dry-run
   contracts one stage at a time.
 
+## Turn 165 | 2026-05-22
+
+Summary: Added read-only related-document lookup for the conversation workspace.
+
+Action:
+
+- Added `GET /api/documents/<document_id>/related`.
+- The endpoint resolves readout/contextual-readout `source_artifact_path`
+  metadata back to a stored source transcript when present.
+- The endpoint lists readouts/contextual readouts derived from a selected
+  transcript's source path.
+- Updated the React Library detail loader to fetch document detail and related
+  documents together.
+- Updated the compact inspector and conversation modal to prefer
+  `source_document` from the related endpoint when selecting inherited source
+  audio, with the current loaded-library scan retained only as fallback.
+- Documented the endpoint in README and `docs/dev/transcript-review-api.md`.
+- Updated ROADMAP and the P09 plan to record related-document lookup as the
+  source-audio resolution path.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main "related
+  document API readout source transcript audio modal workflow dry run
+  contracts"` returned older advisory memory and no conflicting direction.
+- Added and passed
+  `tests/test_transcript_api.py::test_related_documents_links_readout_to_source_transcript`.
+- Full `tests/test_transcript_api.py` passed.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/documents/e2a67052289d1ad1d891/related` resolved source
+  transcript `646f58f133108230a67c` and blob `f363a21cdc716795bd3c`.
+- Live `GET /api/documents/646f58f133108230a67c/related` listed derived
+  readout `e2a67052289d1ad1d891`.
+- Browser smoke on `transcripts.localhost` confirmed the modal fetches
+  `/api/documents/e2a67052289d1ad1d891/related` and still displays inherited
+  audio `/api/blobs/f363a21cdc716795bd3c`.
+
+Next:
+
+- Wire the modal's first real action contract: a retranscription dry-run
+  preflight that reports source blob, backend, output paths, and write plan
+  before any transcription job can be queued.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -92,6 +92,27 @@ def write_transcript_artifact(tmp_path: Path) -> Path:
     return artifact_path
 
 
+def write_readout_artifact(tmp_path: Path, source_artifact: Path) -> Path:
+    artifact_path = tmp_path / "meeting.readout.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "Weekly Product Sync readout",
+                "summary": "Tempo Chemical sample follow-up needs owner review.",
+                "source_artifact_path": str(source_artifact.resolve()),
+                "generated_at": "2026-05-22T12:00:00Z",
+                "participants": ["Speaker A"],
+                "topics": ["Tempo Chemical"],
+                "action_items": [],
+                "risks": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return artifact_path
+
+
 def test_ingest_registers_media_blob_for_api(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     result = transcript_store.ingest_artifact(
@@ -108,6 +129,32 @@ def test_ingest_registers_media_blob_for_api(tmp_path: Path) -> None:
     assert payload["media_blob"]["playback_url"].startswith("/api/blobs/")
     assert payload["blobs"][0]["bytes"] == 16
     assert Path(payload["metadata"]["media_blob"]["id"])
+
+
+def test_related_documents_links_readout_to_source_transcript(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    readout_related = transcript_api.get_related_documents(readout.id, root=store_root)
+    transcript_related = transcript_api.get_related_documents(transcript.id, root=store_root)
+
+    assert readout_related["source_document"]["id"] == transcript.id
+    assert readout_related["source_document"]["media_blob"]["playback_url"].startswith("/api/blobs/")
+    assert readout_related["derived_documents"] == []
+    assert transcript_related["source_document"] is None
+    assert transcript_related["derived_documents"][0]["id"] == readout.id
 
 
 def test_library_and_search_use_store_documents(tmp_path: Path) -> None:

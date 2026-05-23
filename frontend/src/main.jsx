@@ -185,6 +185,10 @@ function findSourceDocument(item, items) {
   return (items || []).find((candidate) => candidate.source_path === sourcePath) || null;
 }
 
+function relatedSourceDocument(relatedDocuments) {
+  return relatedDocuments?.source_document || null;
+}
+
 function mediaForItem(item, sourceDocument) {
   return item?.media_blob?.playback_url ? item.media_blob : sourceDocument?.media_blob?.playback_url ? sourceDocument.media_blob : null;
 }
@@ -268,6 +272,7 @@ function App() {
   const [smokeTailAction, setSmokeTailAction] = useState({ status: "idle", message: "", payload: null });
   const [selectedDocumentDetail, setSelectedDocumentDetail] = useState(null);
   const [selectedDocumentDetailAction, setSelectedDocumentDetailAction] = useState({ status: "idle", message: "" });
+  const [selectedRelatedDocuments, setSelectedRelatedDocuments] = useState(null);
   const [conversationOpen, setConversationOpen] = useState(false);
 
   useEffect(() => {
@@ -504,18 +509,24 @@ function App() {
     async function loadSelectedDocumentDetail() {
       if (!selected?.id || activeNav !== "Library") {
         setSelectedDocumentDetail(null);
+        setSelectedRelatedDocuments(null);
         setSelectedDocumentDetailAction({ status: "idle", message: "" });
         return;
       }
       setSelectedDocumentDetailAction({ status: "loading", message: "Loading document details..." });
       try {
-        const payload = await fetchJson(`/api/documents/${encodeURIComponent(selected.id)}`);
+        const [payload, relatedPayload] = await Promise.all([
+          fetchJson(`/api/documents/${encodeURIComponent(selected.id)}`),
+          fetchJson(`/api/documents/${encodeURIComponent(selected.id)}/related`)
+        ]);
         if (cancelled) return;
         setSelectedDocumentDetail(payload);
+        setSelectedRelatedDocuments(relatedPayload);
         setSelectedDocumentDetailAction({ status: "loaded", message: "" });
       } catch (error) {
         if (cancelled) return;
         setSelectedDocumentDetail(null);
+        setSelectedRelatedDocuments(null);
         setSelectedDocumentDetailAction({ status: "error", message: `Document detail failed: ${error.message}` });
       }
     }
@@ -1213,6 +1224,7 @@ function App() {
             activeNav={activeNav}
             documentDetail={selectedDocumentDetail}
             documentDetailAction={selectedDocumentDetailAction}
+            relatedDocuments={selectedRelatedDocuments}
             onOpenConversation={() => setConversationOpen(true)}
             onSelectDocument={setSelectedId}
             reviewQueue={reviewQueue}
@@ -1258,6 +1270,7 @@ function App() {
         <ConversationWorkflowModal
           documentDetail={selectedDocumentDetail}
           documentDetailAction={selectedDocumentDetailAction}
+          relatedDocuments={selectedRelatedDocuments}
           item={selected}
           items={library.items || []}
           onClose={() => setConversationOpen(false)}
@@ -2011,6 +2024,7 @@ function Inspector({
   activeNav,
   documentDetail,
   documentDetailAction,
+  relatedDocuments,
   onOpenConversation,
   onSelectDocument,
   reviewQueue,
@@ -2439,7 +2453,7 @@ function Inspector({
   if (!item) {
     return <div className="inspector-content"><h2>No selection</h2></div>;
   }
-  const sourceDocument = findSourceDocument(item, items);
+  const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const linkedMedia = mediaForItem(item, sourceDocument);
   const summaryText = documentSummaryText(documentDetail);
   const payload = documentDetail?.json_payload || {};
@@ -2551,12 +2565,13 @@ function Inspector({
 function ConversationWorkflowModal({
   documentDetail,
   documentDetailAction,
+  relatedDocuments,
   item,
   items,
   onClose,
   onSelectDocument
 }) {
-  const sourceDocument = findSourceDocument(item, items);
+  const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const linkedMedia = mediaForItem(item, sourceDocument);
   const payload = documentDetail?.json_payload || {};
   const summaryText = documentSummaryText(documentDetail);

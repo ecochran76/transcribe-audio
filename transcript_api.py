@@ -166,6 +166,38 @@ def get_document(document_id: str, *, root: Optional[Path] = None) -> dict[str, 
     return summary
 
 
+def get_related_documents(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
+    with connect(root) as con:
+        init_db(con)
+        row = con.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
+        if row is None:
+            raise TranscriptStoreError(f"No document found with id {document_id}")
+        payload = parse_object_json(row["json_payload"])
+        metadata = parse_object_json(row["metadata_json"])
+        source_artifact_path = str(metadata.get("source_artifact_path") or payload.get("source_artifact_path") or "")
+        source_row = None
+        if source_artifact_path:
+            source_row = con.execute("SELECT * FROM documents WHERE source_path = ?", (source_artifact_path,)).fetchone()
+        derived_rows = con.execute(
+            """
+            SELECT * FROM documents
+            WHERE (
+                json_extract(metadata_json, '$.source_artifact_path') = ?
+                OR json_extract(json_payload, '$.source_artifact_path') = ?
+            )
+            AND id != ?
+            ORDER BY COALESCE(NULLIF(generated_at, ''), updated_at) DESC, updated_at DESC
+            """,
+            (row["source_path"], row["source_path"], document_id),
+        ).fetchall()
+    return {
+        "document": document_summary(row),
+        "source_artifact_path": source_artifact_path,
+        "source_document": document_summary(source_row) if source_row else None,
+        "derived_documents": [document_summary(derived_row) for derived_row in derived_rows],
+    }
+
+
 def get_blob(blob_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     with connect(root) as con:
         init_db(con)
@@ -1823,6 +1855,9 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 3:
                     self.write_json(get_document(parts[2], root=self.store_root))
+                    return
+                if len(parts) == 4 and parts[3] == "related":
+                    self.write_json(get_related_documents(parts[2], root=self.store_root))
                     return
                 if len(parts) == 4 and parts[3] == "context":
                     chunk_text = first(params, "chunk_index")

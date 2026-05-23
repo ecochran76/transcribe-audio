@@ -74,6 +74,7 @@ the reported run and evidence paths.
 - `POST /api/review-queue/first-pass-summaries/status`: poll a submitted manifest and optionally materialize completed readouts with `materialize=true`. The Review Queue renders returned request counts, batch id/status, provider counts, materialized count, and materialization error count.
 - `GET /api/search?q=<query>&kind=transcript&limit=10`: lexical/semantic search over stored artifacts.
 - `GET /api/documents/<document_id>`: document detail, JSON payload, text content, metadata, and linked blobs.
+- `GET /api/documents/<document_id>/related`: read-only document relationship packet. For readouts/contextual readouts, `source_document` resolves `source_artifact_path` back to the stored source transcript when present; for transcripts, `derived_documents` lists stored readouts/contextual readouts that cite the transcript source path.
 - `GET /api/documents/<document_id>/context?chunk_index=5&context_chunks=1`: nearby transcript/readout context from stored chunks.
 - `GET /api/blobs/<blob_id>`: registered blob playback/download endpoint with `Range` support.
 - `GET /api/blobs/<blob_id>?download=1`: same blob as an attachment.
