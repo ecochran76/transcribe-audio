@@ -1920,17 +1920,77 @@ function WorkflowIcon({ active, label, title }) {
   );
 }
 
+const DEFAULT_LIBRARY_COLUMN_WIDTHS = {
+  conversation: 420,
+  workflow: 140,
+  context: 260,
+  updated: 150,
+  media: 120
+};
+
 function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect }) {
+  const [columnWidths, setColumnWidths] = useState(DEFAULT_LIBRARY_COLUMN_WIDTHS);
+  function startColumnResize(column, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = columnWidths[column];
+    const handlePointerMove = (moveEvent) => {
+      const nextWidth = Math.max(96, Math.min(720, startWidth + moveEvent.clientX - startX));
+      setColumnWidths((widths) => ({ ...widths, [column]: nextWidth }));
+    };
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
+  function resizeColumnWithKeyboard(column, event) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    setColumnWidths((widths) => ({
+      ...widths,
+      [column]: Math.max(96, Math.min(720, widths[column] + direction * 16))
+    }));
+  }
+
+  function HeaderCell({ column, children }) {
+    return (
+      <th>
+        <div className="resizable-column-heading">
+          <span>{children}</span>
+          <button
+            aria-label={`Resize ${children} column`}
+            className="column-resize-handle"
+            onKeyDown={(event) => resizeColumnWithKeyboard(column, event)}
+            onPointerDown={(event) => startColumnResize(column, event)}
+            type="button"
+          />
+        </div>
+      </th>
+    );
+  }
+
   return (
     <div className="table-shell">
-      <table>
+      <table className="conversation-table">
+        <colgroup>
+          <col style={{ width: `${columnWidths.conversation}px` }} />
+          <col style={{ width: `${columnWidths.workflow}px` }} />
+          <col style={{ width: `${columnWidths.context}px` }} />
+          <col style={{ width: `${columnWidths.updated}px` }} />
+          <col style={{ width: `${columnWidths.media}px` }} />
+        </colgroup>
         <thead>
           <tr>
-            <th>Conversation</th>
-            <th>Workflow</th>
-            <th>Calendar / route</th>
-            <th>Updated</th>
-            <th>Media</th>
+            <HeaderCell column="conversation">Conversation</HeaderCell>
+            <HeaderCell column="workflow">Workflow</HeaderCell>
+            <HeaderCell column="context">Calendar / route</HeaderCell>
+            <HeaderCell column="updated">Updated</HeaderCell>
+            <HeaderCell column="media">Media</HeaderCell>
           </tr>
         </thead>
         <tbody>
@@ -1962,7 +2022,25 @@ function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect
                 </td>
                 <td>{calendar}</td>
                 <td>{formatDate(row.latestArtifact?.generated_at || row.latestArtifact?.updated_at)}</td>
-                <td>{linkedMedia ? (item.media_blob?.playback_url ? "Blob linked" : "Source blob") : "No blob"}</td>
+                <td>
+                  <button
+                    className={linkedMedia ? "media-play-button" : "media-play-button disabled"}
+                    disabled={!linkedMedia}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (!linkedMedia) return;
+                      onSelect(item.id);
+                      onOpenConversation();
+                    }}
+                    title={linkedMedia ? "Open the conversation player" : "No source recording is linked"}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Play
+                  </button>
+                </td>
               </tr>
             );
           })}

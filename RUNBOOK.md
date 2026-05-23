@@ -5597,6 +5597,38 @@ Next:
 - Add conversation-level API grouping so the UI does not need to infer
   transcript/readout relationships from paged client-side rows.
 
+## Turn 169 | 2026-05-23
+
+Summary: Added resizable Library columns and media play actions.
+
+Action:
+
+- Added draggable and keyboard-adjustable resize handles to the Library table
+  column headers.
+- Replaced media status text such as `Blob linked`/`Source blob` with a
+  source-audio `Play` button.
+- The `Play` button opens the conversation workspace when audio is available
+  and renders disabled/greyed out when no source recording is linked.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  35 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Browser smoke on `transcripts.localhost` with the Cara search confirmed
+  accessible column resize controls in the table header and an enabled `Play`
+  button that opens the full conversation workspace.
+
+Next:
+
+- Add conversation-level API grouping so table grouping and workflow progress
+  are server-backed rather than inferred from the current client-side page.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

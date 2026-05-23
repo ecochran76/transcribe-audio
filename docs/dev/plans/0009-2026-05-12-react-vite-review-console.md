@@ -43,7 +43,9 @@ source-audio access, and a short conversation-summary panel that does not
 pretend transcript text is a readout. The Library now groups transcript,
 first-pass summary, and contextual readout artifacts into one conversation row
 with workflow progress icons instead of showing each artifact as a separate
-row.
+row. Library columns are operator-resizable, and the media column uses a
+healthy `Play` action when source audio is available or a disabled state when
+it is missing.
 
 The conversation workspace now uses the full viewport. Transcript, first-pass
 summary, context workbench, speaker/contact identity, and final readout are
