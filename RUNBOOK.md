@@ -5709,6 +5709,41 @@ Next:
   query/kind instead of loading a fixed 500-row conversation page and filtering
   client-side.
 
+## Turn 172 | 2026-05-23
+
+Summary: Made Library search and filters server-backed.
+
+Action:
+
+- Removed the fixed startup fetch of `/api/conversations?limit=500` from the
+  general app bootstrap.
+- Added a debounced Library-only conversation fetch that calls
+  `/api/conversations` with active `query`, `kind`, and `limit=100`.
+- Updated the Library table path so API-backed conversation results are used
+  directly instead of being re-filtered client-side.
+- Kept client-side grouping only for offline/redacted fallback rows.
+- Documented the server-backed search/filter behavior in README, ROADMAP, and
+  the P09 plan.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/conversations?query=Cara&kind=readout&limit=3` returned
+  schema `transcribe-audio.conversations.v1`, total=3, first row with
+  transcript=true, summary=true, media_ready=true, and readout/transcript
+  artifact membership.
+
+Next:
+
+- Add loading/empty-result affordances to the Library table so no-match server
+  searches are visually distinct from API fallback or startup loading.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

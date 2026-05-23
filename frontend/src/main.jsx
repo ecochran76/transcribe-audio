@@ -397,10 +397,9 @@ function App() {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, conversationPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=200"),
-          fetchJson("/api/conversations?limit=500"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5"),
           fetchJson("/api/intelligence/providers"),
@@ -412,11 +411,10 @@ function App() {
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
-        setConversations(conversationPayload);
         setReviewQueue(reviewPayload);
         setFirstPassBatchManifests(batchManifestPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
-        setSelectedId(conversationPayload.items?.[0]?.representative?.id || libraryPayload.items?.[0]?.id || "");
+        setSelectedId(libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
       } catch (error) {
@@ -429,6 +427,34 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (activeNav !== "Library") return;
+      const params = new URLSearchParams({ limit: "100" });
+      if (kindFilter !== "all") params.set("kind", kindFilter);
+      if (query.trim()) params.set("query", query.trim());
+      try {
+        const payload = await fetchJson(`/api/conversations?${params.toString()}`);
+        if (cancelled) return;
+        setConversations(payload);
+        setSelectedId((currentId) => {
+          const rows = payload.items || [];
+          if (rows.some((row) => (row.artifacts || []).some((artifact) => artifact.id === currentId))) return currentId;
+          return rows[0]?.representative?.id || currentId;
+        });
+        setApiError("");
+      } catch (error) {
+        if (cancelled) return;
+        setApiError(`Conversation search failed; using current local rows: ${error.message}`);
+      }
+    }, query.trim() ? 250 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeNav, kindFilter, query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -616,10 +642,10 @@ function App() {
     });
   }, [kindFilter, library.items, query]);
   const visibleConversationRows = useMemo(() => {
+    const usingApiRows = conversations.schema_version === "transcribe-audio.conversations.v1";
+    if (usingApiRows) return (conversations.items || []).map(normalizeConversationRow);
     const needle = query.trim().toLowerCase();
-    const apiRows = (conversations.items || []).map(normalizeConversationRow);
-    const rows = apiRows.length ? apiRows : buildConversationRows(visibleItems);
-    return rows.filter((row) => {
+    return buildConversationRows(visibleItems).filter((row) => {
       if (kindFilter !== "all" && !(row.artifacts || []).some((artifact) => artifact.kind === kindFilter)) return false;
       if (!needle) return true;
       const artifactText = (row.artifacts || [])
@@ -628,7 +654,7 @@ function App() {
       const haystack = `${row.title || ""} ${row.calendarLabel || ""} ${artifactText}`.toLowerCase();
       return haystack.includes(needle);
     });
-  }, [conversations.items, kindFilter, query, visibleItems]);
+  }, [conversations.items, conversations.schema_version, kindFilter, query, visibleItems]);
   const selectedConversation =
     visibleConversationRows.find((row) => (row.artifacts || []).some((artifact) => artifact.id === selectedId)) ||
     visibleConversationRows[0] ||

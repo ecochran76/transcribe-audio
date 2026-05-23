@@ -40,11 +40,11 @@ source-transcript audio for readouts that do not own a media blob directly.
 
 The right pane is now a compact inspector/launcher with useful metadata,
 source-audio access, and a short conversation-summary panel that does not
-pretend transcript text is a readout. The Library now consumes the
-server-backed `/api/conversations` grouping endpoint so transcript,
-first-pass summary, and contextual readout artifacts render as one
-conversation row with workflow progress icons instead of separate artifact
-rows. The conversation workspace loads `/api/conversations/<document_id>`
+pretend transcript text is a readout. The Library now calls the
+server-backed `/api/conversations` grouping endpoint with active query and
+kind filters so transcript, first-pass summary, and contextual readout
+artifacts render as conversation rows with workflow progress icons instead
+of separate artifact rows. The conversation workspace loads `/api/conversations/<document_id>`
 so transcript, summary, final readout, artifact membership, participants,
 and media arrive in one payload. Library columns are operator-resizable, and
 the media column uses a healthy `Play` action when source audio is available
