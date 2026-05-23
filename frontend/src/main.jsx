@@ -137,7 +137,15 @@ function formatDate(value) {
 }
 
 function statusLabel(status) {
-  return status.replaceAll("_", " ");
+  return String(status || "").replaceAll("_", " ");
+}
+
+function workflowViewForStage(stage) {
+  if (stage === "speakers") return "speakers";
+  if (stage === "context") return "context";
+  if (stage === "output" || stage === "final_readout") return "output";
+  if (stage === "summary" || stage === "first_pass_summary") return "summary";
+  return "transcript";
 }
 
 function filterCount(items, kind) {
@@ -1006,6 +1014,15 @@ function App() {
     });
   }
 
+  function openQueueConversation(item) {
+    const documentId = item?.representative_document_id || item?.document_id || "";
+    if (!documentId) return;
+    setSelectedId(documentId);
+    setActiveWorkflowView(workflowViewForStage(item.workflow_stage));
+    setConversationOpen(true);
+    setActiveNav("Library");
+  }
+
   async function recordHumanReviewDecision(item, reviewActionName) {
     if (!item?.run_id || !item?.decision_id) return;
     const label = reviewActionName === "resolve" ? "Resolve" : reviewActionName === "reopen" ? "Reopen" : "Annotate";
@@ -1514,6 +1531,7 @@ function App() {
               onSelectFirstPassManifest={selectFirstPassBatchManifest}
               humanReviewAction={humanReviewAction}
               onRecordHumanReview={recordHumanReviewDecision}
+              onOpenQueueConversation={openQueueConversation}
             />
           ) : activeNav === "Intelligence" ? (
             <IntelligencePanel
@@ -2383,7 +2401,7 @@ function LibraryTable({
   );
 }
 
-function ReviewQueue({ queue, reviewAction, batchManifests, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, onSelectFirstPassManifest, humanReviewAction, onRecordHumanReview }) {
+function ReviewQueue({ queue, reviewAction, batchManifests, onPrepareFirstPass, onSubmitFirstPass, onRefreshFirstPass, onSelectFirstPassManifest, humanReviewAction, onRecordHumanReview, onOpenQueueConversation }) {
   const buckets = queue.buckets || [];
   const items = queue.items || [];
   const recentBatchManifests = batchManifests?.items || [];
@@ -2513,8 +2531,19 @@ function ReviewQueue({ queue, reviewAction, batchManifests, onPrepareFirstPass, 
                 <strong>{item.label}</strong>
                 <small>{item.reason}</small>
               </div>
-              <span>{item.type === "app_intelligence_human_review" ? statusLabel(item.decision_status || item.status) : item.route_decision_exists ? "route available" : "stale route reference"}</span>
+              <span>
+                {item.type === "app_intelligence_human_review"
+                  ? statusLabel(item.decision_status || item.status)
+                  : item.type === "route_review"
+                    ? item.route_decision_exists ? "route available" : "stale route reference"
+                    : statusLabel(item.workflow_stage || item.status || "review")}
+              </span>
               <code>{item.artifact_path || item.route_decision_path || item.review_path}</code>
+              {item.document_id ? (
+                <div className="notice-actions">
+                  <button onClick={() => onOpenQueueConversation(item)} type="button">Open conversation</button>
+                </div>
+              ) : null}
               {item.type === "app_intelligence_human_review" && (
                 <div className="notice-actions">
                   <button onClick={() => onRecordHumanReview(item, "annotate")} type="button">Annotate</button>
@@ -3103,6 +3132,11 @@ function ConversationWorkflowModal({
   const [retranscriptionQueue, setRetranscriptionQueue] = useState({ status: "idle", message: "", payload: null });
   const [sourceDetail, setSourceDetail] = useState(null);
   const [sourceDetailAction, setSourceDetailAction] = useState({ status: "idle", message: "" });
+  const [identityReview, setIdentityReview] = useState(conversationDetail?.identity_review || null);
+  const [firstPassAction, setFirstPassAction] = useState({ status: "idle", message: "", payload: null });
+  const [speakerReviewAction, setSpeakerReviewAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
+  const [finalPreviewAction, setFinalPreviewAction] = useState({ status: "idle", message: "", payload: null });
   const selectedDetail = conversationDetail?.selected_document || documentDetail;
   const sourceDocument = conversationDetail?.transcript_document || relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const summaryDetail = conversationDetail?.summary_document || (item.kind === "readout" ? selectedDetail : null);
@@ -3122,6 +3156,18 @@ function ConversationWorkflowModal({
   const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
+  const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
+  const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
+  const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
+  const contextWorkbench = contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
+  const finalPreview = finalPreviewAction.payload?.final_preview || conversationDetail?.final_preview || {};
+  useEffect(() => {
+    setIdentityReview(conversationDetail?.identity_review || null);
+    setFirstPassAction({ status: "idle", message: "", payload: null });
+    setSpeakerReviewAction({ status: "idle", message: "", payload: null });
+    setContextAction({ status: "idle", message: "", payload: null });
+    setFinalPreviewAction({ status: "idle", message: "", payload: null });
+  }, [conversationDetail?.conversation?.key, item.id]);
   useEffect(() => {
     let cancelled = false;
     async function loadSourceDetail() {
@@ -3194,6 +3240,118 @@ function ConversationWorkflowModal({
         message: `Queue failed: ${error.message}`,
         payload: null
       });
+    }
+  }
+
+  async function prepareSelectedFirstPassSummary() {
+    setFirstPassAction({ status: "running", message: "Preparing selected summary batch...", payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/first-pass-summary/prepare`, { store: true });
+      setFirstPassAction({
+        status: payload.status || "prepared",
+        message: `Prepared ${payload.request_count || 0} selected request; no provider work was submitted.`,
+        payload
+      });
+    } catch (error) {
+      setFirstPassAction({ status: "error", message: `First-pass prepare failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function submitSelectedFirstPassSummary() {
+    if (!selectedFirstPassManifest) return;
+    const approved = window.confirm("Submit this selected first-pass summary batch to the configured provider?");
+    if (!approved) return;
+    setFirstPassAction((current) => ({ ...current, status: "submitting", message: "Submitting selected summary batch..." }));
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/first-pass-summary/submit`, {
+        manifest: selectedFirstPassManifest,
+        approval_token: firstPassSummaryState.future_required_approval_token_for_submit || "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
+      });
+      setFirstPassAction({
+        status: payload.status || "submitted",
+        message: `Submitted selected request; batch ${payload.batch_id || "pending id"}.`,
+        payload
+      });
+    } catch (error) {
+      setFirstPassAction((current) => ({ ...current, status: "error", message: `First-pass submit failed: ${error.message}` }));
+    }
+  }
+
+  async function refreshSelectedFirstPassSummary() {
+    if (!selectedFirstPassManifest) return;
+    setFirstPassAction((current) => ({ ...current, status: "checking", message: "Checking selected summary batch..." }));
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/first-pass-summary/status`, {
+        manifest: selectedFirstPassManifest,
+        materialize: true
+      });
+      const counts = payload.batch_counts || {};
+      const countText = Object.entries(counts).map(([key, value]) => `${key}: ${value}`).join(", ");
+      setFirstPassAction({
+        status: payload.status || "checked",
+        message: countText
+          ? `Batch status ${payload.status}; ${countText}. Materialized ${payload.materialized?.length || 0}.`
+          : `Batch status ${payload.status}. Materialized ${payload.materialized?.length || 0}.`,
+        payload
+      });
+    } catch (error) {
+      setFirstPassAction((current) => ({ ...current, status: "error", message: `First-pass status failed: ${error.message}` }));
+    }
+  }
+
+  async function reviewSpeaker(speaker, action, candidate = {}) {
+    setSpeakerReviewAction({ status: "running", message: `${action === "confirm" ? "Confirming" : "Deferring"} ${speaker.speaker_label}...`, payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/identity-review`, {
+        action,
+        speaker_label: speaker.speaker_label,
+        contact_id: candidate.contact_id || "",
+        contact_label: candidate.label || speaker.speaker_label,
+        email: candidate.email || "",
+        reviewer: "operator",
+        note: action === "confirm" ? "Confirmed in the conversation workspace." : "Deferred from the conversation workspace."
+      });
+      setIdentityReview(payload.identity_review);
+      setSpeakerReviewAction({
+        status: payload.status || "recorded",
+        message: action === "confirm" ? "Speaker assignment recorded locally." : "Speaker identity deferred into the Review Queue.",
+        payload
+      });
+    } catch (error) {
+      setSpeakerReviewAction({ status: "error", message: `Speaker review failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function previewContextWorkbench(queue = false) {
+    setContextAction({ status: "running", message: queue ? "Queueing context workbench review..." : "Preparing context workbench preview...", payload: null });
+    try {
+      const payload = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/context-workbench/${queue ? "queue" : "preview"}`,
+        queue ? { approval_token: "QUEUE_CONTEXT_WORKBENCH_RUN" } : {}
+      );
+      setContextAction({
+        status: payload.status || "previewed",
+        message: queue ? "Context workbench run queued locally; no provider was run." : "Context workbench preview recorded locally.",
+        payload
+      });
+    } catch (error) {
+      setContextAction({ status: "error", message: `Context workbench action failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function queueFinalPreview() {
+    setFinalPreviewAction({ status: "running", message: "Queueing deposition and memory preview...", payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/final-preview/queue`, {
+        approval_token: "QUEUE_DEPOSITION_MEMORY_PREVIEW"
+      });
+      setFinalPreviewAction({
+        status: payload.status || "queued",
+        message: "Deposition and memory preview queued for local review; no external write was performed.",
+        payload
+      });
+    } catch (error) {
+      setFinalPreviewAction({ status: "error", message: `Preview queue failed: ${error.message}`, payload: null });
     }
   }
 
@@ -3358,6 +3516,33 @@ function ConversationWorkflowModal({
                 {topics.length ? (
                   <div className="chip-cloud">{topics.slice(0, 16).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}</div>
                 ) : null}
+                <div className="workflow-action-panel">
+                  <dl className="compact-definition-list">
+                    <dt>Status</dt>
+                    <dd>{statusLabel(firstPassSummaryState.status || "unknown")}</dd>
+                    <dt>Source</dt>
+                    <dd>{firstPassSummaryState.source_document_id || "Not linked"}</dd>
+                    <dt>Summary</dt>
+                    <dd>{firstPassSummaryState.summary_document_id || "Not materialized"}</dd>
+                  </dl>
+                  <div className="workflow-action-row">
+                    <button onClick={prepareSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
+                      Prepare selected
+                    </button>
+                    <button onClick={submitSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "submitting"} type="button">
+                      Submit
+                    </button>
+                    <button onClick={refreshSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "checking"} type="button">
+                      Check
+                    </button>
+                  </div>
+                  {firstPassAction.message ? (
+                    <div className={`action-notice ${firstPassAction.status}`}>
+                      <strong>{firstPassAction.message}</strong>
+                      {selectedFirstPassManifest ? <small>{selectedFirstPassManifest}</small> : null}
+                    </div>
+                  ) : null}
+                </div>
               </section>
             ) : null}
 
@@ -3366,10 +3551,56 @@ function ConversationWorkflowModal({
                 <div className="workflow-view-heading">
                   <div>
                     <span>Context workbench</span>
-                    <h3>Provenance and context gathering</h3>
+                    <h3>{statusLabel(contextWorkbench.status || "provenance and context gathering")}</h3>
+                  </div>
+                  <strong>{contextWorkbench.included_source_count || 0} included</strong>
+                </div>
+                {contextWorkbench.selected_candidate?.label ? (
+                  <div className="context-route-card">
+                    <span>Selected route</span>
+                    <strong>{contextWorkbench.selected_candidate.label}</strong>
+                    <small>{contextWorkbench.selected_candidate.target_kind || "target"} · confidence {contextWorkbench.confidence ?? "unknown"}</small>
+                  </div>
+                ) : (
+                  <p className="muted">No selected route candidate is attached yet.</p>
+                )}
+                {contextWorkbench.warnings?.length ? (
+                  <div className="warning-list">
+                    {contextWorkbench.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+                  </div>
+                ) : null}
+                <div className="readout-columns">
+                  <div>
+                    <strong>Included provenance</strong>
+                    {contextWorkbench.included_sources?.length ? (
+                      <ul>
+                        {contextWorkbench.included_sources.slice(0, 8).map((source) => (
+                          <li key={`${source.source_id}-${source.label}`}>
+                            {source.label || source.source_type}
+                            <small>{source.source_type}{source.snippet ? ` · ${source.snippet}` : ""}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted">No included provenance sources are recorded yet.</p>
+                    )}
+                  </div>
+                  <div>
+                    <strong>Excluded provenance</strong>
+                    {contextWorkbench.excluded_sources?.length ? (
+                      <ul>
+                        {contextWorkbench.excluded_sources.slice(0, 8).map((source) => (
+                          <li key={`${source.source_id}-${source.label}`}>
+                            {source.label || source.source_type}
+                            <small>{source.quality_status || source.quality_reason || source.source_type}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted">{contextWorkbench.excluded_source_count ? `${contextWorkbench.excluded_source_count} excluded source(s) summarized in warnings.` : "No excluded provenance sources are recorded yet."}</p>
+                    )}
                   </div>
                 </div>
-                <p>Gather calendar, GWS, msgcli, Odollo, Graphiti, local-store, and matter-routing evidence before the final readout.</p>
                 {conversationDetail?.conversation?.artifacts?.length ? (
                   <div className="event-list">
                     <span>Conversation artifacts</span>
@@ -3383,9 +3614,15 @@ function ConversationWorkflowModal({
                 ) : null}
                 <div className="workflow-action-row">
                   <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">Open raw context JSON</a>
-                  <button disabled title="Context-run creation needs a reviewed backend contract." type="button">Start context run (planned)</button>
-                  <button disabled title="Recurring-meeting recipes are planned for deterministic context acquisition." type="button">Apply recurring recipe (planned)</button>
+                  <button onClick={() => previewContextWorkbench(false)} disabled={contextAction.status === "running"} type="button">Preview context run</button>
+                  <button onClick={() => previewContextWorkbench(true)} disabled={contextAction.status === "running"} type="button">Queue context review</button>
                 </div>
+                {contextAction.message ? (
+                  <div className={`action-notice ${contextAction.status}`}>
+                    <strong>{contextAction.message}</strong>
+                    {contextAction.payload?.manifest ? <small>{contextAction.payload.manifest}</small> : null}
+                  </div>
+                ) : null}
               </section>
             ) : null}
 
@@ -3394,22 +3631,54 @@ function ConversationWorkflowModal({
                 <div className="workflow-view-heading">
                   <div>
                     <span>Speakers and contacts</span>
-                    <h3>Identity resolution</h3>
+                    <h3>{activeIdentityReview.pending_count || 0} pending assignments</h3>
                   </div>
                 </div>
-                {participants.length ? (
+                {activeIdentityReview.speakers?.length ? (
                   <div className="identity-list">
-                    {participants.map((participant, index) => (
-                      <article key={`${index}-${displayLabel(participant, "Participant")}`}>
-                        <strong>{displayLabel(participant, "Participant")}</strong>
-                        <small>{participant.role || "Contact linking is planned; retain as extracted participant for now."}</small>
-                        <button disabled title="Contact DB and merge workflow are planned in P09." type="button">Link contact (planned)</button>
+                    {activeIdentityReview.speakers.map((speaker) => (
+                      <article key={speaker.speaker_label}>
+                        <strong>{speaker.speaker_label}</strong>
+                        <small>
+                          {speaker.assignment?.contact_label
+                            ? `${statusLabel(speaker.status)} as ${speaker.assignment.contact_label}`
+                            : statusLabel(speaker.status || "pending")}
+                        </small>
+                        {speaker.candidates?.length ? (
+                          <div className="candidate-list">
+                            {speaker.candidates.slice(0, 4).map((candidate) => (
+                              <button
+                                disabled={speaker.status === "confirmed" || speakerReviewAction.status === "running"}
+                                key={`${speaker.speaker_label}-${candidate.contact_id}-${candidate.label}`}
+                                onClick={() => reviewSpeaker(speaker, "confirm", candidate)}
+                                type="button"
+                              >
+                                <span>{candidate.label}</span>
+                                <small>{candidate.source} · {candidate.confidence}</small>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="muted">No contact candidates are available yet.</p>
+                        )}
+                        <button
+                          disabled={speaker.status === "deferred" || speakerReviewAction.status === "running"}
+                          onClick={() => reviewSpeaker(speaker, "defer")}
+                          type="button"
+                        >
+                          Defer to queue
+                        </button>
                       </article>
                     ))}
                   </div>
                 ) : (
-                  <p className="muted">No participants were extracted for this artifact yet.</p>
+                  <p className="muted">No speaker turns were extracted for this conversation yet.</p>
                 )}
+                {speakerReviewAction.message ? (
+                  <div className={`action-notice ${speakerReviewAction.status}`}>
+                    <strong>{speakerReviewAction.message}</strong>
+                  </div>
+                ) : null}
               </section>
             ) : null}
 
@@ -3436,10 +3705,62 @@ function ConversationWorkflowModal({
                     </div>
                   ) : null}
                 </div>
+                <div className="context-route-card">
+                  <span>Deposition and memory preview</span>
+                  <strong>{statusLabel(finalPreview.status || "not prepared")}</strong>
+                  <small>{finalPreview.action_count || 0} deposition action(s) · {finalPreview.memory_candidate_count || 0} memory candidate(s)</small>
+                </div>
+                {finalPreview.warnings?.length ? (
+                  <div className="warning-list">
+                    {finalPreview.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+                  </div>
+                ) : null}
+                {finalPreview.actions?.length || finalPreview.memory_candidates?.length ? (
+                  <div className="readout-columns">
+                    <div>
+                      <strong>Preview actions</strong>
+                      {finalPreview.actions?.length ? (
+                        <ul>
+                          {finalPreview.actions.map((action, index) => (
+                            <li key={`${index}-${action.target_kind}`}>
+                              {statusLabel(action.action_type || "action")}
+                              <small>{action.target_kind} · writes {action.writes_enabled ? "enabled" : "disabled"}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="muted">No deposition actions are previewed yet.</p>}
+                    </div>
+                    <div>
+                      <strong>Memory candidates</strong>
+                      {finalPreview.memory_candidates?.length ? (
+                        <ul>
+                          {finalPreview.memory_candidates.slice(0, 6).map((candidate) => (
+                            <li key={candidate.candidate_id}>
+                              {statusLabel(candidate.kind || "memory")}
+                              <small>{candidate.target_group_id} · {candidate.evidence || candidate.status}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="muted">No memory candidates are previewed yet.</p>}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="workflow-action-row">
                   <button disabled title="Final readout generation needs context-run output and a reviewed provider action." type="button">Generate final readout (planned)</button>
-                  <button disabled title="Share links are planned after scoped artifact sharing is wired." type="button">Share final readout (planned)</button>
+                  <button
+                    disabled={!contextualDetail || finalPreviewAction.status === "running"}
+                    onClick={queueFinalPreview}
+                    type="button"
+                  >
+                    Queue preview review
+                  </button>
                 </div>
+                {finalPreviewAction.message ? (
+                  <div className={`action-notice ${finalPreviewAction.status}`}>
+                    <strong>{finalPreviewAction.message}</strong>
+                    {finalPreviewAction.payload?.review_item_path ? <small>{finalPreviewAction.payload.review_item_path}</small> : null}
+                  </div>
+                ) : null}
               </section>
             ) : null}
           </main>

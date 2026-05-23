@@ -2,6 +2,66 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 179 | 2026-05-23
+
+Summary: Closed Plan 0010 as the M1 dogfoodable conversation review loop.
+
+Changes:
+
+- Added selected-conversation first-pass summary actions under
+  `/api/conversations/<id>/first-pass-summary/prepare`, `/submit`, and
+  `/status`; manifests are source-transcript scoped, provider submit still
+  requires `SUBMIT_FIRST_PASS_SUMMARY_BATCH`, and status can materialize
+  completed readouts.
+- Added durable `contacts`, `speaker_assignments`, and
+  `speaker_assignment_audits` tables plus conversation speaker confirm/defer
+  actions. Deferred speakers write local Review Queue items.
+- Extended `/api/conversations/<id>` with first-pass summary state,
+  speaker/contact review state, context-workbench provenance, final
+  deposition/memory preview state, and review counters.
+- Wired the React conversation workspace to selected first-pass summary actions,
+  speaker/contact review, context workbench preview/queue, final preview queue,
+  and Review Queue links back to conversation workflow tabs.
+- Added `scripts/smoke_conversation_review_loop_ui.py` for an `agent-browser`
+  M1 happy-path smoke.
+- Updated README, API docs, ROADMAP, P09, and closed Plan 0010.
+
+Dogfood Evidence:
+
+- Historical representative: contextual conversation `fb3b9d11aea3ecb56e3d`
+  now has blob-backed audio, transcript turns, first-pass summary, four speaker
+  labels, context status `contextual_readout_ready`, seven included and 35
+  excluded provenance sources, one deposition-preview action, and six memory
+  candidates.
+- Recent watcher-ingested pass: AssemblyAI transcript `2596e459aeb3812de321`
+  from May 22, 2026 is non-legacy watcher output with stored media blob
+  `cc16442b324c767ff111`. It verifies the source-audio/transcript workspace and
+  selected first-pass summary preparation path with one dry-run request at
+  `~/.local/state/transcribe-audio/first-pass-summary-batches/first-pass-summary-selected-2596e459aeb3812de321-20260523-104736.json`;
+  it does not yet have a contextual readout.
+- Local review records created during dogfooding included one speaker review
+  item and one deposition/memory preview item, both linked back to conversation
+  workflow stages.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py scripts/smoke_conversation_review_loop_ui.py tests/test_transcript_api.py`
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_selected_first_pass_summary_prepare_is_conversation_scoped tests/test_transcript_api.py::test_conversation_detail_includes_identity_and_context_state -q`
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q`
+- `npm --prefix frontend run build`
+- `git diff --check`
+- `systemctl --user restart transcripts.service && systemctl --user is-active transcripts.service transcribe-watch.service`
+- `python scripts/smoke_conversation_review_loop_ui.py --base-url http://127.0.0.1:18876 --session transcript-conversation-review-loop-smoke-final3 --profile /tmp/transcript-conversation-review-loop-smoke-final3-profile --viewport 1360x860`
+- Browser smoke evidence:
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T154741Z-conversation-review-loop-smoke.json`
+  and `.png`, status `pass`, no missing checks.
+
+Next:
+
+- Keep P09 open for broader console productization: auth/share links, richer
+  contact merge workflows, provenance/deposition aggregate sections, and future
+  external apply contracts.
+
 ## Turn 91 | 2026-05-23
 
 Summary: Reframed P09 around the M1 dogfoodable conversation review loop.

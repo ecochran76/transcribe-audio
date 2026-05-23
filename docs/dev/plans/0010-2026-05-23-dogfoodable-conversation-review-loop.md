@@ -1,6 +1,6 @@
 # Plan 0010 | Dogfoodable Conversation Review Loop
 
-State: OPEN
+State: CLOSED
 
 Lane: P09, with dependencies on P04, P05, and P06
 
@@ -48,9 +48,13 @@ documents, blobs, artifact copies, chunk indexes, semantic vectors, and
 workflow metadata. Runtime job records, review queues, smokes, ledgers, share
 state, and provider configuration remain under user-scoped runtime locations.
 
-The remaining gap is workflow continuity. Several important panels exist as
-inspection or planned affordances, but the dogfooding path is not yet a single
-operator loop from conversation selection through final reviewed output.
+M1 is now closed. The conversation workspace returns one workflow payload with
+transcript, first-pass summary state, contextual readout, blob media,
+participants, speaker/contact review, context workbench, final preview, and
+review counters. The React workspace exposes local actions for selected
+first-pass summary manifests, speaker/contact review, context-workbench preview
+or queue, and deposition/memory preview review. External provider and apply
+work remains behind explicit tokens or future contracts.
 
 ## Milestone Outcome
 
@@ -179,6 +183,40 @@ Required backend contracts:
   screenshot evidence under `~/.local/state/transcribe-audio/browser-smokes/`.
 - Manual dogfood pass on at least one representative historical conversation
   and one recent watcher-ingested conversation, documenting gaps in `RUNBOOK.md`.
+
+## Closeout Evidence
+
+- Historical representative: the SoyLei/Tempo contextual conversation
+  `fb3b9d11aea3ecb56e3d` is blob-backed and restored through the Library
+  workspace. It exposes source audio, transcript turns, first-pass summary,
+  four speaker labels, context status `contextual_readout_ready`, seven included
+  and 35 excluded provenance sources, one deposition-preview action, six memory
+  candidates, and Review Queue links for speaker and deposition/memory preview
+  items.
+- Recent watcher-ingested pass: transcript `2596e459aeb3812de321`
+  from May 22, 2026 is non-legacy AssemblyAI output with a stored media blob.
+  It verifies the same source-audio/transcript workspace path and selected
+  first-pass summary preparation path; it does not yet have a contextual readout.
+- Selected first-pass summary actions are conversation-scoped through
+  `/api/conversations/<id>/first-pass-summary/prepare`, `/submit`, and
+  `/status`; submit still requires `SUBMIT_FIRST_PASS_SUMMARY_BATCH`, and status
+  validates the manifest source transcript before materializing completed
+  readouts.
+- Speaker/contact review writes durable `contacts`, `speaker_assignments`, and
+  `speaker_assignment_audits` rows in `~/.transcripts/transcripts.sqlite3`.
+  Deferred speaker work writes local review items under the user-scoped review
+  queue.
+- Context-workbench and deposition/memory preview queueing write only local
+  manifests/review items. The context queue requires
+  `QUEUE_CONTEXT_WORKBENCH_RUN`; final preview queueing requires
+  `QUEUE_DEPOSITION_MEMORY_PREVIEW`.
+- Browser evidence:
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T154741Z-conversation-review-loop-smoke.json`
+  and `.png` show the M1 happy path passing with no missing checks.
+- Final checks passed: `python -m py_compile`, focused and full
+  `tests/test_transcript_api.py`, `npm --prefix frontend run build`,
+  `git diff --check`, service restart, live API probes, and the M1 browser
+  smoke.
 
 ## Checkpoint Policy
 

@@ -113,6 +113,96 @@ def write_readout_artifact(tmp_path: Path, source_artifact: Path) -> Path:
     return artifact_path
 
 
+def write_contextual_readout_artifact(tmp_path: Path, source_artifact: Path, route_path: Path) -> Path:
+    artifact_path = tmp_path / "meeting.contextual.readout.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "title": "Weekly Product Sync contextual readout",
+                "summary": "Tempo Chemical sample follow-up is tied to a reviewed matter route.",
+                "source_artifact_path": str(source_artifact.resolve()),
+                "generated_at": "2026-05-22T12:30:00Z",
+                "participants": ["Speaker A"],
+                "topics": ["Tempo Chemical"],
+                "action_items": ["Send sample follow-up."],
+                "risks": ["Route confidence needs review."],
+                "memory_candidates": [
+                    {
+                        "kind": "relationship_context",
+                        "text": "Tempo Chemical sample follow-up is associated with the product sync.",
+                        "evidence": "Contextual readout and route source agree.",
+                    }
+                ],
+                "contextualization": {
+                    "route_status": "selected",
+                    "excluded_source_count": 1,
+                    "warnings": ["Excluded 1 provenance source below quality threshold 2."],
+                    "selected_candidate": {
+                        "label": "Tempo Chemical follow-up",
+                        "target_kind": "matter",
+                        "target_id": "matter-tempo",
+                        "confidence": 0.82,
+                    },
+                    "supporting_context_sources": [
+                        {
+                            "source_id": "calendar-1",
+                            "source_type": "calendar_event",
+                            "label": "Weekly Product Sync",
+                            "snippet": "Tempo Chemical samples.",
+                        }
+                    ],
+                },
+                "provider": {"route_decision_path": str(route_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return artifact_path
+
+
+def write_route_artifact(tmp_path: Path, source_artifact: Path, readout_artifact: Path) -> Path:
+    route_path = tmp_path / "meeting.route.json"
+    route_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "selected",
+                "source_transcript_path": str(source_artifact.resolve()),
+                "source_readout_path": str(readout_artifact.resolve()),
+                "selected_candidate": {
+                    "label": "Tempo Chemical follow-up",
+                    "target_kind": "matter",
+                    "target_id": "matter-tempo",
+                    "confidence": 0.82,
+                },
+                "warnings": ["Excluded 1 provenance source below quality threshold 2."],
+                "provenance_pack": {
+                    "sources": [
+                        {
+                            "source_id": "calendar-1",
+                            "source_type": "calendar_event",
+                            "label": "Weekly Product Sync",
+                            "snippet": "Tempo Chemical samples.",
+                        }
+                    ],
+                    "excluded_sources": [
+                        {
+                            "source_id": "graphiti-noise",
+                            "source_type": "graphiti_fact",
+                            "label": "Unrelated advisory fact",
+                            "snippet": "No useful overlap.",
+                            "metadata": {"quality_status": "excluded_low_quality", "quality_score": 0},
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return route_path
+
+
 def test_ingest_registers_media_blob_for_api(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     result = transcript_store.ingest_artifact(
@@ -217,6 +307,187 @@ def test_get_conversation_detail_returns_transcript_summary_and_media(tmp_path: 
     assert payload["media_blob"]["playback_url"].startswith("/api/blobs/")
     assert payload["will_read_artifact_files"] is False
     assert payload["will_return_artifact_content"] is True
+
+
+def test_conversation_detail_includes_identity_and_context_state(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    readout_path = write_readout_artifact(tmp_path, transcript_path)
+    route_path = write_route_artifact(tmp_path, transcript_path, readout_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    transcript_store.ingest_artifact(
+        readout_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    contextual = transcript_store.ingest_artifact(
+        write_contextual_readout_artifact(tmp_path, transcript_path, route_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.get_conversation_detail(contextual.id, root=store_root, state_root=state_root)
+
+    assert payload["transcript_document"]["id"] == transcript.id
+    assert payload["identity_review"]["pending_count"] == 1
+    assert payload["identity_review"]["speakers"][0]["speaker_label"] == "Speaker A"
+    assert payload["context_workbench"]["status"] == "contextual_readout_ready"
+    assert payload["context_workbench"]["selected_candidate"]["label"] == "Tempo Chemical follow-up"
+    assert payload["context_workbench"]["included_source_count"] == 1
+    assert payload["context_workbench"]["excluded_source_count"] == 1
+    assert payload["first_pass_summary"]["status"] == "summary_ready"
+    assert payload["first_pass_summary"]["summary_document_id"]
+    assert payload["review_state"]["context_status"] == "contextual_readout_ready"
+
+
+def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    env_file = tmp_path / "auracall.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_BASE_URL=http://127.0.0.1:18095/v1",
+                "OPENAI_API_KEY=test-key",
+                "AURACALL_BATCH_URL=http://127.0.0.1:18095/v1/response-batches",
+                "AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool",
+                "AURACALL_DISPATCH_MODEL=gpt-5.2-pro",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    prepared = transcript_api.prepare_selected_first_pass_summary(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        env_file=env_file,
+        store=True,
+    )
+    status = transcript_api.selected_first_pass_summary_status(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        env_file=env_file,
+        manifest=prepared["manifest"],
+        materialize=True,
+    )
+    manifest = json.loads(Path(prepared["manifest"]).read_text(encoding="utf-8"))
+    request = manifest["batch_payload"]["requests"][0]
+
+    assert prepared["action"] == "prepare_selected_first_pass_summary"
+    assert prepared["request_count"] == 1
+    assert prepared["first_pass_summary"]["status"] == "needs_summary"
+    assert prepared["will_execute_external_action"] is False
+    assert manifest["queue"]["items"][0]["id"] == transcript.id
+    assert manifest["batch_payload"]["metadata"]["scopedDocumentId"] == transcript.id
+    assert request["metadata"]["transcriptDocumentId"] == transcript.id
+    assert status["status"] == "prepared"
+
+
+def test_speaker_identity_review_records_contact_and_defer_queue(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    confirmed = transcript_api.record_speaker_identity_review(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        speaker_label="Speaker A",
+        action="confirm",
+        contact_label="Alice Example",
+        reviewer="api-test",
+    )
+    deferred = transcript_api.record_speaker_identity_review(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        speaker_label="Speaker B",
+        action="defer",
+        reviewer="api-test",
+    )
+    queue = transcript_api.review_queue_summary(state_root=state_root, store_root=store_root, limit=20)
+
+    assert confirmed["status"] == "confirmed"
+    assert confirmed["identity_review"]["confirmed_count"] == 1
+    assert deferred["status"] == "deferred"
+    speaker_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "speaker_ids")
+    assert speaker_bucket["count"] == 1
+    assert any(item["type"] == "speaker_identity_review" and item["workflow_stage"] == "speakers" for item in queue["items"])
+
+
+def test_context_and_final_preview_actions_write_local_review_records(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    readout_path = write_readout_artifact(tmp_path, transcript_path)
+    route_path = write_route_artifact(tmp_path, transcript_path, readout_path)
+    transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    transcript_store.ingest_artifact(
+        readout_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    contextual = transcript_store.ingest_artifact(
+        write_contextual_readout_artifact(tmp_path, transcript_path, route_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    context_action = transcript_api.context_workbench_preview(
+        contextual.id,
+        root=store_root,
+        state_root=state_root,
+        queue=True,
+        approval_token="QUEUE_CONTEXT_WORKBENCH_RUN",
+    )
+    preview_action = transcript_api.queue_deposition_memory_preview(
+        contextual.id,
+        root=store_root,
+        state_root=state_root,
+        approval_token="QUEUE_DEPOSITION_MEMORY_PREVIEW",
+    )
+    queue = transcript_api.review_queue_summary(state_root=state_root, store_root=store_root, limit=20)
+
+    assert context_action["status"] == "queued"
+    assert context_action["will_run_provider"] is False
+    assert Path(context_action["manifest"]).exists()
+    assert preview_action["status"] == "queued_for_review"
+    assert preview_action["will_perform_external_write"] is False
+    assert Path(preview_action["final_preview"]["preview_path"]).exists()
+    preview_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "deposition_memory_preview")
+    memory_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "memory_harvest")
+    assert preview_bucket["count"] == 1
+    assert memory_bucket["count"] == 1
+    assert any(item["type"] == "deposition_memory_preview" and item["workflow_stage"] == "output" for item in queue["items"])
 
 
 def test_retranscription_preflight_resolves_readout_source_blob_without_work(tmp_path: Path) -> None:

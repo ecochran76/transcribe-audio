@@ -165,6 +165,8 @@ Current State: OPEN. A bounded product plan defines the React + Vite operator co
 
 The Library now calls `/api/conversations` with active query/kind filters to group transcript, first-pass readout, and contextual readout artifacts into server-backed conversation rows with workflow progress icons, explicit loading/empty/error table states, a `Load more` control for paginated results, URL-addressable query/filter/selection/workspace-tab state, a copy-workspace-link affordance for dogfooding feedback, and no separate artifact rows, and the conversation workspace loads `/api/conversations/<document_id>` so transcript, summary, final readout, artifact membership, participants, and media are available in one payload. Library columns are operator-resizable, and the media column exposes a healthy `Play` action when source audio is available instead of raw blob-status text. The inspector shows metadata, audio, and a short conversation summary without falling back to misleading raw transcript text. The browser-reviewed UI density pass tightened topbar navigation, pane/card spacing, Library/inspector headings, workflow tabs, and conversation workspace chrome; the share fallback is a non-blocking selectable URL field rather than a JavaScript prompt. `scripts/smoke_library_deeplink_share_ui.py` now makes the Library deep-link/share checks repeatable with `agent-browser` and persisted JSON/screenshot evidence. The conversation workspace now uses the full viewport with selectable Transcript, First-pass summary, Context workbench, Speakers, and Final readout views; the transcript view loads source transcripts for readouts, parses text into speaker turns when structured utterances are unavailable, and renders a scrollable color-coded transcript frame. The re-transcription workflow includes dry-run preflight and reviewed queue-manifest actions, but queueing still does not start a speech backend or write transcript outputs.
 
+Plan 0010/M1 is closed as the first dogfoodable conversation review loop. The workspace now exposes selected-conversation first-pass summary prepare/submit/status actions, durable speaker/contact review backed by SQLite contact and assignment tables, context workbench provenance with included/excluded sources and warnings, no-write deposition/memory preview queueing, and Review Queue rows that link back to the relevant conversation workflow tab. `scripts/smoke_conversation_review_loop_ui.py` validates the happy path against local runtime state with persisted JSON/screenshot evidence. P09 remains open for broader console productization, share/auth surfaces, richer contact/provenance/deposition sections, and eventual external apply contracts.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -172,11 +174,11 @@ Plans:
 
 Milestone Focus:
 
-- Active milestone M1 is the dogfoodable conversation review loop: a single
+- Closed milestone M1 is the dogfoodable conversation review loop: a single
   selected conversation can move through source-audio verification, transcript
-  review, first-pass summary, speaker/contact review, context workbench,
-  contextual readout, and deposition/memory preview review without unattended
-  external writes.
+  review, scoped first-pass summary actions, speaker/contact review, context
+  workbench, contextual readout inspection, and deposition/memory preview review
+  without unattended external writes.
 - P09 remains the UI/backend lane, but M1 deliberately binds P04 contextual
   routing, P05 deposition/memory preview, and P06 service visibility into the
   operator workflow instead of continuing isolated UI increments.

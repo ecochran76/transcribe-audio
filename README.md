@@ -560,12 +560,15 @@ The API exposes `/api/library`, `/api/conversations`, `/api/review-queue`, `/api
 
 `POST /api/documents/<id>/retranscription/preflight` is the first conversation-workflow action contract: it resolves the source recording blob, backend, planned outputs, and command preview while reporting `will_queue=false`, `will_run_transcription=false`, and `will_write_files=false`. `POST /api/documents/<id>/retranscription/queue` requires `approval_token=QUEUE_RETRANSCRIPTION_JOB` and writes a durable manifest under `~/.local/state/transcribe-audio/retranscription-jobs/` without starting a backend or writing transcript outputs.
 
+The M1 conversation workspace also exposes local-only review-loop actions. `GET /api/conversations/<id>/first-pass-summary`, `/identity-review`, `/context-workbench`, and `/final-preview` return selected-summary state, speaker/contact review state, provenance context, and deposition/memory preview summaries for the selected conversation. `POST /api/conversations/<id>/first-pass-summary/prepare` writes a one-request dry-run manifest scoped to the conversation source transcript; `/submit` still requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, and `/status` can materialize completed readouts back into the store. `POST /api/conversations/<id>/identity-review` records confirm/defer decisions in the user-scoped SQLite contact/speaker tables and queues deferred speaker work under `~/.local/state/transcribe-audio/review-queue/`. `POST /api/conversations/<id>/context-workbench/preview` and `/queue` write local context-run manifests only; the queue path requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers. `POST /api/conversations/<id>/final-preview/queue` requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`, creates a no-write deposition/memory preview, and queues it for human review without Drive, Odoo, Graphiti, or filesystem apply.
+
 Smoke the replay-manifest and registered artifact reader against the live API:
 
 ```bash
 python scripts/smoke_app_replay_manifest.py --cleanup
 python scripts/smoke_app_replay_manifest_ui.py --cleanup
 python scripts/smoke_library_deeplink_share_ui.py
+python scripts/smoke_conversation_review_loop_ui.py
 python scripts/cleanup_app_smokes.py
 ```
 
@@ -575,6 +578,9 @@ The UI smoke writes JSON and screenshot evidence under
 The Library deep-link/share smoke verifies `kind`, `q`, `conversation`, and
 `workflow` URL state, then clicks `Copy workspace link` and requires either a
 successful clipboard status or the non-blocking manual-copy URL field.
+The conversation review-loop smoke opens a contextual conversation deep link and
+checks source audio, transcript turns, first-pass summary, speaker review,
+context provenance, final preview, memory candidates, and URL restoration.
 If the service environment cannot find `agent-browser`, set `AGENT_BROWSER_BIN`
 or install the shim at `~/.local/bin/agent-browser`.
 `cleanup_app_smokes.py` is dry-run by default; add `--apply` to delete matching

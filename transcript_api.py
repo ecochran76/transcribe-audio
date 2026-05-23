@@ -8,6 +8,7 @@ import argparse
 import json
 import mimetypes
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -56,7 +57,9 @@ from transcript_store import (
     legacy_enrichment_queue,
     parse_object_json,
     search_store,
+    stable_id,
     store_dir,
+    utcish_now,
 )
 from transcribe_common import TranscriptionError
 
@@ -78,6 +81,11 @@ MAX_SMOKE_EVIDENCE_BYTES = 5 * 1024 * 1024
 RETRANSCRIPTION_PREFLIGHT_TOKEN = "QUEUE_RETRANSCRIPTION_JOB"
 RETRANSCRIPTION_BACKENDS = {"faster_whisper", "assemblyai"}
 RETRANSCRIPTION_JOB_DIRNAME = "retranscription-jobs"
+CONTEXT_WORKBENCH_TOKEN = "QUEUE_CONTEXT_WORKBENCH_RUN"
+DEPOSITION_MEMORY_PREVIEW_TOKEN = "QUEUE_DEPOSITION_MEMORY_PREVIEW"
+FIRST_PASS_SUMMARY_SUBMIT_TOKEN = "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
+CONTEXT_WORKBENCH_DIRNAME = "conversation-context-runs"
+CONVERSATION_PREVIEW_DIRNAME = "conversation-preview-decisions"
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -263,7 +271,356 @@ def list_conversations(
     }
 
 
-def get_conversation_detail(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
+def compact_label(value: Any, fallback: str = "") -> str:
+    if isinstance(value, dict):
+        for key in ("name", "label", "email", "title", "text"):
+            text = str(value.get(key) or "").strip()
+            if text:
+                return text
+        return fallback
+    return str(value or fallback).strip()
+
+
+def truncate_text(value: Any, limit: int = 280) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 1].rstrip()}..."
+
+
+def speaker_labels_from_transcript(document: dict[str, Any] | None) -> list[str]:
+    if not document:
+        return []
+    payload = document.get("json_payload") if isinstance(document.get("json_payload"), dict) else {}
+    labels: list[str] = []
+    for utterance in payload.get("utterances") or []:
+        if not isinstance(utterance, dict):
+            continue
+        label = compact_label(utterance.get("speaker"), "Speaker")
+        if label and label not in labels:
+            labels.append(label)
+    text = str(payload.get("transcript_text") or document.get("text_content") or "")
+    for line in text.splitlines():
+        match = re.match(r"^(.{1,64}?)\s+\[[^\]]+\]:", line)
+        if not match:
+            continue
+        label = match.group(1).strip()
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
+def contact_candidate_from_label(label: str, *, source: str, confidence: float, evidence: str = "") -> dict[str, Any]:
+    return {
+        "contact_id": stable_id("contact-candidate", label.lower()),
+        "label": label,
+        "email": "",
+        "source": source,
+        "confidence": confidence,
+        "evidence": evidence,
+    }
+
+
+def contact_row_summary(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "contact_id": row["id"],
+        "label": row["label"],
+        "email": row["email"],
+        "external_ref": row["external_ref"],
+        "metadata": parse_object_json(row["metadata_json"]),
+        "source": "contact_table",
+        "confidence": 0.75,
+        "evidence": "Previously reviewed contact record.",
+    }
+
+
+def assignment_row_summary(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "assignment_id": row["id"],
+        "conversation_key": row["conversation_key"],
+        "document_id": row["document_id"],
+        "speaker_label": row["speaker_label"],
+        "contact_id": row["contact_id"],
+        "contact_label": row["contact_label"],
+        "status": row["status"],
+        "confidence": row["confidence"],
+        "evidence": parse_object_json(row["evidence_json"]) if row["evidence_json"].startswith("{") else json.loads(row["evidence_json"] or "[]"),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def conversation_identity_review(
+    *,
+    conversation_key: str,
+    source_document: dict[str, Any] | None,
+    participants: list[Any],
+    root: Optional[Path] = None,
+) -> dict[str, Any]:
+    speaker_labels = speaker_labels_from_transcript(source_document)
+    participant_candidates: list[dict[str, Any]] = []
+    for participant in participants:
+        label = compact_label(participant)
+        if not label:
+            continue
+        candidate = contact_candidate_from_label(
+            label,
+            source="readout_participants",
+            confidence=0.55,
+            evidence="Extracted participant from stored readout.",
+        )
+        if candidate["label"] not in {item["label"] for item in participant_candidates}:
+            participant_candidates.append(candidate)
+    with connect(root) as con:
+        init_db(con)
+        contact_rows = con.execute("SELECT * FROM contacts ORDER BY updated_at DESC, label LIMIT 50").fetchall()
+        assignment_rows = con.execute(
+            "SELECT * FROM speaker_assignments WHERE conversation_key = ? ORDER BY speaker_label",
+            (conversation_key,),
+        ).fetchall()
+    contacts = [contact_row_summary(row) for row in contact_rows]
+    assignments = {row["speaker_label"]: assignment_row_summary(row) for row in assignment_rows}
+    speakers = []
+    for label in speaker_labels:
+        assignment = assignments.get(label)
+        candidates = []
+        seen_labels: set[str] = set()
+        for candidate in [*participant_candidates, *contacts]:
+            candidate_label = str(candidate.get("label") or "")
+            if not candidate_label or candidate_label in seen_labels:
+                continue
+            seen_labels.add(candidate_label)
+            candidates.append(candidate)
+        speakers.append(
+            {
+                "speaker_label": label,
+                "status": assignment.get("status") if assignment else "pending",
+                "assignment": assignment,
+                "candidates": candidates[:8],
+                "review_required": not assignment or assignment.get("status") not in {"confirmed", "deferred"},
+            }
+        )
+    return {
+        "schema_version": "transcribe-audio.identity-review.v1",
+        "conversation_key": conversation_key,
+        "source_document_id": source_document.get("id") if source_document else "",
+        "speakers": speakers,
+        "contacts": contacts[:20],
+        "participants": participants,
+        "pending_count": sum(1 for speaker in speakers if speaker["review_required"]),
+        "confirmed_count": sum(1 for speaker in speakers if speaker["status"] == "confirmed"),
+        "deferred_count": sum(1 for speaker in speakers if speaker["status"] == "deferred"),
+        "will_execute_external_action": False,
+        "will_attempt_automatic_disambiguation": False,
+    }
+
+
+def artifact_path_for_document(document: dict[str, Any] | None) -> Path | None:
+    if not document:
+        return None
+    for key in ("source_path", "stored_path"):
+        text = str(document.get(key) or "")
+        if not text:
+            continue
+        path = Path(text).expanduser()
+        if path.exists() and path.is_file():
+            return path
+    return None
+
+
+def path_is_under(path: Path, roots: list[Path]) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        return False
+    for root in roots:
+        try:
+            resolved.relative_to(root.expanduser().resolve())
+            return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def safe_read_runtime_json(path_text: str, *, root: Optional[Path], state_root: Optional[Path]) -> dict[str, Any]:
+    if not path_text:
+        return {}
+    path = Path(path_text).expanduser()
+    roots = [store_dir(root), DEFAULT_STORE_DIR.expanduser()]
+    if state_root:
+        roots.append(state_root.expanduser())
+    if not path.exists() or not path.is_file() or not path_is_under(path, roots):
+        return {}
+    return read_json_file(path)
+
+
+def compact_provenance_source(source: dict[str, Any]) -> dict[str, Any]:
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    return {
+        "source_id": str(source.get("source_id") or ""),
+        "source_type": str(source.get("source_type") or ""),
+        "label": truncate_text(source.get("label"), 160),
+        "snippet": truncate_text(source.get("snippet"), 260),
+        "uri": str(source.get("uri") or ""),
+        "quality_status": str(metadata.get("quality_status") or ""),
+        "quality_score": metadata.get("quality_score"),
+        "quality_reason": truncate_text(metadata.get("quality_reason"), 220),
+    }
+
+
+def contextualization_for_document(
+    contextual_document: dict[str, Any] | None,
+    *,
+    root: Optional[Path],
+    state_root: Optional[Path],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not contextual_document:
+        return {}, {}
+    metadata = contextual_document.get("metadata") if isinstance(contextual_document.get("metadata"), dict) else {}
+    payload = contextual_document.get("json_payload") if isinstance(contextual_document.get("json_payload"), dict) else {}
+    contextualization = (
+        metadata.get("contextualization")
+        if isinstance(metadata.get("contextualization"), dict)
+        else payload.get("contextualization")
+        if isinstance(payload.get("contextualization"), dict)
+        else {}
+    )
+    provider = metadata.get("provider") if isinstance(metadata.get("provider"), dict) else {}
+    route_payload = safe_read_runtime_json(str(provider.get("route_decision_path") or ""), root=root, state_root=state_root)
+    return contextualization, route_payload
+
+
+def context_workbench_state(
+    *,
+    detail: dict[str, Any],
+    root: Optional[Path],
+    state_root: Optional[Path],
+) -> dict[str, Any]:
+    contextual_document = detail.get("contextual_readout_document")
+    contextualization, route_payload = contextualization_for_document(contextual_document, root=root, state_root=state_root)
+    selected = (
+        contextualization.get("selected_candidate")
+        if isinstance(contextualization.get("selected_candidate"), dict)
+        else route_payload.get("selected_candidate")
+        if isinstance(route_payload.get("selected_candidate"), dict)
+        else {}
+    )
+    route_pack = route_payload.get("provenance_pack") if isinstance(route_payload.get("provenance_pack"), dict) else {}
+    included = contextualization.get("supporting_context_sources") or route_pack.get("sources") or []
+    excluded = route_pack.get("excluded_sources") or []
+    warnings = []
+    for source in [contextualization.get("warnings") or [], route_payload.get("warnings") or [], route_pack.get("warnings") or []]:
+        for item in source:
+            text = str(item or "").strip()
+            if text and text not in warnings:
+                warnings.append(text)
+    excluded_count = contextualization.get("excluded_source_count")
+    if not isinstance(excluded_count, int):
+        excluded_count = len(excluded)
+    status = "contextual_readout_ready" if contextual_document else "needs_context"
+    return {
+        "schema_version": "transcribe-audio.context-workbench.v1",
+        "status": status,
+        "selected_candidate": selected,
+        "confidence": selected.get("confidence"),
+        "included_sources": [compact_provenance_source(source) for source in included if isinstance(source, dict)][:20],
+        "excluded_sources": [compact_provenance_source(source) for source in excluded if isinstance(source, dict)][:20],
+        "included_source_count": len(included) if isinstance(included, list) else 0,
+        "excluded_source_count": excluded_count,
+        "warnings": warnings,
+        "summary_document_id": (detail.get("summary_document") or {}).get("id") if detail.get("summary_document") else "",
+        "contextual_readout_document_id": contextual_document.get("id") if contextual_document else "",
+        "route_status": contextualization.get("route_status") or route_payload.get("status") or "",
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+        "future_required_approval_token_for_queue": CONTEXT_WORKBENCH_TOKEN,
+    }
+
+
+def deposition_preview_summary(path: Path | None, payload: dict[str, Any]) -> dict[str, Any]:
+    actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+    candidates = payload.get("memory_candidates") if isinstance(payload.get("memory_candidates"), list) else []
+    warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+    return {
+        "schema_version": "transcribe-audio.deposition-memory-preview-summary.v1",
+        "status": "preview_ready" if payload else "needs_contextual_readout",
+        "preview_path": str(path) if path else "",
+        "review_required": bool(payload.get("review_required", True)) if payload else True,
+        "selected_candidate": payload.get("selected_candidate") if isinstance(payload.get("selected_candidate"), dict) else {},
+        "warnings": [str(item) for item in warnings],
+        "actions": [
+            {
+                "action_type": action.get("action_type"),
+                "target_kind": action.get("target_kind"),
+                "target_id": action.get("target_id"),
+                "status": action.get("status"),
+                "writes_enabled": bool((action.get("metadata") or {}).get("writes_enabled")),
+            }
+            for action in actions
+            if isinstance(action, dict)
+        ],
+        "memory_candidates": [
+            {
+                "candidate_id": candidate.get("candidate_id"),
+                "kind": candidate.get("kind"),
+                "status": candidate.get("status"),
+                "target_group_id": candidate.get("target_group_id"),
+                "evidence": truncate_text(candidate.get("evidence"), 220),
+            }
+            for candidate in candidates
+            if isinstance(candidate, dict)
+        ],
+        "action_count": len(actions),
+        "memory_candidate_count": len(candidates),
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+        "future_required_approval_token_for_queue": DEPOSITION_MEMORY_PREVIEW_TOKEN,
+    }
+
+
+def existing_deposition_preview_for(contextual_document: dict[str, Any] | None) -> tuple[Path | None, dict[str, Any]]:
+    readout_path = artifact_path_for_document(contextual_document)
+    if not readout_path:
+        return None, {}
+    name = readout_path.name
+    if name.endswith(".contextual.readout.json"):
+        candidate = readout_path.with_name(name[: -len(".contextual.readout.json")] + ".deposit-preview.json")
+    elif name.endswith(".readout.json"):
+        candidate = readout_path.with_name(name[: -len(".readout.json")] + ".deposit-preview.json")
+    else:
+        candidate = readout_path.with_suffix(".deposit-preview.json")
+    if candidate.exists() and candidate.is_file():
+        return candidate, read_json_file(candidate)
+    return None, {}
+
+
+def final_preview_state(detail: dict[str, Any]) -> dict[str, Any]:
+    path, payload = existing_deposition_preview_for(detail.get("contextual_readout_document"))
+    return deposition_preview_summary(path, payload)
+
+
+def first_pass_summary_state(detail: dict[str, Any]) -> dict[str, Any]:
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    summary_document = detail.get("summary_document") or {}
+    status = "summary_ready" if summary_document else "needs_summary"
+    return {
+        "schema_version": "transcribe-audio.first-pass-summary-workspace.v1",
+        "status": status,
+        "source_document_id": source_document.get("id") or "",
+        "summary_document_id": summary_document.get("id") or "",
+        "summary_ready": bool(summary_document),
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+        "future_required_approval_token_for_submit": FIRST_PASS_SUMMARY_SUBMIT_TOKEN,
+    }
+
+
+def get_conversation_detail(
+    document_id: str,
+    *,
+    root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+) -> dict[str, Any]:
     with connect(root) as con:
         init_db(con)
         selected_row = con.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
@@ -297,7 +654,13 @@ def get_conversation_detail(document_id: str, *, root: Optional[Path] = None) ->
                 if participant not in participants:
                     participants.append(participant)
     summary = conversation_summary(selected_key, group_rows)
-    return {
+    identity_review = conversation_identity_review(
+        conversation_key=selected_key,
+        source_document=transcript_detail,
+        participants=participants,
+        root=root,
+    )
+    detail_payload = {
         "schema_version": "transcribe-audio.conversation-detail.v1",
         "conversation": summary,
         "selected_document": selected_detail,
@@ -306,8 +669,28 @@ def get_conversation_detail(document_id: str, *, root: Optional[Path] = None) ->
         "contextual_readout_document": contextual_detail,
         "participants": participants,
         "media_blob": summary["media_blob"],
+        "first_pass_summary": {},
+        "identity_review": identity_review,
+        "context_workbench": {},
+        "final_preview": {},
+        "review_state": {
+            "speaker_pending_count": identity_review["pending_count"],
+            "context_status": "contextual_readout_ready" if contextual_detail else "needs_context",
+            "deposition_preview_status": "unknown",
+        },
         "will_read_artifact_files": False,
         "will_return_artifact_content": True,
+    }
+    detail_payload["first_pass_summary"] = first_pass_summary_state(detail_payload)
+    detail_payload["context_workbench"] = context_workbench_state(
+        detail=detail_payload,
+        root=root,
+        state_root=state_root,
+    )
+    detail_payload["final_preview"] = final_preview_state(detail_payload)
+    detail_payload["review_state"]["deposition_preview_status"] = detail_payload["final_preview"]["status"]
+    return {
+        **detail_payload,
     }
 
 
@@ -379,6 +762,317 @@ def get_related_documents(document_id: str, *, root: Optional[Path] = None) -> d
         "source_artifact_path": source_artifact_path,
         "source_document": document_summary(source_row) if source_row else None,
         "derived_documents": [document_summary(derived_row) for derived_row in derived_rows],
+    }
+
+
+def review_queue_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / "review-queue"
+
+
+def conversation_context_runs_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_WORKBENCH_DIRNAME
+
+
+def conversation_preview_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONVERSATION_PREVIEW_DIRNAME
+
+
+def record_speaker_identity_review(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    speaker_label: str,
+    action: str,
+    contact_label: str = "",
+    contact_id: str = "",
+    email: str = "",
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    if action not in {"confirm", "defer"}:
+        raise ValueError("Speaker identity action must be confirm or defer.")
+    if not speaker_label.strip():
+        raise ValueError("Missing required speaker_label.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str(detail["conversation"]["key"])
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    now = utcish_now()
+    assignment_id = stable_id("speaker-assignment", conversation_key, speaker_label)
+    resolved_contact_id = ""
+    resolved_contact_label = ""
+    status = "deferred"
+    evidence: list[dict[str, Any]] = []
+    if action == "confirm":
+        resolved_contact_label = contact_label.strip() or speaker_label.strip()
+        resolved_contact_id = contact_id.strip() or stable_id("contact", resolved_contact_label.lower(), email.lower())
+        status = "confirmed"
+        evidence.append({"source": "operator_review", "note": note})
+    else:
+        evidence.append({"source": "operator_defer", "note": note})
+    with connect(root) as con:
+        init_db(con)
+        if action == "confirm":
+            con.execute(
+                """
+                INSERT INTO contacts (id, label, email, external_ref, metadata_json, created_at, updated_at)
+                VALUES (?, ?, ?, '', '{}', ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  label = excluded.label,
+                  email = excluded.email,
+                  updated_at = excluded.updated_at
+                """,
+                (resolved_contact_id, resolved_contact_label, email.strip(), now, now),
+            )
+        con.execute(
+            """
+            INSERT INTO speaker_assignments (
+                id, conversation_key, document_id, speaker_label, contact_id, contact_label,
+                status, confidence, evidence_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(conversation_key, speaker_label) DO UPDATE SET
+              document_id = excluded.document_id,
+              contact_id = excluded.contact_id,
+              contact_label = excluded.contact_label,
+              status = excluded.status,
+              confidence = excluded.confidence,
+              evidence_json = excluded.evidence_json,
+              updated_at = excluded.updated_at
+            """,
+            (
+                assignment_id,
+                conversation_key,
+                source_document.get("id") or document_id,
+                speaker_label,
+                resolved_contact_id,
+                resolved_contact_label,
+                status,
+                1.0 if action == "confirm" else None,
+                json.dumps(evidence, sort_keys=True),
+                now,
+                now,
+            ),
+        )
+        audit_id = stable_id("speaker-audit", assignment_id, now, str(uuid.uuid4()))
+        con.execute(
+            """
+            INSERT INTO speaker_assignment_audits (
+                id, assignment_id, conversation_key, document_id, speaker_label,
+                action, reviewer, note, payload_json, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                audit_id,
+                assignment_id,
+                conversation_key,
+                source_document.get("id") or document_id,
+                speaker_label,
+                action,
+                reviewer,
+                note,
+                json.dumps(
+                    {
+                        "contact_id": resolved_contact_id,
+                        "contact_label": resolved_contact_label,
+                        "email": email,
+                    },
+                    sort_keys=True,
+                ),
+                now,
+            ),
+        )
+        con.commit()
+    if action == "defer":
+        queue_path = review_queue_dir(state_root) / f"{assignment_id}.speaker-review.json"
+        write_json_file(
+            queue_path,
+            {
+                "schema_version": "transcribe-audio.speaker-review-item.v1",
+                "id": assignment_id,
+                "type": "speaker_identity_review",
+                "status": "pending",
+                "created_at": now,
+                "document_id": source_document.get("id") or document_id,
+                "representative_document_id": document_id,
+                "conversation_key": conversation_key,
+                "workflow_stage": "speakers",
+                "speaker_label": speaker_label,
+                "reason": note or "Speaker/contact identity was deferred for human review.",
+                "will_execute_external_action": False,
+            },
+        )
+    refreshed = get_conversation_detail(document_id, root=root, state_root=state_root)
+    return {
+        "schema_version": "transcribe-audio.speaker-review-action.v1",
+        "status": status,
+        "assignment_id": assignment_id,
+        "audit_recorded": True,
+        "identity_review": refreshed.get("identity_review"),
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def context_workbench_preview(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    queue: bool = False,
+    approval_token: str = "",
+) -> dict[str, Any]:
+    if queue and approval_token != CONTEXT_WORKBENCH_TOKEN:
+        raise ValueError(f"Queueing a context workbench run requires approval_token={CONTEXT_WORKBENCH_TOKEN}.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    summary_document = detail.get("summary_document") or {}
+    contextual_document = detail.get("contextual_readout_document") or {}
+    now = utcish_now()
+    run_id = stable_id("context-workbench", document_id, now, str(uuid.uuid4()))
+    steps = [
+        {
+            "name": "first_pass_summary",
+            "status": "ready" if summary_document else "missing",
+            "document_id": summary_document.get("id") or "",
+        },
+        {
+            "name": "route_context",
+            "status": "preview_ready" if summary_document else "blocked",
+            "will_execute_provider": False,
+            "will_write_external_state": False,
+        },
+        {
+            "name": "contextual_reread",
+            "status": "materialized" if contextual_document else "queued" if queue else "preview_ready",
+            "document_id": contextual_document.get("id") or "",
+            "will_execute_provider": False,
+            "will_write_external_state": False,
+        },
+    ]
+    manifest = {
+        "schema_version": "transcribe-audio.context-workbench-run.v1",
+        "run_id": run_id,
+        "status": "queued" if queue else "previewed",
+        "created_at": now,
+        "document_id": document_id,
+        "source_document_id": source_document.get("id") or "",
+        "summary_document_id": summary_document.get("id") or "",
+        "contextual_readout_document_id": contextual_document.get("id") or "",
+        "conversation_key": detail["conversation"]["key"],
+        "workflow_stage": "context",
+        "steps": steps,
+        "context_workbench": detail.get("context_workbench") or {},
+        "will_execute_external_action": False,
+        "will_run_provider": False,
+        "will_perform_external_write": False,
+        "future_required_approval_token_for_materialize": "MATERIALIZE_CONTEXTUAL_READOUT",
+    }
+    path = conversation_context_runs_dir(state_root) / f"{now.replace(':', '-')}-{run_id}.json"
+    write_json_file(path, manifest)
+    return {
+        "schema_version": "transcribe-audio.context-workbench-action.v1",
+        "status": manifest["status"],
+        "run_id": run_id,
+        "manifest": str(path),
+        "steps": steps,
+        "context_workbench": manifest["context_workbench"],
+        "will_execute_external_action": False,
+        "will_run_provider": False,
+        "will_perform_external_write": False,
+    }
+
+
+def route_path_for_contextual_document(document: dict[str, Any] | None) -> Path | None:
+    if not document:
+        return None
+    metadata = document.get("metadata") if isinstance(document.get("metadata"), dict) else {}
+    provider = metadata.get("provider") if isinstance(metadata.get("provider"), dict) else {}
+    path_text = str(provider.get("route_decision_path") or "")
+    if not path_text:
+        return None
+    path = Path(path_text).expanduser()
+    return path if path.exists() and path.is_file() else None
+
+
+def create_deposition_memory_preview(
+    detail: dict[str, Any],
+    *,
+    state_root: Path,
+) -> tuple[Path, dict[str, Any]]:
+    contextual_document = detail.get("contextual_readout_document")
+    readout_path = artifact_path_for_document(contextual_document)
+    if not readout_path:
+        raise TranscriptStoreError("No contextual readout artifact is available for preview.")
+    from deposition_preview import generate_deposition_preview
+
+    preview_root = conversation_preview_dir(state_root) / "previews"
+    route_path = route_path_for_contextual_document(contextual_document)
+    transcript_path = artifact_path_for_document(detail.get("transcript_document"))
+    args = argparse.Namespace(
+        readout=readout_path,
+        route=route_path,
+        transcript=transcript_path,
+        output_dir=preview_root,
+        local_root=state_root.expanduser() / "deposition-preview-target",
+        drive_folder_id="",
+        drive_profile="",
+        odoo_profile="",
+        odoo_model="",
+        odoo_record_id="",
+        graphiti_group="transcribe_audio_main",
+        include_transcript=False,
+    )
+    preview_path = generate_deposition_preview(args)
+    return preview_path, read_json_file(preview_path)
+
+
+def queue_deposition_memory_preview(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    approval_token: str,
+) -> dict[str, Any]:
+    if approval_token != DEPOSITION_MEMORY_PREVIEW_TOKEN:
+        raise ValueError(f"Queueing preview review requires approval_token={DEPOSITION_MEMORY_PREVIEW_TOKEN}.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    preview_path, preview_payload = create_deposition_memory_preview(detail, state_root=state_root)
+    summary = deposition_preview_summary(preview_path, preview_payload)
+    now = utcish_now()
+    item_id = stable_id("deposition-memory-preview", document_id, str(preview_path), now)
+    queue_path = review_queue_dir(state_root) / f"{item_id}.conversation-preview-review.json"
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    write_json_file(
+        queue_path,
+        {
+            "schema_version": "transcribe-audio.conversation-preview-review.v1",
+            "id": item_id,
+            "type": "deposition_memory_preview",
+            "status": "pending",
+            "created_at": now,
+            "document_id": source_document.get("id") or document_id,
+            "representative_document_id": document_id,
+            "conversation_key": detail["conversation"]["key"],
+            "workflow_stage": "output",
+            "label": detail["conversation"]["title"],
+            "reason": "Review deposition and memory-harvest preview before any external apply.",
+            "preview_path": str(preview_path),
+            "action_count": summary["action_count"],
+            "memory_candidate_count": summary["memory_candidate_count"],
+            "will_execute_external_action": False,
+            "will_perform_external_write": False,
+        },
+    )
+    return {
+        "schema_version": "transcribe-audio.deposition-memory-preview-queue.v1",
+        "status": "queued_for_review",
+        "review_item_path": str(queue_path),
+        "review_item_id": item_id,
+        "final_preview": summary,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
     }
 
 
@@ -1617,7 +2311,16 @@ def filename_conflict_summary(state_root: Path) -> dict[str, Any]:
     }
 
 
-def route_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+def document_id_for_source_path(root: Optional[Path], source_path: str) -> str:
+    if not source_path:
+        return ""
+    with connect(root) as con:
+        init_db(con)
+        row = con.execute("SELECT id FROM documents WHERE source_path = ? LIMIT 1", (source_path,)).fetchone()
+    return str(row["id"]) if row else ""
+
+
+def route_review_items(state_root: Path, *, store_root: Optional[Path] = None, limit: int = 50) -> list[dict[str, Any]]:
     review_dir = state_root / "review-queue"
     paths = sorted(review_dir.glob("*.route-review.json"), key=lambda path: path.stat().st_mtime, reverse=True)
     items: list[dict[str, Any]] = []
@@ -1627,6 +2330,7 @@ def route_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, A
         route_exists = bool(str(route_path)) and route_path.exists()
         route_payload = read_json_file(route_path) if route_exists else {}
         selected = route_payload.get("selected_candidate") if isinstance(route_payload.get("selected_candidate"), dict) else {}
+        source_transcript_path = str(route_payload.get("source_transcript_path") or "")
         item = {
             "id": path.stem.removesuffix(".route-review"),
             "bucket": "route_reviews",
@@ -1640,8 +2344,71 @@ def route_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, A
             "status": "pending" if route_exists else "stale_reference",
             "confidence": selected.get("confidence"),
             "target_kind": selected.get("target_kind") or "",
+            "document_id": document_id_for_source_path(store_root, source_transcript_path) if store_root else "",
+            "workflow_stage": "context",
         }
         items.append(item)
+    return items
+
+
+def speaker_review_items(state_root: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+    paths = sorted(
+        review_queue_dir(state_root).glob("*.speaker-review.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    items: list[dict[str, Any]] = []
+    for path in paths[:limit]:
+        payload = read_json_file(path)
+        items.append(
+            {
+                "id": str(payload.get("id") or path.stem),
+                "bucket": "speaker_ids",
+                "type": "speaker_identity_review",
+                "label": str(payload.get("speaker_label") or "Speaker identity"),
+                "reason": str(payload.get("reason") or "Speaker/contact identity needs review."),
+                "created_at": str(payload.get("created_at") or ""),
+                "review_path": str(path),
+                "status": str(payload.get("status") or "pending"),
+                "document_id": str(payload.get("document_id") or payload.get("representative_document_id") or ""),
+                "representative_document_id": str(payload.get("representative_document_id") or ""),
+                "workflow_stage": str(payload.get("workflow_stage") or "speakers"),
+                "confidence": None,
+                "target_kind": "contact",
+            }
+        )
+    return items
+
+
+def deposition_memory_preview_items(state_root: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+    paths = sorted(
+        review_queue_dir(state_root).glob("*.conversation-preview-review.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    items: list[dict[str, Any]] = []
+    for path in paths[:limit]:
+        payload = read_json_file(path)
+        items.append(
+            {
+                "id": str(payload.get("id") or path.stem),
+                "bucket": "deposition_memory_preview",
+                "type": "deposition_memory_preview",
+                "label": str(payload.get("label") or "Deposition and memory preview"),
+                "reason": str(payload.get("reason") or "Preview needs operator review before apply."),
+                "created_at": str(payload.get("created_at") or ""),
+                "review_path": str(path),
+                "artifact_path": str(payload.get("preview_path") or ""),
+                "status": str(payload.get("status") or "pending"),
+                "document_id": str(payload.get("document_id") or payload.get("representative_document_id") or ""),
+                "representative_document_id": str(payload.get("representative_document_id") or ""),
+                "workflow_stage": str(payload.get("workflow_stage") or "output"),
+                "action_count": int(payload.get("action_count") or 0),
+                "memory_candidate_count": int(payload.get("memory_candidate_count") or 0),
+                "confidence": None,
+                "target_kind": "deposition_memory_preview",
+            }
+        )
     return items
 
 
@@ -1699,8 +2466,10 @@ def app_intelligence_human_review_items(state_root: Path, *, limit: int = 50) ->
 
 def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optional[Path] = None, limit: int = 50) -> dict[str, Any]:
     runtime_state_root = (state_root or DEFAULT_STATE_DIR).expanduser()
-    route_items = route_review_items(runtime_state_root, limit=limit)
+    route_items = route_review_items(runtime_state_root, store_root=store_root, limit=limit)
     app_human_review_items = app_intelligence_human_review_items(runtime_state_root, limit=limit)
+    speaker_items = speaker_review_items(runtime_state_root, limit=limit)
+    preview_items = deposition_memory_preview_items(runtime_state_root, limit=limit)
     stale_count = sum(1 for item in route_items if not item["route_decision_exists"])
     actionable_count = len(route_items) - stale_count
     filename_bucket = filename_conflict_summary(runtime_state_root)
@@ -1742,24 +2511,34 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
         "pending_apply_count": sum(1 for item in app_human_review_items if item.get("status") == "pending_apply"),
         "needs_review_count": sum(1 for item in app_human_review_items if item.get("status") == "needs_human_review"),
     }
+    preview_open_count = sum(1 for item in preview_items if item.get("status") not in {"resolved", "approved", "rejected"})
+    memory_candidate_count = sum(int(item.get("memory_candidate_count") or 0) for item in preview_items)
+    speaker_open_count = sum(1 for item in speaker_items if item.get("status") not in {"resolved", "confirmed"})
     buckets = [
         route_bucket,
         app_human_review_bucket,
         filename_bucket,
         legacy_bucket,
         {
+            "id": "deposition_memory_preview",
+            "label": "Deposition previews",
+            "count": preview_open_count,
+            "status": "pending" if preview_open_count else "clear",
+            "detail": f"{preview_open_count} deposition/memory preview item(s) are queued for local human review.",
+        },
+        {
             "id": "memory_harvest",
             "label": "Memory harvest",
-            "count": 0,
-            "status": "gated",
-            "detail": "Requires explicit review file approval before live Graphiti writes.",
+            "count": memory_candidate_count,
+            "status": "gated" if memory_candidate_count else "clear",
+            "detail": "Preview candidates stay review-gated; live Graphiti writes require a separate approved apply.",
         },
         {
             "id": "speaker_ids",
             "label": "Speaker IDs",
-            "count": 0,
-            "status": "planned",
-            "detail": "Contact dedupe and speaker assignment tables are planned in P09.",
+            "count": speaker_open_count,
+            "status": "pending" if speaker_open_count else "clear",
+            "detail": f"{speaker_open_count} speaker/contact review item(s) are queued from conversation workspaces.",
         },
     ]
     return {
@@ -1767,7 +2546,7 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
         "store_dir": str(store_dir(store_root)),
         "limit": limit,
         "buckets": buckets,
-        "items": [*app_human_review_items, *route_items][:limit],
+        "items": [*preview_items, *speaker_items, *app_human_review_items, *route_items][:limit],
         "total_open": sum(int(bucket.get("count") or 0) for bucket in buckets),
     }
 
@@ -1775,6 +2554,12 @@ def review_queue_summary(*, state_root: Optional[Path] = None, store_root: Optio
 def default_prepare_manifest_path(state_root: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     return state_root.expanduser() / "first-pass-summary-batches" / f"first-pass-summary-prepare-{stamp}.json"
+
+
+def selected_first_pass_summary_manifest_path(state_root: Path, document_id: str) -> Path:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_doc_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", document_id)[:48] or "conversation"
+    return state_root.expanduser() / "first-pass-summary-batches" / f"first-pass-summary-selected-{safe_doc_id}-{stamp}.json"
 
 
 def resolve_batch_manifest_path(state_root: Path, path_text: str) -> Path:
@@ -1893,6 +2678,194 @@ def list_first_pass_summary_batch_manifests(*, state_root: Path, limit: int = 10
     }
 
 
+def first_pass_summary_queue_item(detail: dict[str, Any], *, model: str, store_readouts: bool) -> dict[str, Any]:
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    if not source_document:
+        raise TranscriptStoreError("No source transcript is linked to this conversation.")
+    artifact_path = artifact_path_for_document(source_document)
+    if artifact_path is None:
+        raise TranscriptStoreError("No readable transcript artifact is available for first-pass summary preparation.")
+    payload = source_document.get("json_payload") if isinstance(source_document.get("json_payload"), dict) else {}
+    legacy = payload.get("legacy_import") if isinstance(payload.get("legacy_import"), dict) else {}
+    source_path = str(artifact_path.expanduser().resolve())
+    command = ["python", "summarize_transcript.py", source_path, "--provider", "openai-compatible"]
+    if model:
+        command.extend(["--model", model])
+    if store_readouts:
+        command.append("--store")
+    return {
+        "id": source_document.get("id") or "",
+        "title": source_document.get("title") or "",
+        "generated_at": source_document.get("generated_at") or "",
+        "source_path": source_path,
+        "stored_path": source_document.get("stored_path") or "",
+        "legacy_source_path": str(legacy.get("source_path") or ""),
+        "legacy_source_sha256": str(legacy.get("source_sha256") or ""),
+        "source_media_path": str(payload.get("source_media_path") or ""),
+        "has_media_blob": bool((detail.get("media_blob") or {}).get("id")),
+        "readout_count": 1 if detail.get("summary_document") else 0,
+        "contextual_readout_count": 1 if detail.get("contextual_readout_document") else 0,
+        "pending_first_pass_readout": not bool(detail.get("summary_document")),
+        "command": command,
+    }
+
+
+def validate_first_pass_manifest_for_conversation(
+    *,
+    manifest: dict[str, Any],
+    detail: dict[str, Any],
+) -> None:
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    source_id = str(source_document.get("id") or "")
+    if not source_id:
+        raise ValueError("Conversation has no source transcript for this first-pass summary manifest.")
+    queue = manifest.get("queue") if isinstance(manifest.get("queue"), dict) else {}
+    queue_items = queue.get("items") if isinstance(queue.get("items"), list) else []
+    batch_payload = manifest.get("batch_payload") if isinstance(manifest.get("batch_payload"), dict) else {}
+    requests = batch_payload.get("requests") if isinstance(batch_payload.get("requests"), list) else []
+    queue_ids = [str(item.get("id") or "") for item in queue_items if isinstance(item, dict)]
+    request_ids = [
+        str((request.get("metadata") or {}).get("transcriptDocumentId") or "")
+        for request in requests
+        if isinstance(request, dict) and isinstance(request.get("metadata"), dict)
+    ]
+    scoped_ids = [value for value in [*queue_ids, *request_ids] if value]
+    if scoped_ids != [source_id] * len(scoped_ids) or not scoped_ids:
+        raise ValueError("Manifest is not scoped to the selected conversation source transcript.")
+
+
+def prepare_selected_first_pass_summary(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    store: bool = True,
+    model: str = "",
+) -> dict[str, Any]:
+    from scripts import auracall_legacy_enrichment_batch
+
+    args = argparse.Namespace(env_file=env_file, base_url=None, api_key=None, model=model or None, dispatch_team=None)
+    env = auracall_legacy_enrichment_batch.runtime_env(args)
+    dispatch_team = auracall_legacy_enrichment_batch.resolve_dispatch_team(args, env)
+    resolved_model = auracall_legacy_enrichment_batch.resolve_model(args, env, dispatch_team)
+    detail = get_conversation_detail(document_id, root=store_root, state_root=state_root)
+    item = first_pass_summary_queue_item(detail, model=resolved_model, store_readouts=store)
+    request_payload = auracall_legacy_enrichment_batch.create_request(item, resolved_model, dispatch_team)
+    batch_payload = {
+        "metadata": {
+            "workflow": "transcribe-audio-first-pass-summary",
+            "createdAt": auracall_legacy_enrichment_batch.utc_now_iso(),
+            "model": resolved_model,
+            "dispatchTeam": dispatch_team,
+            "storeDir": str(store_dir(store_root)),
+            "selectedCount": 1,
+            "duplicateCount": 0,
+            "scopedDocumentId": item["id"],
+            "conversationKey": detail["conversation"]["key"],
+        },
+        "limits": {
+            "maxConcurrentRuns": auracall_legacy_enrichment_batch.DEFAULT_MAX_CONCURRENT_RUNS,
+            "maxBrowserInteractionsPerMinute": auracall_legacy_enrichment_batch.DEFAULT_MAX_BROWSER_INTERACTIONS_PER_MINUTE,
+        },
+        "requests": [request_payload],
+    }
+    if dispatch_team:
+        batch_payload["dispatch"] = {
+            "team": dispatch_team,
+            "mode": "next_available",
+            "projectSync": "none",
+        }
+    manifest = {
+        "object": "transcribe_audio_auracall_batch_manifest",
+        "created_at": auracall_legacy_enrichment_batch.utc_now_iso(),
+        "model": resolved_model,
+        "dispatch_team": dispatch_team,
+        "dry_run": True,
+        "store": bool(store),
+        "batch_url": auracall_legacy_enrichment_batch.resolve_batch_url(args, env),
+        "response_base_url": auracall_legacy_enrichment_batch.resolve_base_url(args, env),
+        "queue": {
+            "store_dir": str(store_dir(store_root)),
+            "pending_only": False,
+            "dedupe": False,
+            "duplicate_count": 0,
+            "selected_count": 1,
+            "items": [item],
+        },
+        "request_count": 1,
+        "batch_payload": batch_payload,
+        "batch": None,
+        "document_id": document_id,
+        "conversation_key": detail["conversation"]["key"],
+    }
+    manifest_path = selected_first_pass_summary_manifest_path(state_root, document_id)
+    write_json_file(manifest_path, manifest)
+    return {
+        **batch_action_response(
+            action="prepare_selected_first_pass_summary",
+            manifest_path=manifest_path,
+            manifest=manifest,
+            status="prepared",
+        ),
+        "first_pass_summary": first_pass_summary_state(detail),
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def submit_selected_first_pass_summary(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    manifest: str,
+    approval_token: str,
+) -> dict[str, Any]:
+    detail = get_conversation_detail(document_id, root=store_root, state_root=state_root)
+    manifest_path = resolve_batch_manifest_path(state_root, manifest)
+    payload = read_json_file(manifest_path)
+    validate_first_pass_manifest_for_conversation(manifest=payload, detail=detail)
+    submitted = submit_first_pass_summary_batch(
+        state_root=state_root,
+        env_file=env_file,
+        manifest=str(manifest_path),
+        approval_token=approval_token,
+    )
+    return {
+        **submitted,
+        "first_pass_summary": first_pass_summary_state(detail),
+    }
+
+
+def selected_first_pass_summary_status(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    manifest: str,
+    materialize: bool = False,
+) -> dict[str, Any]:
+    detail = get_conversation_detail(document_id, root=store_root, state_root=state_root)
+    manifest_path = resolve_batch_manifest_path(state_root, manifest)
+    payload = read_json_file(manifest_path)
+    validate_first_pass_manifest_for_conversation(manifest=payload, detail=detail)
+    status = first_pass_summary_batch_status(
+        state_root=state_root,
+        store_root=store_root,
+        env_file=env_file,
+        manifest=str(manifest_path),
+        materialize=materialize,
+    )
+    refreshed = get_conversation_detail(document_id, root=store_root, state_root=state_root)
+    return {
+        **status,
+        "first_pass_summary": first_pass_summary_state(refreshed),
+    }
+
+
 def prepare_first_pass_summary_batch(
     *,
     state_root: Path,
@@ -1943,8 +2916,8 @@ def submit_first_pass_summary_batch(
 ) -> dict[str, Any]:
     from scripts import auracall_legacy_enrichment_batch
 
-    if approval_token != "SUBMIT_FIRST_PASS_SUMMARY_BATCH":
-        raise ValueError("Submit requires approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH.")
+    if approval_token != FIRST_PASS_SUMMARY_SUBMIT_TOKEN:
+        raise ValueError(f"Submit requires approval_token={FIRST_PASS_SUMMARY_SUBMIT_TOKEN}.")
     manifest_path = resolve_batch_manifest_path(state_root, manifest)
     payload = read_json_file(manifest_path)
     if payload.get("batch"):
@@ -2103,8 +3076,28 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path.startswith("/api/conversations/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4 and parts[3] == "identity-review":
+                    self.write_json(
+                        get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["identity_review"]
+                    )
+                    return
+                if len(parts) == 4 and parts[3] == "first-pass-summary":
+                    self.write_json(
+                        get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["first_pass_summary"]
+                    )
+                    return
+                if len(parts) == 4 and parts[3] == "context-workbench":
+                    self.write_json(
+                        get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["context_workbench"]
+                    )
+                    return
+                if len(parts) == 4 and parts[3] == "final-preview":
+                    self.write_json(
+                        get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["final_preview"]
+                    )
+                    return
                 if len(parts) == 3:
-                    self.write_json(get_conversation_detail(parts[2], root=self.store_root))
+                    self.write_json(get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root))
                     return
             if parsed.path == "/api/review-queue":
                 self.write_json(
@@ -2271,6 +3264,92 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/conversations/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4 and parts[3] == "identity-review":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_speaker_identity_review(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            speaker_label=str(body.get("speaker_label") or ""),
+                            action=str(body.get("action") or ""),
+                            contact_label=str(body.get("contact_label") or ""),
+                            contact_id=str(body.get("contact_id") or ""),
+                            email=str(body.get("email") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "first-pass-summary" and parts[4] == "prepare":
+                    body = self.read_json_body()
+                    self.write_json(
+                        prepare_selected_first_pass_summary(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                            store=bool(body.get("store", True)),
+                            model=str(body.get("model") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "first-pass-summary" and parts[4] == "submit":
+                    body = self.read_json_body()
+                    self.write_json(
+                        submit_selected_first_pass_summary(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                            manifest=str(body.get("manifest") or ""),
+                            approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "first-pass-summary" and parts[4] == "status":
+                    body = self.read_json_body()
+                    self.write_json(
+                        selected_first_pass_summary_status(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                            manifest=str(body.get("manifest") or ""),
+                            materialize=bool(body.get("materialize", False)),
+                        )
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] in {"preview", "queue"}:
+                    body = self.read_json_body()
+                    self.write_json(
+                        context_workbench_preview(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            queue=parts[4] == "queue",
+                            approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "final-preview" and parts[4] == "queue":
+                    body = self.read_json_body()
+                    self.write_json(
+                        queue_deposition_memory_preview(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
             if parsed.path.startswith("/api/documents/") and parsed.path.endswith("/retranscription/preflight"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 5 and parts[3] == "retranscription" and parts[4] == "preflight":

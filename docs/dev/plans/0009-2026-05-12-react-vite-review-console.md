@@ -74,6 +74,13 @@ still does not start a backend or write transcript outputs. Unwired workflow
 actions remain disabled and labelled as planned until reviewed backend
 contracts exist.
 
+Plan 0010/M1 has closed the first dogfoodable conversation review loop inside
+this P09 lane. The workspace now has selected-conversation first-pass summary
+prepare/submit/status actions, durable SQLite-backed speaker/contact review,
+context provenance inspection with included/excluded sources, no-write
+deposition/memory preview queueing, Review Queue links back to conversation
+workflow stages, and a repeatable `agent-browser` happy-path smoke.
+
 The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
@@ -115,8 +122,8 @@ Immediate wiring order:
    document without switching mental contexts.
 3. Review Queue: route human-review decisions to the selected artifact or
    batch.
-4. Contacts/speakers: expose unassigned speakers and planned contact review as
-   a disabled state until contact tables exist.
+4. Contacts/speakers: grow the current SQLite-backed speaker/contact review into
+   broader contact identity, dedupe, and merge workflows.
 5. Share/review links: reuse the `previews` contract only after a scoped local
    share model exists.
 

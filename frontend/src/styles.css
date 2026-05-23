@@ -1618,6 +1618,44 @@ dd {
   line-height: 1.35;
 }
 
+.readout-columns li small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.context-route-card,
+.warning-list {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.5rem;
+  background: rgba(244, 236, 216, 0.045);
+}
+
+.context-route-card span {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.context-route-card small {
+  color: var(--muted);
+}
+
+.warning-list {
+  border-color: rgba(255, 159, 90, 0.28);
+  background: rgba(255, 159, 90, 0.08);
+}
+
+.warning-list span {
+  line-height: 1.4;
+}
+
 .action-stack {
   display: grid;
   gap: 0.55rem;
@@ -2003,6 +2041,30 @@ dd {
   text-transform: none;
 }
 
+.workflow-action-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.compact-definition-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.compact-definition-list dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.compact-definition-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .workflow-action-row {
   display: flex;
   flex-wrap: wrap;
@@ -2064,6 +2126,26 @@ dd {
 .identity-list small {
   grid-column: 1 / -1;
   color: var(--muted);
+}
+
+.candidate-list {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 0.4rem;
+}
+
+.candidate-list button {
+  display: grid;
+  justify-items: start;
+  gap: 0.16rem;
+  width: 100%;
+  border-color: rgba(118, 223, 170, 0.26);
+  border-radius: 0.5rem;
+  background: rgba(118, 223, 170, 0.08);
+}
+
+.candidate-list small {
+  margin: 0;
 }
 
 @media (max-width: 920px) {

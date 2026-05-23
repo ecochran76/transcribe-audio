@@ -577,6 +577,44 @@ def init_db(con: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             PRIMARY KEY(document_id, blob_id, role)
         );
+        CREATE TABLE IF NOT EXISTS contacts (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            email TEXT NOT NULL DEFAULT '',
+            external_ref TEXT NOT NULL DEFAULT '',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_label_email ON contacts(label, email);
+        CREATE TABLE IF NOT EXISTS speaker_assignments (
+            id TEXT PRIMARY KEY,
+            conversation_key TEXT NOT NULL,
+            document_id TEXT NOT NULL,
+            speaker_label TEXT NOT NULL,
+            contact_id TEXT NOT NULL DEFAULT '',
+            contact_label TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,
+            confidence REAL,
+            evidence_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(conversation_key, speaker_label)
+        );
+        CREATE INDEX IF NOT EXISTS idx_speaker_assignments_document ON speaker_assignments(document_id);
+        CREATE TABLE IF NOT EXISTS speaker_assignment_audits (
+            id TEXT PRIMARY KEY,
+            assignment_id TEXT NOT NULL,
+            conversation_key TEXT NOT NULL,
+            document_id TEXT NOT NULL,
+            speaker_label TEXT NOT NULL,
+            action TEXT NOT NULL,
+            reviewer TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_speaker_assignment_audits_assignment ON speaker_assignment_audits(assignment_id);
         CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
             doc_id UNINDEXED,
             title,
