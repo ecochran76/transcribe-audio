@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 187 | 2026-05-23
+
+Summary: Added context-workbench contact visibility and selection controls.
+
+Findings:
+
+- The context workbench carried the participant identity bundle but only showed
+  counts and source-profile chips.
+- Proposed contacts were visible only from the Speakers tab, and there was no
+  context-specific API control for an operator or App Intelligence worker to
+  select or exclude contacts before context/readout preparation.
+
+Changes:
+
+- `GET /api/conversations/<id>/context-workbench` now includes
+  `proposed_contact_candidates` plus a `contact_selection` state.
+- Added `POST /api/conversations/<id>/context-workbench/contact-selection` for
+  local `select`, `exclude`, and `clear` decisions with
+  `actor_type=operator|app_intelligence`.
+- Context contact decisions are stored under user-scoped runtime state in
+  `~/.local/state/transcribe-audio/conversation-context-contact-selections/`.
+- Context workbench preview/queue manifests now include the contact-selection
+  state alongside the participant identity bundle.
+- The React Context workbench tab now renders proposed contacts with source,
+  profile, confidence, selected chips, and `Use`/`Exclude` controls.
+- Updated README and API docs for the new local selection endpoint.
+
+Validation:
+
+- `.venv/bin/python -m pytest tests/test_transcript_api.py tests/test_participant_identity.py -q`
+  passed: 47 tests.
+- `.venv/bin/python -m py_compile transcript_api.py participant_identity.py tests/test_transcript_api.py tests/test_participant_identity.py`
+  passed.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest -q` passed: 215 tests.
+- Restarted `transcripts.service`; `curl http://127.0.0.1:18876/api/health`
+  returned `status: ok`.
+- Live API smoke selected an Odollo contact candidate for conversation
+  `6e8eee4f19a1d5a9b23f` with `actor_type=app_intelligence`; the response
+  recorded local contact-selection state and reported no external write.
+- Browser smoke on the selected local context workbench found
+  `11 proposed`, Odollo sources, selected contact text, `Use` and `Exclude`
+  buttons, and no `401` or `Unauthorized` text.
+
+Next:
+
+- Queue a context preview/manifest from the selected conversation and verify
+  the contact-selection state carries into the App Intelligence handoff bundle.
+
 ## Turn 186 | 2026-05-23
 
 Summary: Repaired Odollo contact provenance in the live transcript console.

@@ -3137,6 +3137,7 @@ function ConversationWorkflowModal({
   const [speakerReviewAction, setSpeakerReviewAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerManualLabels, setSpeakerManualLabels] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextContactAction, setContextContactAction] = useState({ status: "idle", message: "", payload: null });
   const [finalPreviewAction, setFinalPreviewAction] = useState({ status: "idle", message: "", payload: null });
   const selectedDetail = conversationDetail?.selected_document || documentDetail;
   const sourceDocument = conversationDetail?.transcript_document || relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
@@ -3158,10 +3159,14 @@ function ConversationWorkflowModal({
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
-  const identityBundle = activeIdentityReview.identity_bundle || {};
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
-  const contextWorkbench = contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
+  const contextWorkbench = contextContactAction.payload?.context_workbench || contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
+  const identityBundle = activeIdentityReview.identity_bundle || contextWorkbench.participant_identity_bundle || {};
+  const contactSelection = contextWorkbench.contact_selection || {};
+  const proposedContextContacts = contextWorkbench.proposed_contact_candidates?.length
+    ? contextWorkbench.proposed_contact_candidates
+    : identityBundle.contact_candidates || [];
   const finalPreview = finalPreviewAction.payload?.final_preview || conversationDetail?.final_preview || {};
   const finalPreviewBlocked = finalPreview.status === "blocked_identity_or_context_review" || Boolean(finalPreview.identity_context_warnings?.length);
   useEffect(() => {
@@ -3170,6 +3175,7 @@ function ConversationWorkflowModal({
     setFirstPassAction({ status: "idle", message: "", payload: null });
     setSpeakerReviewAction({ status: "idle", message: "", payload: null });
     setContextAction({ status: "idle", message: "", payload: null });
+    setContextContactAction({ status: "idle", message: "", payload: null });
     setFinalPreviewAction({ status: "idle", message: "", payload: null });
   }, [conversationDetail?.conversation?.key, item.id]);
   useEffect(() => {
@@ -3340,6 +3346,30 @@ function ConversationWorkflowModal({
       });
     } catch (error) {
       setContextAction({ status: "error", message: `Context workbench action failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function chooseContextContact(candidate, action) {
+    setContextContactAction({
+      status: "running",
+      message: `${action === "select" ? "Selecting" : "Excluding"} ${candidate.label || "contact"} for context...`,
+      payload: null
+    });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-selection`, {
+        action,
+        candidate_id: candidate.contact_id,
+        actor_type: "operator",
+        reviewer: "operator",
+        note: action === "select" ? "Selected in the context workbench." : "Excluded in the context workbench."
+      });
+      setContextContactAction({
+        status: payload.status || "recorded",
+        message: action === "select" ? "Contact selected for context." : "Contact excluded from context.",
+        payload
+      });
+    } catch (error) {
+      setContextContactAction({ status: "error", message: `Contact selection failed: ${error.message}`, payload: null });
     }
   }
 
@@ -3591,6 +3621,66 @@ function ConversationWorkflowModal({
                     ))}
                   </div>
                 ) : null}
+                <div className="context-contact-panel">
+                  <div className="workflow-view-heading compact">
+                    <div>
+                      <span>Proposed contacts</span>
+                      <h3>{contactSelection.selected_candidates?.length || 0} selected for context</h3>
+                    </div>
+                    <strong>{proposedContextContacts.length || 0} proposed</strong>
+                  </div>
+                  {contactSelection.selected_candidates?.length ? (
+                    <div className="chip-cloud">
+                      {contactSelection.selected_candidates.map((candidate) => (
+                        <span key={`selected-${candidate.contact_id}`}>{candidate.label || candidate.email}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {proposedContextContacts.length ? (
+                    <div className="context-contact-grid">
+                      {proposedContextContacts.slice(0, 12).map((candidate) => {
+                        const selected = contactSelection.selected_candidate_ids?.includes(candidate.contact_id);
+                        const excluded = contactSelection.excluded_candidate_ids?.includes(candidate.contact_id);
+                        return (
+                          <article className={selected ? "selected" : excluded ? "excluded" : ""} key={`${candidate.contact_id}-${candidate.source_type}`}>
+                            <div>
+                              <strong>{candidate.label || candidate.email || "Contact candidate"}</strong>
+                              <small>
+                                {[candidate.email, candidate.source_type || candidate.source, candidate.source_profile, candidate.confidence ? `confidence ${candidate.confidence}` : ""]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </small>
+                            </div>
+                            <div className="context-contact-actions">
+                              <button
+                                disabled={selected || contextContactAction.status === "running"}
+                                onClick={() => chooseContextContact(candidate, "select")}
+                                type="button"
+                              >
+                                Use
+                              </button>
+                              <button
+                                disabled={excluded || contextContactAction.status === "running"}
+                                onClick={() => chooseContextContact(candidate, "exclude")}
+                                type="button"
+                              >
+                                Exclude
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="muted">No proposed contacts are available yet.</p>
+                  )}
+                  {contextContactAction.message ? (
+                    <div className={`action-notice ${contextContactAction.status}`}>
+                      <strong>{contextContactAction.message}</strong>
+                      {contextContactAction.payload?.selection_path ? <small>{contextContactAction.payload.selection_path}</small> : null}
+                    </div>
+                  ) : null}
+                </div>
                 <div className="readout-columns">
                   <div>
                     <strong>Included provenance</strong>

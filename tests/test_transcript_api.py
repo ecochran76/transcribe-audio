@@ -404,6 +404,24 @@ def test_conversation_identity_bundle_uses_configured_contact_provenance(tmp_pat
     assert bundle["contact_candidates"][0]["source_type"] == "gws_contact"
     assert bundle["contact_candidates"][0]["confidence"] == 0.95
     assert payload["context_workbench"]["participant_identity_bundle"]["schema_version"]
+    assert payload["context_workbench"]["proposed_contact_candidates"][0]["label"] == "Alice Example"
+    assert payload["context_workbench"]["contact_selection"]["status"] == "review_needed"
+    selection = transcript_api.record_context_contact_selection(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        candidate_id=bundle["contact_candidates"][0]["contact_id"],
+        action="select",
+        actor_type="app_intelligence",
+        reviewer="app-intelligence-test",
+        note="Selected by structured decision for context preview.",
+    )
+    assert selection["status"] == "select"
+    assert selection["decision"]["actor_type"] == "app_intelligence"
+    selected_state = selection["context_workbench"]["contact_selection"]
+    assert selected_state["status"] == "selected"
+    assert selected_state["selected_candidates"][0]["label"] == "Alice Example"
+    assert Path(selected_state["selection_path"]).exists()
     assert payload["final_preview"]["status"] == "blocked_identity_or_context_review"
 
 
@@ -541,7 +559,9 @@ def test_context_and_final_preview_actions_write_local_review_records(tmp_path: 
     assert context_action["status"] == "queued"
     assert context_action["will_run_provider"] is False
     assert Path(context_action["manifest"]).exists()
-    assert json.loads(Path(context_action["manifest"]).read_text(encoding="utf-8"))["participant_identity_bundle"]["schema_version"]
+    context_manifest = json.loads(Path(context_action["manifest"]).read_text(encoding="utf-8"))
+    assert context_manifest["participant_identity_bundle"]["schema_version"]
+    assert context_manifest["contact_selection"]["schema_version"]
     assert preview_action["status"] == "blocked_identity_or_context_review"
     assert preview_action["will_perform_external_write"] is False
     assert preview_action["final_preview"]["identity_context_warnings"]

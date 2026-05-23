@@ -86,6 +86,7 @@ CONTEXT_WORKBENCH_TOKEN = "QUEUE_CONTEXT_WORKBENCH_RUN"
 DEPOSITION_MEMORY_PREVIEW_TOKEN = "QUEUE_DEPOSITION_MEMORY_PREVIEW"
 FIRST_PASS_SUMMARY_SUBMIT_TOKEN = "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
 CONTEXT_WORKBENCH_DIRNAME = "conversation-context-runs"
+CONTEXT_CONTACT_SELECTION_DIRNAME = "conversation-context-contact-selections"
 CONVERSATION_PREVIEW_DIRNAME = "conversation-preview-decisions"
 
 
@@ -503,6 +504,14 @@ def context_workbench_state(
             if text and text not in warnings:
                 warnings.append(text)
     identity_bundle = (detail.get("identity_review") or {}).get("identity_bundle", {})
+    proposed_contacts = identity_bundle.get("contact_candidates") if isinstance(identity_bundle, dict) else []
+    if not isinstance(proposed_contacts, list):
+        proposed_contacts = []
+    contact_selection = context_contact_selection_state(
+        detail=detail,
+        state_root=state_root or DEFAULT_STATE_DIR.expanduser(),
+        proposed_contacts=proposed_contacts,
+    )
     identity_warnings = identity_bundle.get("warnings") if isinstance(identity_bundle, dict) else []
     if isinstance(identity_warnings, list):
         for item in identity_warnings:
@@ -518,6 +527,8 @@ def context_workbench_state(
         "status": status,
         "identity_status": identity_bundle.get("review_status", "unknown") if isinstance(identity_bundle, dict) else "unknown",
         "participant_identity_bundle": identity_bundle if isinstance(identity_bundle, dict) else {},
+        "proposed_contact_candidates": proposed_contacts,
+        "contact_selection": contact_selection,
         "selected_candidate": selected,
         "confidence": selected.get("confidence"),
         "included_sources": [compact_provenance_source(source) for source in included if isinstance(source, dict)][:20],
@@ -532,6 +543,71 @@ def context_workbench_state(
         "will_execute_external_action": False,
         "will_perform_external_write": False,
         "future_required_approval_token_for_queue": CONTEXT_WORKBENCH_TOKEN,
+    }
+
+
+def context_contact_selection_path(*, state_root: Path, conversation_key: str) -> Path:
+    return conversation_context_contact_selections_dir(state_root) / f"{stable_id('context-contact-selection', conversation_key)}.json"
+
+
+def compact_context_contact_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    evidence = candidate.get("evidence") if isinstance(candidate.get("evidence"), list) else []
+    return {
+        "contact_id": str(candidate.get("contact_id") or ""),
+        "label": str(candidate.get("label") or ""),
+        "email": str(candidate.get("email") or ""),
+        "source": str(candidate.get("source") or ""),
+        "source_type": str(candidate.get("source_type") or candidate.get("source") or ""),
+        "source_profile": str(candidate.get("source_profile") or ""),
+        "confidence": candidate.get("confidence"),
+        "evidence": evidence[:4],
+    }
+
+
+def context_contact_selection_state(
+    *,
+    detail: dict[str, Any],
+    state_root: Path,
+    proposed_contacts: list[Any],
+) -> dict[str, Any]:
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    candidates = [
+        compact_context_contact_candidate(candidate)
+        for candidate in proposed_contacts
+        if isinstance(candidate, dict)
+    ]
+    candidate_by_id = {candidate["contact_id"]: candidate for candidate in candidates if candidate.get("contact_id")}
+    path = context_contact_selection_path(state_root=state_root, conversation_key=conversation_key) if conversation_key else None
+    payload = read_json_file(path) if path and path.exists() else {}
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    latest: dict[str, dict[str, Any]] = {}
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        candidate_id = str(decision.get("candidate_id") or "")
+        action = str(decision.get("action") or "")
+        if candidate_id and action in {"select", "exclude", "clear"}:
+            latest[candidate_id] = decision
+    selected_ids = sorted(candidate_id for candidate_id, decision in latest.items() if decision.get("action") == "select")
+    excluded_ids = sorted(candidate_id for candidate_id, decision in latest.items() if decision.get("action") == "exclude")
+    selected = [candidate_by_id[candidate_id] for candidate_id in selected_ids if candidate_id in candidate_by_id]
+    excluded = [candidate_by_id[candidate_id] for candidate_id in excluded_ids if candidate_id in candidate_by_id]
+    return {
+        "schema_version": "transcribe-audio.context-contact-selection.v1",
+        "status": "selected" if selected else "review_needed" if candidates else "no_candidates",
+        "conversation_key": conversation_key,
+        "source_document_id": source_document.get("id") or "",
+        "selection_path": str(path) if path and path.exists() else "",
+        "candidate_count": len(candidates),
+        "selected_candidate_ids": selected_ids,
+        "excluded_candidate_ids": excluded_ids,
+        "selected_candidates": selected,
+        "excluded_candidates": excluded,
+        "decisions": decisions[-25:],
+        "allowed_actor_types": ["operator", "app_intelligence"],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
     }
 
 
@@ -795,6 +871,10 @@ def conversation_context_runs_dir(state_root: Path) -> Path:
     return state_root.expanduser() / CONTEXT_WORKBENCH_DIRNAME
 
 
+def conversation_context_contact_selections_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_CONTACT_SELECTION_DIRNAME
+
+
 def conversation_preview_dir(state_root: Path) -> Path:
     return state_root.expanduser() / CONVERSATION_PREVIEW_DIRNAME
 
@@ -995,6 +1075,7 @@ def context_workbench_preview(
         "steps": steps,
         "context_workbench": detail.get("context_workbench") or {},
         "participant_identity_bundle": (detail.get("identity_review") or {}).get("identity_bundle", {}),
+        "contact_selection": (detail.get("context_workbench") or {}).get("contact_selection", {}),
         "will_execute_external_action": False,
         "will_run_provider": False,
         "will_perform_external_write": False,
@@ -1009,8 +1090,82 @@ def context_workbench_preview(
         "manifest": str(path),
         "steps": steps,
         "context_workbench": manifest["context_workbench"],
+        "contact_selection": manifest["contact_selection"],
         "will_execute_external_action": False,
         "will_run_provider": False,
+        "will_perform_external_write": False,
+    }
+
+
+def record_context_contact_selection(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    candidate_id: str,
+    action: str,
+    actor_type: str = "operator",
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    action = action.strip().lower()
+    if action not in {"select", "exclude", "clear"}:
+        raise ValueError("Context contact selection action must be select, exclude, or clear.")
+    actor_type = actor_type.strip().lower() or "operator"
+    if actor_type not in {"operator", "app_intelligence"}:
+        raise ValueError("Context contact selection actor_type must be operator or app_intelligence.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    context_state = detail.get("context_workbench") if isinstance(detail.get("context_workbench"), dict) else {}
+    candidates = context_state.get("proposed_contact_candidates") if isinstance(context_state.get("proposed_contact_candidates"), list) else []
+    candidate_by_id = {
+        str(candidate.get("contact_id") or ""): compact_context_contact_candidate(candidate)
+        for candidate in candidates
+        if isinstance(candidate, dict) and str(candidate.get("contact_id") or "")
+    }
+    candidate_id = candidate_id.strip()
+    if not candidate_id:
+        raise ValueError("Context contact selection requires candidate_id.")
+    if candidate_id not in candidate_by_id:
+        raise ValueError("Context contact selection candidate_id is not available for this conversation.")
+
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    if not conversation_key:
+        raise ValueError("Context contact selection requires a conversation key.")
+    path = context_contact_selection_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    now = utcish_now()
+    decision = {
+        "decision_id": stable_id("context-contact-selection", conversation_key, candidate_id, action, now, str(uuid.uuid4())),
+        "candidate_id": candidate_id,
+        "action": action,
+        "actor_type": actor_type,
+        "reviewer": reviewer.strip() or actor_type,
+        "note": note.strip(),
+        "created_at": now,
+        "candidate": candidate_by_id[candidate_id],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    payload = {
+        "schema_version": "transcribe-audio.context-contact-selection.v1",
+        "conversation_key": conversation_key,
+        "document_id": document_id,
+        "source_document_id": (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id") or "",
+        "updated_at": now,
+        "decisions": [*decisions, decision],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, payload)
+    refreshed = get_conversation_detail(document_id, root=root, state_root=state_root)
+    return {
+        "schema_version": "transcribe-audio.context-contact-selection-action.v1",
+        "status": action,
+        "decision": decision,
+        "selection_path": str(path),
+        "context_workbench": refreshed.get("context_workbench"),
+        "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
 
@@ -3377,6 +3532,22 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             state_root=self.state_root,
                             queue=parts[4] == "queue",
                             approval_token=str(body.get("approval_token") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-selection":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_context_contact_selection(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            candidate_id=str(body.get("candidate_id") or ""),
+                            action=str(body.get("action") or ""),
+                            actor_type=str(body.get("actor_type") or "operator"),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
                         ),
                         status=HTTPStatus.CREATED,
                     )

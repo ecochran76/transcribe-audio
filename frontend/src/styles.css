@@ -1647,6 +1647,69 @@ dd {
   color: var(--muted);
 }
 
+.context-contact-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(118, 223, 170, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(118, 223, 170, 0.055);
+}
+
+.workflow-view-heading.compact {
+  margin: 0;
+}
+
+.context-contact-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.context-contact-grid article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.6rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.5rem;
+  background: rgba(9, 14, 20, 0.32);
+}
+
+.context-contact-grid article.selected {
+  border-color: rgba(118, 223, 170, 0.5);
+  background: rgba(118, 223, 170, 0.12);
+}
+
+.context-contact-grid article.excluded {
+  opacity: 0.62;
+}
+
+.context-contact-grid small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.context-contact-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.context-contact-actions button {
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 999px;
+  background: rgba(244, 236, 216, 0.07);
+  color: var(--ink);
+  padding: 0.42rem 0.62rem;
+}
+
+.context-contact-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
 .warning-list {
   border-color: rgba(255, 159, 90, 0.28);
   background: rgba(255, 159, 90, 0.08);
