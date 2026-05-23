@@ -5448,6 +5448,53 @@ Next:
   preflight that reports source blob, backend, output paths, and write plan
   before any transcription job can be queued.
 
+## Turn 166 | 2026-05-23
+
+Summary: Added the re-transcription dry-run preflight contract.
+
+Action:
+
+- Added `POST /api/documents/<document_id>/retranscription/preflight`.
+- The endpoint resolves readouts back to their source transcript when possible,
+  then resolves the linked `source_recording` blob.
+- The response reports selected backend, source blob metadata, planned output
+  paths, command preview, blocking checks, and the future
+  `QUEUE_RETRANSCRIPTION_JOB` queue token.
+- The contract is dry-run only and returns `will_queue=false`,
+  `will_run_transcription=false`, and `will_write_files=false`.
+- Wired the conversation modal's re-transcription panel to call the preflight
+  endpoint, show a structured summary, and keep actual queueing/diff actions
+  disabled as planned.
+- Updated README, API docs, ROADMAP, and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main "retranscription
+  dry run preflight modal source blob backend planned outputs"` returned older
+  advisory memory and no conflicting direction.
+- Added focused API/helper tests for re-transcription preflight dry-run
+  behavior.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  33 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `POST /api/documents/e2a67052289d1ad1d891/retranscription/preflight`
+  returned source transcript `646f58f133108230a67c`, source blob
+  `f363a21cdc716795bd3c`, and all no-queue/no-run/no-write flags false.
+- Browser smoke on `transcripts.localhost` confirmed the Cara readout modal
+  displays the backend selector, `Preview re-transcription`, the preflight
+  success message, output folder, command preview, and safety flags.
+
+Next:
+
+- Add the reviewed queue endpoint behind `QUEUE_RETRANSCRIPTION_JOB`, writing a
+  job record first and running no speech backend until the operator approves
+  the dry-run plan.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

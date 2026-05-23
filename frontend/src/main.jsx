@@ -2571,6 +2571,8 @@ function ConversationWorkflowModal({
   onClose,
   onSelectDocument
 }) {
+  const [retranscriptionBackend, setRetranscriptionBackend] = useState("faster_whisper");
+  const [retranscriptionPreflight, setRetranscriptionPreflight] = useState({ status: "idle", message: "", payload: null });
   const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const linkedMedia = mediaForItem(item, sourceDocument);
   const payload = documentDetail?.json_payload || {};
@@ -2588,6 +2590,29 @@ function ConversationWorkflowModal({
     { id: "speakers", label: "Speakers and contacts" },
     { id: "final-readout", label: "Final readout" }
   ];
+  async function previewRetranscription() {
+    setRetranscriptionPreflight({ status: "running", message: "Previewing retranscription plan...", payload: null });
+    try {
+      const payload = await postJson(
+        `/api/documents/${encodeURIComponent(item.id)}/retranscription/preflight`,
+        { backend: retranscriptionBackend }
+      );
+      setRetranscriptionPreflight({
+        status: payload.ok ? "ok" : "blocked",
+        message: payload.ok
+          ? "Preflight ready; no transcription was queued."
+          : `Preflight blocked: ${(payload.blocking_checks || []).join(", ") || "source unavailable"}.`,
+        payload
+      });
+    } catch (error) {
+      setRetranscriptionPreflight({
+        status: "error",
+        message: `Preflight failed: ${error.message}`,
+        payload: null
+      });
+    }
+  }
+
   return (
     <div className="conversation-modal-backdrop" onMouseDown={onClose}>
       <section
@@ -2645,10 +2670,43 @@ function ConversationWorkflowModal({
             <span>Re-transcription</span>
             <h3>Transcript regeneration</h3>
             <p>Use this stage to rerun speech-to-text from the linked source recording, compare outputs, and preserve the old transcript as provenance.</p>
+            <label className="workflow-field">
+              Backend
+              <select value={retranscriptionBackend} onChange={(event) => setRetranscriptionBackend(event.target.value)}>
+                <option value="faster_whisper">faster-whisper local</option>
+                <option value="assemblyai">AssemblyAI</option>
+              </select>
+            </label>
             <div className="workflow-action-row">
-              <button disabled title="Needs a reviewed retranscription endpoint before it can execute." type="button">Queue re-transcription (planned)</button>
+              <button onClick={previewRetranscription} disabled={retranscriptionPreflight.status === "running"} type="button">
+                Preview re-transcription
+              </button>
+              <button disabled title="Queueing needs an explicit approval-token endpoint after this dry-run contract is reviewed." type="button">
+                Queue re-transcription (planned)
+              </button>
               <button disabled title="Transcript diffing is planned after versioned transcript artifacts exist." type="button">Compare versions (planned)</button>
             </div>
+            {retranscriptionPreflight.message ? (
+              <div className={`action-notice ${retranscriptionPreflight.status}`}>
+                <strong>{retranscriptionPreflight.message}</strong>
+                {retranscriptionPreflight.payload ? (
+                  <dl className="preflight-summary">
+                    <dt>Source blob</dt>
+                    <dd>{retranscriptionPreflight.payload.source_blob?.id || "Missing source recording"}</dd>
+                    <dt>Output folder</dt>
+                    <dd>{retranscriptionPreflight.payload.planned_outputs?.output_dir || "Unavailable"}</dd>
+                    <dt>Command</dt>
+                    <dd><code>{(retranscriptionPreflight.payload.command || []).join(" ")}</code></dd>
+                    <dt>Safety</dt>
+                    <dd>
+                      queue={String(retranscriptionPreflight.payload.will_queue)} /
+                      run={String(retranscriptionPreflight.payload.will_run_transcription)} /
+                      write={String(retranscriptionPreflight.payload.will_write_files)}
+                    </dd>
+                  </dl>
+                ) : null}
+              </div>
+            ) : null}
           </section>
 
           <section className="workflow-panel wide-panel" id="raw-summary">

@@ -513,6 +513,14 @@ td small {
   border-color: rgba(118, 223, 170, 0.38);
 }
 
+.action-notice.ok {
+  border-color: rgba(118, 223, 170, 0.38);
+}
+
+.action-notice.blocked {
+  border-color: rgba(255, 196, 87, 0.48);
+}
+
 .action-notice.error {
   border-color: rgba(255, 111, 97, 0.5);
 }
@@ -1537,6 +1545,25 @@ dd {
   width: 100%;
 }
 
+.workflow-field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workflow-field select {
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.85rem;
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+  padding: 0.62rem 0.72rem;
+  text-transform: none;
+}
+
 .workflow-action-row {
   display: flex;
   flex-wrap: wrap;
@@ -1559,6 +1586,24 @@ dd {
 .identity-list button:disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+.preflight-summary {
+  display: grid;
+  grid-template-columns: minmax(5.75rem, auto) 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0.45rem 0 0;
+}
+
+.preflight-summary dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.preflight-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .identity-list {

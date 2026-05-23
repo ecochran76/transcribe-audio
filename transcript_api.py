@@ -75,6 +75,8 @@ APP_SMOKE_CLEANUP_TOKEN = "CLEANUP_APP_SMOKE_ARTIFACTS"
 APP_SMOKE_JOB_TIMEOUT_SECONDS = 180
 MAX_SMOKE_JOB_TAIL_CHARS = 20000
 MAX_SMOKE_EVIDENCE_BYTES = 5 * 1024 * 1024
+RETRANSCRIPTION_PREFLIGHT_TOKEN = "QUEUE_RETRANSCRIPTION_JOB"
+RETRANSCRIPTION_BACKENDS = {"faster_whisper", "assemblyai"}
 
 
 def document_summary(row: sqlite3.Row) -> dict[str, Any]:
@@ -195,6 +197,88 @@ def get_related_documents(document_id: str, *, root: Optional[Path] = None) -> d
         "source_artifact_path": source_artifact_path,
         "source_document": document_summary(source_row) if source_row else None,
         "derived_documents": [document_summary(derived_row) for derived_row in derived_rows],
+    }
+
+
+def retranscription_preflight(
+    document_id: str,
+    *,
+    root: Optional[Path] = None,
+    state_root: Path = DEFAULT_STATE_DIR,
+    backend: str = "faster_whisper",
+    output_dir: str = "",
+) -> dict[str, Any]:
+    selected_backend = backend if backend in RETRANSCRIPTION_BACKENDS else "faster_whisper"
+    with connect(root) as con:
+        init_db(con)
+        row = con.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
+        if row is None:
+            raise TranscriptStoreError(f"No document found with id {document_id}")
+        source_row = row
+        if row["kind"] != "transcript":
+            payload = parse_object_json(row["json_payload"])
+            metadata = parse_object_json(row["metadata_json"])
+            source_artifact_path = str(metadata.get("source_artifact_path") or payload.get("source_artifact_path") or "")
+            if source_artifact_path:
+                matched = con.execute("SELECT * FROM documents WHERE source_path = ?", (source_artifact_path,)).fetchone()
+                if matched is not None:
+                    source_row = matched
+        blob = con.execute(
+            """
+            SELECT blobs.*
+            FROM document_blobs
+            JOIN blobs ON document_blobs.blob_id = blobs.id
+            WHERE document_blobs.document_id = ?
+              AND document_blobs.role = 'source_recording'
+            ORDER BY blobs.id
+            LIMIT 1
+            """,
+            (source_row["id"],),
+        ).fetchone()
+
+    planned_output_dir = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else state_root.expanduser() / "retranscriptions" / str(source_row["id"])
+    )
+    base_name = Path(str(source_row["source_path"])).stem.replace(".transcript", "")
+    script_name = "faster_whisper_transcribe.py" if selected_backend == "faster_whisper" else "assembly_transcribe.py"
+    source_media_path = str(blob["stored_path"]) if blob is not None else ""
+    command = [
+        "python",
+        script_name,
+        source_media_path or "<missing-source-recording>",
+        "--output-dir",
+        str(planned_output_dir),
+        "--text-output",
+    ]
+    return {
+        "schema_version": "transcribe-audio.retranscription-preflight.v1",
+        "ok": blob is not None,
+        "document": document_summary(row),
+        "source_document": document_summary(source_row),
+        "selected_backend": selected_backend,
+        "source_blob": {
+            "id": blob["id"],
+            "role": blob["role"],
+            "mime_type": blob["mime_type"],
+            "bytes": int(blob["bytes"]),
+            "sha256": blob["sha256"],
+            "playback_url": f"/api/blobs/{blob['id']}",
+            "download_url": f"/api/blobs/{blob['id']}?download=1",
+        } if blob is not None else None,
+        "planned_outputs": {
+            "output_dir": str(planned_output_dir),
+            "transcript_json": str(planned_output_dir / f"{base_name}.transcript.json"),
+            "docx": str(planned_output_dir / f"{base_name} Transcript.docx"),
+            "txt": str(planned_output_dir / f"{base_name} Transcript.txt"),
+        },
+        "command": command,
+        "blocking_checks": [] if blob is not None else ["source_recording_blob_missing"],
+        "will_queue": False,
+        "will_run_transcription": False,
+        "will_write_files": False,
+        "future_required_approval_token_for_queue": RETRANSCRIPTION_PREFLIGHT_TOKEN,
     }
 
 
@@ -1893,6 +1977,19 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/documents/") and parsed.path.endswith("/retranscription/preflight"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5 and parts[3] == "retranscription" and parts[4] == "preflight":
+                    body = self.read_json_body()
+                    preflight = retranscription_preflight(
+                        parts[2],
+                        root=self.store_root,
+                        state_root=self.state_root,
+                        backend=str(body.get("backend") or "faster_whisper"),
+                        output_dir=str(body.get("output_dir") or ""),
+                    )
+                    self.write_json(preflight, status=HTTPStatus.OK if preflight.get("ok") else HTTPStatus.CONFLICT)
+                    return
             if parsed.path == "/api/review-queue/first-pass-summaries/prepare":
                 body = self.read_json_body()
                 limit = parse_int(str(body.get("limit") or ""), 5, minimum=1, maximum=50)

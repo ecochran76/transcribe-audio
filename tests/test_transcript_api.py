@@ -157,6 +157,92 @@ def test_related_documents_links_readout_to_source_transcript(tmp_path: Path) ->
     assert transcript_related["derived_documents"][0]["id"] == readout.id
 
 
+def test_retranscription_preflight_resolves_readout_source_blob_without_work(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.retranscription_preflight(
+        readout.id,
+        root=store_root,
+        state_root=state_root,
+        backend="assemblyai",
+    )
+
+    assert payload["ok"] is True
+    assert payload["selected_backend"] == "assemblyai"
+    assert payload["source_document"]["id"] == transcript.id
+    assert payload["source_blob"]["id"]
+    assert payload["planned_outputs"]["output_dir"] == str(state_root / "retranscriptions" / transcript.id)
+    assert payload["command"][1] == "assembly_transcribe.py"
+    assert payload["will_queue"] is False
+    assert payload["will_run_transcription"] is False
+    assert payload["will_write_files"] is False
+    assert payload["future_required_approval_token_for_queue"] == "QUEUE_RETRANSCRIPTION_JOB"
+
+
+def test_retranscription_preflight_endpoint_is_dry_run_only(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_transcript_artifact(tmp_path)
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        response = urlopen(
+            Request(
+                f"http://{host}:{port}/api/documents/{quote(readout.id)}/retranscription/preflight",
+                data=json.dumps({"backend": "faster_whisper"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            ),
+            timeout=5,
+        )
+        payload = json.loads(response.read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert response.status == 200
+    assert payload["schema_version"] == "transcribe-audio.retranscription-preflight.v1"
+    assert payload["selected_backend"] == "faster_whisper"
+    assert payload["will_queue"] is False
+    assert payload["will_run_transcription"] is False
+    assert payload["will_write_files"] is False
+
+
 def test_library_and_search_use_store_documents(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     transcript_store.ingest_artifact(
