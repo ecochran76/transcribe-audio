@@ -240,7 +240,7 @@ function App() {
           fetchJson("/api/intelligence/config"),
           fetchJson("/api/intelligence/runs?limit=8"),
           fetchJson("/api/intelligence/smokes?limit=5"),
-          fetchJson("/api/intelligence/smoke-jobs?limit=5")
+          fetchJson("/api/intelligence/smoke-jobs?limit=20")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
@@ -344,7 +344,7 @@ function App() {
   async function refreshSmokeEvidence() {
     const [smokesPayload, smokeJobsPayload, runsPayload] = await Promise.all([
       fetchJson("/api/intelligence/smokes?limit=5"),
-      fetchJson("/api/intelligence/smoke-jobs?limit=5"),
+      fetchJson("/api/intelligence/smoke-jobs?limit=20"),
       fetchJson("/api/intelligence/runs?limit=8")
     ]);
     setIntelligence((current) => ({ ...current, smokes: smokesPayload, smokeJobs: smokeJobsPayload, runs: runsPayload }));
@@ -1174,11 +1174,12 @@ function IntelligencePanel({
   const recentRuns = runs?.items || [];
   const recentSmokeJobs = smokeJobs?.items || [];
   const totalSmokeJobs = smokeJobs?.total || recentSmokeJobs.length;
+  const failedSmokeJobs = recentSmokeJobs.filter((job) => job.status === "failed");
   const latestSmoke = smokes?.latest_report || null;
   const latestSmokeChecks = latestSmoke?.checks && typeof latestSmoke.checks === "object" ? Object.entries(latestSmoke.checks) : [];
   const selectedCapabilities = capabilityLabels(selectedProvider?.capabilities);
   const selectedChecks = selectedProvider?.checks && typeof selectedProvider.checks === "object" ? Object.entries(selectedProvider.checks) : [];
-  const smokeJobGroups = groupSmokeJobsByType(recentSmokeJobs);
+  const smokeJobGroups = groupSmokeJobsByType(recentSmokeJobs.filter((job) => job.status !== "failed"));
   return (
     <div className="intelligence-grid">
       <section className="intelligence-card task-editor">
@@ -1349,6 +1350,36 @@ function IntelligencePanel({
             <p className="smoke-job-page-hint">
               Showing {recentSmokeJobs.length} of {totalSmokeJobs} smoke jobs from the current API page.
             </p>
+            {failedSmokeJobs.length ? (
+              <section className="smoke-failure-band" aria-label="Failed smoke jobs">
+                <div className="smoke-failure-heading">
+                  <strong>{failedSmokeJobs.length} failed smoke job{failedSmokeJobs.length === 1 ? "" : "s"} need review</strong>
+                  <span>Loaded failures are shown before successful history.</span>
+                </div>
+                {failedSmokeJobs.map((job) => {
+                  const timing = smokeJobTiming(job);
+                  return (
+                    <article className="task-row smoke-job-row failed" key={job.job_id}>
+                      <strong>{statusLabel(job.job_type || "smoke job")}</strong>
+                      <span>{job.status}</span>
+                      <span className="risk-badge failed">failed</span>
+                      <small>{job.job_id}</small>
+                      {timing && <small className="job-timing">{timing}</small>}
+                      <div className="notice-actions">
+                        <button onClick={() => onLoadSmokeJobTail(job.job_id, "stderr")} type="button">
+                          stderr tail
+                        </button>
+                        <button onClick={() => onLoadSmokeJobTail(job.job_id, "stdout")} type="button">
+                          stdout tail
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            ) : (
+              <p className="smoke-job-page-hint">No failed smoke jobs in the loaded page.</p>
+            )}
             {smokeJobGroups.map((group) => (
               <section className="smoke-job-group" key={group.key}>
                 <div className="smoke-job-group-heading">

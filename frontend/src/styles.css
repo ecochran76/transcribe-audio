@@ -729,6 +729,14 @@ td small {
   border-color: rgba(118, 223, 170, 0.18);
 }
 
+.smoke-job-row.failed {
+  border-color: rgba(255, 111, 97, 0.62);
+  background:
+    linear-gradient(135deg, rgba(255, 111, 97, 0.2), rgba(0, 0, 0, 0.16)),
+    rgba(0, 0, 0, 0.14);
+  box-shadow: inset 3px 0 0 rgba(255, 111, 97, 0.82);
+}
+
 .risk-badge {
   justify-self: end;
   width: max-content;
@@ -754,6 +762,12 @@ td small {
   color: var(--ok);
 }
 
+.risk-badge.failed {
+  border-color: rgba(255, 111, 97, 0.58);
+  background: rgba(255, 111, 97, 0.16);
+  color: var(--danger);
+}
+
 .smoke-risk-legend {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -775,6 +789,29 @@ td small {
 
 .smoke-job-page-hint {
   margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.smoke-failure-band {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 111, 97, 0.28);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 111, 97, 0.16), transparent 12rem),
+    rgba(255, 111, 97, 0.06);
+}
+
+.smoke-failure-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--danger);
+}
+
+.smoke-failure-heading span {
   color: var(--muted);
   font-size: 0.82rem;
 }

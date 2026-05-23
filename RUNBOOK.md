@@ -5248,6 +5248,38 @@ Next:
 - Add a failed-job-first grouping or alert band so the Smoke Status card makes
   failures more prominent than older successful jobs.
 
+## Turn 161 | 2026-05-22
+
+Summary: Added failed-job-first Smoke Status alerting.
+
+Action:
+
+- Increased the Smoke Status job page from 5 to 20 jobs so recent failures do
+  not disappear behind newer successes.
+- Added a dedicated failed smoke-job alert band before the normal grouped job
+  history.
+- Failed jobs are removed from the normal grouped history to avoid duplicate
+  rows and keep diagnostic actions focused.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed.
+- `systemctl --user is-active transcripts.service transcribe-watch.service`
+  returned both services active.
+- Live `GET /api/intelligence/smoke-jobs?limit=20` returned 7 loaded jobs
+  including failed job `browser_replay_smoke-20260522T024747Z-3e2989e6`.
+- Live browser check on the Intelligence tab found the failed smoke alert text
+  and the failed job id.
+
+Next:
+
+- Add filter toggles for the Smoke Status card so operators can switch between
+  failed-only, write-bearing, and evidence-bearing jobs without reading the
+  whole history.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
