@@ -5175,6 +5175,39 @@ Next:
 - Add a compact UI affordance to open the latest resume-smoke screenshot/report
   from the Smoke Status job row.
 
+## Turn 159 | 2026-05-22
+
+Summary: Started a UI-audit polish pass for operator testing.
+
+Action:
+
+- Used the `ui-audit` skill against the live React console and current source.
+- Found that the Library kind filter controls looked interactive but did not
+  actually scope the table.
+- Added functional Library kind filters with row counts and active
+  `aria-pressed` state.
+- Added a compact operator test-status strip to the center pane showing API
+  state, rows in scope, active filter/search state, latest smoke status, and a
+  next testing action for the active workspace.
+- Added visible keyboard focus styling for buttons, inputs, selects, and links.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py` passed.
+- `git diff --check` passed before the runbook/roadmap documentation update.
+- Live browser check at `http://127.0.0.1:18876/` confirmed the status strip
+  renders without crowding the center pane.
+- Live browser interaction confirmed the Library `Transcripts` filter changes
+  the status strip from `25 / 249` rows in scope with filter `all` to
+  `9 / 249` rows in scope with filter `transcript`.
+
+Next:
+
+- Add direct report/screenshot links for smoke-job evidence and improve the
+  Smoke Status card hierarchy so failed jobs are easier to debug.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

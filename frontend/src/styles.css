@@ -39,6 +39,14 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(215, 255, 115, 0.78);
+  outline-offset: 3px;
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -218,6 +226,10 @@ select {
   background: rgba(215, 255, 115, 0.14);
 }
 
+.filter-card button[aria-pressed="true"] {
+  box-shadow: inset 3px 0 0 rgba(215, 255, 115, 0.64);
+}
+
 .runtime-card code {
   white-space: normal;
   color: var(--muted);
@@ -251,6 +263,50 @@ select {
   background: rgba(215, 255, 115, 0.13);
   color: var(--accent);
   padding: 0.4rem 0.65rem;
+}
+
+.test-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.65rem;
+  align-items: stretch;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(215, 255, 115, 0.18);
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 115, 0.1), rgba(0, 0, 0, 0.14)),
+    rgba(0, 0, 0, 0.12);
+}
+
+.test-status-strip div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(244, 236, 216, 0.09);
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.test-status-strip span {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.test-status-strip strong {
+  overflow-wrap: anywhere;
+}
+
+.test-status-strip p {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .table-shell {
@@ -1074,7 +1130,8 @@ dd {
   .queue-list-heading,
   .queue-row,
   .intelligence-grid,
-  .editor-grid {
+  .editor-grid,
+  .test-status-strip {
     grid-template-columns: 1fr;
   }
 }

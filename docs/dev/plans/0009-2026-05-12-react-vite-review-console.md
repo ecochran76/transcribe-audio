@@ -62,6 +62,11 @@ The topbar should also include global search, current runtime profile, readiness
 
 The left pane is the workflow navigator and filter surface. It should be collapsible and animated.
 
+Current implementation note: the Library kind filters are real scoped controls
+with active `aria-pressed` state and row counts. The center pane also shows an
+operator test-status strip with API state, rows in scope, active filter/search
+state, latest smoke status, and a suggested next testing action.
+
 Per navbar section, it should show:
 
 - `Library`: saved filters, date ranges, meeting/calendar filters, kind filters (`recording`, `transcript`, `summary`, `contextual readout`), processing status, and semantic-search controls.

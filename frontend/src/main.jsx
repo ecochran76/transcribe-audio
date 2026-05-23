@@ -13,6 +13,13 @@ const NAV_ITEMS = [
   "Settings"
 ];
 
+const LIBRARY_KIND_FILTERS = [
+  { id: "all", label: "All artifacts" },
+  { id: "transcript", label: "Transcripts" },
+  { id: "readout", label: "Summaries" },
+  { id: "contextual_readout", label: "Contextual readouts" }
+];
+
 const FALLBACK_LIBRARY = [
   {
     id: "demo-transcript",
@@ -103,6 +110,11 @@ function statusLabel(status) {
   return status.replaceAll("_", " ");
 }
 
+function filterCount(items, kind) {
+  if (kind === "all") return items.length;
+  return items.filter((item) => item.kind === kind).length;
+}
+
 function capabilityLabels(capabilities) {
   if (Array.isArray(capabilities)) return capabilities;
   if (capabilities && typeof capabilities === "object") {
@@ -180,6 +192,7 @@ function App() {
   const [activeNav, setActiveNav] = useState("Library");
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [kindFilter, setKindFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [library, setLibrary] = useState({ items: FALLBACK_LIBRARY, total: FALLBACK_LIBRARY.length });
   const [reviewQueue, setReviewQueue] = useState(FALLBACK_REVIEW_QUEUE);
@@ -396,12 +409,13 @@ function App() {
 
   const visibleItems = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return library.items || [];
     return (library.items || []).filter((item) => {
+      if (kindFilter !== "all" && item.kind !== kindFilter) return false;
+      if (!needle) return true;
       const haystack = `${item.title || ""} ${item.kind || ""} ${item.source_path || ""}`.toLowerCase();
       return haystack.includes(needle);
     });
-  }, [library.items, query]);
+  }, [kindFilter, library.items, query]);
 
   const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
@@ -900,6 +914,7 @@ function App() {
           {NAV_ITEMS.map((item) => (
             <button
               className={activeNav === item ? "active" : ""}
+              aria-current={activeNav === item ? "page" : undefined}
               key={item}
               onClick={() => setActiveNav(item)}
               type="button"
@@ -942,9 +957,18 @@ function App() {
               <>
                 <div className="filter-card">
                   <span>Kind</span>
-                  <button type="button">Transcripts</button>
-                  <button type="button">Summaries</button>
-                  <button type="button">Contextual readouts</button>
+                  {LIBRARY_KIND_FILTERS.map((filter) => (
+                    <button
+                      aria-pressed={kindFilter === filter.id}
+                      className={kindFilter === filter.id ? "selected-filter" : ""}
+                      key={filter.id}
+                      onClick={() => setKindFilter(filter.id)}
+                      type="button"
+                    >
+                      {filter.label}
+                      <strong>{filterCount(library.items || [], filter.id)}</strong>
+                    </button>
+                  ))}
                 </div>
                 <div className="filter-card">
                   <span>Review buckets</span>
@@ -977,6 +1001,16 @@ function App() {
               {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
             </div>
           </div>
+          <TestStatusStrip
+            activeNav={activeNav}
+            apiStatus={health.status}
+            kindFilter={kindFilter}
+            query={query}
+            visibleCount={visibleItems.length}
+            totalCount={library.total ?? (library.items || []).length}
+            latestSmoke={intelligence.smokes?.latest_report}
+            latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
+          />
 
           {activeNav === "Review Queue" ? (
             <ReviewQueue
@@ -1068,6 +1102,45 @@ function App() {
         </aside>
       </section>
     </main>
+  );
+}
+
+function TestStatusStrip({
+  activeNav,
+  apiStatus,
+  kindFilter,
+  query,
+  visibleCount,
+  totalCount,
+  latestSmoke,
+  latestSmokeJob
+}) {
+  const target =
+    activeNav === "Intelligence"
+      ? "Queue a smoke, inspect the tail, then verify the latest report."
+      : activeNav === "Review Queue"
+        ? "Pick one queue bucket, run a dry preview, then materialize only after review."
+        : "Search or filter, select a row, then verify playback and source metadata in the inspector.";
+  return (
+    <section className="test-status-strip" aria-label="Operator test status">
+      <div>
+        <span>API</span>
+        <strong>{apiStatus === "ok" ? "Live" : "Preview"}</strong>
+      </div>
+      <div>
+        <span>Rows in scope</span>
+        <strong>{visibleCount} / {totalCount}</strong>
+      </div>
+      <div>
+        <span>Filter</span>
+        <strong>{statusLabel(kindFilter)}{query ? ` + "${query}"` : ""}</strong>
+      </div>
+      <div>
+        <span>Latest smoke</span>
+        <strong>{latestSmokeJob?.status || latestSmoke?.status || "none"}</strong>
+      </div>
+      <p>{target}</p>
+    </section>
   );
 }
 
