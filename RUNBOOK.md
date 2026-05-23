@@ -5546,6 +5546,57 @@ Next:
   with explicit safeguards around output overwrites and backend-specific
   command construction.
 
+## Turn 168 | 2026-05-23
+
+Summary: Overhauled the conversation workspace UX.
+
+Action:
+
+- Changed the Library table from artifact rows to conversation rows grouped by
+  transcript/source path.
+- Added workflow progress icons for transcript, first-pass summary, and
+  contextual readout readiness.
+- Updated the inspector to show useful selected-conversation metadata, audio,
+  and a `Conversation summary` panel instead of labelling raw transcript text
+  as a readout.
+- Replaced the modal card grid with a full-viewport conversation workspace.
+- Split the workspace into selectable workflow views: Transcript,
+  First-pass summary, Context workbench, Speakers, and Final readout.
+- Added source-transcript detail loading in the workspace so readout-selected
+  conversations can display the real transcript.
+- Added transcript text parsing for legacy transcript artifacts without
+  structured utterances.
+- Rendered transcript turns in a scrollable frame with deterministic
+  speaker-color delineation.
+- Kept re-transcription preflight and queue-manifest controls in the workspace
+  rail without starting backend work.
+- Updated ROADMAP and the P09 plan.
+
+Validation:
+
+- `graphiti-runtime doctor` passed before the slice.
+- `graphiti-runtime discover --group-id transcribe_audio_main "conversation
+  workspace full viewport transcript speaker colors library grouped
+  transcript readout inspector summary"` returned older advisory memory and no
+  conflicting direction.
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  35 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Browser smoke on `transcripts.localhost` with the Cara search confirmed one
+  grouped conversation row, the inspector `Conversation summary` region, the
+  full-viewport workspace, source audio controls, selectable workflow tabs, a
+  scrollable transcript turn frame, first-pass summary view, and separate
+  context workbench view.
+
+Next:
+
+- Add conversation-level API grouping so the UI does not need to infer
+  transcript/readout relationships from paged client-side rows.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -38,16 +38,23 @@ when present, keeps raw context JSON as a developer-labelled affordance, and
 uses `/api/documents/<id>/related` to resolve `source_artifact_path` and surface
 source-transcript audio for readouts that do not own a media blob directly.
 
-The right pane is now a compact inspector/launcher for a modal conversation
-workspace. The modal is the intended home for the conversation lifecycle: raw
-audio, re-transcription, first-pass/raw summary, context workbench,
-speaker/contact identity resolution, and final context-enriched readout. The
-re-transcription stage now has a dry-run preflight action that resolves source
-blob, backend, output paths, command preview, and explicit no-write/no-queue
-safety flags. It can also write a reviewed queue manifest under user-scoped
-runtime state after `QUEUE_RETRANSCRIPTION_JOB`, but that queue step still does
-not start a backend or write transcript outputs. Unwired workflow actions
-remain disabled and labelled as planned until reviewed backend contracts exist.
+The right pane is now a compact inspector/launcher with useful metadata,
+source-audio access, and a short conversation-summary panel that does not
+pretend transcript text is a readout. The Library now groups transcript,
+first-pass summary, and contextual readout artifacts into one conversation row
+with workflow progress icons instead of showing each artifact as a separate
+row.
+
+The conversation workspace now uses the full viewport. Transcript, first-pass
+summary, context workbench, speaker/contact identity, and final readout are
+separate selectable workflow views. The transcript view loads the source
+transcript for readouts, parses transcript text into speaker turns when
+structured utterances are absent, and renders a scrollable speaker-colored
+frame so it does not overlap other workflow panels. The re-transcription stage
+has a dry-run preflight action and reviewed queue manifest action, but queueing
+still does not start a backend or write transcript outputs. Unwired workflow
+actions remain disabled and labelled as planned until reviewed backend
+contracts exist.
 
 The remaining UI layer should make the workflow operational:
 

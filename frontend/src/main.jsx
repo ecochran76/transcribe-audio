@@ -193,9 +193,100 @@ function mediaForItem(item, sourceDocument) {
   return item?.media_blob?.playback_url ? item.media_blob : sourceDocument?.media_blob?.playback_url ? sourceDocument.media_blob : null;
 }
 
-function documentSummaryText(detail) {
+function documentSummaryText(detail, { allowTranscriptFallback = false } = {}) {
   const payload = detail?.json_payload || {};
-  return payload.summary || payload.readout || detail?.text_content || "";
+  if (payload.summary || payload.readout) return payload.summary || payload.readout;
+  if (allowTranscriptFallback && detail?.kind !== "transcript") return detail?.text_content || "";
+  return "";
+}
+
+function conversationGroupKey(item) {
+  return sourceArtifactPath(item) || item?.source_path || item?.id || "";
+}
+
+function buildConversationRows(items) {
+  const groups = new Map();
+  (items || []).forEach((item) => {
+    const key = conversationGroupKey(item);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        transcript: null,
+        readouts: [],
+        contextualReadouts: [],
+        artifacts: []
+      });
+    }
+    const group = groups.get(key);
+    group.artifacts.push(item);
+    if (item.kind === "transcript") group.transcript = item;
+    if (item.kind === "readout") group.readouts.push(item);
+    if (item.kind === "contextual_readout") group.contextualReadouts.push(item);
+  });
+  return Array.from(groups.values()).map((group) => {
+    const representative = group.contextualReadouts[0] || group.readouts[0] || group.transcript || group.artifacts[0];
+    const source = group.transcript || group.artifacts[0];
+    const latestArtifact = group.artifacts
+      .slice()
+      .sort((a, b) => String(b.generated_at || b.updated_at || "").localeCompare(String(a.generated_at || a.updated_at || "")))[0];
+    return {
+      ...group,
+      representative,
+      source,
+      latestArtifact,
+      hasTranscript: Boolean(group.transcript),
+      hasSummary: group.readouts.length > 0,
+      hasContextualReadout: group.contextualReadouts.length > 0,
+      title: representative?.title || source?.title || "Untitled conversation"
+    };
+  });
+}
+
+function speakerClassName(speaker) {
+  const text = String(speaker || "speaker").trim();
+  let seed = 0;
+  for (let index = 0; index < text.length; index += 1) seed += text.charCodeAt(index);
+  return `speaker-${seed % 6}`;
+}
+
+function transcriptTurns(detail) {
+  const payload = detail?.json_payload || {};
+  const text = String(payload.transcript_text || detail?.text_content || "");
+  const turns = [];
+  let current = null;
+  text.split(/\r?\n/).forEach((line) => {
+    const match = line.match(/^(.{1,48}?)\s+\[([^\]]+)\]:\s*(.*)$/);
+    if (match) {
+      if (current) turns.push(current);
+      current = {
+        speaker: match[1].trim(),
+        time: match[2].trim(),
+        text: match[3].trim()
+      };
+      return;
+    }
+    if (current && line.trim()) {
+      current.text = `${current.text} ${line.trim()}`.trim();
+    }
+  });
+  if (current) turns.push(current);
+  if (turns.length) return turns;
+  return text
+    .split(/\n{2,}/)
+    .map((chunk, index) => ({ speaker: "Transcript", time: index === 0 ? "header" : "", text: chunk.trim() }))
+    .filter((turn) => turn.text);
+}
+
+function transcriptMeta(detail) {
+  const payload = detail?.json_payload || {};
+  return {
+    duration: payload.duration_seconds ? `${Math.round(Number(payload.duration_seconds) / 60)} min` : "",
+    event: payload.event?.summary || "",
+    recordingStart: payload.recording_start || payload.event?.start || "",
+    recordingEnd: payload.recording_end || payload.event?.end || "",
+    backend: payload.backend || "",
+    utteranceCount: payload.utterance_count || transcriptTurns(detail).length
+  };
 }
 
 function displayLabel(value, fallback = "Item") {
@@ -495,6 +586,7 @@ function App() {
       return haystack.includes(needle);
     });
   }, [kindFilter, library.items, query]);
+  const visibleConversationRows = useMemo(() => buildConversationRows(visibleItems), [visibleItems]);
 
   const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
@@ -1194,7 +1286,7 @@ function App() {
             />
           ) : (
             <LibraryTable
-              items={visibleItems}
+              rows={visibleConversationRows}
               allItems={library.items || []}
               selectedId={selected?.id}
               onOpenConversation={() => setConversationOpen(true)}
@@ -1820,28 +1912,37 @@ function ReplayManifest({ manifest, onLoadArtifact }) {
   );
 }
 
-function LibraryTable({ items, allItems, selectedId, onOpenConversation, onSelect }) {
+function WorkflowIcon({ active, label, title }) {
+  return (
+    <span className={active ? "workflow-dot active" : "workflow-dot"} title={title || label} aria-label={`${label}: ${active ? "ready" : "not ready"}`}>
+      {label.slice(0, 1)}
+    </span>
+  );
+}
+
+function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect }) {
   return (
     <div className="table-shell">
       <table>
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Kind</th>
+            <th>Conversation</th>
+            <th>Workflow</th>
             <th>Calendar / route</th>
-            <th>Generated</th>
+            <th>Updated</th>
             <th>Media</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
-            const calendar = item.metadata?.event?.summary || item.metadata?.route?.label || "No context yet";
-            const sourceDocument = findSourceDocument(item, allItems);
+          {rows.map((row) => {
+            const item = row.representative;
+            const calendar = row.source?.metadata?.event?.summary || item.metadata?.event?.summary || item.metadata?.route?.label || "No context yet";
+            const sourceDocument = row.transcript || findSourceDocument(item, allItems);
             const linkedMedia = mediaForItem(item, sourceDocument);
             return (
               <tr
-                className={selectedId === item.id ? "selected" : ""}
-                key={item.id}
+                className={row.artifacts.some((artifact) => artifact.id === selectedId) ? "selected" : ""}
+                key={row.key}
                 onClick={() => onSelect(item.id)}
                 onDoubleClick={() => {
                   onSelect(item.id);
@@ -1849,12 +1950,18 @@ function LibraryTable({ items, allItems, selectedId, onOpenConversation, onSelec
                 }}
               >
                 <td>
-                  <strong>{item.title || "Untitled artifact"}</strong>
-                  <small>{item.id}</small>
+                  <strong>{row.title}</strong>
+                  <small>{row.transcript?.title || row.source?.source_path || row.key}</small>
                 </td>
-                <td><span className="chip">{statusLabel(item.kind || "unknown")}</span></td>
+                <td>
+                  <div className="workflow-progress" aria-label="Workflow progress">
+                    <WorkflowIcon active={row.hasTranscript} label="Transcript" title="Transcript stored" />
+                    <WorkflowIcon active={row.hasSummary} label="Summary" title="First-pass summary stored" />
+                    <WorkflowIcon active={row.hasContextualReadout} label="Context" title="Context-enriched readout stored" />
+                  </div>
+                </td>
                 <td>{calendar}</td>
-                <td>{formatDate(item.generated_at || item.updated_at)}</td>
+                <td>{formatDate(row.latestArtifact?.generated_at || row.latestArtifact?.updated_at)}</td>
                 <td>{linkedMedia ? (item.media_blob?.playback_url ? "Blob linked" : "Source blob") : "No blob"}</td>
               </tr>
             );
@@ -2457,6 +2564,7 @@ function Inspector({
   const linkedMedia = mediaForItem(item, sourceDocument);
   const summaryText = documentSummaryText(documentDetail);
   const payload = documentDetail?.json_payload || {};
+  const metadata = item.metadata || {};
   const participants = Array.isArray(payload.participants) ? payload.participants : [];
   const topics = Array.isArray(payload.topics) ? payload.topics : [];
   const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
@@ -2466,8 +2574,12 @@ function Inspector({
       <p className="eyebrow">Inspector</p>
       <h2>{item.title || "Untitled artifact"}</h2>
       <dl>
-        <dt>Kind</dt>
+        <dt>Selected</dt>
         <dd>{statusLabel(item.kind || "unknown")}</dd>
+        <dt>Meeting</dt>
+        <dd>{metadata.event?.summary || payload.event?.summary || "No calendar title"}</dd>
+        <dt>When</dt>
+        <dd>{formatDate(item.generated_at || item.updated_at)}</dd>
         <dt>Source</dt>
         <dd>{item.source_path || "Unknown"}</dd>
         <dt>Audio</dt>
@@ -2499,14 +2611,14 @@ function Inspector({
           </p>
         </div>
       )}
-      <section className="readout-card" aria-label="Human-readable artifact preview">
-        <span>Readout</span>
+      <section className="readout-card" aria-label="Conversation summary">
+        <span>Conversation summary</span>
         {documentDetailAction.status === "loading" ? (
-          <p className="muted">Loading readout...</p>
+          <p className="muted">Loading summary...</p>
         ) : summaryText ? (
           <p>{summaryText.length > 900 ? `${summaryText.slice(0, 900)}...` : summaryText}</p>
         ) : (
-          <p className="muted">{documentDetailAction.message || "No human-readable text is available for this artifact yet."}</p>
+          <p className="muted">{documentDetailAction.message || "No first-pass summary is stored for this conversation yet."}</p>
         )}
         {participants.length ? (
           <div className="mini-section">
@@ -2574,23 +2686,54 @@ function ConversationWorkflowModal({
   const [retranscriptionBackend, setRetranscriptionBackend] = useState("faster_whisper");
   const [retranscriptionPreflight, setRetranscriptionPreflight] = useState({ status: "idle", message: "", payload: null });
   const [retranscriptionQueue, setRetranscriptionQueue] = useState({ status: "idle", message: "", payload: null });
+  const [activeWorkflowView, setActiveWorkflowView] = useState("transcript");
+  const [sourceDetail, setSourceDetail] = useState(null);
+  const [sourceDetailAction, setSourceDetailAction] = useState({ status: "idle", message: "" });
   const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
   const linkedMedia = mediaForItem(item, sourceDocument);
   const payload = documentDetail?.json_payload || {};
+  const transcriptDetail = item.kind === "transcript" ? documentDetail : sourceDetail;
+  const turns = transcriptTurns(transcriptDetail);
+  const meta = transcriptMeta(transcriptDetail);
   const summaryText = documentSummaryText(documentDetail);
   const participants = Array.isArray(payload.participants) ? payload.participants : [];
   const topics = Array.isArray(payload.topics) ? payload.topics : [];
   const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
-  const workflowSteps = [
-    { id: "raw-audio", label: "Raw audio" },
-    { id: "retranscription", label: "Re-transcription" },
-    { id: "raw-summary", label: "Raw summary" },
-    { id: "context-workbench", label: "Context workbench" },
-    { id: "speakers", label: "Speakers and contacts" },
-    { id: "final-readout", label: "Final readout" }
+  const workflowViews = [
+    { id: "transcript", label: "Transcript" },
+    { id: "summary", label: "First-pass summary" },
+    { id: "context", label: "Context workbench" },
+    { id: "speakers", label: "Speakers" },
+    { id: "output", label: "Final readout" }
   ];
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSourceDetail() {
+      if (!sourceDocument?.id || sourceDocument.id === item.id || item.kind === "transcript") {
+        setSourceDetail(null);
+        setSourceDetailAction({ status: "idle", message: "" });
+        return;
+      }
+      setSourceDetailAction({ status: "loading", message: "Loading source transcript..." });
+      try {
+        const payload = await fetchJson(`/api/documents/${encodeURIComponent(sourceDocument.id)}`);
+        if (cancelled) return;
+        setSourceDetail(payload);
+        setSourceDetailAction({ status: "loaded", message: "" });
+      } catch (error) {
+        if (cancelled) return;
+        setSourceDetail(null);
+        setSourceDetailAction({ status: "error", message: `Source transcript failed: ${error.message}` });
+      }
+    }
+    loadSourceDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, item.kind, sourceDocument?.id]);
   async function previewRetranscription() {
     setRetranscriptionPreflight({ status: "running", message: "Previewing retranscription plan...", payload: null });
     setRetranscriptionQueue({ status: "idle", message: "", payload: null });
@@ -2642,19 +2785,21 @@ function ConversationWorkflowModal({
   }
 
   return (
-    <div className="conversation-modal-backdrop" onMouseDown={onClose}>
+    <div className="conversation-modal-backdrop full-viewport" onMouseDown={onClose}>
       <section
         aria-labelledby="conversation-modal-title"
         aria-modal="true"
-        className="conversation-modal"
+        className="conversation-modal conversation-workspace"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
         <header className="conversation-modal-header">
           <div>
-            <p className="eyebrow">Conversation Workflow</p>
-            <h2 id="conversation-modal-title">{item.title || "Untitled artifact"}</h2>
-            <p className="muted">{statusLabel(item.kind || "artifact")} · {formatDate(item.generated_at || item.updated_at)}</p>
+            <p className="eyebrow">Conversation Workspace</p>
+            <h2 id="conversation-modal-title">{item.title || sourceDocument?.title || "Untitled conversation"}</h2>
+            <p className="muted">
+              {meta.event || statusLabel(item.kind || "artifact")} · {formatDate(item.generated_at || item.updated_at)}
+            </p>
           </div>
           <button aria-label="Close conversation workspace" className="modal-close" onClick={onClose} type="button">
             <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
@@ -2663,178 +2808,212 @@ function ConversationWorkflowModal({
             </svg>
           </button>
         </header>
-        <nav className="workflow-step-nav" aria-label="Conversation workflow sections">
-          {workflowSteps.map((step) => (
-            <a href={`#${step.id}`} key={step.id}>{step.label}</a>
-          ))}
-        </nav>
-        <div className="conversation-modal-grid">
-          <section className="workflow-panel hero-panel" id="raw-audio">
-            <span>Raw audio</span>
-            <h3>Source recording</h3>
-            {linkedMedia ? (
-              <>
-                <audio controls src={linkedMedia.playback_url} />
-                <div className="notice-actions">
+
+        <div className="conversation-workspace-body">
+          <aside className="conversation-rail">
+            <section className="rail-card">
+              <span>Source recording</span>
+              {linkedMedia ? (
+                <>
+                  <audio controls src={linkedMedia.playback_url} />
                   <a href={linkedMedia.download_url}>Download source recording</a>
                   {sourceDocument && sourceDocument.id !== item.id ? (
                     <button onClick={() => onSelectDocument(sourceDocument.id)} type="button">
                       Select source transcript
                     </button>
                   ) : null}
-                </div>
-                <p className="muted">
-                  {item.media_blob?.playback_url
-                    ? "Audio is linked directly to this artifact."
-                    : `Audio is inherited from source transcript ${sourceDocument?.id || "unknown"}.`}
-                </p>
-              </>
-            ) : (
-              <p className="muted">No source recording is linked yet. This should be handled by media backfill or source-transcript resolution.</p>
-            )}
-          </section>
+                </>
+              ) : (
+                <p className="muted">No source recording is linked yet.</p>
+              )}
+            </section>
+            <section className="rail-card">
+              <span>Metadata</span>
+              <dl>
+                <dt>Transcript</dt>
+                <dd>{sourceDocument?.id || (item.kind === "transcript" ? item.id : "Not linked")}</dd>
+                <dt>Turns</dt>
+                <dd>{meta.utteranceCount || turns.length || "Unknown"}</dd>
+                <dt>Duration</dt>
+                <dd>{meta.duration || "Unknown"}</dd>
+                <dt>Backend</dt>
+                <dd>{meta.backend || "Unknown"}</dd>
+              </dl>
+            </section>
+            <section className="rail-card">
+              <span>Re-transcription</span>
+              <label className="workflow-field">
+                Backend
+                <select
+                  value={retranscriptionBackend}
+                  onChange={(event) => {
+                    setRetranscriptionBackend(event.target.value);
+                    setRetranscriptionPreflight({ status: "idle", message: "", payload: null });
+                    setRetranscriptionQueue({ status: "idle", message: "", payload: null });
+                  }}
+                >
+                  <option value="faster_whisper">faster-whisper local</option>
+                  <option value="assemblyai">AssemblyAI</option>
+                </select>
+              </label>
+              <div className="workflow-action-row">
+                <button onClick={previewRetranscription} disabled={retranscriptionPreflight.status === "running"} type="button">
+                  Preview
+                </button>
+                <button
+                  disabled={!retranscriptionPreflight.payload?.ok || retranscriptionQueue.status === "running"}
+                  onClick={queueRetranscription}
+                  type="button"
+                >
+                  Queue manifest
+                </button>
+              </div>
+              {[retranscriptionPreflight, retranscriptionQueue].map((action, index) => (
+                action.message ? (
+                  <div className={`action-notice ${action.status}`} key={`${index}-${action.status}`}>
+                    <strong>{action.message}</strong>
+                    {action.payload?.job ? <small>{action.payload.job.path}</small> : null}
+                  </div>
+                ) : null
+              ))}
+            </section>
+          </aside>
 
-          <section className="workflow-panel" id="retranscription">
-            <span>Re-transcription</span>
-            <h3>Transcript regeneration</h3>
-            <p>Use this stage to rerun speech-to-text from the linked source recording, compare outputs, and preserve the old transcript as provenance.</p>
-            <label className="workflow-field">
-              Backend
-              <select
-                value={retranscriptionBackend}
-                onChange={(event) => {
-                  setRetranscriptionBackend(event.target.value);
-                  setRetranscriptionPreflight({ status: "idle", message: "", payload: null });
-                  setRetranscriptionQueue({ status: "idle", message: "", payload: null });
-                }}
-              >
-                <option value="faster_whisper">faster-whisper local</option>
-                <option value="assemblyai">AssemblyAI</option>
-              </select>
-            </label>
-            <div className="workflow-action-row">
-              <button onClick={previewRetranscription} disabled={retranscriptionPreflight.status === "running"} type="button">
-                Preview re-transcription
-              </button>
-              <button
-                disabled={!retranscriptionPreflight.payload?.ok || retranscriptionQueue.status === "running"}
-                onClick={queueRetranscription}
-                title={retranscriptionPreflight.payload?.ok ? "Write a queued job manifest without starting a backend." : "Run preflight before queueing."}
-                type="button"
-              >
-                Queue manifest
-              </button>
-              <button disabled title="Transcript diffing is planned after versioned transcript artifacts exist." type="button">Compare versions (planned)</button>
-            </div>
-            {retranscriptionPreflight.message ? (
-              <div className={`action-notice ${retranscriptionPreflight.status}`}>
-                <strong>{retranscriptionPreflight.message}</strong>
-                {retranscriptionPreflight.payload ? (
-                  <dl className="preflight-summary">
-                    <dt>Source blob</dt>
-                    <dd>{retranscriptionPreflight.payload.source_blob?.id || "Missing source recording"}</dd>
-                    <dt>Output folder</dt>
-                    <dd>{retranscriptionPreflight.payload.planned_outputs?.output_dir || "Unavailable"}</dd>
-                    <dt>Command</dt>
-                    <dd><code>{(retranscriptionPreflight.payload.command || []).join(" ")}</code></dd>
-                    <dt>Safety</dt>
-                    <dd>
-                      queue={String(retranscriptionPreflight.payload.will_queue)} /
-                      run={String(retranscriptionPreflight.payload.will_run_transcription)} /
-                      write={String(retranscriptionPreflight.payload.will_write_files)}
-                    </dd>
-                  </dl>
+          <main className="conversation-main">
+            <nav className="workflow-view-tabs" aria-label="Conversation workflow views">
+              {workflowViews.map((view) => (
+                <button
+                  aria-pressed={activeWorkflowView === view.id}
+                  className={activeWorkflowView === view.id ? "active" : ""}
+                  key={view.id}
+                  onClick={() => setActiveWorkflowView(view.id)}
+                  type="button"
+                >
+                  {view.label}
+                </button>
+              ))}
+            </nav>
+
+            {activeWorkflowView === "transcript" ? (
+              <section className="workflow-view transcript-view">
+                <div className="workflow-view-heading">
+                  <div>
+                    <span>Transcript</span>
+                    <h3>{transcriptDetail?.title || sourceDocument?.title || item.title}</h3>
+                  </div>
+                  <strong>{turns.length} turns</strong>
+                </div>
+                {sourceDetailAction.status === "loading" ? (
+                  <p className="muted">Loading source transcript...</p>
+                ) : turns.length ? (
+                  <div className="transcript-frame" tabIndex={0}>
+                    {turns.map((turn, index) => (
+                      <article className={`transcript-turn ${speakerClassName(turn.speaker)}`} key={`${index}-${turn.time}-${turn.speaker}`}>
+                        <div className="speaker-badge">
+                          <strong>{turn.speaker}</strong>
+                          {turn.time ? <small>{turn.time}</small> : null}
+                        </div>
+                        <p>{turn.text}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">{sourceDetailAction.message || "No transcript text is available for this conversation."}</p>
+                )}
+              </section>
+            ) : null}
+
+            {activeWorkflowView === "summary" ? (
+              <section className="workflow-view">
+                <div className="workflow-view-heading">
+                  <div>
+                    <span>First-pass summary</span>
+                    <h3>{summaryText ? "Summary ready" : "Summary not prepared"}</h3>
+                  </div>
+                </div>
+                {documentDetailAction.status === "loading" ? (
+                  <p className="muted">Loading summary...</p>
+                ) : summaryText ? (
+                  <p className="summary-prose">{summaryText}</p>
+                ) : (
+                  <p className="muted">{documentDetailAction.message || "No first-pass summary is stored yet."}</p>
+                )}
+                {topics.length ? (
+                  <div className="chip-cloud">{topics.slice(0, 16).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}</div>
                 ) : null}
-              </div>
+              </section>
             ) : null}
-            {retranscriptionQueue.message ? (
-              <div className={`action-notice ${retranscriptionQueue.status}`}>
-                <strong>{retranscriptionQueue.message}</strong>
-                {retranscriptionQueue.payload ? (
-                  <dl className="preflight-summary">
-                    <dt>Job</dt>
-                    <dd>{retranscriptionQueue.payload.job?.job_id || "Not created"}</dd>
-                    <dt>Manifest</dt>
-                    <dd>{retranscriptionQueue.payload.job?.path || "Unavailable"}</dd>
-                    <dt>Run gate</dt>
-                    <dd>{retranscriptionQueue.payload.future_required_approval_token_for_run || "Unavailable"}</dd>
-                    <dt>Safety</dt>
-                    <dd>
-                      run={String(retranscriptionQueue.payload.will_run_transcription)} /
-                      write={String(retranscriptionQueue.payload.will_write_files)}
-                    </dd>
-                  </dl>
-                ) : null}
-              </div>
-            ) : null}
-          </section>
 
-          <section className="workflow-panel wide-panel" id="raw-summary">
-            <span>Raw summary</span>
-            <h3>First-pass readout</h3>
-            {documentDetailAction.status === "loading" ? (
-              <p className="muted">Loading summary...</p>
-            ) : summaryText ? (
-              <p>{summaryText}</p>
-            ) : (
-              <p className="muted">{documentDetailAction.message || "No first-pass summary text is available yet."}</p>
-            )}
-            {topics.length ? (
-              <div className="chip-cloud">{topics.slice(0, 10).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}</div>
-            ) : null}
-          </section>
-
-          <section className="workflow-panel" id="context-workbench">
-            <span>Context workbench</span>
-            <h3>Provenance and context gathering</h3>
-            <p>Collect calendar, GWS, msgcli, Odollo, Graphiti, local-store, and matter-routing evidence before the final readout.</p>
-            <div className="workflow-action-row">
-              <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">Open raw context JSON</a>
-              <button disabled title="Context-run creation needs a reviewed backend contract." type="button">Start context run (planned)</button>
-              <button disabled title="Recurring-meeting recipes are planned for deterministic context acquisition." type="button">Apply recurring recipe (planned)</button>
-            </div>
-          </section>
-
-          <section className="workflow-panel" id="speakers">
-            <span>Speakers and contacts</span>
-            <h3>Identity resolution</h3>
-            {participants.length ? (
-              <div className="identity-list">
-                {participants.map((participant, index) => (
-                  <article key={`${index}-${displayLabel(participant, "Participant")}`}>
-                    <strong>{displayLabel(participant, "Participant")}</strong>
-                    <small>Contact linking is planned; retain as extracted participant for now.</small>
-                    <button disabled title="Contact DB and merge workflow are planned in P09." type="button">Link contact (planned)</button>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">No participants were extracted for this artifact yet.</p>
-            )}
-          </section>
-
-          <section className="workflow-panel wide-panel" id="final-readout">
-            <span>Final readout</span>
-            <h3>{finalReadoutReady ? "Context-enriched readout" : "Context-enriched readout not generated yet"}</h3>
-            <div className="readout-columns">
-              {actionItems.length ? (
-                <div>
-                  <strong>Actions</strong>
-                  <ul>{actionItems.slice(0, 6).map((action, index) => <li key={`${index}-${displayLabel(action, "Action item")}`}>{displayLabel(action, "Action item")}</li>)}</ul>
+            {activeWorkflowView === "context" ? (
+              <section className="workflow-view">
+                <div className="workflow-view-heading">
+                  <div>
+                    <span>Context workbench</span>
+                    <h3>Provenance and context gathering</h3>
+                  </div>
                 </div>
-              ) : null}
-              {risks.length ? (
-                <div>
-                  <strong>Risks</strong>
-                  <ul>{risks.slice(0, 6).map((risk, index) => <li key={`${index}-${displayLabel(risk, "Risk")}`}>{displayLabel(risk, "Risk")}</li>)}</ul>
+                <p>Gather calendar, GWS, msgcli, Odollo, Graphiti, local-store, and matter-routing evidence before the final readout.</p>
+                <div className="workflow-action-row">
+                  <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">Open raw context JSON</a>
+                  <button disabled title="Context-run creation needs a reviewed backend contract." type="button">Start context run (planned)</button>
+                  <button disabled title="Recurring-meeting recipes are planned for deterministic context acquisition." type="button">Apply recurring recipe (planned)</button>
                 </div>
-              ) : null}
-            </div>
-            <div className="workflow-action-row">
-              <button disabled title="Final readout generation needs context-run output and a reviewed provider action." type="button">Generate final readout (planned)</button>
-              <button disabled title="Share links are planned after scoped artifact sharing is wired." type="button">Share final readout (planned)</button>
-            </div>
-          </section>
+              </section>
+            ) : null}
+
+            {activeWorkflowView === "speakers" ? (
+              <section className="workflow-view">
+                <div className="workflow-view-heading">
+                  <div>
+                    <span>Speakers and contacts</span>
+                    <h3>Identity resolution</h3>
+                  </div>
+                </div>
+                {participants.length ? (
+                  <div className="identity-list">
+                    {participants.map((participant, index) => (
+                      <article key={`${index}-${displayLabel(participant, "Participant")}`}>
+                        <strong>{displayLabel(participant, "Participant")}</strong>
+                        <small>{participant.role || "Contact linking is planned; retain as extracted participant for now."}</small>
+                        <button disabled title="Contact DB and merge workflow are planned in P09." type="button">Link contact (planned)</button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">No participants were extracted for this artifact yet.</p>
+                )}
+              </section>
+            ) : null}
+
+            {activeWorkflowView === "output" ? (
+              <section className="workflow-view">
+                <div className="workflow-view-heading">
+                  <div>
+                    <span>Final readout</span>
+                    <h3>{finalReadoutReady ? "Context-enriched readout" : "Context-enriched readout not generated yet"}</h3>
+                  </div>
+                </div>
+                <div className="readout-columns">
+                  {actionItems.length ? (
+                    <div>
+                      <strong>Actions</strong>
+                      <ul>{actionItems.slice(0, 8).map((action, index) => <li key={`${index}-${displayLabel(action, "Action item")}`}>{displayLabel(action, "Action item")}</li>)}</ul>
+                    </div>
+                  ) : null}
+                  {risks.length ? (
+                    <div>
+                      <strong>Risks</strong>
+                      <ul>{risks.slice(0, 8).map((risk, index) => <li key={`${index}-${displayLabel(risk, "Risk")}`}>{displayLabel(risk, "Risk")}</li>)}</ul>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="workflow-action-row">
+                  <button disabled title="Final readout generation needs context-run output and a reviewed provider action." type="button">Generate final readout (planned)</button>
+                  <button disabled title="Share links are planned after scoped artifact sharing is wired." type="button">Share final readout (planned)</button>
+                </div>
+              </section>
+            ) : null}
+          </main>
         </div>
       </section>
     </div>
