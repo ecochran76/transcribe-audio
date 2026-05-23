@@ -15,6 +15,7 @@ from transcribe_common import TranscriptionError
 
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 QUALITY_CALENDAR_SOURCE_TYPES = {"calendar_event", "gws_calendar_overlap", "gws_calendar_event_detail"}
+QUALITY_CONTACT_SOURCE_TYPES = {"gws_contact", "gws_other_contact", "gws_directory_person", "odollo_contact"}
 QUALITY_STOP_TERMS = {
     "about",
     "and",
@@ -44,6 +45,9 @@ SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES = {
     "calendar_event": 0,
     "gws_calendar_overlap": 0,
     "gws_calendar_event_detail": 0,
+    "gws_contact": 1,
+    "gws_other_contact": 1,
+    "gws_directory_person": 1,
     "gws_drive_file": 2,
     "gws_docs_file": 2,
     "odollo_contact": 2,
@@ -57,12 +61,18 @@ SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES = {
 @dataclass
 class GwsProvenanceConfig:
     enabled: bool = False
+    profile_label: str = ""
     config_dir: Optional[Path] = None
     drive_query: str = ""
     drive_page_size: int = 5
+    people_page_size: int = 5
+    people_query_limit: int = 8
     timeout: float = 30.0
     include_calendar_details: bool = True
     include_drive_search: bool = True
+    include_people_contacts: bool = False
+    include_other_contacts: bool = False
+    include_directory_people: bool = False
 
 
 @dataclass
@@ -138,6 +148,182 @@ def run_gws_json(command: list[str], *, config: GwsProvenanceConfig) -> Any:
         return parse_gws_json(result.stdout)
     except json.JSONDecodeError as exc:
         raise TranscriptionError("gws provenance command did not return valid JSON.") from exc
+
+
+def compact_person_name(person: dict[str, Any]) -> str:
+    names = person.get("names") if isinstance(person.get("names"), list) else []
+    for name in names:
+        if not isinstance(name, dict):
+            continue
+        for field in ("displayName", "unstructuredName", "givenName"):
+            value = normalize_string(name.get(field))
+            if value:
+                return value
+    return ""
+
+
+def compact_person_email(person: dict[str, Any]) -> str:
+    emails = person.get("emailAddresses") if isinstance(person.get("emailAddresses"), list) else []
+    for email in emails:
+        if not isinstance(email, dict):
+            continue
+        value = normalize_string(email.get("value"))
+        if value:
+            return value
+    return ""
+
+
+def compact_person_company(person: dict[str, Any]) -> str:
+    organizations = person.get("organizations") if isinstance(person.get("organizations"), list) else []
+    for organization in organizations:
+        if not isinstance(organization, dict):
+            continue
+        value = normalize_string(organization.get("name")) or normalize_string(organization.get("title"))
+        if value:
+            return value
+    return ""
+
+
+def gws_people_profile(config: GwsProvenanceConfig) -> str:
+    if config.profile_label:
+        return normalize_string(config.profile_label)
+    if config.config_dir:
+        return normalize_string(config.config_dir.expanduser())
+    return "default"
+
+
+def gws_people_sources(
+    people: list[dict[str, Any]],
+    *,
+    source_type: str,
+    query: str,
+    config: GwsProvenanceConfig,
+) -> list[ProvenanceSource]:
+    profile = gws_people_profile(config)
+    sources: list[ProvenanceSource] = []
+    for person in people:
+        resource_name = normalize_string(person.get("resourceName"))
+        name = compact_person_name(person)
+        email = compact_person_email(person)
+        company = compact_person_company(person)
+        label = " | ".join(item for item in [name or email or "Google contact", company] if item)
+        source_id = resource_name or stable_id(source_type, profile, label, email)
+        sources.append(
+            ProvenanceSource(
+                source_type=source_type,
+                source_id=source_id,
+                label=label,
+                uri=f"gws://{profile}/people/{resource_name}" if resource_name else f"gws://{profile}/people",
+                snippet="; ".join(item for item in [name, email, company] if item),
+                metadata={
+                    "profile": profile,
+                    "resource_name": resource_name,
+                    "email": email,
+                    "company": company,
+                    "query": query,
+                    "matched_terms": [query],
+                },
+            )
+        )
+    return sources
+
+
+def gws_people_from_search_payload(payload: Any, *, directory: bool = False) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    if directory:
+        people = payload.get("people")
+        return [item for item in people if isinstance(item, dict)] if isinstance(people, list) else []
+    results = payload.get("results")
+    if not isinstance(results, list):
+        return []
+    people: list[dict[str, Any]] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        person = result.get("person")
+        if isinstance(person, dict):
+            people.append(person)
+    return people
+
+
+def gws_people_search(
+    query: str,
+    *,
+    surface: str,
+    config: GwsProvenanceConfig,
+) -> list[ProvenanceSource]:
+    query_text = normalize_string(query)
+    if not query_text:
+        return []
+    page_size = max(1, min(int(config.people_page_size or 5), 30))
+    if surface == "contacts":
+        command = ["gws", "people", "people", "searchContacts"]
+        params = {
+            "query": query_text,
+            "readMask": "names,emailAddresses,organizations,metadata",
+            "pageSize": page_size,
+        }
+        source_type = "gws_contact"
+        directory = False
+    elif surface == "other_contacts":
+        command = ["gws", "people", "otherContacts", "search"]
+        params = {
+            "query": query_text,
+            "readMask": "names,emailAddresses,phoneNumbers,metadata",
+            "pageSize": page_size,
+        }
+        source_type = "gws_other_contact"
+        directory = False
+    elif surface == "directory":
+        command = ["gws", "people", "people", "searchDirectoryPeople"]
+        params = {
+            "query": query_text,
+            "readMask": "names,emailAddresses,organizations,metadata",
+            "pageSize": max(1, min(page_size, 500)),
+            "sources": ["DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE", "DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT"],
+        }
+        source_type = "gws_directory_person"
+        directory = True
+    else:
+        return []
+    payload = run_gws_json([*command, "--params", json.dumps(params), "--format", "json"], config=config)
+    return gws_people_sources(
+        gws_people_from_search_payload(payload, directory=directory),
+        source_type=source_type,
+        query=query_text,
+        config=config,
+    )
+
+
+def collect_gws_contact_provenance(
+    query_terms: list[str],
+    *,
+    config: GwsProvenanceConfig,
+) -> list[ProvenanceSource]:
+    if not config.enabled:
+        return []
+    surfaces = []
+    if config.include_people_contacts:
+        surfaces.append("contacts")
+    if config.include_other_contacts:
+        surfaces.append("other_contacts")
+    if config.include_directory_people:
+        surfaces.append("directory")
+    if not surfaces:
+        return []
+    sources: list[ProvenanceSource] = []
+    seen: set[tuple[str, str]] = set()
+    terms = [normalize_string(term) for term in query_terms if normalize_string(term)]
+    for term in terms[: max(1, int(config.people_query_limit or 8))]:
+        for surface in surfaces:
+            for source in gws_people_search(term, surface=surface, config=config):
+                key = (source.source_type, source.source_id)
+                if key in seen:
+                    continue
+                sources.append(source)
+                seen.add(key)
+    return sources
 
 
 def event_items(transcript: dict[str, Any]) -> list[dict[str, Any]]:
@@ -325,6 +511,8 @@ def source_quality_profile(source: ProvenanceSource) -> str:
         return "calendar_trusted"
     if source.source_type in {"gws_drive_file", "gws_docs_file"}:
         return "drive_file_identity"
+    if source.source_type in {"gws_contact", "gws_other_contact", "gws_directory_person"}:
+        return "gws_contact_identity"
     if source.source_type == "odollo_contact":
         return "odollo_contact_identity"
     if source.source_type == "odollo_log_note":
@@ -887,4 +1075,6 @@ def collect_gws_provenance(
         sources.extend(collect_gws_calendar_sources(transcript, config=config))
     if config.include_drive_search:
         sources.extend(collect_gws_drive_sources(transcript, readout, config=config))
+    if config.include_people_contacts or config.include_other_contacts or config.include_directory_people:
+        sources.extend(collect_gws_contact_provenance(provenance_quality_terms(transcript, readout), config=config))
     return sources

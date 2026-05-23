@@ -2,6 +2,57 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 185 | 2026-05-23
+
+Summary: Completed M2 speaker deanonymization and participant-aware context
+workbench.
+
+Changes:
+
+- Added `participant_identity.py` with
+  `transcribe-audio.participant-identity-bundle.v1`.
+- Added configured read-only `gws` People/Contacts provenance for grouped
+  contacts, Other Contacts, and optional directory people.
+- Promoted Odollo `res.partner` contacts into the identity candidate pool while
+  keeping log-note provenance out of speaker identity matching.
+- Added `contact-provenance.config.json.sample` and ignored real
+  `contact-provenance.config.json` files.
+- Wrote the live user-scoped config at
+  `~/.local/state/transcribe-audio/contact-provenance.config.json` for the
+  default `gws` profile plus `soylei-prod` and `saber-prod` Odollo profiles.
+- Extended conversation identity-review, context-workbench, first-pass summary,
+  contextual reread, AuraCall batch, and readout prompt paths to carry the
+  participant identity bundle.
+- Updated the React conversation workspace with calendar evidence, source
+  profile chips, provenance candidate details, manual contact entry controls,
+  and blocked final-preview messaging when identity/context warnings remain.
+- Updated the conversation review-loop browser smoke to wait for slow live
+  contact-provenance detail loading and validate the M2 identity path.
+- Updated README, API docs, Plan 0012, and ROADMAP.
+
+Validation:
+
+- Count-only live contact-provenance check loaded 3 source profiles, found 6
+  compact contact-provenance sources for the Tempo query, and returned 0
+  warnings without printing contact records.
+- `.venv/bin/python -m pytest -q` passed: 213 tests.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m py_compile participant_identity.py context_sources.py transcript_api.py summarize_transcript.py contextual_reread.py scripts/auracall_legacy_enrichment_batch.py scripts/smoke_conversation_review_loop_ui.py tests/test_participant_identity.py tests/test_context_sources.py tests/test_transcript_api.py tests/test_readouts.py` passed.
+- Restarted `transcripts.service`; `systemctl --user is-active
+  transcripts.service` returned `active` and
+  `curl http://127.0.0.1:18876/api/health` returned `status: ok`.
+- Browser smoke passed:
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T181351Z-conversation-review-loop-smoke.json`.
+  The live Tempo conversation showed 4 speakers, 14 contact candidates, 6
+  calendar attendees, 3 source profiles, 3 pending assignments, manual contact
+  controls, context identity chips, and final-preview blocking with 5 unresolved
+  identity/context warnings.
+
+Next:
+
+- Dogfood identity decisions on more recordings and tune contact-source
+  quality before reopening P05 external deposition apply work.
+
 ## Turn 184 | 2026-05-23
 
 Summary: Corrected M2 contact matching to use configured provenance sources.

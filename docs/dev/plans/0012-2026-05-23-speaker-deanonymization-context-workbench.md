@@ -1,6 +1,6 @@
 # Plan 0012 | Speaker Deanonymization And Context Workbench
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -43,23 +43,29 @@ conversation workspace can show transcript turns, selected first-pass summary
 actions, SQLite-backed speaker/contact review, context provenance inspection,
 contextual readout inspection, and no-write deposition/memory preview queueing.
 
-That loop is not yet strong enough for deposition. Speaker/contact review is
-mostly operator-driven, context-workbench actions are local manifest previews,
-and first-pass/contextual readouts do not yet receive a deliberate
-participant-identity bundle built from configured `gws`/Odollo contact
-provenance, calendar attendee evidence, and reviewed operator input. P05
-external deposition and richer memory harvest should wait until this
-identity/context bundle exists.
+Plan 0012 closes the next identity/context milestone. Speaker/contact review
+now builds a deliberate participant-identity bundle from configured
+`gws`/Odollo contact provenance, calendar attendee evidence, readout
+participants, local reviewed contacts, and operator input. Context-workbench
+previews and first-pass/contextual readout preparation carry that bundle before
+any high-powered provider is asked to reason over anonymous speaker labels.
+Deposition/memory preview remains gated when identity or context warnings are
+unresolved.
 
-Current reusable seams:
+Implemented seams:
 
-- `context_sources.py` already has read-only Odollo contact provenance through
-  configured profiles and emits `odollo_contact` sources.
-- `context_sources.py` already has a `gws` provenance config for Calendar/Drive,
-  but it does not yet collect Google Contacts or People API records.
-- `transcript_api.py` exposes conversation speaker/contact candidates from
-  stored readout participants and local reviewed contact tables, but it does not
-  yet rank configured provenance contacts against calendar attendees.
+- `participant_identity.py` defines
+  `transcribe-audio.participant-identity-bundle.v1`.
+- `context_sources.py` has read-only `gws` People/Contacts provenance for
+  grouped contacts, Other Contacts, and optional directory people.
+- Odollo `res.partner` contact provenance is promoted into the participant
+  identity candidate pool while log-note provenance stays out of identity
+  matching.
+- `transcript_api.py` exposes the bundle through conversation detail,
+  identity-review, context-workbench, first-pass preparation, and final-preview
+  gate surfaces.
+- The React workflow shows calendar evidence, configured source profiles,
+  candidate provenance, manual contact entry, and blocked final previews.
 
 ## Contact Source Configuration
 
@@ -69,7 +75,7 @@ names, account paths, tenant labels, credentials, and contact outputs remain
 under `~/.local/state/transcribe-audio/`, `~/.config/gws*`, `~/.odollo/`, or
 the relevant source runtime.
 
-The planned configuration shape is:
+The configuration shape is:
 
 - `gws` contact profiles: profile label, `GOOGLE_WORKSPACE_CLI_CONFIG_DIR`,
   enabled People API surfaces (`contacts`, `other_contacts`, `directory`),
@@ -79,6 +85,10 @@ The planned configuration shape is:
 - Per-workflow policy: which contact provenance profiles may be used for
   speaker deanonymization, context workbench, and readout prompt bundles.
 - No write scopes are required for this milestone.
+
+The repo ships `contact-provenance.config.json.sample`; the live workstation
+configuration for this milestone is user-scoped at
+`~/.local/state/transcribe-audio/contact-provenance.config.json`.
 
 ## Work Items
 
@@ -145,3 +155,19 @@ The planned configuration shape is:
   context-workbench path on a local runtime conversation.
 - Manual dogfood pass on one calendar-backed recording where invite attendees
   are available and one recording where operator input is required.
+
+## Closeout Evidence
+
+- `.venv/bin/python -m pytest -q` passed: 213 tests.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m py_compile` passed for touched backend modules, scripts,
+  and focused tests.
+- Count-only live contact-provenance validation loaded 3 configured source
+  profiles and found 6 compact sources for the Tempo query with zero adapter
+  warnings, without printing contact records.
+- Browser smoke passed:
+  `~/.local/state/transcribe-audio/browser-smokes/20260523T181351Z-conversation-review-loop-smoke.json`.
+  The selected live Tempo conversation had 4 speaker labels, 14 contact
+  candidates, 6 calendar attendees, 3 source profiles, 3 pending speaker
+  assignments, manual contact controls, context identity profile chips, and
+  final-preview gating because 5 identity/context warnings remained.

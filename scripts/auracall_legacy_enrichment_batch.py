@@ -190,6 +190,9 @@ def auracall_readout_prompt(artifact: dict[str, Any]) -> str:
 def create_request(item: dict[str, Any], model: str, dispatch_team: str | None = None) -> dict[str, Any]:
     source_path = Path(str(item["source_path"])).expanduser().resolve()
     artifact = load_transcript_artifact(source_path)
+    participant_identity = item.get("participant_identity_bundle")
+    if isinstance(participant_identity, dict) and participant_identity:
+        artifact["participant_identity"] = participant_identity
     auracall_hints: dict[str, Any] = {
         "service": "chatgpt",
         "transport": "browser",

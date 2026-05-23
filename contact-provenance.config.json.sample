@@ -1,0 +1,32 @@
+{
+  "gws": {
+    "profiles": [
+      {
+        "label": "default",
+        "config_dir": "~/.config/gws",
+        "surfaces": ["contacts", "other_contacts"],
+        "limit": 5,
+        "query_limit": 8,
+        "timeout": 30
+      }
+    ]
+  },
+  "odollo": {
+    "profiles": [
+      {
+        "label": "soylei-prod",
+        "config_path": "~/.odollo/odollo.yml",
+        "repo_root": "~/workspace.local/odollo",
+        "limit": 5,
+        "timeout": 30
+      },
+      {
+        "label": "saber-prod",
+        "config_path": "~/.odollo/odollo.yml",
+        "repo_root": "~/workspace.local/odollo",
+        "limit": 5,
+        "timeout": 30
+      }
+    ]
+  }
+}

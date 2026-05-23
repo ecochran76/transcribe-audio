@@ -2148,6 +2148,31 @@ dd {
   margin: 0;
 }
 
+.identity-evidence-card {
+  border-color: rgba(133, 183, 255, 0.24) !important;
+  background: rgba(133, 183, 255, 0.06) !important;
+}
+
+.manual-contact-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.manual-contact-row input {
+  min-width: 0;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(9, 14, 20, 0.58);
+  color: var(--ink);
+  padding: 0.52rem 0.7rem;
+}
+
+.manual-contact-row button {
+  white-space: nowrap;
+}
+
 @media (max-width: 920px) {
   .topbar {
     grid-template-columns: 1fr;

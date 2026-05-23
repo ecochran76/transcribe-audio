@@ -48,6 +48,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=None, help="Provider sampling temperature.")
     parser.add_argument("--max-sources", type=int, default=12, help="Maximum supporting context sources to include.")
     parser.add_argument("--snippet-chars", type=int, default=500, help="Maximum snippet characters per source.")
+    parser.add_argument("--participant-identity", type=Path, help="Optional participant identity bundle JSON.")
     parser.add_argument("--store", action="store_true", help="Ingest the generated contextual readout into ~/.transcripts.")
     parser.add_argument("--store-dir", type=Path, help="Override transcript store directory.")
     parser.add_argument(
@@ -195,6 +196,7 @@ def build_contextual_artifact(
     max_sources: int,
     snippet_chars: int,
     all_provenance: bool,
+    participant_identity: Optional[dict[str, Any]] = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     supporting_context = build_supporting_context(
         route,
@@ -230,6 +232,8 @@ def build_contextual_artifact(
         },
         "supporting_context": supporting_context,
     }
+    if participant_identity:
+        artifact["participant_identity"] = participant_identity
     contextualization = {
         "mode": "contextual_reread",
         "route_status": route.get("status"),
@@ -240,6 +244,9 @@ def build_contextual_artifact(
         "warnings": supporting_context["warnings"],
         "excluded_source_count": supporting_context["excluded_source_count"],
     }
+    if participant_identity:
+        contextualization["participant_identity_status"] = participant_identity.get("review_status")
+        contextualization["participant_identity_warning_count"] = len(participant_identity.get("warnings") or [])
     return artifact, contextualization
 
 
@@ -285,6 +292,11 @@ def generate_contextual_readout(args: argparse.Namespace) -> tuple[Path, Path]:
     transcript = load_json_object(transcript_path, "transcript artifact")
     prior_readout = load_json_object(readout_path, "readout artifact")
     route = load_json_object(route_path, "route decision")
+    participant_identity = (
+        load_json_object(args.participant_identity.expanduser().resolve(), "participant identity bundle")
+        if args.participant_identity
+        else None
+    )
     artifact, contextualization = build_contextual_artifact(
         transcript,
         prior_readout,
@@ -292,6 +304,7 @@ def generate_contextual_readout(args: argparse.Namespace) -> tuple[Path, Path]:
         max_sources=args.max_sources,
         snippet_chars=args.snippet_chars,
         all_provenance=args.all_provenance,
+        participant_identity=participant_identity,
     )
     provider_info = {
         "name": args.provider,

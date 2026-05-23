@@ -81,14 +81,13 @@ context provenance inspection with included/excluded sources, no-write
 deposition/memory preview queueing, Review Queue links back to conversation
 workflow stages, and a repeatable `agent-browser` happy-path smoke.
 
-Plan 0012/M2 is the next milestone. It moves the workflow from generic
-speaker/contact review toward deterministic speaker deanonymization and a
-participant-aware context workbench. Contact matching should come from
+Plan 0012/M2 has closed the deterministic speaker deanonymization and
+participant-aware context-workbench milestone. Contact matching now comes from
 configured provenance sources, starting with user-scoped `gws` People/Contacts
 profiles and Odollo tenant contact profiles. Calendar invite attendees and
 matching-calendar participants provide deterministic matching evidence against
 those contact sources before any LLM call. Operator input can confirm, correct,
-or add contacts. The resulting participant identity bundle should travel into
+or add contacts. The resulting participant identity bundle travels into
 context-workbench previews and high-powered readout prompts, including
 AuraCall/Extended Pro ChatGPT paths, so final readouts can reason over speaker
 identity evidence instead of anonymous labels alone.

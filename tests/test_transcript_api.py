@@ -15,8 +15,10 @@ from urllib.request import Request, urlopen
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app_intelligence_ledger
+import participant_identity
 import transcript_api
 import transcript_store
+from routing_artifacts import ProvenanceSource
 
 
 class FakeAuraCallHandler(BaseHTTPRequestHandler):
@@ -90,6 +92,22 @@ def write_transcript_artifact(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return artifact_path
+
+
+def add_calendar_attendee_context(artifact_path: Path) -> None:
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    payload["event"] = {
+        "summary": "Weekly Product Sync",
+        "participants": ["Alice Example <alice@example.com>"],
+        "matching_calendars": [
+            {
+                "calendar_summary": "Work",
+                "event_summary": "Weekly Product Sync",
+                "attendees": [{"displayName": "Alice Example", "email": "alice@example.com"}],
+            }
+        ],
+    }
+    artifact_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def write_readout_artifact(tmp_path: Path, source_artifact: Path) -> Path:
@@ -348,6 +366,47 @@ def test_conversation_detail_includes_identity_and_context_state(tmp_path: Path)
     assert payload["review_state"]["context_status"] == "contextual_readout_ready"
 
 
+def test_conversation_identity_bundle_uses_configured_contact_provenance(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    (state_root / participant_identity.CONTACT_SOURCE_CONFIG_NAME).write_text(
+        json.dumps({"gws": {"profiles": [{"label": "work", "surfaces": ["contacts"]}]}}),
+        encoding="utf-8",
+    )
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+
+    def fake_gws(query_terms, *, config):
+        assert "alice@example.com" in query_terms
+        return [
+            ProvenanceSource(
+                source_type="gws_contact",
+                source_id="people/alice",
+                label="Alice Example",
+                snippet="Alice Example; alice@example.com",
+                metadata={"profile": "work", "email": "alice@example.com"},
+            )
+        ]
+
+    monkeypatch.setattr(participant_identity, "collect_gws_contact_provenance", fake_gws)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    bundle = payload["identity_review"]["identity_bundle"]
+
+    assert bundle["calendar_attendees"][0]["email"] == "alice@example.com"
+    assert bundle["contact_candidates"][0]["source_type"] == "gws_contact"
+    assert bundle["contact_candidates"][0]["confidence"] == 0.95
+    assert payload["context_workbench"]["participant_identity_bundle"]["schema_version"]
+    assert payload["final_preview"]["status"] == "blocked_identity_or_context_review"
+
+
 def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"
@@ -396,6 +455,8 @@ def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Pa
     assert manifest["queue"]["items"][0]["id"] == transcript.id
     assert manifest["batch_payload"]["metadata"]["scopedDocumentId"] == transcript.id
     assert request["metadata"]["transcriptDocumentId"] == transcript.id
+    assert manifest["queue"]["items"][0]["participant_identity_bundle"]["schema_version"]
+    assert "participant_identity" in request["input"][1]["content"]
     assert status["status"] == "prepared"
 
 
@@ -480,14 +541,12 @@ def test_context_and_final_preview_actions_write_local_review_records(tmp_path: 
     assert context_action["status"] == "queued"
     assert context_action["will_run_provider"] is False
     assert Path(context_action["manifest"]).exists()
-    assert preview_action["status"] == "queued_for_review"
+    assert json.loads(Path(context_action["manifest"]).read_text(encoding="utf-8"))["participant_identity_bundle"]["schema_version"]
+    assert preview_action["status"] == "blocked_identity_or_context_review"
     assert preview_action["will_perform_external_write"] is False
-    assert Path(preview_action["final_preview"]["preview_path"]).exists()
+    assert preview_action["final_preview"]["identity_context_warnings"]
     preview_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "deposition_memory_preview")
-    memory_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "memory_harvest")
-    assert preview_bucket["count"] == 1
-    assert memory_bucket["count"] == 1
-    assert any(item["type"] == "deposition_memory_preview" and item["workflow_stage"] == "output" for item in queue["items"])
+    assert preview_bucket["count"] == 0
 
 
 def test_retranscription_preflight_resolves_readout_source_blob_without_work(tmp_path: Path) -> None:

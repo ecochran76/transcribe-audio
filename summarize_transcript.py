@@ -143,6 +143,7 @@ def build_readout_prompt(artifact: dict[str, Any]) -> str:
         "prior_readout": artifact.get("prior_readout") or {},
         "route_decision": artifact.get("route_decision") or {},
         "supporting_context": artifact.get("supporting_context") or {},
+        "participant_identity": artifact.get("participant_identity") or {},
         "transcript_text": artifact.get("transcript_text") or "",
         "utterances": artifact.get("utterances") or [],
     }
@@ -172,7 +173,9 @@ def readout_system_prompt() -> str:
         "When calendar context influences an item, mention the calendar or event source in that item's evidence. "
         "If supporting_context is present, use it as cited context for a contextual reread. Mention source labels "
         "or source_type/source_id values in evidence fields when they influence participants, matter candidates, "
-        "memory candidates, risks, or next steps."
+        "memory candidates, risks, or next steps. If participant_identity is present, use confirmed speaker/contact "
+        "assignments as identity evidence, treat unresolved_ambiguities and warnings as review constraints, and do "
+        "not invent speaker identities beyond the cited bundle."
     )
 
 

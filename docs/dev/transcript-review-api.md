@@ -12,7 +12,7 @@ python transcript_api.py --store-dir ~/.transcripts --host 127.0.0.1 --port 1887
 
 Development and test runs can use `--embedding-provider debug-hash` when search should avoid a live embedder. The default port is pinned to `18876` for cooper ingress as `transcripts.localhost` and `transcripts.ecochran.dyndns.org`.
 
-The API reads operator workflow state from `--state-dir`, defaulting to `~/.local/state/transcribe-audio`. That state remains user-scoped runtime data, not tracked repo content.
+The API reads operator workflow state from `--state-dir`, defaulting to `~/.local/state/transcribe-audio`. That state remains user-scoped runtime data, not tracked repo content. Speaker deanonymization contact provenance is configured from `contact-provenance.config.json` under that state directory, with repo documentation mirrored in `contact-provenance.config.json.sample`.
 
 When `frontend/dist/` exists, the same server also serves the built React console at `/`; API routes remain under `/api`.
 
@@ -21,18 +21,18 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
 - `GET /api/conversations?kind=transcript&q=cara&limit=100&offset=0`: paged conversation list grouped by source transcript, with workflow flags, representative artifact, source document, and linked media metadata. This endpoint supports server-backed Library `kind` and `query` filters. It reports metadata only; query search may match indexed document text, but the response does not return artifact text or read artifact files.
-- `GET /api/conversations/<document_id>`: conversation workspace payload for one selected document. It returns the grouped conversation metadata plus the selected, source transcript, first-pass summary, contextual readout, extracted participants, linked media, first-pass summary state, speaker/contact review state, context workbench state, final preview state, and review counters in one response. It reads from SQLite/blob pointers only and does not read arbitrary artifact files except already-ingested document payloads.
+- `GET /api/conversations/<document_id>`: conversation workspace payload for one selected document. It returns the grouped conversation metadata plus the selected, source transcript, first-pass summary, contextual readout, extracted participants, linked media, first-pass summary state, participant identity bundle, speaker/contact review state, context workbench state, final preview state, and review counters in one response. It reads from SQLite/blob pointers only and does not read arbitrary artifact files except already-ingested document payloads.
 - `GET /api/conversations/<document_id>/first-pass-summary`: selected-conversation first-pass summary state.
-- `POST /api/conversations/<document_id>/first-pass-summary/prepare`: write a one-request dry-run first-pass summary manifest scoped to the selected conversation source transcript under `~/.local/state/transcribe-audio/first-pass-summary-batches/`. It does not submit provider work.
+- `POST /api/conversations/<document_id>/first-pass-summary/prepare`: write a one-request dry-run first-pass summary manifest scoped to the selected conversation source transcript under `~/.local/state/transcribe-audio/first-pass-summary-batches/`. The request artifact carries the participant identity bundle for high-powered readout providers. It does not submit provider work.
 - `POST /api/conversations/<document_id>/first-pass-summary/submit`: submit the selected-conversation manifest after verifying it is scoped to that source transcript. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
 - `POST /api/conversations/<document_id>/first-pass-summary/status`: poll a selected-conversation manifest and optionally materialize completed readouts with `materialize=true`, using the same manifest path confinement and source-document validation as submit.
-- `GET /api/conversations/<document_id>/identity-review`: selected-conversation speaker/contact review state from SQLite contact and assignment tables.
-- `POST /api/conversations/<document_id>/identity-review`: record a local confirm/defer decision. Confirm writes contact and speaker-assignment rows plus an audit record; defer also queues a local `speaker_identity_review` item. It performs no external action.
-- `GET /api/conversations/<document_id>/context-workbench`: selected-conversation context/provenance state, including selected route, included/excluded provenance, warnings, confidence, and existing contextual-readout linkage.
-- `POST /api/conversations/<document_id>/context-workbench/preview`: write a local context-workbench preview manifest only.
+- `GET /api/conversations/<document_id>/identity-review`: selected-conversation speaker/contact review state and participant identity bundle. The bundle normalizes speaker labels, calendar attendees, matching-calendar participants, configured `gws` People/Contacts and Odollo contact candidates, local reviewed contacts, operator decisions, unresolved ambiguities, source profile metadata, and warnings.
+- `POST /api/conversations/<document_id>/identity-review`: record a local confirm/defer decision. Confirm writes contact and speaker-assignment rows plus an audit record; operator-created labels are stored as local contact provenance. Defer also queues a local `speaker_identity_review` item. It performs no external action.
+- `GET /api/conversations/<document_id>/context-workbench`: selected-conversation context/provenance state, including selected route, included/excluded provenance, warnings, confidence, participant identity state, and existing contextual-readout linkage.
+- `POST /api/conversations/<document_id>/context-workbench/preview`: write a local context-workbench preview manifest only. The manifest includes the participant identity bundle and warning status.
 - `POST /api/conversations/<document_id>/context-workbench/queue`: queue a local context-workbench manifest. Requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers.
-- `GET /api/conversations/<document_id>/final-preview`: selected-conversation deposition/memory preview summary.
-- `POST /api/conversations/<document_id>/final-preview/queue`: create a no-write deposition/memory preview from the contextual readout and queue it for human review. Requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`; Drive, Odoo, Graphiti, and filesystem apply remain disabled.
+- `GET /api/conversations/<document_id>/final-preview`: selected-conversation deposition/memory preview summary plus identity/context gate status.
+- `POST /api/conversations/<document_id>/final-preview/queue`: create a no-write deposition/memory preview from the contextual readout and queue it for human review only when identity/context warnings are resolved. Requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`; Drive, Odoo, Graphiti, and filesystem apply remain disabled.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
 - `GET /api/intelligence/smokes`: latest App Intelligence smoke run and browser-smoke evidence metadata. It reports paths, status, and check booleans only; it does not read screenshot bytes or artifact contents.
@@ -81,8 +81,9 @@ it from the Review Queue after page load, and checks prepared status without
 submitting provider work.
 The conversation review-loop UI smoke opens a contextual conversation deep link,
 then verifies blob audio, transcript turns, first-pass summary state, speaker
-review controls, context provenance, final preview/memory candidates, and URL
-restoration.
+review controls, manual contact entry controls, participant identity bundles,
+context provenance, final-preview identity/context gating, memory candidates,
+and URL restoration.
 The cleanup command is dry-run by default; pass `--apply` only after reviewing
 the reported run and evidence paths.
 

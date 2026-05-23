@@ -3135,6 +3135,7 @@ function ConversationWorkflowModal({
   const [identityReview, setIdentityReview] = useState(conversationDetail?.identity_review || null);
   const [firstPassAction, setFirstPassAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerReviewAction, setSpeakerReviewAction] = useState({ status: "idle", message: "", payload: null });
+  const [speakerManualLabels, setSpeakerManualLabels] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
   const [finalPreviewAction, setFinalPreviewAction] = useState({ status: "idle", message: "", payload: null });
   const selectedDetail = conversationDetail?.selected_document || documentDetail;
@@ -3157,12 +3158,15 @@ function ConversationWorkflowModal({
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
+  const identityBundle = activeIdentityReview.identity_bundle || {};
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
   const contextWorkbench = contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
   const finalPreview = finalPreviewAction.payload?.final_preview || conversationDetail?.final_preview || {};
+  const finalPreviewBlocked = finalPreview.status === "blocked_identity_or_context_review" || Boolean(finalPreview.identity_context_warnings?.length);
   useEffect(() => {
     setIdentityReview(conversationDetail?.identity_review || null);
+    setSpeakerManualLabels({});
     setFirstPassAction({ status: "idle", message: "", payload: null });
     setSpeakerReviewAction({ status: "idle", message: "", payload: null });
     setContextAction({ status: "idle", message: "", payload: null });
@@ -3347,7 +3351,9 @@ function ConversationWorkflowModal({
       });
       setFinalPreviewAction({
         status: payload.status || "queued",
-        message: "Deposition and memory preview queued for local review; no external write was performed.",
+        message: payload.status === "blocked_identity_or_context_review"
+          ? "Preview is blocked until identity and context warnings are resolved."
+          : "Deposition and memory preview queued for local review; no external write was performed.",
         payload
       });
     } catch (error) {
@@ -3569,6 +3575,22 @@ function ConversationWorkflowModal({
                     {contextWorkbench.warnings.map((warning) => <span key={warning}>{warning}</span>)}
                   </div>
                 ) : null}
+                <div className="context-route-card">
+                  <span>Participant identity</span>
+                  <strong>{statusLabel(identityBundle.review_status || contextWorkbench.identity_status || "unknown")}</strong>
+                  <small>
+                    {(identityBundle.contact_candidates?.length || 0)} contact candidate(s) · {(identityBundle.unresolved_ambiguities?.length || 0)} unresolved
+                  </small>
+                </div>
+                {identityBundle.source_profiles?.length ? (
+                  <div className="chip-cloud">
+                    {identityBundle.source_profiles.map((profile) => (
+                      <span key={`${profile.source}-${profile.profile}`}>
+                        {profile.source}: {profile.profile}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="readout-columns">
                   <div>
                     <strong>Included provenance</strong>
@@ -3636,6 +3658,14 @@ function ConversationWorkflowModal({
                 </div>
                 {activeIdentityReview.speakers?.length ? (
                   <div className="identity-list">
+                    {identityBundle.calendar_attendees?.length ? (
+                      <article className="identity-evidence-card">
+                        <strong>Calendar evidence</strong>
+                        <small>
+                          {identityBundle.calendar_attendees.slice(0, 6).map((attendee) => attendee.label || attendee.email).join(" · ")}
+                        </small>
+                      </article>
+                    ) : null}
                     {activeIdentityReview.speakers.map((speaker) => (
                       <article key={speaker.speaker_label}>
                         <strong>{speaker.speaker_label}</strong>
@@ -3654,13 +3684,43 @@ function ConversationWorkflowModal({
                                 type="button"
                               >
                                 <span>{candidate.label}</span>
-                                <small>{candidate.source} · {candidate.confidence}</small>
+                                <small>
+                                  {candidate.source_type || candidate.source} · {candidate.source_profile || "local"} · {candidate.confidence}
+                                </small>
                               </button>
                             ))}
                           </div>
                         ) : (
                           <p className="muted">No contact candidates are available yet.</p>
                         )}
+                        <div className="manual-contact-row">
+                          <input
+                            aria-label={`Manual contact for ${speaker.speaker_label}`}
+                            disabled={speaker.status === "confirmed" || speakerReviewAction.status === "running"}
+                            onChange={(event) => setSpeakerManualLabels((current) => ({
+                              ...current,
+                              [speaker.speaker_label]: event.target.value
+                            }))}
+                            placeholder="Contact name or email"
+                            type="text"
+                            value={speakerManualLabels[speaker.speaker_label] || ""}
+                          />
+                          <button
+                            disabled={
+                              speaker.status === "confirmed" ||
+                              speakerReviewAction.status === "running" ||
+                              !String(speakerManualLabels[speaker.speaker_label] || "").trim()
+                            }
+                            onClick={() => {
+                              const value = String(speakerManualLabels[speaker.speaker_label] || "").trim();
+                              const email = value.includes("@") ? value : "";
+                              reviewSpeaker(speaker, "confirm", { label: value, email });
+                            }}
+                            type="button"
+                          >
+                            Confirm typed
+                          </button>
+                        </div>
                         <button
                           disabled={speaker.status === "deferred" || speakerReviewAction.status === "running"}
                           onClick={() => reviewSpeaker(speaker, "defer")}
@@ -3715,6 +3775,12 @@ function ConversationWorkflowModal({
                     {finalPreview.warnings.map((warning) => <span key={warning}>{warning}</span>)}
                   </div>
                 ) : null}
+                {finalPreviewBlocked ? (
+                  <div className="action-notice blocked">
+                    <strong>Identity or context review is still required.</strong>
+                    {finalPreview.identity_context_warnings?.slice(0, 3).map((warning) => <small key={warning}>{warning}</small>)}
+                  </div>
+                ) : null}
                 {finalPreview.actions?.length || finalPreview.memory_candidates?.length ? (
                   <div className="readout-columns">
                     <div>
@@ -3748,7 +3814,7 @@ function ConversationWorkflowModal({
                 <div className="workflow-action-row">
                   <button disabled title="Final readout generation needs context-run output and a reviewed provider action." type="button">Generate final readout (planned)</button>
                   <button
-                    disabled={!contextualDetail || finalPreviewAction.status === "running"}
+                    disabled={!contextualDetail || finalPreviewBlocked || finalPreviewAction.status === "running"}
                     onClick={queueFinalPreview}
                     type="button"
                   >

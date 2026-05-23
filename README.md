@@ -560,7 +560,39 @@ The API exposes `/api/library`, `/api/conversations`, `/api/review-queue`, `/api
 
 `POST /api/documents/<id>/retranscription/preflight` is the first conversation-workflow action contract: it resolves the source recording blob, backend, planned outputs, and command preview while reporting `will_queue=false`, `will_run_transcription=false`, and `will_write_files=false`. `POST /api/documents/<id>/retranscription/queue` requires `approval_token=QUEUE_RETRANSCRIPTION_JOB` and writes a durable manifest under `~/.local/state/transcribe-audio/retranscription-jobs/` without starting a backend or writing transcript outputs.
 
-The M1 conversation workspace also exposes local-only review-loop actions. `GET /api/conversations/<id>/first-pass-summary`, `/identity-review`, `/context-workbench`, and `/final-preview` return selected-summary state, speaker/contact review state, provenance context, and deposition/memory preview summaries for the selected conversation. `POST /api/conversations/<id>/first-pass-summary/prepare` writes a one-request dry-run manifest scoped to the conversation source transcript; `/submit` still requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, and `/status` can materialize completed readouts back into the store. `POST /api/conversations/<id>/identity-review` records confirm/defer decisions in the user-scoped SQLite contact/speaker tables and queues deferred speaker work under `~/.local/state/transcribe-audio/review-queue/`. `POST /api/conversations/<id>/context-workbench/preview` and `/queue` write local context-run manifests only; the queue path requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers. `POST /api/conversations/<id>/final-preview/queue` requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`, creates a no-write deposition/memory preview, and queues it for human review without Drive, Odoo, Graphiti, or filesystem apply.
+The M1/M2 conversation workspace also exposes local-only review-loop actions. `GET /api/conversations/<id>/first-pass-summary`, `/identity-review`, `/context-workbench`, and `/final-preview` return selected-summary state, speaker/contact review state, provenance context, participant identity state, and deposition/memory preview summaries for the selected conversation. `POST /api/conversations/<id>/first-pass-summary/prepare` writes a one-request dry-run manifest scoped to the conversation source transcript and includes the participant identity bundle for the readout provider; `/submit` still requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, and `/status` can materialize completed readouts back into the store. `POST /api/conversations/<id>/identity-review` records confirm/defer decisions in the user-scoped SQLite contact/speaker tables and queues deferred speaker work under `~/.local/state/transcribe-audio/review-queue/`. `POST /api/conversations/<id>/context-workbench/preview` and `/queue` write local context-run manifests with the participant identity bundle only; the queue path requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers. `POST /api/conversations/<id>/final-preview/queue` requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`, creates a no-write deposition/memory preview only when identity/context warnings are resolved, and queues it for human review without Drive, Odoo, Graphiti, or filesystem apply.
+
+Speaker deanonymization uses deterministic evidence before LLM reasoning. Calendar `event.participants` and `event.matching_calendars` attendees are normalized as matching evidence, while contact records come from configured user-scoped provenance sources and reviewed local contacts. The runtime config lives at `~/.local/state/transcribe-audio/contact-provenance.config.json`; copy `contact-provenance.config.json.sample` there and adjust profile labels/paths as needed:
+
+```json
+{
+  "gws": {
+    "profiles": [
+      {
+        "label": "default",
+        "config_dir": "~/.config/gws",
+        "surfaces": ["contacts", "other_contacts"],
+        "limit": 5,
+        "query_limit": 8,
+        "timeout": 30
+      }
+    ]
+  },
+  "odollo": {
+    "profiles": [
+      {
+        "label": "soylei-prod",
+        "config_path": "~/.odollo/odollo.yml",
+        "repo_root": "~/workspace.local/odollo",
+        "limit": 5,
+        "timeout": 30
+      }
+    ]
+  }
+}
+```
+
+The `gws` adapter uses read-only People API surfaces exposed by `gws people`: grouped contacts, Other Contacts, and optional directory people when `directory` is added to `surfaces`. The Odollo adapter uses read-only `res.partner` contact lookups against configured tenant profiles. Identity bundles expose compact candidate labels, emails, source types, profile labels, evidence, warnings, and operator decisions; raw contact exports, credentials, and tenant config stay in user-scoped runtime paths.
 
 Smoke the replay-manifest and registered artifact reader against the live API:
 
@@ -580,7 +612,8 @@ The Library deep-link/share smoke verifies `kind`, `q`, `conversation`, and
 successful clipboard status or the non-blocking manual-copy URL field.
 The conversation review-loop smoke opens a contextual conversation deep link and
 checks source audio, transcript turns, first-pass summary, speaker review,
-context provenance, final preview, memory candidates, and URL restoration.
+manual contact entry controls, participant identity bundles, context
+provenance, final preview gating, memory candidates, and URL restoration.
 If the service environment cannot find `agent-browser`, set `AGENT_BROWSER_BIN`
 or install the shim at `~/.local/bin/agent-browser`.
 `cleanup_app_smokes.py` is dry-run by default; add `--apply` to delete matching

@@ -20,6 +20,7 @@ transcribe_env*/
 # Secrets / credentials (never commit)
 # -----------------------------------------------------------------------------
 api_keys.json
+contact-provenance.config.json
 credentials.json
 token.json
 client_secrets.json

@@ -435,11 +435,37 @@ def test_readout_prompt_includes_contextual_reread_context() -> None:
     assert payload["supporting_context"]["sources"][0]["source_type"] == "odollo_contact"
 
 
+def test_readout_prompt_includes_participant_identity_bundle() -> None:
+    prompt = summarize_transcript.build_readout_prompt(
+        {
+            "transcript_title": "Identity Review",
+            "transcript_text": "Speaker A: Hello.",
+            "participant_identity": {
+                "schema_version": "transcribe-audio.participant-identity-bundle.v1",
+                "review_status": "needs_review",
+                "speakers": [
+                    {
+                        "speaker_label": "Speaker A",
+                        "candidates": [{"label": "Alice Example", "source_type": "gws_contact"}],
+                    }
+                ],
+                "warnings": ["1 speaker identity decision needs review."],
+            },
+        }
+    )
+
+    payload = json.loads(prompt)
+
+    assert payload["participant_identity"]["review_status"] == "needs_review"
+    assert payload["participant_identity"]["speakers"][0]["candidates"][0]["source_type"] == "gws_contact"
+
+
 def test_system_prompt_mentions_matching_calendars() -> None:
     system_prompt = summarize_transcript.readout_system_prompt()
 
     assert "calendar_context.matching_calendars" in system_prompt
     assert "supporting_context" in system_prompt
+    assert "participant_identity" in system_prompt
     assert "matter_candidates" in system_prompt
 
 
@@ -470,6 +496,27 @@ def test_contextual_reread_supporting_context_prefers_selected_and_calendar_sour
     assert context["excluded_source_count"] == 1
     assert context["warnings"] == ["Excluded 1 provenance source(s) below quality threshold 2."]
     assert context["quality_profile"]["profile_id"] == "p04-source-quality-v1"
+
+
+def test_contextual_reread_artifact_can_include_participant_identity() -> None:
+    artifact, contextualization = contextual_reread.build_contextual_artifact(
+        {"transcript_text": "Speaker A: Hello."},
+        {"participants": []},
+        {"status": "selected", "provenance_pack": {"sources": []}},
+        max_sources=2,
+        snippet_chars=80,
+        all_provenance=False,
+        participant_identity={
+            "schema_version": "transcribe-audio.participant-identity-bundle.v1",
+            "review_status": "reviewed",
+            "speakers": [{"speaker_label": "Speaker A", "assignment": {"contact_label": "Alice Example"}}],
+            "warnings": [],
+        },
+    )
+
+    assert artifact["participant_identity"]["review_status"] == "reviewed"
+    assert contextualization["participant_identity_status"] == "reviewed"
+    assert contextualization["participant_identity_warning_count"] == 0
 
 
 def test_contextual_reread_generate_uses_provider_and_writes_outputs(monkeypatch, tmp_path: Path) -> None:

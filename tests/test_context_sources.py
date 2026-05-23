@@ -17,6 +17,7 @@ from context_sources import (
     build_drive_query,
     build_graphiti_query,
     build_odollo_terms,
+    collect_gws_contact_provenance,
     collect_graphiti_provenance,
     collect_gws_provenance,
     collect_odollo_provenance,
@@ -105,6 +106,63 @@ def test_collect_gws_provenance_converts_calendar_and_drive(monkeypatch) -> None
     assert sources[1].source_id == "file-1"
     assert commands[0][:4] == ["gws", "calendar", "events", "get"]
     assert commands[1][:4] == ["gws", "drive", "files", "list"]
+
+
+def test_collect_gws_contact_provenance_converts_people_surfaces(monkeypatch) -> None:
+    commands = []
+
+    def fake_run(command, *, text, capture_output, timeout, check, env):
+        commands.append(command)
+        if command[1:4] == ["people", "people", "searchDirectoryPeople"]:
+            payload = {
+                "people": [
+                    {
+                        "resourceName": "people/directory-1",
+                        "names": [{"displayName": "Alice Directory"}],
+                        "emailAddresses": [{"value": "alice@example.com"}],
+                        "organizations": [{"name": "Example Co"}],
+                    }
+                ]
+            }
+        else:
+            payload = {
+                "results": [
+                    {
+                        "person": {
+                            "resourceName": "people/contact-1",
+                            "names": [{"displayName": "Alice Example"}],
+                            "emailAddresses": [{"value": "alice@example.com"}],
+                            "organizations": [{"name": "Example Co"}],
+                        }
+                    }
+                ]
+            }
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(context_sources.subprocess, "run", fake_run)
+
+    sources = collect_gws_contact_provenance(
+        ["Alice Example"],
+        config=GwsProvenanceConfig(
+            enabled=True,
+            profile_label="work",
+            include_people_contacts=True,
+            include_other_contacts=True,
+            include_directory_people=True,
+            people_page_size=2,
+        ),
+    )
+
+    assert [source.source_type for source in sources] == [
+        "gws_contact",
+        "gws_other_contact",
+        "gws_directory_person",
+    ]
+    assert sources[0].metadata["profile"] == "work"
+    assert sources[0].metadata["email"] == "alice@example.com"
+    assert commands[0][:4] == ["gws", "people", "people", "searchContacts"]
+    assert commands[1][:4] == ["gws", "people", "otherContacts", "search"]
+    assert commands[2][:4] == ["gws", "people", "people", "searchDirectoryPeople"]
 
 
 def test_route_transcript_includes_gws_sources(monkeypatch, tmp_path: Path) -> None:

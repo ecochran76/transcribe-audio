@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import intelligence_config
 import codex_app_server_client
+import participant_identity
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
     apply_validated_structured_decision as apply_app_intelligence_structured_decision,
@@ -356,21 +357,8 @@ def conversation_identity_review(
     source_document: dict[str, Any] | None,
     participants: list[Any],
     root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
 ) -> dict[str, Any]:
-    speaker_labels = speaker_labels_from_transcript(source_document)
-    participant_candidates: list[dict[str, Any]] = []
-    for participant in participants:
-        label = compact_label(participant)
-        if not label:
-            continue
-        candidate = contact_candidate_from_label(
-            label,
-            source="readout_participants",
-            confidence=0.55,
-            evidence="Extracted participant from stored readout.",
-        )
-        if candidate["label"] not in {item["label"] for item in participant_candidates}:
-            participant_candidates.append(candidate)
     with connect(root) as con:
         init_db(con)
         contact_rows = con.execute("SELECT * FROM contacts ORDER BY updated_at DESC, label LIMIT 50").fetchall()
@@ -380,26 +368,18 @@ def conversation_identity_review(
         ).fetchall()
     contacts = [contact_row_summary(row) for row in contact_rows]
     assignments = {row["speaker_label"]: assignment_row_summary(row) for row in assignment_rows}
-    speakers = []
-    for label in speaker_labels:
-        assignment = assignments.get(label)
-        candidates = []
-        seen_labels: set[str] = set()
-        for candidate in [*participant_candidates, *contacts]:
-            candidate_label = str(candidate.get("label") or "")
-            if not candidate_label or candidate_label in seen_labels:
-                continue
-            seen_labels.add(candidate_label)
-            candidates.append(candidate)
-        speakers.append(
-            {
-                "speaker_label": label,
-                "status": assignment.get("status") if assignment else "pending",
-                "assignment": assignment,
-                "candidates": candidates[:8],
-                "review_required": not assignment or assignment.get("status") not in {"confirmed", "deferred"},
-            }
-        )
+    source_payload = source_document.get("json_payload") if source_document and isinstance(source_document.get("json_payload"), dict) else {}
+    identity_bundle = participant_identity.build_participant_identity_bundle(
+        conversation_key=conversation_key,
+        source_document_id=source_document.get("id") if source_document else "",
+        transcript=source_payload,
+        transcript_text=str(source_document.get("text_content") or "") if source_document else "",
+        readout_participants=participants,
+        local_contacts=contacts,
+        assignments=assignments,
+        state_root=state_root,
+    )
+    speakers = identity_bundle["speakers"]
     return {
         "schema_version": "transcribe-audio.identity-review.v1",
         "conversation_key": conversation_key,
@@ -407,6 +387,7 @@ def conversation_identity_review(
         "speakers": speakers,
         "contacts": contacts[:20],
         "participants": participants,
+        "identity_bundle": identity_bundle,
         "pending_count": sum(1 for speaker in speakers if speaker["review_required"]),
         "confirmed_count": sum(1 for speaker in speakers if speaker["status"] == "confirmed"),
         "deferred_count": sum(1 for speaker in speakers if speaker["status"] == "deferred"),
@@ -521,6 +502,13 @@ def context_workbench_state(
             text = str(item or "").strip()
             if text and text not in warnings:
                 warnings.append(text)
+    identity_bundle = (detail.get("identity_review") or {}).get("identity_bundle", {})
+    identity_warnings = identity_bundle.get("warnings") if isinstance(identity_bundle, dict) else []
+    if isinstance(identity_warnings, list):
+        for item in identity_warnings:
+            text = str(item or "").strip()
+            if text and text not in warnings:
+                warnings.append(text)
     excluded_count = contextualization.get("excluded_source_count")
     if not isinstance(excluded_count, int):
         excluded_count = len(excluded)
@@ -528,6 +516,8 @@ def context_workbench_state(
     return {
         "schema_version": "transcribe-audio.context-workbench.v1",
         "status": status,
+        "identity_status": identity_bundle.get("review_status", "unknown") if isinstance(identity_bundle, dict) else "unknown",
+        "participant_identity_bundle": identity_bundle if isinstance(identity_bundle, dict) else {},
         "selected_candidate": selected,
         "confidence": selected.get("confidence"),
         "included_sources": [compact_provenance_source(source) for source in included if isinstance(source, dict)][:20],
@@ -604,7 +594,30 @@ def existing_deposition_preview_for(contextual_document: dict[str, Any] | None) 
 
 def final_preview_state(detail: dict[str, Any]) -> dict[str, Any]:
     path, payload = existing_deposition_preview_for(detail.get("contextual_readout_document"))
-    return deposition_preview_summary(path, payload)
+    summary = deposition_preview_summary(path, payload)
+    identity = (detail.get("identity_review") or {}).get("identity_bundle", {})
+    context = detail.get("context_workbench") if isinstance(detail.get("context_workbench"), dict) else {}
+    gate_warnings: list[str] = []
+    pending_count = int((detail.get("identity_review") or {}).get("pending_count") or 0)
+    if pending_count:
+        gate_warnings.append(f"{pending_count} speaker identity decision(s) still need review.")
+    if isinstance(identity, dict):
+        for warning in identity.get("warnings") if isinstance(identity.get("warnings"), list) else []:
+            text = str(warning or "").strip()
+            if text and text not in gate_warnings:
+                gate_warnings.append(text)
+    for warning in context.get("warnings") if isinstance(context.get("warnings"), list) else []:
+        text = str(warning or "").strip()
+        if text and text not in gate_warnings:
+            gate_warnings.append(text)
+    summary["identity_context_warnings"] = gate_warnings
+    summary["identity_status"] = identity.get("review_status", "unknown") if isinstance(identity, dict) else "unknown"
+    summary["ready_for_deposition_review"] = bool(payload) and not gate_warnings
+    if gate_warnings:
+        summary["status"] = "blocked_identity_or_context_review"
+        summary["review_required"] = True
+        summary["warnings"] = list(dict.fromkeys([*summary.get("warnings", []), *gate_warnings]))
+    return summary
 
 
 def first_pass_summary_state(detail: dict[str, Any]) -> dict[str, Any]:
@@ -667,6 +680,7 @@ def get_conversation_detail(
         source_document=transcript_detail,
         participants=participants,
         root=root,
+        state_root=state_root,
     )
     detail_payload = {
         "schema_version": "transcribe-audio.conversation-detail.v1",
@@ -824,13 +838,21 @@ def record_speaker_identity_review(
             con.execute(
                 """
                 INSERT INTO contacts (id, label, email, external_ref, metadata_json, created_at, updated_at)
-                VALUES (?, ?, ?, '', '{}', ?, ?)
+                VALUES (?, ?, ?, '', ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   label = excluded.label,
                   email = excluded.email,
+                  metadata_json = excluded.metadata_json,
                   updated_at = excluded.updated_at
                 """,
-                (resolved_contact_id, resolved_contact_label, email.strip(), now, now),
+                (
+                    resolved_contact_id,
+                    resolved_contact_label,
+                    email.strip(),
+                    json.dumps({"source": "operator_created", "reviewer": reviewer}, sort_keys=True),
+                    now,
+                    now,
+                ),
             )
         con.execute(
             """
@@ -972,6 +994,7 @@ def context_workbench_preview(
         "workflow_stage": "context",
         "steps": steps,
         "context_workbench": detail.get("context_workbench") or {},
+        "participant_identity_bundle": (detail.get("identity_review") or {}).get("identity_bundle", {}),
         "will_execute_external_action": False,
         "will_run_provider": False,
         "will_perform_external_write": False,
@@ -1046,6 +1069,17 @@ def queue_deposition_memory_preview(
     if approval_token != DEPOSITION_MEMORY_PREVIEW_TOKEN:
         raise ValueError(f"Queueing preview review requires approval_token={DEPOSITION_MEMORY_PREVIEW_TOKEN}.")
     detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    current_preview = final_preview_state(detail)
+    if current_preview.get("identity_context_warnings"):
+        return {
+            "schema_version": "transcribe-audio.deposition-memory-preview-queue.v1",
+            "status": "blocked_identity_or_context_review",
+            "review_item_path": "",
+            "review_item_id": "",
+            "final_preview": current_preview,
+            "will_execute_external_action": False,
+            "will_perform_external_write": False,
+        }
     preview_path, preview_payload = create_deposition_memory_preview(detail, state_root=state_root)
     summary = deposition_preview_summary(preview_path, preview_payload)
     now = utcish_now()
@@ -2715,6 +2749,7 @@ def first_pass_summary_queue_item(detail: dict[str, Any], *, model: str, store_r
         "contextual_readout_count": 1 if detail.get("contextual_readout_document") else 0,
         "pending_first_pass_readout": not bool(detail.get("summary_document")),
         "command": command,
+        "participant_identity_bundle": (detail.get("identity_review") or {}).get("identity_bundle", {}),
     }
 
 
