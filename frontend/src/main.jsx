@@ -58,6 +58,8 @@ const FALLBACK_CONVERSATIONS = {
   total: FALLBACK_LIBRARY.length
 };
 
+const CONVERSATION_PAGE_SIZE = 100;
+
 const FALLBACK_INTELLIGENCE = {
   config: {
     schema_version: "transcribe-audio.intelligence-config.v1",
@@ -266,6 +268,28 @@ function normalizeConversationRow(row) {
   };
 }
 
+function conversationSearchParams(kindFilter, query, offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(CONVERSATION_PAGE_SIZE),
+    offset: String(offset)
+  });
+  if (kindFilter !== "all") params.set("kind", kindFilter);
+  if (query.trim()) params.set("query", query.trim());
+  return params;
+}
+
+function mergeConversationItems(currentItems, nextItems) {
+  const merged = [];
+  const seen = new Set();
+  [...(currentItems || []), ...(nextItems || [])].forEach((item) => {
+    const key = item?.key || item?.representative?.id || JSON.stringify(item);
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(item);
+  });
+  return merged;
+}
+
 function speakerClassName(speaker) {
   const text = String(speaker || "speaker").trim();
   let seed = 0;
@@ -433,9 +457,7 @@ function App() {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       if (activeNav !== "Library") return;
-      const params = new URLSearchParams({ limit: "100" });
-      if (kindFilter !== "all") params.set("kind", kindFilter);
-      if (query.trim()) params.set("query", query.trim());
+      const params = conversationSearchParams(kindFilter, query, 0);
       setConversationSearchStatus({
         status: "loading",
         message: query.trim()
@@ -453,7 +475,7 @@ function App() {
         });
         setConversationSearchStatus({
           status: "loaded",
-          message: `${payload.total ?? (payload.items || []).length} conversations matched.`
+          message: `Loaded ${(payload.items || []).length} of ${payload.total ?? (payload.items || []).length} matching conversations.`
         });
         setApiError("");
       } catch (error) {
@@ -670,6 +692,15 @@ function App() {
       return haystack.includes(needle);
     });
   }, [conversations.items, conversations.schema_version, kindFilter, query, visibleItems]);
+  const usingApiConversations = conversations.schema_version === "transcribe-audio.conversations.v1";
+  const loadedConversationCount = usingApiConversations ? (conversations.items || []).length : visibleConversationRows.length;
+  const totalConversationCount = usingApiConversations ? conversations.total ?? loadedConversationCount : visibleConversationRows.length;
+  const conversationSearchLoading = conversationSearchStatus.status === "loading" || conversationSearchStatus.status === "loading_more";
+  const canLoadMoreConversations =
+    activeNav === "Library" &&
+    usingApiConversations &&
+    !conversationSearchLoading &&
+    loadedConversationCount < totalConversationCount;
   const selectedConversation =
     visibleConversationRows.find((row) => (row.artifacts || []).some((artifact) => artifact.id === selectedId)) ||
     visibleConversationRows[0] ||
@@ -681,6 +712,39 @@ function App() {
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
   const smokeJobsActive = hasActiveSmokeJob(intelligence.smokeJobs);
+
+  async function loadMoreConversations() {
+    if (!canLoadMoreConversations) return;
+    const offset = loadedConversationCount;
+    setConversationSearchStatus({
+      status: "loading_more",
+      message: `Loading conversations ${offset + 1}-${Math.min(offset + CONVERSATION_PAGE_SIZE, totalConversationCount)}...`
+    });
+    try {
+      const payload = await fetchJson(`/api/conversations?${conversationSearchParams(kindFilter, query, offset).toString()}`);
+      setConversations((current) => {
+        const items = mergeConversationItems(current.items, payload.items);
+        return {
+          ...payload,
+          items,
+          offset: 0,
+          limit: items.length,
+          total: payload.total ?? current.total ?? items.length
+        };
+      });
+      setConversationSearchStatus({
+        status: "loaded",
+        message: `Loaded ${Math.min(offset + (payload.items || []).length, payload.total ?? totalConversationCount)} of ${payload.total ?? totalConversationCount} matching conversations.`
+      });
+      setApiError("");
+    } catch (error) {
+      setConversationSearchStatus({
+        status: "error",
+        message: `Loading more conversations failed: ${error.message}`
+      });
+      setApiError(`Loading more conversations failed; keeping current rows: ${error.message}`);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1354,7 +1418,7 @@ function App() {
             kindFilter={kindFilter}
             query={query}
             visibleCount={activeNav === "Library" ? visibleConversationRows.length : visibleItems.length}
-            totalCount={activeNav === "Library" ? conversations.total ?? visibleConversationRows.length : library.total ?? (library.items || []).length}
+            totalCount={activeNav === "Library" ? totalConversationCount : library.total ?? (library.items || []).length}
             latestSmoke={intelligence.smokes?.latest_report}
             latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
           />
@@ -1402,8 +1466,12 @@ function App() {
               rows={visibleConversationRows}
               allItems={library.items || []}
               searchStatus={conversationSearchStatus}
-              usingApiRows={conversations.schema_version === "transcribe-audio.conversations.v1"}
+              usingApiRows={usingApiConversations}
+              loadedCount={loadedConversationCount}
+              totalCount={totalConversationCount}
+              canLoadMore={canLoadMoreConversations}
               selectedId={selected?.id}
+              onLoadMore={loadMoreConversations}
               onOpenConversation={() => setConversationOpen(true)}
               onSelect={setSelectedId}
             />
@@ -2045,11 +2113,24 @@ const DEFAULT_LIBRARY_COLUMN_WIDTHS = {
   media: 120
 };
 
-function LibraryTable({ rows, allItems, searchStatus, usingApiRows, selectedId, onOpenConversation, onSelect }) {
+function LibraryTable({
+  rows,
+  allItems,
+  searchStatus,
+  usingApiRows,
+  loadedCount,
+  totalCount,
+  canLoadMore,
+  selectedId,
+  onLoadMore,
+  onOpenConversation,
+  onSelect
+}) {
   const [columnWidths, setColumnWidths] = useState(DEFAULT_LIBRARY_COLUMN_WIDTHS);
   const status = searchStatus?.status || "idle";
   const statusMessage = searchStatus?.message || "";
   const showLoading = status === "loading";
+  const loadingMore = status === "loading_more";
   const showEmpty = status === "loaded" && usingApiRows && rows.length === 0;
   const showFallback = status === "error";
   function startColumnResize(column, event) {
@@ -2204,6 +2285,18 @@ function LibraryTable({ rows, allItems, searchStatus, usingApiRows, selectedId, 
           })}
         </tbody>
       </table>
+      {usingApiRows && totalCount > 0 ? (
+        <div className="library-pagination" aria-label="Library pagination">
+          <span>{loadedCount} of {totalCount} conversations loaded</span>
+          <button
+            disabled={!canLoadMore || loadingMore}
+            onClick={onLoadMore}
+            type="button"
+          >
+            {loadingMore ? "Loading..." : canLoadMore ? "Load more" : "All loaded"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

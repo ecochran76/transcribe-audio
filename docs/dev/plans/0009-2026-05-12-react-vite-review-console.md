@@ -45,7 +45,9 @@ server-backed `/api/conversations` grouping endpoint with active query and
 kind filters so transcript, first-pass summary, and contextual readout
 artifacts render as conversation rows with workflow progress icons instead
 of separate artifact rows. Loading, empty-result, and API-error states render
-as explicit table rows so operator feedback is not inferred from a blank table. The conversation workspace loads `/api/conversations/<document_id>`
+as explicit table rows so operator feedback is not inferred from a blank table,
+and paginated server-backed results can be extended with a `Load more` control.
+The conversation workspace loads `/api/conversations/<document_id>`
 so transcript, summary, final readout, artifact membership, participants,
 and media arrive in one payload. Library columns are operator-resizable, and
 the media column uses a healthy `Play` action when source audio is available

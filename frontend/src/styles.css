@@ -515,6 +515,46 @@ tbody tr.table-state-row:hover {
     rgba(0, 0, 0, 0.16);
 }
 
+.library-pagination {
+  display: flex;
+  position: sticky;
+  left: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 100%;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid rgba(244, 236, 216, 0.1);
+  background:
+    linear-gradient(90deg, rgba(215, 255, 115, 0.08), transparent 52%),
+    rgba(12, 18, 17, 0.96);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.library-pagination button {
+  border: 1px solid rgba(215, 255, 115, 0.34);
+  border-radius: 999px;
+  background: rgba(215, 255, 115, 0.1);
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.55rem 0.9rem;
+}
+
+.library-pagination button:hover:not(:disabled),
+.library-pagination button:focus-visible:not(:disabled) {
+  background: rgba(215, 255, 115, 0.18);
+  border-color: rgba(215, 255, 115, 0.64);
+}
+
+.library-pagination button:disabled {
+  border-color: rgba(244, 236, 216, 0.12);
+  background: rgba(244, 236, 216, 0.05);
+  color: rgba(244, 236, 216, 0.42);
+  cursor: not-allowed;
+}
+
 .state-spinner {
   width: 1.65rem;
   height: 1.65rem;

@@ -5778,6 +5778,39 @@ Next:
 - Add pagination or "load more" for server-backed Library conversations so the
   table is not limited to the first 100 matches.
 
+## Turn 174 | 2026-05-23
+
+Summary: Added server-backed Library conversation pagination.
+
+Action:
+
+- Added a shared conversation page size and first-page `/api/conversations`
+  loading with explicit `offset=0`.
+- Added a `Load more` action that requests the next offset page, appends
+  de-duplicated conversation rows, and preserves the selected conversation.
+- Added a Library pagination footer with loaded/total counts and
+  loading/disabled button states.
+- Updated ROADMAP and the P09 plan to record paginated Library results.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/conversations?limit=2&offset=0` returned total=173 and two
+  conversation keys.
+- Live `GET /api/conversations?limit=2&offset=2` returned total=173 and two
+  different conversation keys, exercising offset pagination.
+
+Next:
+
+- Add URL-state/deep-linking for Library query, kind, selected conversation,
+  and workspace tab so dogfooding reports can point to reproducible UI states.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
