@@ -20,6 +20,14 @@ const LIBRARY_KIND_FILTERS = [
   { id: "contextual_readout", label: "Contextual readouts" }
 ];
 
+const WORKFLOW_VIEWS = [
+  { id: "transcript", label: "Transcript" },
+  { id: "summary", label: "First-pass summary" },
+  { id: "context", label: "Context workbench" },
+  { id: "speakers", label: "Speakers" },
+  { id: "output", label: "Final readout" }
+];
+
 const FALLBACK_LIBRARY = [
   {
     id: "demo-transcript",
@@ -59,6 +67,21 @@ const FALLBACK_CONVERSATIONS = {
 };
 
 const CONVERSATION_PAGE_SIZE = 100;
+
+function readInitialUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get("view");
+  const kind = params.get("kind");
+  const workflow = params.get("workflow");
+  return {
+    activeNav: NAV_ITEMS.some((item) => item.id === view && item.enabled) ? view : "Library",
+    kindFilter: LIBRARY_KIND_FILTERS.some((item) => item.id === kind) ? kind : "all",
+    query: params.get("q") || "",
+    selectedId: params.get("selected") || FALLBACK_LIBRARY[0].id,
+    conversationOpen: params.get("conversation") === "1",
+    activeWorkflowView: WORKFLOW_VIEWS.some((item) => item.id === workflow) ? workflow : "transcript"
+  };
+}
 
 const FALLBACK_INTELLIGENCE = {
   config: {
@@ -370,18 +393,19 @@ async function postJson(path, payload) {
 }
 
 function App() {
-  const [activeNav, setActiveNav] = useState("Library");
+  const [initialUrlState] = useState(readInitialUrlState);
+  const [activeNav, setActiveNav] = useState(initialUrlState.activeNav);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftPaneWidth, setLeftPaneWidth] = useState(300);
   const [rightPaneWidth, setRightPaneWidth] = useState(380);
-  const [kindFilter, setKindFilter] = useState("all");
-  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState(initialUrlState.kindFilter);
+  const [query, setQuery] = useState(initialUrlState.query);
   const [library, setLibrary] = useState({ items: FALLBACK_LIBRARY, total: FALLBACK_LIBRARY.length });
   const [conversations, setConversations] = useState(FALLBACK_CONVERSATIONS);
   const [conversationSearchStatus, setConversationSearchStatus] = useState({ status: "idle", message: "Conversation search has not loaded yet." });
   const [reviewQueue, setReviewQueue] = useState(FALLBACK_REVIEW_QUEUE);
-  const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
+  const [selectedId, setSelectedId] = useState(initialUrlState.selectedId);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
   const [apiError, setApiError] = useState("");
   const [reviewAction, setReviewAction] = useState({ status: "idle", message: "", manifest: "", batchId: "", payload: null });
@@ -416,7 +440,8 @@ function App() {
   const [selectedRelatedDocuments, setSelectedRelatedDocuments] = useState(null);
   const [selectedConversationDetail, setSelectedConversationDetail] = useState(null);
   const [selectedConversationDetailAction, setSelectedConversationDetailAction] = useState({ status: "idle", message: "" });
-  const [conversationOpen, setConversationOpen] = useState(false);
+  const [conversationOpen, setConversationOpen] = useState(initialUrlState.conversationOpen);
+  const [activeWorkflowView, setActiveWorkflowView] = useState(initialUrlState.activeWorkflowView);
 
   useEffect(() => {
     let cancelled = false;
@@ -439,7 +464,7 @@ function App() {
         setReviewQueue(reviewPayload);
         setFirstPassBatchManifests(batchManifestPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
-        setSelectedId(libraryPayload.items?.[0]?.id || "");
+        setSelectedId((currentId) => currentId || libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
       } catch (error) {
@@ -471,6 +496,7 @@ function App() {
         setSelectedId((currentId) => {
           const rows = payload.items || [];
           if (rows.some((row) => (row.artifacts || []).some((artifact) => artifact.id === currentId))) return currentId;
+          if (currentId && currentId !== FALLBACK_LIBRARY[0].id) return currentId;
           return rows[0]?.representative?.id || currentId;
         });
         setConversationSearchStatus({
@@ -537,6 +563,24 @@ function App() {
       cancelled = true;
     };
   }, [selectedRunId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeNav !== "Library") params.set("view", activeNav);
+    if (activeNav === "Library") {
+      if (kindFilter !== "all") params.set("kind", kindFilter);
+      if (query.trim()) params.set("q", query.trim());
+      if (selectedId) params.set("selected", selectedId);
+      if (conversationOpen) {
+        params.set("conversation", "1");
+        if (activeWorkflowView !== "transcript") params.set("workflow", activeWorkflowView);
+      }
+    }
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(null, "", nextUrl);
+  }, [activeNav, activeWorkflowView, conversationOpen, kindFilter, query, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -701,11 +745,13 @@ function App() {
     usingApiConversations &&
     !conversationSearchLoading &&
     loadedConversationCount < totalConversationCount;
-  const selectedConversation =
-    visibleConversationRows.find((row) => (row.artifacts || []).some((artifact) => artifact.id === selectedId)) ||
-    visibleConversationRows[0] ||
+  const selectedConversation = visibleConversationRows.find((row) => (row.artifacts || []).some((artifact) => artifact.id === selectedId)) || null;
+  const selected =
+    selectedConversation?.representative ||
+    visibleItems.find((item) => item.id === selectedId) ||
+    visibleConversationRows[0]?.representative ||
+    visibleItems[0] ||
     null;
-  const selected = selectedConversation?.representative || visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
   const taskEntries = Object.entries(intelligence.config?.tasks || {});
   const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
@@ -1550,8 +1596,10 @@ function App() {
           relatedDocuments={selectedRelatedDocuments}
           item={selected}
           items={library.items || []}
+          activeWorkflowView={activeWorkflowView}
           onClose={() => setConversationOpen(false)}
           onSelectDocument={setSelectedId}
+          onWorkflowViewChange={setActiveWorkflowView}
         />
       ) : null}
     </main>
@@ -3011,13 +3059,14 @@ function ConversationWorkflowModal({
   relatedDocuments,
   item,
   items,
+  activeWorkflowView,
   onClose,
-  onSelectDocument
+  onSelectDocument,
+  onWorkflowViewChange
 }) {
   const [retranscriptionBackend, setRetranscriptionBackend] = useState("faster_whisper");
   const [retranscriptionPreflight, setRetranscriptionPreflight] = useState({ status: "idle", message: "", payload: null });
   const [retranscriptionQueue, setRetranscriptionQueue] = useState({ status: "idle", message: "", payload: null });
-  const [activeWorkflowView, setActiveWorkflowView] = useState("transcript");
   const [sourceDetail, setSourceDetail] = useState(null);
   const [sourceDetailAction, setSourceDetailAction] = useState({ status: "idle", message: "" });
   const selectedDetail = conversationDetail?.selected_document || documentDetail;
@@ -3039,14 +3088,6 @@ function ConversationWorkflowModal({
   const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
-  const workflowViews = [
-    { id: "transcript", label: "Transcript" },
-    { id: "summary", label: "First-pass summary" },
-    { id: "context", label: "Context workbench" },
-    { id: "speakers", label: "Speakers" },
-    { id: "output", label: "Final readout" }
-  ];
-
   useEffect(() => {
     let cancelled = false;
     async function loadSourceDetail() {
@@ -3223,12 +3264,12 @@ function ConversationWorkflowModal({
 
           <main className="conversation-main">
             <nav className="workflow-view-tabs" aria-label="Conversation workflow views">
-              {workflowViews.map((view) => (
+              {WORKFLOW_VIEWS.map((view) => (
                 <button
                   aria-pressed={activeWorkflowView === view.id}
                   className={activeWorkflowView === view.id ? "active" : ""}
                   key={view.id}
-                  onClick={() => setActiveWorkflowView(view.id)}
+                  onClick={() => onWorkflowViewChange(view.id)}
                   type="button"
                 >
                   {view.label}

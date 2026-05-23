@@ -5811,6 +5811,41 @@ Next:
 - Add URL-state/deep-linking for Library query, kind, selected conversation,
   and workspace tab so dogfooding reports can point to reproducible UI states.
 
+## Turn 175 | 2026-05-23
+
+Summary: Added Library URL-state deep links.
+
+Action:
+
+- Added initial URL parsing for `view`, `kind`, `q`, `selected`,
+  `conversation=1`, and `workflow`.
+- Promoted the conversation workspace tab selection into App state so workflow
+  tabs can be represented in the URL.
+- Added URL replacement when Library search/filter/selection/workspace state
+  changes.
+- Preserved a URL-selected document even when it is not present on the first
+  paginated conversation page.
+- Updated ROADMAP and the P09 plan to record URL-addressable dogfooding state.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /?kind=readout&q=Cara&conversation=1&workflow=context&selected=test-doc`
+  served the built React app through `transcripts.service`.
+- Live `GET /api/conversations?query=Cara&kind=readout&limit=1` returned
+  total=3 and one selected representative id for deep-link construction.
+
+Next:
+
+- Add an explicit copy/share affordance for the current Library workspace URL
+  so dogfooding feedback does not rely on manually copying the address bar.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
