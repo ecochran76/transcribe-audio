@@ -355,6 +355,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [library, setLibrary] = useState({ items: FALLBACK_LIBRARY, total: FALLBACK_LIBRARY.length });
   const [conversations, setConversations] = useState(FALLBACK_CONVERSATIONS);
+  const [conversationSearchStatus, setConversationSearchStatus] = useState({ status: "idle", message: "Conversation search has not loaded yet." });
   const [reviewQueue, setReviewQueue] = useState(FALLBACK_REVIEW_QUEUE);
   const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
@@ -435,6 +436,12 @@ function App() {
       const params = new URLSearchParams({ limit: "100" });
       if (kindFilter !== "all") params.set("kind", kindFilter);
       if (query.trim()) params.set("query", query.trim());
+      setConversationSearchStatus({
+        status: "loading",
+        message: query.trim()
+          ? `Searching conversations for "${query.trim()}"...`
+          : "Loading conversations..."
+      });
       try {
         const payload = await fetchJson(`/api/conversations?${params.toString()}`);
         if (cancelled) return;
@@ -444,9 +451,17 @@ function App() {
           if (rows.some((row) => (row.artifacts || []).some((artifact) => artifact.id === currentId))) return currentId;
           return rows[0]?.representative?.id || currentId;
         });
+        setConversationSearchStatus({
+          status: "loaded",
+          message: `${payload.total ?? (payload.items || []).length} conversations matched.`
+        });
         setApiError("");
       } catch (error) {
         if (cancelled) return;
+        setConversationSearchStatus({
+          status: "error",
+          message: `Conversation search failed: ${error.message}`
+        });
         setApiError(`Conversation search failed; using current local rows: ${error.message}`);
       }
     }, query.trim() ? 250 : 0);
@@ -1386,6 +1401,8 @@ function App() {
             <LibraryTable
               rows={visibleConversationRows}
               allItems={library.items || []}
+              searchStatus={conversationSearchStatus}
+              usingApiRows={conversations.schema_version === "transcribe-audio.conversations.v1"}
               selectedId={selected?.id}
               onOpenConversation={() => setConversationOpen(true)}
               onSelect={setSelectedId}
@@ -2028,8 +2045,13 @@ const DEFAULT_LIBRARY_COLUMN_WIDTHS = {
   media: 120
 };
 
-function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect }) {
+function LibraryTable({ rows, allItems, searchStatus, usingApiRows, selectedId, onOpenConversation, onSelect }) {
   const [columnWidths, setColumnWidths] = useState(DEFAULT_LIBRARY_COLUMN_WIDTHS);
+  const status = searchStatus?.status || "idle";
+  const statusMessage = searchStatus?.message || "";
+  const showLoading = status === "loading";
+  const showEmpty = status === "loaded" && usingApiRows && rows.length === 0;
+  const showFallback = status === "error";
   function startColumnResize(column, event) {
     event.preventDefault();
     event.stopPropagation();
@@ -2094,6 +2116,37 @@ function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect
           </tr>
         </thead>
         <tbody>
+          {showLoading ? (
+            <tr className="table-state-row">
+              <td colSpan={5}>
+                <div className="library-table-state loading" role="status">
+                  <span className="state-spinner" aria-hidden="true" />
+                  <strong>Loading conversations</strong>
+                  <p>{statusMessage}</p>
+                </div>
+              </td>
+            </tr>
+          ) : null}
+          {showEmpty ? (
+            <tr className="table-state-row">
+              <td colSpan={5}>
+                <div className="library-table-state empty" role="status">
+                  <strong>No matching conversations</strong>
+                  <p>{statusMessage || "Try a broader search or switch the artifact kind filter back to All artifacts."}</p>
+                </div>
+              </td>
+            </tr>
+          ) : null}
+          {showFallback ? (
+            <tr className="table-state-row">
+              <td colSpan={5}>
+                <div className="library-table-state warning" role="status">
+                  <strong>Using fallback rows</strong>
+                  <p>{statusMessage || "The conversation search API is unavailable, so the table is using local fixture or previously loaded rows."}</p>
+                </div>
+              </td>
+            </tr>
+          ) : null}
           {rows.map((row) => {
             const item = row.representative;
             const calendar =

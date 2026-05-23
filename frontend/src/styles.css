@@ -472,6 +472,64 @@ tbody tr.selected {
   background: rgba(215, 255, 115, 0.08);
 }
 
+tbody tr.table-state-row:hover {
+  background: transparent;
+}
+
+.library-table-state {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 9rem;
+  place-items: center;
+  padding: 1.8rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(215, 255, 115, 0.12), transparent 42%),
+    rgba(0, 0, 0, 0.16);
+  color: var(--muted);
+  text-align: center;
+}
+
+.library-table-state strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.library-table-state p {
+  margin: 0;
+  max-width: 42rem;
+}
+
+.library-table-state.empty {
+  border-color: rgba(255, 196, 87, 0.28);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 196, 87, 0.12), transparent 42%),
+    rgba(0, 0, 0, 0.16);
+}
+
+.library-table-state.warning {
+  border-color: rgba(255, 111, 97, 0.34);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 111, 97, 0.12), transparent 42%),
+    rgba(0, 0, 0, 0.16);
+}
+
+.state-spinner {
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 2px solid rgba(244, 236, 216, 0.16);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: state-spin 900ms linear infinite;
+}
+
+@keyframes state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 td strong,
 td small {
   display: block;

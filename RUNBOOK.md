@@ -5744,6 +5744,40 @@ Next:
 - Add loading/empty-result affordances to the Library table so no-match server
   searches are visually distinct from API fallback or startup loading.
 
+## Turn 173 | 2026-05-23
+
+Summary: Added explicit Library table loading, empty, and error states.
+
+Action:
+
+- Added `conversationSearchStatus` state for Library conversation searches.
+- Rendered a loading row while `/api/conversations` is in flight.
+- Rendered an empty-result row when a server-backed search returns zero
+  matching conversations.
+- Rendered an API-error/fallback row when conversation search fails and the UI
+  is using stale or local rows.
+- Styled table states with distinct loading, empty, and warning treatments.
+- Updated ROADMAP and the P09 plan to record the UX behavior.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/conversations?query=Cara&kind=readout&limit=3` returned
+  total=3.
+- Live `GET /api/conversations?query=zzzz-no-match-for-table-state&limit=3`
+  returned total=0 and zero items, exercising the UI's empty-state input.
+
+Next:
+
+- Add pagination or "load more" for server-backed Library conversations so the
+  table is not limited to the first 100 matches.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
