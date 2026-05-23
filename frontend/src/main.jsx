@@ -389,6 +389,8 @@ function App() {
   const [selectedDocumentDetail, setSelectedDocumentDetail] = useState(null);
   const [selectedDocumentDetailAction, setSelectedDocumentDetailAction] = useState({ status: "idle", message: "" });
   const [selectedRelatedDocuments, setSelectedRelatedDocuments] = useState(null);
+  const [selectedConversationDetail, setSelectedConversationDetail] = useState(null);
+  const [selectedConversationDetailAction, setSelectedConversationDetailAction] = useState({ status: "idle", message: "" });
   const [conversationOpen, setConversationOpen] = useState(false);
 
   useEffect(() => {
@@ -674,6 +676,32 @@ function App() {
   useEffect(() => {
     if (activeNav !== "Library") setConversationOpen(false);
   }, [activeNav]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConversationDetail() {
+      if (!conversationOpen || !selected?.id || activeNav !== "Library") {
+        setSelectedConversationDetail(null);
+        setSelectedConversationDetailAction({ status: "idle", message: "" });
+        return;
+      }
+      setSelectedConversationDetailAction({ status: "loading", message: "Loading conversation workspace..." });
+      try {
+        const payload = await fetchJson(`/api/conversations/${encodeURIComponent(selected.id)}`);
+        if (cancelled) return;
+        setSelectedConversationDetail(payload);
+        setSelectedConversationDetailAction({ status: "loaded", message: "" });
+      } catch (error) {
+        if (cancelled) return;
+        setSelectedConversationDetail(null);
+        setSelectedConversationDetailAction({ status: "error", message: `Conversation detail failed: ${error.message}` });
+      }
+    }
+    loadConversationDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeNav, conversationOpen, selected?.id]);
 
   useEffect(() => {
     if (!conversationOpen) return undefined;
@@ -1404,6 +1432,8 @@ function App() {
       </section>
       {conversationOpen && activeNav === "Library" && selected ? (
         <ConversationWorkflowModal
+          conversationDetail={selectedConversationDetail}
+          conversationDetailAction={selectedConversationDetailAction}
           documentDetail={selectedDocumentDetail}
           documentDetailAction={selectedDocumentDetailAction}
           relatedDocuments={selectedRelatedDocuments}
@@ -2802,6 +2832,8 @@ function Inspector({
 }
 
 function ConversationWorkflowModal({
+  conversationDetail,
+  conversationDetailAction,
   documentDetail,
   documentDetailAction,
   relatedDocuments,
@@ -2816,18 +2848,25 @@ function ConversationWorkflowModal({
   const [activeWorkflowView, setActiveWorkflowView] = useState("transcript");
   const [sourceDetail, setSourceDetail] = useState(null);
   const [sourceDetailAction, setSourceDetailAction] = useState({ status: "idle", message: "" });
-  const sourceDocument = relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
-  const linkedMedia = mediaForItem(item, sourceDocument);
-  const payload = documentDetail?.json_payload || {};
-  const transcriptDetail = item.kind === "transcript" ? documentDetail : sourceDetail;
+  const selectedDetail = conversationDetail?.selected_document || documentDetail;
+  const sourceDocument = conversationDetail?.transcript_document || relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
+  const summaryDetail = conversationDetail?.summary_document || (item.kind === "readout" ? selectedDetail : null);
+  const contextualDetail = conversationDetail?.contextual_readout_document || (item.kind === "contextual_readout" ? selectedDetail : null);
+  const linkedMedia = conversationDetail?.media_blob?.playback_url ? conversationDetail.media_blob : mediaForItem(item, sourceDocument);
+  const readoutDetail = contextualDetail || summaryDetail || selectedDetail;
+  const payload = readoutDetail?.json_payload || {};
+  const transcriptDetail = conversationDetail?.transcript_document || (item.kind === "transcript" ? selectedDetail : sourceDetail);
   const turns = transcriptTurns(transcriptDetail);
   const meta = transcriptMeta(transcriptDetail);
-  const summaryText = documentSummaryText(documentDetail);
-  const participants = Array.isArray(payload.participants) ? payload.participants : [];
+  const summaryText = documentSummaryText(summaryDetail || selectedDetail);
+  const finalReadoutText = documentSummaryText(contextualDetail || selectedDetail, { allowTranscriptFallback: true });
+  const participants = Array.isArray(conversationDetail?.participants) && conversationDetail.participants.length
+    ? conversationDetail.participants
+    : Array.isArray(payload.participants) ? payload.participants : [];
   const topics = Array.isArray(payload.topics) ? payload.topics : [];
   const actionItems = Array.isArray(payload.action_items) ? payload.action_items : [];
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
-  const finalReadoutReady = item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
+  const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const workflowViews = [
     { id: "transcript", label: "Transcript" },
     { id: "summary", label: "First-pass summary" },
@@ -2839,7 +2878,7 @@ function ConversationWorkflowModal({
   useEffect(() => {
     let cancelled = false;
     async function loadSourceDetail() {
-      if (!sourceDocument?.id || sourceDocument.id === item.id || item.kind === "transcript") {
+      if (conversationDetail?.transcript_document || !sourceDocument?.id || sourceDocument.id === item.id || item.kind === "transcript") {
         setSourceDetail(null);
         setSourceDetailAction({ status: "idle", message: "" });
         return;
@@ -2860,7 +2899,7 @@ function ConversationWorkflowModal({
     return () => {
       cancelled = true;
     };
-  }, [item.id, item.kind, sourceDocument?.id]);
+  }, [conversationDetail?.transcript_document, item.id, item.kind, sourceDocument?.id]);
   async function previewRetranscription() {
     setRetranscriptionPreflight({ status: "running", message: "Previewing retranscription plan...", payload: null });
     setRetranscriptionQueue({ status: "idle", message: "", payload: null });
@@ -2923,9 +2962,9 @@ function ConversationWorkflowModal({
         <header className="conversation-modal-header">
           <div>
             <p className="eyebrow">Conversation Workspace</p>
-            <h2 id="conversation-modal-title">{item.title || sourceDocument?.title || "Untitled conversation"}</h2>
+            <h2 id="conversation-modal-title">{conversationDetail?.conversation?.title || item.title || sourceDocument?.title || "Untitled conversation"}</h2>
             <p className="muted">
-              {meta.event || statusLabel(item.kind || "artifact")} · {formatDate(item.generated_at || item.updated_at)}
+              {conversationDetailAction.message || meta.event || statusLabel(item.kind || "artifact")} · {formatDate(item.generated_at || item.updated_at)}
             </p>
           </div>
           <button aria-label="Close conversation workspace" className="modal-close" onClick={onClose} type="button">
@@ -2959,6 +2998,10 @@ function ConversationWorkflowModal({
               <dl>
                 <dt>Transcript</dt>
                 <dd>{sourceDocument?.id || (item.kind === "transcript" ? item.id : "Not linked")}</dd>
+                <dt>Summary</dt>
+                <dd>{summaryDetail?.id || "Not prepared"}</dd>
+                <dt>Final readout</dt>
+                <dd>{contextualDetail?.id || "Not generated"}</dd>
                 <dt>Turns</dt>
                 <dd>{meta.utteranceCount || turns.length || "Unknown"}</dd>
                 <dt>Duration</dt>
@@ -3058,7 +3101,7 @@ function ConversationWorkflowModal({
                     <h3>{summaryText ? "Summary ready" : "Summary not prepared"}</h3>
                   </div>
                 </div>
-                {documentDetailAction.status === "loading" ? (
+                {conversationDetailAction.status === "loading" || documentDetailAction.status === "loading" ? (
                   <p className="muted">Loading summary...</p>
                 ) : summaryText ? (
                   <p className="summary-prose">{summaryText}</p>
@@ -3080,6 +3123,17 @@ function ConversationWorkflowModal({
                   </div>
                 </div>
                 <p>Gather calendar, GWS, msgcli, Odollo, Graphiti, local-store, and matter-routing evidence before the final readout.</p>
+                {conversationDetail?.conversation?.artifacts?.length ? (
+                  <div className="event-list">
+                    <span>Conversation artifacts</span>
+                    {conversationDetail.conversation.artifacts.map((artifact) => (
+                      <article key={artifact.id}>
+                        <strong>{artifact.title || artifact.id}</strong>
+                        <small>{statusLabel(artifact.kind || "artifact")} · {formatDate(artifact.generated_at || artifact.updated_at)}</small>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="workflow-action-row">
                   <a href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">Open raw context JSON</a>
                   <button disabled title="Context-run creation needs a reviewed backend contract." type="button">Start context run (planned)</button>
@@ -3120,6 +3174,7 @@ function ConversationWorkflowModal({
                     <h3>{finalReadoutReady ? "Context-enriched readout" : "Context-enriched readout not generated yet"}</h3>
                   </div>
                 </div>
+                {finalReadoutReady && finalReadoutText ? <p className="summary-prose">{finalReadoutText}</p> : null}
                 <div className="readout-columns">
                   {actionItems.length ? (
                     <div>

@@ -263,6 +263,54 @@ def list_conversations(
     }
 
 
+def get_conversation_detail(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
+    with connect(root) as con:
+        init_db(con)
+        selected_row = con.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
+        if selected_row is None:
+            raise TranscriptStoreError(f"No document found with id {document_id}")
+        rows = con.execute(
+            """
+            SELECT * FROM documents
+            ORDER BY COALESCE(NULLIF(generated_at, ''), updated_at) DESC, updated_at DESC
+            """
+        ).fetchall()
+    selected_key = conversation_source_key(selected_row)
+    group_rows = [row for row in rows if conversation_source_key(row) == selected_key]
+    if not group_rows:
+        group_rows = [selected_row]
+    transcripts = [row for row in group_rows if row["kind"] == "transcript"]
+    readouts = [row for row in group_rows if row["kind"] == "readout"]
+    contextual_readouts = [row for row in group_rows if row["kind"] == "contextual_readout"]
+    transcript_row = latest_document(transcripts) if transcripts else None
+    readout_row = latest_document(readouts) if readouts else None
+    contextual_row = latest_document(contextual_readouts) if contextual_readouts else None
+    selected_detail = get_document(document_id, root=root)
+    transcript_detail = get_document(transcript_row["id"], root=root) if transcript_row else None
+    readout_detail = get_document(readout_row["id"], root=root) if readout_row else None
+    contextual_detail = get_document(contextual_row["id"], root=root) if contextual_row else None
+    participants: list[Any] = []
+    for detail in [readout_detail, contextual_detail, transcript_detail, selected_detail]:
+        payload_participants = (detail.get("json_payload") if detail else {}).get("participants") if detail else None
+        if isinstance(payload_participants, list):
+            for participant in payload_participants:
+                if participant not in participants:
+                    participants.append(participant)
+    summary = conversation_summary(selected_key, group_rows)
+    return {
+        "schema_version": "transcribe-audio.conversation-detail.v1",
+        "conversation": summary,
+        "selected_document": selected_detail,
+        "transcript_document": transcript_detail,
+        "summary_document": readout_detail,
+        "contextual_readout_document": contextual_detail,
+        "participants": participants,
+        "media_blob": summary["media_blob"],
+        "will_read_artifact_files": False,
+        "will_return_artifact_content": True,
+    }
+
+
 def get_document(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     with connect(root) as con:
         init_db(con)
@@ -2053,6 +2101,11 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path.startswith("/api/conversations/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 3:
+                    self.write_json(get_conversation_detail(parts[2], root=self.store_root))
+                    return
             if parsed.path == "/api/review-queue":
                 self.write_json(
                     review_queue_summary(

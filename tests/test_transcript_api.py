@@ -188,6 +188,37 @@ def test_list_conversations_groups_transcript_readout_and_media(tmp_path: Path) 
     assert filtered["total"] == 1
 
 
+def test_get_conversation_detail_returns_transcript_summary_and_media(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.get_conversation_detail(readout.id, root=store_root)
+
+    assert payload["schema_version"] == "transcribe-audio.conversation-detail.v1"
+    assert payload["conversation"]["representative"]["id"] == readout.id
+    assert payload["selected_document"]["id"] == readout.id
+    assert payload["transcript_document"]["id"] == transcript.id
+    assert payload["summary_document"]["id"] == readout.id
+    assert payload["contextual_readout_document"] is None
+    assert payload["summary_document"]["json_payload"]["summary"].startswith("Tempo Chemical")
+    assert payload["transcript_document"]["text_content"]
+    assert payload["media_blob"]["playback_url"].startswith("/api/blobs/")
+    assert payload["will_read_artifact_files"] is False
+    assert payload["will_return_artifact_content"] is True
+
+
 def test_retranscription_preflight_resolves_readout_source_blob_without_work(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"

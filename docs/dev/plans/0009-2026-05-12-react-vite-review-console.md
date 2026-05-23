@@ -44,9 +44,11 @@ pretend transcript text is a readout. The Library now consumes the
 server-backed `/api/conversations` grouping endpoint so transcript,
 first-pass summary, and contextual readout artifacts render as one
 conversation row with workflow progress icons instead of separate artifact
-rows. Library columns are operator-resizable, and the media column uses a
-healthy `Play` action when source audio is available or a disabled state when
-it is missing.
+rows. The conversation workspace loads `/api/conversations/<document_id>`
+so transcript, summary, final readout, artifact membership, participants,
+and media arrive in one payload. Library columns are operator-resizable, and
+the media column uses a healthy `Play` action when source audio is available
+or a disabled state when it is missing.
 
 The conversation workspace now uses the full viewport. Transcript, first-pass
 summary, context workbench, speaker/contact identity, and final readout are

@@ -5668,6 +5668,47 @@ Next:
   summaries, contextual readouts, related contacts, and media in one request
   instead of stitching several document-level calls together.
 
+## Turn 171 | 2026-05-23
+
+Summary: Added a conversation workspace detail endpoint.
+
+Action:
+
+- Added `GET /api/conversations/<document_id>` to return one selected
+  conversation payload with grouped metadata, selected document, source
+  transcript, first-pass summary, contextual readout, extracted participants,
+  and linked media.
+- Updated the conversation workspace modal to fetch the detail payload when it
+  opens and use it for transcript, summary, final-readout, artifact membership,
+  participant, and source-media views.
+- Kept existing document-level detail calls as inspector/fallback paths while
+  moving the modal toward the conversation-level contract.
+- Documented the detail endpoint in README, ROADMAP, the P09 plan, and the
+  review API contract.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/conversations/<document_id>` for the Cara conversation
+  returned the expected detail schema with selected document, source transcript,
+  first-pass summary, 4 participants, media_ready=true, and no arbitrary
+  artifact-file reads.
+- Browser smoke through `agent-browser` was attempted, but the default runtime
+  profile was locked by an existing reachable browser and the CLI refused to
+  launch a second profile without closing the active runtime.
+
+Next:
+
+- Make the global search/filter path call `/api/conversations` with the active
+  query/kind instead of loading a fixed 500-row conversation page and filtering
+  client-side.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;
