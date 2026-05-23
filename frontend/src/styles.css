@@ -347,6 +347,7 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .summary-strip span,
@@ -355,6 +356,45 @@ select {
   background: rgba(215, 255, 115, 0.13);
   color: var(--accent);
   padding: 0.4rem 0.65rem;
+}
+
+.share-link-button {
+  border: 1px solid rgba(244, 236, 216, 0.18);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(215, 255, 115, 0.18), rgba(244, 236, 216, 0.06)),
+    rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.4rem 0.75rem;
+}
+
+.share-link-button:hover,
+.share-link-button:focus-visible {
+  border-color: rgba(215, 255, 115, 0.58);
+  color: var(--accent);
+}
+
+.share-link-notice {
+  margin: -0.4rem 0 1rem auto;
+  width: fit-content;
+  max-width: min(100%, 34rem);
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.share-link-notice.ok {
+  border-color: rgba(118, 223, 170, 0.38);
+  color: var(--ink);
+}
+
+.share-link-notice.blocked {
+  border-color: rgba(255, 196, 87, 0.42);
 }
 
 .test-status-strip {

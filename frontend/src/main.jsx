@@ -442,6 +442,7 @@ function App() {
   const [selectedConversationDetailAction, setSelectedConversationDetailAction] = useState({ status: "idle", message: "" });
   const [conversationOpen, setConversationOpen] = useState(initialUrlState.conversationOpen);
   const [activeWorkflowView, setActiveWorkflowView] = useState(initialUrlState.activeWorkflowView);
+  const [shareAction, setShareAction] = useState({ status: "idle", message: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -789,6 +790,21 @@ function App() {
         message: `Loading more conversations failed: ${error.message}`
       });
       setApiError(`Loading more conversations failed; keeping current rows: ${error.message}`);
+    }
+  }
+
+  async function copyCurrentWorkspaceUrl() {
+    const url = window.location.href;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable.");
+      await navigator.clipboard.writeText(url);
+      setShareAction({ status: "ok", message: "Copied current workspace link." });
+    } catch (error) {
+      window.prompt("Copy this transcript workspace link:", url);
+      setShareAction({
+        status: "blocked",
+        message: `Clipboard write was unavailable; surfaced the link for manual copy. ${error.message}`
+      });
     }
   }
 
@@ -1456,8 +1472,18 @@ function App() {
               <span>{library.total ?? visibleItems.length} artifacts</span>
               <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
               {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
+              {activeNav === "Library" && (
+                <button className="share-link-button" onClick={copyCurrentWorkspaceUrl} type="button">
+                  Copy workspace link
+                </button>
+              )}
             </div>
           </div>
+          {activeNav === "Library" && shareAction.message ? (
+            <div className={`share-link-notice ${shareAction.status}`} role="status">
+              {shareAction.message}
+            </div>
+          ) : null}
           <TestStatusStrip
             activeNav={activeNav}
             apiStatus={health.status}
@@ -3044,7 +3070,7 @@ function Inspector({
         <a className="developer-link" href={`/api/documents/${encodeURIComponent(item.id)}/context?context_chunks=2`} rel="noreferrer" target="_blank">
           Developer: raw context JSON
         </a>
-        <button disabled title="Share-link workflow is planned but not wired yet." type="button">Prepare share link (planned)</button>
+        <button disabled title="Scoped artifact sharing is planned but not wired yet." type="button">Prepare scoped artifact link (planned)</button>
         <button disabled title="Speaker/contact review is planned but not wired yet." type="button">Review speakers (planned)</button>
       </div>
     </div>

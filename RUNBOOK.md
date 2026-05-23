@@ -5846,6 +5846,38 @@ Next:
 - Add an explicit copy/share affordance for the current Library workspace URL
   so dogfooding feedback does not rely on manually copying the address bar.
 
+## Turn 176 | 2026-05-23
+
+Summary: Added a Library copy-workspace-link affordance.
+
+Action:
+
+- Added a `Copy workspace link` control to the Library summary strip.
+- Added clipboard-copy behavior for the current deep-linked URL.
+- Added a prompt-based manual-copy fallback when the browser blocks or lacks
+  clipboard write support.
+- Added compact success/blocked status feedback below the Library heading.
+- Updated ROADMAP and the P09 plan to record the share affordance.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  37 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /?kind=readout&q=Cara&conversation=1&workflow=context&selected=test-doc`
+  served the built React app through `transcripts.service`.
+- Live built asset contained `Copy workspace link` and the clipboard fallback
+  text, confirming the deployed frontend includes the share affordance.
+
+Next:
+
+- Add a lightweight browser smoke for the Library deep-link/share flow so URL
+  state and copy affordance regressions are caught automatically.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

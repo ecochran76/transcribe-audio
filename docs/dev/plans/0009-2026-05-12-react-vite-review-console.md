@@ -49,7 +49,8 @@ as explicit table rows so operator feedback is not inferred from a blank table,
 and paginated server-backed results can be extended with a `Load more` control.
 Library query, kind filter, selected document, open workspace state, and active
 workspace tab are URL-addressable so dogfooding feedback can include
-reproducible links.
+reproducible links, and the Library header exposes a copy-workspace-link
+control with clipboard feedback and manual-copy fallback.
 The conversation workspace loads `/api/conversations/<document_id>`
 so transcript, summary, final readout, artifact membership, participants,
 and media arrive in one payload. Library columns are operator-resizable, and
