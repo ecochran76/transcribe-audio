@@ -2,6 +2,37 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 184 | 2026-05-23
+
+Summary: Corrected M2 contact matching to use configured provenance sources.
+
+Changes:
+
+- Updated Plan 0012 so contact matching comes from user-scoped provenance,
+  not from calendar attendees alone.
+- Named `gws people` as the Google Contacts/Other Contacts/Directory surface
+  and Odollo tenant contacts as the Odoo contact provenance source.
+- Clarified that calendar attendees and `event.matching_calendars`
+  participants are deterministic matching evidence against contact provenance.
+- Updated P09/ROADMAP text so the participant identity bundle records source
+  profile, evidence, confidence, unresolved ambiguity, and operator decisions.
+
+Validation:
+
+- Re-read planning, architecture/productization, and memory/context-routing
+  policies.
+- Ran Graphiti discovery against `transcribe_audio_main`; results were broad
+  prior roadmap facts, so repo files and this operator correction remain
+  authoritative.
+- Checked local `gws` help; Google contact access is under the `people` service
+  with grouped contacts, Other Contacts, and directory people surfaces.
+
+Next:
+
+- Implement Plan 0012 slice 1 as a provenance-source configuration and
+  normalization pass: `gws` People/Contacts adapter, Odollo contact candidate
+  promotion, and identity-bundle API exposure.
+
 ## Turn 183 | 2026-05-23
 
 Summary: Reprioritized the next roadmap slice around speaker deanonymization

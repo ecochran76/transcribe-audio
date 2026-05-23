@@ -185,10 +185,12 @@ Milestone Focus:
   routing, P05 deposition/memory preview, and P06 service visibility into the
   operator workflow instead of continuing isolated UI increments.
 - Open milestone M2 is speaker deanonymization and the participant-aware
-  context workbench: calendar invite attendees and matching-calendar
-  participants should become deterministic contact candidates, operator input
-  should resolve missing identities, and the resulting participant/context
-  bundle should feed high-powered readout providers before deposition work.
+  context workbench: configured user-scoped `gws` People/Contacts and Odollo
+  tenant contacts should provide contact provenance, calendar invite attendees
+  and matching-calendar participants should provide deterministic matching
+  evidence, operator input should resolve missing identities, and the resulting
+  participant/context bundle should feed high-powered readout providers before
+  deposition work.
 
 Definition of Done:
 

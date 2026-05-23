@@ -83,19 +83,22 @@ workflow stages, and a repeatable `agent-browser` happy-path smoke.
 
 Plan 0012/M2 is the next milestone. It moves the workflow from generic
 speaker/contact review toward deterministic speaker deanonymization and a
-participant-aware context workbench. Calendar invite attendees and
-matching-calendar participants should produce first-pass contact candidates
-before any LLM call. Operator input can confirm, correct, or add contacts. The
-resulting participant identity bundle should travel into context-workbench
-previews and high-powered readout prompts, including AuraCall/Extended Pro
-ChatGPT paths, so final readouts can reason over speaker identity evidence
-instead of anonymous labels alone.
+participant-aware context workbench. Contact matching should come from
+configured provenance sources, starting with user-scoped `gws` People/Contacts
+profiles and Odollo tenant contact profiles. Calendar invite attendees and
+matching-calendar participants provide deterministic matching evidence against
+those contact sources before any LLM call. Operator input can confirm, correct,
+or add contacts. The resulting participant identity bundle should travel into
+context-workbench previews and high-powered readout prompts, including
+AuraCall/Extended Pro ChatGPT paths, so final readouts can reason over speaker
+identity evidence instead of anonymous labels alone.
 
 The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
 2. Play the recording and inspect transcript/readouts.
-3. Deterministically map attendees and speakers to contact candidates.
+3. Deterministically map attendees and speakers to `gws`, Odollo, or reviewed
+   local contact candidates.
 4. Accept operator input for missing or ambiguous speaker identities.
 5. Gather provenance context from Google Workspace, msgcli, Odollo, Graphiti, and local store sources.
 6. Generate or inspect participant-aware contextual readouts.
@@ -130,7 +133,8 @@ Immediate wiring order:
 1. Library detail: human-readable document detail/context, playback speed,
    transcript/readout visibility, and source metadata.
 2. Contacts/speakers: grow the current SQLite-backed speaker/contact review into
-   deterministic attendee lookup, operator contact input, and participant
+   configured `gws` People/Contacts provenance, Odollo contact provenance,
+   deterministic attendee matching, operator contact input, and participant
    identity bundles for readout/context runs.
 3. First-pass/context actions: prepare/check/materialize from the selected
    document without switching mental contexts and include the reviewed
@@ -238,12 +242,14 @@ Add first-class tables for:
 - `contact_merge_events`: reversible audit trail for merges/splits.
 
 Speaker identification should be part of review workflow, not a hidden post-processing side effect.
-Calendar invite attendees and `event.matching_calendars` participants are the
-first deterministic identity source. The system should use those records to
-produce explainable contact candidates before asking an LLM to reason about
-speaker identities. LLM output can help with disambiguation during the readout
-phase, but it must consume an explicit participant/context bundle and preserve
-the underlying evidence, confidence, and unresolved ambiguity.
+Configured provenance contacts are the first contact source. Calendar invite
+attendees and `event.matching_calendars` participants are deterministic match
+evidence. The system should match those attendee records against user-scoped
+`gws` People/Contacts profiles, Odollo tenant contact profiles, and reviewed
+local contact tables before asking an LLM to reason about speaker identities.
+LLM output can help with disambiguation during the readout phase, but it must
+consume an explicit participant/context bundle and preserve the underlying
+evidence, confidence, source profile, and unresolved ambiguity.
 
 ### Context Gathering
 
@@ -254,7 +260,8 @@ It should support:
 - Manual runs from the UI.
 - Automatic runs based on config and filters.
 - Deterministic recipes for recurring meetings or known matter patterns.
-- Source profiles for GWS Calendar/Gmail/Drive, msgcli, Odollo tenants, Graphiti groups, and local transcript-store retrieval.
+- Source profiles for GWS Calendar/Gmail/Drive/People, msgcli, Odollo tenants,
+  Graphiti groups, and local transcript-store retrieval.
 - Provenance packs that record included/excluded source decisions before reread.
 
 Automatic progression must remain configurable by confidence, meeting pattern, source availability, and warning state. Low-confidence or warning-bearing runs land in `Review Queue`.
@@ -263,7 +270,8 @@ Automatic progression must remain configurable by confidence, meeting pattern, s
 
 Provenance providers are source profiles, not global toggles:
 
-- `gws`: multitenant Google Workspace profiles for calendars, Gmail, Drive search, and later Docs/Sheets.
+- `gws`: multitenant Google Workspace profiles for calendars, People/Contacts,
+  Gmail, Drive search, and later Docs/Sheets.
 - `msgcli`: message/contact/search profiles.
 - `odollo`: multiple Odoo tenant profiles for contacts and log notes.
 - `graphiti`: memory groups with sensitivity/retrieval policy.

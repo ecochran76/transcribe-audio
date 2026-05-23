@@ -12,9 +12,17 @@ participant-aware context workbench before deposition or external apply work.
 The software should endeavor to identify anonymous transcript speakers by using
 deterministic attendee/contact evidence first, then operator review, then a
 high-powered contextual readout provider with an explicit participant/context
-bundle. Calendar invite attendees are the first deterministic source because
-they are already attached to transcript sidecars through `event` and
-`event.matching_calendars`.
+bundle. Contact matching should come from configured user-scoped provenance
+sources. Calendar invite attendees are deterministic match evidence, not the
+contact system of record.
+
+The first configurable contact provenance sources are:
+
+- `gws` People API surfaces, exposed by the local `gws people` service:
+  grouped Google Contacts, Other Contacts, and optionally directory people when
+  the active profile has scope.
+- `odollo` Odoo tenant profiles, using read-only partner/contact lookups against
+  configured tenants such as SoyLei or Saber.
 
 ## Non-Goals
 
@@ -38,26 +46,63 @@ contextual readout inspection, and no-write deposition/memory preview queueing.
 That loop is not yet strong enough for deposition. Speaker/contact review is
 mostly operator-driven, context-workbench actions are local manifest previews,
 and first-pass/contextual readouts do not yet receive a deliberate
-participant-identity bundle built from deterministic calendar attendee lookup
-and reviewed operator input. P05 external deposition and richer memory harvest
-should wait until this identity/context bundle exists.
+participant-identity bundle built from configured `gws`/Odollo contact
+provenance, calendar attendee evidence, and reviewed operator input. P05
+external deposition and richer memory harvest should wait until this
+identity/context bundle exists.
+
+Current reusable seams:
+
+- `context_sources.py` already has read-only Odollo contact provenance through
+  configured profiles and emits `odollo_contact` sources.
+- `context_sources.py` already has a `gws` provenance config for Calendar/Drive,
+  but it does not yet collect Google Contacts or People API records.
+- `transcript_api.py` exposes conversation speaker/contact candidates from
+  stored readout participants and local reviewed contact tables, but it does not
+  yet rank configured provenance contacts against calendar attendees.
+
+## Contact Source Configuration
+
+Contact provenance configuration should live under user-scoped runtime state,
+not tracked repo files. The repo may provide a sample schema, but real profile
+names, account paths, tenant labels, credentials, and contact outputs remain
+under `~/.local/state/transcribe-audio/`, `~/.config/gws*`, `~/.odollo/`, or
+the relevant source runtime.
+
+The planned configuration shape is:
+
+- `gws` contact profiles: profile label, `GOOGLE_WORKSPACE_CLI_CONFIG_DIR`,
+  enabled People API surfaces (`contacts`, `other_contacts`, `directory`),
+  query limits, readiness status, and read-only scope notes.
+- `odollo` contact profiles: tenant profile label, config path, enabled Odoo
+  models, query limits, readiness status, and read-only scope notes.
+- Per-workflow policy: which contact provenance profiles may be used for
+  speaker deanonymization, context workbench, and readout prompt bundles.
+- No write scopes are required for this milestone.
 
 ## Work Items
 
 - Define a participant identity bundle schema for readout/context runs. It must
   include transcript speaker labels, calendar attendees, matching-calendar
-  participants, candidate contacts, operator decisions, confidence, evidence,
-  unresolved ambiguities, and source profile metadata.
+  participants, provenance contact candidates, operator decisions, confidence,
+  evidence, unresolved ambiguities, and source profile metadata.
 - Add deterministic attendee extraction and normalization from transcript
   sidecar `event.participants` and `event.matching_calendars` fields, including
   name/email handling where providers expose both.
-- Generate contact candidates from calendar attendees and existing local
-  contact/identity tables before invoking an LLM.
+- Add a read-only `gws` People/Contacts provenance adapter for grouped
+  contacts, Other Contacts, and optional directory people, using configured
+  user-scoped `gws` profiles.
+- Promote Odollo tenant contact provenance from routing-only evidence into the
+  participant identity candidate pool, preserving tenant/profile metadata.
+- Generate contact candidates by matching calendar attendees, transcript
+  participant labels, and speaker labels against configured `gws`, Odollo, and
+  local reviewed contact sources before invoking an LLM.
 - Add an operator input path for naming or correcting contacts that are not
   found in deterministic sources.
 - Extend the conversation identity-review API payload so the UI can distinguish
-  deterministic attendee matches, existing-contact matches, operator-created
-  candidates, and unresolved anonymous speakers.
+  attendee evidence, `gws` contact matches, Odollo contact matches,
+  existing-local-contact matches, operator-created candidates, and unresolved
+  anonymous speakers.
 - Extend context-workbench preview manifests to include the participant identity
   bundle and to make missing/ambiguous identities visible before reread.
 - Pass the participant/context bundle into the high-powered readout phase,
@@ -75,8 +120,10 @@ should wait until this identity/context bundle exists.
 
 - A selected conversation exposes a participant identity bundle through the API
   without leaking secrets or raw private contact exports.
-- Calendar attendee data can deterministically produce speaker/contact
-  candidates before any LLM call.
+- Configured `gws` People/Contacts and Odollo contact provenance can produce
+  speaker/contact candidates before any LLM call.
+- Calendar attendee data is used as deterministic matching evidence against
+  configured contact provenance, not as the only contact source.
 - The operator can confirm, defer, or provide a contact label for anonymous
   speakers, with decisions stored in user-scoped runtime state.
 - Context-workbench preview includes participant identity state, provenance
@@ -88,9 +135,9 @@ should wait until this identity/context bundle exists.
 
 ## Validation
 
-- Focused `pytest` coverage for attendee extraction, contact candidate scoring,
-  identity-bundle persistence, conversation API payloads, and readout prompt
-  payloads.
+- Focused `pytest` coverage for attendee extraction, `gws`/Odollo contact
+  provenance normalization, contact candidate scoring, identity-bundle
+  persistence, conversation API payloads, and readout prompt payloads.
 - `python -m py_compile` for touched backend modules and scripts.
 - `npm --prefix frontend run build` for UI changes.
 - Browser smoke evidence under
