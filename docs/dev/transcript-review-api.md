@@ -20,6 +20,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 
 - `GET /api/health`: service and store path.
 - `GET /api/library?kind=transcript&limit=50&offset=0`: paged stored document list.
+- `GET /api/conversations?kind=transcript&q=cara&limit=100&offset=0`: paged conversation list grouped by source transcript, with workflow flags, representative artifact, source document, and linked media metadata. This endpoint reports metadata only; query search may match indexed document text, but the response does not return artifact text or read artifact files.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
 - `GET /api/intelligence/providers`: local provider registry and readiness checks for intelligence surfaces, including `codex-app-server` as the preferred supervised App Intelligence control plane.
 - `GET /api/intelligence/smokes`: latest App Intelligence smoke run and browser-smoke evidence metadata. It reports paths, status, and check booleans only; it does not read screenshot bytes or artifact contents.

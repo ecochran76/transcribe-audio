@@ -5629,6 +5629,45 @@ Next:
 - Add conversation-level API grouping so table grouping and workflow progress
   are server-backed rather than inferred from the current client-side page.
 
+## Turn 170 | 2026-05-23
+
+Summary: Added server-backed conversation grouping for the Library table.
+
+Action:
+
+- Added `/api/conversations` to group transcript, first-pass readout, and
+  contextual readout artifacts by source transcript.
+- The endpoint returns representative/source/latest artifacts, workflow flags,
+  calendar labels, linked media metadata, and artifact membership without
+  returning artifact text or reading artifact files.
+- Updated the React Library to prefer `/api/conversations`, keep client-side
+  grouping only as an offline fallback, and show conversation counts in the
+  operator status strip.
+- Documented the endpoint in the review API docs, README, ROADMAP, and P09
+  plan.
+
+Validation:
+
+- `python -m py_compile transcript_api.py transcript_store.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  36 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `transcripts.service` and
+  `transcribe-watch.service` both reported active.
+- Live `GET /api/conversations?query=Cara&limit=5` returned 6 grouped
+  conversations; the first returned transcript=true, summary=true,
+  contextual_readout=false, and media_ready=true.
+- Browser smoke on `transcripts.localhost` confirmed the built UI loads against
+  the live local API, shows conversation rows with workflow icons, and renders
+  enabled/disabled `Play` buttons from server-backed media metadata.
+
+Next:
+
+- Add a conversation detail endpoint so the modal can load transcript,
+  summaries, contextual readouts, related contacts, and media in one request
+  instead of stitching several document-level calls together.
+
 ## Turn 103 | 2026-05-17
 
 Summary: Retried first-pass summaries after the AuraCall lease-heartbeat fix;

@@ -130,6 +130,139 @@ def list_documents(
     }
 
 
+def conversation_source_key(row: sqlite3.Row) -> str:
+    payload = parse_object_json(row["json_payload"])
+    metadata = parse_object_json(row["metadata_json"])
+    source_artifact_path = str(metadata.get("source_artifact_path") or payload.get("source_artifact_path") or "")
+    if row["kind"] != "transcript" and source_artifact_path:
+        return source_artifact_path
+    return str(row["source_path"] or row["id"])
+
+
+def latest_document(rows: list[sqlite3.Row]) -> sqlite3.Row:
+    return sorted(
+        rows,
+        key=lambda row: str(row["generated_at"] or row["updated_at"] or ""),
+        reverse=True,
+    )[0]
+
+
+def media_blob_for_document(document: dict[str, Any] | None) -> dict[str, Any]:
+    if not document:
+        return {}
+    media_blob = document.get("media_blob")
+    return media_blob if isinstance(media_blob, dict) else {}
+
+
+def conversation_summary(key: str, rows: list[sqlite3.Row]) -> dict[str, Any]:
+    transcripts = [row for row in rows if row["kind"] == "transcript"]
+    readouts = [row for row in rows if row["kind"] == "readout"]
+    contextual_readouts = [row for row in rows if row["kind"] == "contextual_readout"]
+    representative_row = (
+        latest_document(contextual_readouts)
+        if contextual_readouts
+        else latest_document(readouts)
+        if readouts
+        else latest_document(transcripts)
+        if transcripts
+        else latest_document(rows)
+    )
+    source_row = latest_document(transcripts) if transcripts else latest_document(rows)
+    latest_row = latest_document(rows)
+    representative = document_summary(representative_row)
+    source = document_summary(source_row)
+    latest = document_summary(latest_row)
+    media_blob = media_blob_for_document(representative) or media_blob_for_document(source)
+    source_metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    rep_metadata = representative.get("metadata") if isinstance(representative.get("metadata"), dict) else {}
+    calendar = (
+        source_metadata.get("event", {}).get("summary")
+        if isinstance(source_metadata.get("event"), dict)
+        else ""
+    ) or (
+        rep_metadata.get("event", {}).get("summary")
+        if isinstance(rep_metadata.get("event"), dict)
+        else ""
+    ) or (
+        rep_metadata.get("route", {}).get("label")
+        if isinstance(rep_metadata.get("route"), dict)
+        else ""
+    )
+    return {
+        "key": key,
+        "title": representative.get("title") or source.get("title") or "Untitled conversation",
+        "representative": representative,
+        "source": source,
+        "latest_artifact": latest,
+        "artifacts": [document_summary(row) for row in rows],
+        "artifact_count": len(rows),
+        "workflow": {
+            "transcript": bool(transcripts),
+            "summary": bool(readouts),
+            "contextual_readout": bool(contextual_readouts),
+        },
+        "media_blob": media_blob,
+        "media_ready": bool(media_blob.get("playback_url")),
+        "calendar_label": calendar or "No context yet",
+        "updated_at": latest.get("generated_at") or latest.get("updated_at") or "",
+    }
+
+
+def list_conversations(
+    *,
+    root: Optional[Path] = None,
+    kind: str = "",
+    query: str = "",
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    with connect(root) as con:
+        init_db(con)
+        rows = con.execute(
+            """
+            SELECT * FROM documents
+            ORDER BY COALESCE(NULLIF(generated_at, ''), updated_at) DESC, updated_at DESC
+            """
+        ).fetchall()
+    groups: dict[str, list[sqlite3.Row]] = {}
+    for row in rows:
+        groups.setdefault(conversation_source_key(row), []).append(row)
+    conversations = [conversation_summary(key, group_rows) for key, group_rows in groups.items()]
+    if kind:
+        conversations = [
+            conversation
+            for conversation in conversations
+            if any(artifact.get("kind") == kind for artifact in conversation["artifacts"])
+        ]
+    if query:
+        needle = query.lower()
+        conversations = [
+            conversation
+            for conversation in conversations
+            if needle
+            in " ".join(
+                [
+                    str(conversation.get("title") or ""),
+                    str(conversation.get("calendar_label") or ""),
+                    " ".join(str(artifact.get("title") or "") for artifact in conversation["artifacts"]),
+                    " ".join(str(artifact.get("source_path") or "") for artifact in conversation["artifacts"]),
+                    " ".join(str(row["text_content"] or "") for row in groups[conversation["key"]]),
+                ]
+            ).lower()
+        ]
+    conversations.sort(key=lambda item: str(item.get("updated_at") or ""), reverse=True)
+    total = len(conversations)
+    return {
+        "schema_version": "transcribe-audio.conversations.v1",
+        "items": conversations[offset : offset + limit],
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "will_read_artifact_files": False,
+        "will_return_artifact_content": False,
+    }
+
+
 def get_document(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     with connect(root) as con:
         init_db(con)
@@ -1905,6 +2038,17 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         root=self.store_root,
                         kind=first(params, "kind"),
                         limit=parse_int(first(params, "limit"), 50, minimum=1, maximum=200),
+                        offset=parse_int(first(params, "offset"), 0, minimum=0, maximum=100000),
+                    )
+                )
+                return
+            if parsed.path == "/api/conversations":
+                self.write_json(
+                    list_conversations(
+                        root=self.store_root,
+                        kind=first(params, "kind"),
+                        query=first(params, "q") or first(params, "query"),
+                        limit=parse_int(first(params, "limit"), 100, minimum=1, maximum=500),
                         offset=parse_int(first(params, "offset"), 0, minimum=0, maximum=100000),
                     )
                 )

@@ -53,6 +53,11 @@ const FALLBACK_REVIEW_QUEUE = {
   items: []
 };
 
+const FALLBACK_CONVERSATIONS = {
+  items: buildConversationRows(FALLBACK_LIBRARY),
+  total: FALLBACK_LIBRARY.length
+};
+
 const FALLBACK_INTELLIGENCE = {
   config: {
     schema_version: "transcribe-audio.intelligence-config.v1",
@@ -242,6 +247,25 @@ function buildConversationRows(items) {
   });
 }
 
+function normalizeConversationRow(row) {
+  if (!row || !row.representative) return row;
+  return {
+    key: row.key,
+    representative: row.representative,
+    source: row.source || row.representative,
+    latestArtifact: row.latest_artifact || row.latestArtifact || row.representative,
+    artifacts: row.artifacts || [],
+    hasTranscript: Boolean(row.workflow?.transcript ?? row.hasTranscript),
+    hasSummary: Boolean(row.workflow?.summary ?? row.hasSummary),
+    hasContextualReadout: Boolean(row.workflow?.contextual_readout ?? row.hasContextualReadout),
+    title: row.title || row.representative?.title || "Untitled conversation",
+    calendarLabel: row.calendar_label || row.calendarLabel || "No context yet",
+    mediaBlob: row.media_blob?.playback_url ? row.media_blob : row.mediaBlob?.playback_url ? row.mediaBlob : {},
+    mediaReady: Boolean(row.media_ready ?? row.mediaReady),
+    updatedAt: row.updated_at || row.updatedAt || row.latest_artifact?.generated_at || row.representative?.generated_at || ""
+  };
+}
+
 function speakerClassName(speaker) {
   const text = String(speaker || "speaker").trim();
   let seed = 0;
@@ -330,6 +354,7 @@ function App() {
   const [kindFilter, setKindFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [library, setLibrary] = useState({ items: FALLBACK_LIBRARY, total: FALLBACK_LIBRARY.length });
+  const [conversations, setConversations] = useState(FALLBACK_CONVERSATIONS);
   const [reviewQueue, setReviewQueue] = useState(FALLBACK_REVIEW_QUEUE);
   const [selectedId, setSelectedId] = useState(FALLBACK_LIBRARY[0].id);
   const [health, setHealth] = useState({ status: "offline", store_dir: "fallback demo data" });
@@ -370,9 +395,10 @@ function App() {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
+        const [healthPayload, libraryPayload, conversationPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=200"),
+          fetchJson("/api/conversations?limit=500"),
           fetchJson("/api/review-queue?limit=100"),
           fetchJson("/api/review-queue/first-pass-summaries/manifests?limit=5"),
           fetchJson("/api/intelligence/providers"),
@@ -384,10 +410,11 @@ function App() {
         if (cancelled) return;
         setHealth(healthPayload);
         setLibrary(libraryPayload);
+        setConversations(conversationPayload);
         setReviewQueue(reviewPayload);
         setFirstPassBatchManifests(batchManifestPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
-        setSelectedId(libraryPayload.items?.[0]?.id || "");
+        setSelectedId(conversationPayload.items?.[0]?.representative?.id || libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
       } catch (error) {
@@ -586,9 +613,25 @@ function App() {
       return haystack.includes(needle);
     });
   }, [kindFilter, library.items, query]);
-  const visibleConversationRows = useMemo(() => buildConversationRows(visibleItems), [visibleItems]);
-
-  const selected = visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
+  const visibleConversationRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const apiRows = (conversations.items || []).map(normalizeConversationRow);
+    const rows = apiRows.length ? apiRows : buildConversationRows(visibleItems);
+    return rows.filter((row) => {
+      if (kindFilter !== "all" && !(row.artifacts || []).some((artifact) => artifact.kind === kindFilter)) return false;
+      if (!needle) return true;
+      const artifactText = (row.artifacts || [])
+        .map((artifact) => `${artifact.title || ""} ${artifact.source_path || ""}`)
+        .join(" ");
+      const haystack = `${row.title || ""} ${row.calendarLabel || ""} ${artifactText}`.toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [conversations.items, kindFilter, query, visibleItems]);
+  const selectedConversation =
+    visibleConversationRows.find((row) => (row.artifacts || []).some((artifact) => artifact.id === selectedId)) ||
+    visibleConversationRows[0] ||
+    null;
+  const selected = selectedConversation?.representative || visibleItems.find((item) => item.id === selectedId) || visibleItems[0] || null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
   const taskEntries = Object.entries(intelligence.config?.tasks || {});
   const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
@@ -1230,7 +1273,8 @@ function App() {
               <h1>{activeNav === "Review Queue" ? "Review queue" : activeNav === "Intelligence" ? "Intelligence routing" : "Transcript library"}</h1>
             </div>
             <div className="summary-strip">
-              <span>{library.total ?? visibleItems.length} stored rows</span>
+              <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
+              <span>{library.total ?? visibleItems.length} artifacts</span>
               <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
               {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
             </div>
@@ -1240,8 +1284,8 @@ function App() {
             apiStatus={health.status}
             kindFilter={kindFilter}
             query={query}
-            visibleCount={visibleItems.length}
-            totalCount={library.total ?? (library.items || []).length}
+            visibleCount={activeNav === "Library" ? visibleConversationRows.length : visibleItems.length}
+            totalCount={activeNav === "Library" ? conversations.total ?? visibleConversationRows.length : library.total ?? (library.items || []).length}
             latestSmoke={intelligence.smokes?.latest_report}
             latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
           />
@@ -1996,9 +2040,14 @@ function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect
         <tbody>
           {rows.map((row) => {
             const item = row.representative;
-            const calendar = row.source?.metadata?.event?.summary || item.metadata?.event?.summary || item.metadata?.route?.label || "No context yet";
-            const sourceDocument = row.transcript || findSourceDocument(item, allItems);
-            const linkedMedia = mediaForItem(item, sourceDocument);
+            const calendar =
+              row.calendarLabel ||
+              row.source?.metadata?.event?.summary ||
+              item.metadata?.event?.summary ||
+              item.metadata?.route?.label ||
+              "No context yet";
+            const sourceDocument = row.source || findSourceDocument(item, allItems);
+            const linkedMedia = row.mediaBlob?.playback_url ? row.mediaBlob : mediaForItem(item, sourceDocument);
             return (
               <tr
                 className={row.artifacts.some((artifact) => artifact.id === selectedId) ? "selected" : ""}
@@ -2011,7 +2060,7 @@ function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect
               >
                 <td>
                   <strong>{row.title}</strong>
-                  <small>{row.transcript?.title || row.source?.source_path || row.key}</small>
+                  <small>{row.source?.title || row.source?.source_path || row.key}</small>
                 </td>
                 <td>
                   <div className="workflow-progress" aria-label="Workflow progress">
@@ -2021,7 +2070,7 @@ function LibraryTable({ rows, allItems, selectedId, onOpenConversation, onSelect
                   </div>
                 </td>
                 <td>{calendar}</td>
-                <td>{formatDate(row.latestArtifact?.generated_at || row.latestArtifact?.updated_at)}</td>
+                <td>{formatDate(row.updatedAt || row.latestArtifact?.generated_at || row.latestArtifact?.updated_at)}</td>
                 <td>
                   <button
                     className={linkedMedia ? "media-play-button" : "media-play-button disabled"}

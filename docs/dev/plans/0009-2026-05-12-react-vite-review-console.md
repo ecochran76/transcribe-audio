@@ -28,8 +28,8 @@ The repo already has transcript artifacts, first-pass readouts, contextual reado
 The first UI shell now exists under `frontend/`. It provides the navbar,
 animated pane layout, central library/review viewport, and right inspector
 surface. It wires `/api/health`, `/api/library`, `/api/review-queue`, and
-first-pass summary batch actions through the Vite dev proxy, with redacted
-fallback rows when the API is offline.
+`/api/conversations`, plus first-pass summary batch actions through the Vite
+dev proxy, with redacted fallback rows when the API is offline.
 
 The Library panes now support SVG collapse controls and mouse/keyboard width
 resizing. The selected-artifact inspector loads document detail on demand,
@@ -40,10 +40,11 @@ source-transcript audio for readouts that do not own a media blob directly.
 
 The right pane is now a compact inspector/launcher with useful metadata,
 source-audio access, and a short conversation-summary panel that does not
-pretend transcript text is a readout. The Library now groups transcript,
-first-pass summary, and contextual readout artifacts into one conversation row
-with workflow progress icons instead of showing each artifact as a separate
-row. Library columns are operator-resizable, and the media column uses a
+pretend transcript text is a readout. The Library now consumes the
+server-backed `/api/conversations` grouping endpoint so transcript,
+first-pass summary, and contextual readout artifacts render as one
+conversation row with workflow progress icons instead of separate artifact
+rows. Library columns are operator-resizable, and the media column uses a
 healthy `Play` action when source audio is available or a disabled state when
 it is missing.
 

@@ -157,6 +157,37 @@ def test_related_documents_links_readout_to_source_transcript(tmp_path: Path) ->
     assert transcript_related["derived_documents"][0]["id"] == readout.id
 
 
+def test_list_conversations_groups_transcript_readout_and_media(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    transcript_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    readout = transcript_store.ingest_artifact(
+        write_readout_artifact(tmp_path, transcript_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    payload = transcript_api.list_conversations(root=store_root, limit=10)
+    filtered = transcript_api.list_conversations(root=store_root, query="Tempo", limit=10)
+
+    assert payload["schema_version"] == "transcribe-audio.conversations.v1"
+    assert payload["total"] == 1
+    conversation = payload["items"][0]
+    assert conversation["representative"]["id"] == readout.id
+    assert conversation["source"]["id"] == transcript.id
+    assert conversation["workflow"] == {"transcript": True, "summary": True, "contextual_readout": False}
+    assert conversation["media_ready"] is True
+    assert conversation["media_blob"]["playback_url"].startswith("/api/blobs/")
+    assert {artifact["id"] for artifact in conversation["artifacts"]} == {transcript.id, readout.id}
+    assert filtered["total"] == 1
+
+
 def test_retranscription_preflight_resolves_readout_source_blob_without_work(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"
