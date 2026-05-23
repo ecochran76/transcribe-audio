@@ -2,6 +2,39 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 183 | 2026-05-23
+
+Summary: Reprioritized the next roadmap slice around speaker deanonymization
+and context-workbench inputs.
+
+Changes:
+
+- Added `docs/dev/plans/0012-2026-05-23-speaker-deanonymization-context-workbench.md`
+  as the next P09 milestone.
+- Deferred P05 deposition apply work until participant identity and
+  context-workbench evidence are stronger.
+- Updated the P09 plan so the workflow order is first-pass summary,
+  speaker/contact identity, participant-aware context workbench, final readout,
+  and only then deposition/memory preview.
+- Recorded calendar invite attendees and `event.matching_calendars`
+  participants as the first deterministic speaker/contact candidate source.
+- Recorded that high-powered readout providers such as AuraCall/Extended Pro
+  ChatGPT should receive an explicit participant/context bundle rather than
+  infer identities from anonymous speaker labels alone.
+
+Validation:
+
+- Re-read planning, architecture/productization, and memory/context-routing
+  policies.
+- Ran Graphiti discovery against `transcribe_audio_main`; results were broad
+  prior roadmap facts, so current repo files and the operator correction remain
+  authoritative.
+
+Next:
+
+- Implement Plan 0012 slice 1: participant identity bundle schema,
+  deterministic calendar-attendee extraction, and conversation API exposure.
+
 ## Turn 182 | 2026-05-23
 
 Summary: Completed P06 service reliability and observability.

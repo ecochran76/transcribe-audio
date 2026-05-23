@@ -81,15 +81,26 @@ context provenance inspection with included/excluded sources, no-write
 deposition/memory preview queueing, Review Queue links back to conversation
 workflow stages, and a repeatable `agent-browser` happy-path smoke.
 
+Plan 0012/M2 is the next milestone. It moves the workflow from generic
+speaker/contact review toward deterministic speaker deanonymization and a
+participant-aware context workbench. Calendar invite attendees and
+matching-calendar participants should produce first-pass contact candidates
+before any LLM call. Operator input can confirm, correct, or add contacts. The
+resulting participant identity bundle should travel into context-workbench
+previews and high-powered readout prompts, including AuraCall/Extended Pro
+ChatGPT paths, so final readouts can reason over speaker identity evidence
+instead of anonymous labels alone.
+
 The remaining UI layer should make the workflow operational:
 
 1. Search or pick a recording/transcript.
 2. Play the recording and inspect transcript/readouts.
-3. Deduplicate contacts and map speakers to contacts.
-4. Gather provenance context from Google Workspace, msgcli, Odollo, Graphiti, and local store sources.
-5. Generate or inspect contextual readouts.
-6. Review deposition and memory-harvest candidates.
-7. Share selected artifacts for human review without exposing the full operator surface.
+3. Deterministically map attendees and speakers to contact candidates.
+4. Accept operator input for missing or ambiguous speaker identities.
+5. Gather provenance context from Google Workspace, msgcli, Odollo, Graphiti, and local store sources.
+6. Generate or inspect participant-aware contextual readouts.
+7. Review deposition and memory-harvest candidates only after identity/context warnings are resolved.
+8. Share selected artifacts for human review without exposing the full operator surface.
 
 ## Dogfooding UX Direction
 
@@ -107,8 +118,8 @@ Working rule:
   switch views or reuse the Library viewport.
 - The first dogfooding path is `Library -> selected recording/transcript ->
   conversation workspace -> playback/source metadata -> first-pass summary ->
-  context workbench -> speaker/contact identity -> final readout -> Review
-  Queue -> Intelligence smoke/debug`.
+  speaker/contact identity -> context workbench with participant bundle ->
+  final readout -> Review Queue -> Intelligence smoke/debug`.
 - New workflow slices should wire this path from left to right before adding
   more product areas.
 - Placeholder UX is acceptable only in docs/plans, not as an active button that
@@ -118,12 +129,14 @@ Immediate wiring order:
 
 1. Library detail: human-readable document detail/context, playback speed,
    transcript/readout visibility, and source metadata.
-2. First-pass/context actions: prepare/check/materialize from the selected
-   document without switching mental contexts.
-3. Review Queue: route human-review decisions to the selected artifact or
+2. Contacts/speakers: grow the current SQLite-backed speaker/contact review into
+   deterministic attendee lookup, operator contact input, and participant
+   identity bundles for readout/context runs.
+3. First-pass/context actions: prepare/check/materialize from the selected
+   document without switching mental contexts and include the reviewed
+   participant bundle in context/readout prompts.
+4. Review Queue: route human-review decisions to the selected artifact or
    batch.
-4. Contacts/speakers: grow the current SQLite-backed speaker/contact review into
-   broader contact identity, dedupe, and merge workflows.
 5. Share/review links: reuse the `previews` contract only after a scoped local
    share model exists.
 
@@ -225,6 +238,12 @@ Add first-class tables for:
 - `contact_merge_events`: reversible audit trail for merges/splits.
 
 Speaker identification should be part of review workflow, not a hidden post-processing side effect.
+Calendar invite attendees and `event.matching_calendars` participants are the
+first deterministic identity source. The system should use those records to
+produce explainable contact candidates before asking an LLM to reason about
+speaker identities. LLM output can help with disambiguation during the readout
+phase, but it must consume an explicit participant/context bundle and preserve
+the underlying evidence, confidence, and unresolved ambiguity.
 
 ### Context Gathering
 

@@ -172,6 +172,7 @@ Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
 - `docs/dev/plans/0010-2026-05-23-dogfoodable-conversation-review-loop.md`
+- `docs/dev/plans/0012-2026-05-23-speaker-deanonymization-context-workbench.md`
 
 Milestone Focus:
 
@@ -183,6 +184,11 @@ Milestone Focus:
 - P09 remains the UI/backend lane, but M1 deliberately binds P04 contextual
   routing, P05 deposition/memory preview, and P06 service visibility into the
   operator workflow instead of continuing isolated UI increments.
+- Open milestone M2 is speaker deanonymization and the participant-aware
+  context workbench: calendar invite attendees and matching-calendar
+  participants should become deterministic contact candidates, operator input
+  should resolve missing identities, and the resulting participant/context
+  bundle should feed high-powered readout providers before deposition work.
 
 Definition of Done:
 
