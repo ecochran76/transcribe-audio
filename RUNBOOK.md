@@ -2,6 +2,43 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 182 | 2026-05-23
+
+Summary: Completed P06 service reliability and observability.
+
+Changes:
+
+- Added watcher readiness checks for `ffprobe`, configured watch directories,
+  backend scripts, and readout script availability.
+- Added `watch_transcriptions.py --check` and `--check --check-json` for
+  service doctor/readiness checks without scanning or transcribing files.
+- Extended watcher candidate state with `blocked_kind`, `blocked_reason`, and
+  `blocked_since`.
+- Extended failed processed records with `failure_kind` and `failure_reason` so
+  retry backoff explains the prior failure.
+- Heartbeats now include `blocked=kind=count` summaries.
+- Updated README systemd guidance with `ExecStartPre=... --check`, service
+  health commands, and blocked-reason interpretation.
+- Installed live user-service readiness drop-in at
+  `~/.config/systemd/user/transcribe-watch.service.d/10-readiness-check.conf`.
+- Closed `docs/dev/plans/0006-2026-05-04-service-reliability-observability.md`
+  and updated P06 in `ROADMAP.md`.
+
+Validation:
+
+- `python -m py_compile watch_transcriptions.py tests/test_transcript_artifacts.py`
+- `.venv/bin/python -m pytest tests/test_transcript_artifacts.py -q`
+- `.venv/bin/python watch_transcriptions.py --check --check-json`
+- `systemctl --user daemon-reload && systemctl --user restart transcribe-watch.service && systemctl --user is-active transcribe-watch.service`
+- `systemctl --user cat transcribe-watch.service --no-pager`
+- `journalctl --user -u transcribe-watch.service -n 80 --no-pager` showed
+  readiness preflight, the loaded jobs, and a heartbeat with `blocked=none`.
+
+Next:
+
+- Keep future service/UI status aggregation under P09 Settings or a new bounded
+  plan; core P06 readiness and blocked-state requirements are satisfied.
+
 ## Turn 181 | 2026-05-23
 
 Summary: Completed Plan 0011 P04 provenance calibration.

@@ -93,9 +93,9 @@ Definition of Done:
 
 ## P06 | Service Reliability And Observability
 
-State: OPEN
+State: CLOSED
 
-Current State: The watcher runs under systemd and has heartbeat logging, but recent `ffprobe` PATH failure showed readiness failures need stronger visibility.
+Current State: The watcher runs under systemd with heartbeat logging, no-progress restart behavior, startup readiness checks, and a `--check` doctor path. Readiness checks fail loudly for missing `ffprobe`, missing watch directories, missing backend scripts, and missing readout scripts before the service loop starts; `--check --check-json` exposes the same diagnostics for automation. Candidate state records `blocked_kind`, `blocked_reason`, and `blocked_since`, backend failures record `failure_kind` and `failure_reason`, and heartbeat logs summarize queued work as `blocked=kind=count` so active services explain minimum-age waits, settling, incomplete media, missing tools, media probe failures, and retry backoff.
 
 Plans:
 

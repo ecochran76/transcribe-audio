@@ -15,7 +15,7 @@ import shlex
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
@@ -87,6 +87,9 @@ class CandidateSnapshot:
     size: int
     mtime: float
     seen_at: float
+    blocked_kind: Optional[str] = None
+    blocked_reason: Optional[str] = None
+    blocked_since: Optional[float] = None
 
 
 @dataclass
@@ -105,6 +108,8 @@ class ProcessedRecord:
     store_paths: Optional[list[str]] = None
     next_retry_after: Optional[float] = None
     stderr: Optional[str] = None
+    failure_kind: Optional[str] = None
+    failure_reason: Optional[str] = None
 
 
 @dataclass
@@ -122,6 +127,24 @@ class CommandResult:
     stderr: str
 
 
+@dataclass
+class ReadinessIssue:
+    severity: str
+    code: str
+    message: str
+    job: Optional[str] = None
+    detail: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "severity": self.severity,
+            "code": self.code,
+            "message": self.message,
+            "job": self.job,
+            "detail": self.detail,
+        }
+
+
 ARTIFACT_STDOUT_PREFIX = "TRANSCRIPT_ARTIFACT_JSON="
 READOUT_STDOUT_PREFIX = "READOUT_JSON="
 
@@ -132,6 +155,15 @@ class ScanStats:
     candidate_count: int = 0
     success_count: int = 0
     failure_count: int = 0
+    blocked_reasons: dict[str, int] = field(default_factory=dict)
+
+    def record_blocked(self, blocked_kind: str) -> None:
+        self.blocked_reasons[blocked_kind] = self.blocked_reasons.get(blocked_kind, 0) + 1
+
+
+def backend_script_path(backend: str) -> Path:
+    script_name = "assembly_transcribe.py" if backend == "assembly" else "faster_whisper_transcribe.py"
+    return SCRIPT_DIR / script_name
 
 
 def probe_media_readiness(media_path: Path) -> tuple[bool, str]:
@@ -216,6 +248,16 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         "--run-once",
         action="store_true",
         help="Scan once, process any currently stable files, then exit.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Load configuration, check watcher service readiness, print diagnostics, then exit.",
+    )
+    parser.add_argument(
+        "--check-json",
+        action="store_true",
+        help="With --check, print machine-readable readiness diagnostics as JSON.",
     )
     parser.add_argument(
         "--job",
@@ -477,6 +519,131 @@ def load_jobs(config_path: Path, args: argparse.Namespace) -> list[WatchJob]:
     return jobs
 
 
+def check_watcher_readiness(jobs: list[WatchJob]) -> list[ReadinessIssue]:
+    issues: list[ReadinessIssue] = []
+    if shutil.which("ffprobe") is None:
+        issues.append(
+            ReadinessIssue(
+                severity="error",
+                code="missing_ffprobe",
+                message="ffprobe is not available on PATH; media readiness checks cannot run.",
+                detail="Install ffmpeg/ffprobe or update the systemd service PATH.",
+            )
+        )
+    if not Path(sys.executable).exists():
+        issues.append(
+            ReadinessIssue(
+                severity="error",
+                code="missing_python",
+                message=f"Python executable does not exist: {sys.executable}",
+            )
+        )
+
+    for job in jobs:
+        if not job.watch_dir.exists():
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="missing_watch_dir",
+                    message=f"Watch directory does not exist: {job.watch_dir}",
+                    job=job.name,
+                )
+            )
+        elif not job.watch_dir.is_dir():
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="watch_dir_not_directory",
+                    message=f"Watch path is not a directory: {job.watch_dir}",
+                    job=job.name,
+                )
+            )
+
+        for backend in job.backends:
+            script_path = backend_script_path(backend)
+            if not script_path.exists():
+                issues.append(
+                    ReadinessIssue(
+                        severity="error",
+                        code="missing_backend_script",
+                        message=f"Configured backend script is missing: {script_path}",
+                        job=job.name,
+                        detail=f"backend={backend}",
+                    )
+                )
+
+        if job.readout_enabled and not (SCRIPT_DIR / "summarize_transcript.py").exists():
+            issues.append(
+                ReadinessIssue(
+                    severity="error",
+                    code="missing_readout_script",
+                    message="Readout generation is enabled but summarize_transcript.py is missing.",
+                    job=job.name,
+                )
+            )
+
+        if (job.notify_on_success or job.notify_on_failure) and job.slack_channel and shutil.which("openclaw") is None:
+            issues.append(
+                ReadinessIssue(
+                    severity="warning",
+                    code="missing_openclaw",
+                    message="Slack notifications are enabled but openclaw is not available on PATH.",
+                    job=job.name,
+                    detail="Transcription can still run; Slack notifications will be skipped.",
+                )
+            )
+    return issues
+
+
+def readiness_has_errors(issues: list[ReadinessIssue]) -> bool:
+    return any(issue.severity == "error" for issue in issues)
+
+
+def print_readiness_report(jobs: list[WatchJob], issues: list[ReadinessIssue], *, as_json: bool = False) -> None:
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "status": "error" if readiness_has_errors(issues) else "ok",
+                    "jobs": [
+                        {
+                            "name": job.name,
+                            "watch_dir": str(job.watch_dir),
+                            "backends": job.backends,
+                            "glob": job.glob,
+                            "readout_enabled": job.readout_enabled,
+                            "store_enabled": job.store_enabled,
+                        }
+                        for job in jobs
+                    ],
+                    "issues": [issue.to_dict() for issue in issues],
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        return
+
+    status = "error" if readiness_has_errors(issues) else "ok"
+    print(f"Watcher readiness: {status}", flush=True)
+    for job in jobs:
+        print(
+            f" - {job.name}: watch_dir={job.watch_dir} backends={','.join(job.backends)} "
+            f"glob={job.glob} readout={job.readout_enabled} store={job.store_enabled}",
+            flush=True,
+        )
+    for issue in issues:
+        job_text = f" job={issue.job}" if issue.job else ""
+        detail_text = f" ({issue.detail})" if issue.detail else ""
+        stream = sys.stderr if issue.severity == "error" else sys.stdout
+        print(
+            f"{issue.severity.upper()}: {issue.code}{job_text}: {issue.message}{detail_text}",
+            file=stream,
+            flush=True,
+        )
+
+
 def load_state(state_path: Path, jobs: list[WatchJob]) -> dict[str, JobState]:
     if state_path.exists():
         try:
@@ -523,6 +690,8 @@ def load_state(state_path: Path, jobs: list[WatchJob]) -> dict[str, JobState]:
                             float(value["next_retry_after"]) if value.get("next_retry_after") is not None else None
                         ),
                         stderr=str(value.get("stderr")) if value.get("stderr") is not None else None,
+                        failure_kind=str(value.get("failure_kind")) if value.get("failure_kind") else None,
+                        failure_reason=str(value.get("failure_reason")) if value.get("failure_reason") else None,
                     )
                 except Exception:
                     continue
@@ -537,6 +706,11 @@ def load_state(state_path: Path, jobs: list[WatchJob]) -> dict[str, JobState]:
                         size=int(value.get("size") or 0),
                         mtime=float(value.get("mtime") or 0.0),
                         seen_at=float(value.get("seen_at") or 0.0),
+                        blocked_kind=str(value.get("blocked_kind")) if value.get("blocked_kind") else None,
+                        blocked_reason=str(value.get("blocked_reason")) if value.get("blocked_reason") else None,
+                        blocked_since=(
+                            float(value["blocked_since"]) if value.get("blocked_since") is not None else None
+                        ),
                     )
                 except Exception:
                     continue
@@ -565,6 +739,8 @@ def save_state(state_path: Path, state: dict[str, JobState]) -> None:
                     "store_paths": record.store_paths,
                     "next_retry_after": record.next_retry_after,
                     "stderr": record.stderr,
+                    "failure_kind": record.failure_kind,
+                    "failure_reason": record.failure_reason,
                 }
                 for key, record in job_state.processed.items()
             },
@@ -573,6 +749,9 @@ def save_state(state_path: Path, state: dict[str, JobState]) -> None:
                     "size": snapshot.size,
                     "mtime": snapshot.mtime,
                     "seen_at": snapshot.seen_at,
+                    "blocked_kind": snapshot.blocked_kind,
+                    "blocked_reason": snapshot.blocked_reason,
+                    "blocked_since": snapshot.blocked_since,
                 }
                 for key, snapshot in job_state.candidates.items()
             },
@@ -581,9 +760,8 @@ def save_state(state_path: Path, state: dict[str, JobState]) -> None:
 
 
 def build_backend_command(job: WatchJob, backend: str, media_path: Path) -> list[str]:
-    script_name = "assembly_transcribe.py" if backend == "assembly" else "faster_whisper_transcribe.py"
     cli_args = job.cli_args.get(backend, [])
-    return [sys.executable, str(SCRIPT_DIR / script_name), str(media_path), *cli_args]
+    return [sys.executable, str(backend_script_path(backend)), str(media_path), *cli_args]
 
 
 def file_key(media_path: Path) -> str:
@@ -630,6 +808,75 @@ def should_retry(record: ProcessedRecord, now: float, fingerprint: str, size: in
     if record.next_retry_after is None:
         return True
     return now >= record.next_retry_after
+
+
+def retry_backoff_reason(record: ProcessedRecord) -> str:
+    retry_at = record.next_retry_after or 0.0
+    retry_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(retry_at)) if retry_at else "unknown"
+    detail = record.failure_reason or record.failure_kind or record.status
+    return f"retry backoff until {retry_text}; last_failure={detail}"
+
+
+def classify_probe_block(detail: str) -> str:
+    lowered = (detail or "").lower()
+    if "ffprobe not found" in lowered:
+        return "missing_tool"
+    if "no audio/video streams" in lowered or "duration is missing" in lowered or "duration is missing or zero" in lowered:
+        return "incomplete_media"
+    if "invalid ffprobe json" in lowered or "ffprobe exited" in lowered:
+        return "media_probe_failed"
+    return "media_not_ready"
+
+
+def classify_backend_failure(results: list[CommandResult]) -> tuple[str, str]:
+    if not results:
+        return "backend_failed", "no backend result captured"
+    final_result = results[-1]
+    detail = shorten(final_result.stderr or final_result.stdout or "No error output captured.", limit=500)
+    lowered = detail.lower()
+    if any(term in lowered for term in ("api key", "unauthorized", "forbidden", "credential", "token", "auth")):
+        return "auth_config_failed", detail
+    if any(term in lowered for term in ("not found", "no such file", "no such command", "modulenotfounderror")):
+        return "missing_tool", detail
+    if "config" in lowered:
+        return "config_failed", detail
+    return "backend_failed", detail
+
+
+def update_candidate_blocked(
+    job_state: JobState,
+    key: str,
+    *,
+    size: int,
+    mtime: float,
+    now: float,
+    blocked_kind: str,
+    blocked_reason: str,
+) -> bool:
+    prior = job_state.candidates.get(key)
+    seen_at = now if prior is None or prior.size != size or prior.mtime != mtime else prior.seen_at
+    if prior and prior.blocked_kind == blocked_kind and prior.blocked_reason == blocked_reason:
+        blocked_since = prior.blocked_since
+    else:
+        blocked_since = now
+    snapshot = CandidateSnapshot(
+        size=size,
+        mtime=mtime,
+        seen_at=seen_at,
+        blocked_kind=blocked_kind,
+        blocked_reason=blocked_reason,
+        blocked_since=blocked_since,
+    )
+    if prior == snapshot:
+        return False
+    job_state.candidates[key] = snapshot
+    return True
+
+
+def format_blocked_summary(blocked_reasons: dict[str, int]) -> str:
+    if not blocked_reasons:
+        return "none"
+    return ",".join(f"{key}={blocked_reasons[key]}" for key in sorted(blocked_reasons))
 
 
 def equivalent_processed_record(
@@ -877,6 +1124,7 @@ def process_file(job: WatchJob, media_path: Path, now: float, job_state: JobStat
     else:
         final_result = results[-1]
         next_retry_after = now + job.failure_retry_seconds
+        failure_kind, failure_reason = classify_backend_failure(results)
         print(
             f"[{job.name}] Failed {media_path.name} after trying {', '.join(result.backend for result in results)} "
             f"(exit {final_result.returncode}); will retry after "
@@ -896,6 +1144,8 @@ def process_file(job: WatchJob, media_path: Path, now: float, job_state: JobStat
             attempted_backends=[result.backend for result in results],
             next_retry_after=next_retry_after,
             stderr=(final_result.stderr or final_result.stdout or "").strip() or None,
+            failure_kind=failure_kind,
+            failure_reason=failure_reason,
         )
         notify_failure(job, media_path, results, next_retry_after)
 
@@ -924,6 +1174,23 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
         processed = job_state.processed.get(key)
 
         if processed and not should_retry(processed, now, fingerprint, size):
+            if processed.status != "success":
+                stats.candidate_count += 1
+                blocked_reason = retry_backoff_reason(processed)
+                if update_candidate_blocked(
+                    job_state,
+                    key,
+                    size=size,
+                    mtime=mtime,
+                    now=now,
+                    blocked_kind="retry_backoff",
+                    blocked_reason=blocked_reason,
+                ):
+                    changed = True
+                stats.record_blocked("retry_backoff")
+                if verbose:
+                    print(f"[{job.name}] Waiting on retry backoff for {media_path}: {blocked_reason}", flush=True)
+                continue
             if verbose:
                 print(f"[{job.name}] Skipping already-processed file {media_path}", flush=True)
             job_state.candidates.pop(key, None)
@@ -948,28 +1215,72 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
 
         stats.candidate_count += 1
         if age < job.min_age_seconds:
+            blocked_reason = f"minimum age not reached; required {job.min_age_seconds:.1f}s"
+            if update_candidate_blocked(
+                job_state,
+                key,
+                size=size,
+                mtime=mtime,
+                now=now,
+                blocked_kind="minimum_age",
+                blocked_reason=blocked_reason,
+            ):
+                changed = True
+            stats.record_blocked("minimum_age")
             if verbose:
                 print(f"[{job.name}] Waiting for minimum age on {media_path} ({age:.1f}s)", flush=True)
-            job_state.candidates[key] = CandidateSnapshot(size=size, mtime=mtime, seen_at=now)
-            changed = True
             continue
 
         snapshot = job_state.candidates.get(key)
         if snapshot is None or snapshot.size != size or snapshot.mtime != mtime:
-            job_state.candidates[key] = CandidateSnapshot(size=size, mtime=mtime, seen_at=now)
-            changed = True
+            if update_candidate_blocked(
+                job_state,
+                key,
+                size=size,
+                mtime=mtime,
+                now=now,
+                blocked_kind="settling",
+                blocked_reason=f"waiting for size/mtime stability; required stable {job.settle_seconds:.1f}s",
+            ):
+                changed = True
+            stats.record_blocked("settling")
             if verbose:
                 print(f"[{job.name}] Tracking candidate {media_path}; waiting for stability", flush=True)
             continue
 
         stable_for = now - snapshot.seen_at
         if stable_for < job.settle_seconds:
+            blocked_reason = f"waiting for size/mtime stability; required stable {job.settle_seconds:.1f}s"
+            if update_candidate_blocked(
+                job_state,
+                key,
+                size=size,
+                mtime=mtime,
+                now=now,
+                blocked_kind="settling",
+                blocked_reason=blocked_reason,
+            ):
+                changed = True
+            stats.record_blocked("settling")
             if verbose:
                 print(f"[{job.name}] Candidate {media_path} stable for {stable_for:.1f}s; waiting", flush=True)
             continue
 
         ready, detail = probe_media_readiness(media_path)
         if not ready:
+            blocked_kind = classify_probe_block(detail)
+            blocked_reason = detail or blocked_kind
+            if update_candidate_blocked(
+                job_state,
+                key,
+                size=size,
+                mtime=mtime,
+                now=now,
+                blocked_kind=blocked_kind,
+                blocked_reason=blocked_reason,
+            ):
+                changed = True
+            stats.record_blocked(blocked_kind)
             if verbose:
                 print(
                     f"[{job.name}] Candidate {media_path} is not ready for transcription yet ({detail}); waiting",
@@ -999,6 +1310,14 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
     try:
         jobs = load_jobs(args.config.expanduser().resolve(), args)
+        readiness_issues = check_watcher_readiness(jobs)
+        if args.check:
+            print_readiness_report(jobs, readiness_issues, as_json=args.check_json)
+            return 1 if readiness_has_errors(readiness_issues) else 0
+        if readiness_issues:
+            print_readiness_report(jobs, readiness_issues, as_json=False)
+            if readiness_has_errors(readiness_issues):
+                return 1
         state_path = args.state_file.expanduser().resolve()
         state = load_state(state_path, jobs)
     except WatcherError as exc:
@@ -1022,6 +1341,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         total_processed_attempts = 0
         total_successes = 0
         total_failures = 0
+        total_blocked_reasons: dict[str, int] = {}
         for job in jobs:
             job_state = state.setdefault(job.name, JobState(processed={}, candidates={}))
             changed, stats = scan_job(job, job_state, verbose=args.verbose)
@@ -1031,6 +1351,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             total_processed_attempts += stats.processed_attempts
             total_successes += stats.success_count
             total_failures += stats.failure_count
+            for blocked_kind, count in stats.blocked_reasons.items():
+                total_blocked_reasons[blocked_kind] = total_blocked_reasons.get(blocked_kind, 0) + count
             if shortest_sleep is None:
                 shortest_sleep = job.scan_interval
             else:
@@ -1047,7 +1369,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             print(
                 "Watcher heartbeat: "
                 f"candidates={total_candidates} attempted={total_processed_attempts} "
-                f"successes={total_successes} failures={total_failures}",
+                f"successes={total_successes} failures={total_failures} "
+                f"blocked={format_blocked_summary(total_blocked_reasons)}",
                 flush=True,
             )
             last_heartbeat_at = now

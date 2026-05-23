@@ -598,6 +598,10 @@ python intelligence_config.py apply-update --task first_pass_summary --provider 
 ### Run the watcher
 
 ```bash
+# Check service readiness without scanning or transcribing
+python watch_transcriptions.py --check
+python watch_transcriptions.py --check --check-json
+
 # One scan pass, useful for testing
 python watch_transcriptions.py --run-once --verbose
 
@@ -605,7 +609,7 @@ python watch_transcriptions.py --run-once --verbose
 python watch_transcriptions.py --verbose
 ```
 
-The watcher stores its memory in `.openclaw/watch_transcriptions_state.json` so it can avoid reprocessing the same finished file every time it scans.
+The watcher stores its memory in `.openclaw/watch_transcriptions_state.json` so it can avoid reprocessing the same finished file every time it scans. Candidate entries include `blocked_kind`, `blocked_reason`, and `blocked_since` when a file is waiting on minimum age, stability, media readiness, missing tools, or retry backoff. Heartbeats summarize those reasons as `blocked=kind=count` so a service can be active without hiding why work is queued.
 
 ### Recommended config for the current Downloads workflow
 
@@ -632,6 +636,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=%h/workspace.local/transcribe-audio
+ExecStartPre=%h/workspace.local/transcribe-audio/.venv/bin/python %h/workspace.local/transcribe-audio/watch_transcriptions.py --check
 ExecStart=%h/workspace.local/transcribe-audio/.venv/bin/python %h/workspace.local/transcribe-audio/watch_transcriptions.py
 Restart=on-failure
 RestartSec=15
@@ -647,6 +652,16 @@ systemctl --user daemon-reload
 systemctl --user enable --now transcribe-watch.service
 journalctl --user -u transcribe-watch.service -f
 ```
+
+Useful service checks:
+
+```bash
+python watch_transcriptions.py --check
+systemctl --user status transcribe-watch.service --no-pager
+journalctl --user -u transcribe-watch.service -n 80 --no-pager
+```
+
+If the service is active but files are not moving, check the latest heartbeat for `blocked=`. `missing_tool` usually means the systemd `PATH` cannot find `ffprobe` or another configured command. `retry_backoff` points to the last backend failure and retry time in the watcher state. `minimum_age`, `settling`, and `incomplete_media` usually mean a recording is still syncing or has not become readable media yet.
 
 If you prefer cron or another scheduler, `--run-once` also works for a periodic scan model, but a long-running user service is cleaner and catches files sooner.
 

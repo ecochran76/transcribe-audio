@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -23,11 +24,14 @@ from transcribe_common import (
     process_transcription_outputs,
 )
 from watch_transcriptions import (
+    CandidateSnapshot,
     JobState,
     ProcessedRecord,
     WatchJob,
+    check_watcher_readiness,
     extract_artifact_paths,
     fingerprint_for,
+    format_blocked_summary,
     ingest_store_artifacts,
     load_jobs,
     load_state,
@@ -35,6 +39,7 @@ from watch_transcriptions import (
     save_state,
     scan_job,
 )
+import watch_transcriptions
 
 
 def base_args(tmp_path: Path) -> argparse.Namespace:
@@ -225,6 +230,51 @@ def test_watcher_state_preserves_store_paths(tmp_path: Path) -> None:
     assert record.store_paths == [store_path]
 
 
+def test_watcher_state_preserves_candidate_blocked_reasons(tmp_path: Path) -> None:
+    state_path = tmp_path / "state.json"
+    media_path = tmp_path / "meeting.m4a"
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=120,
+        min_age_seconds=20,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    save_state(
+        state_path,
+        {
+            job.name: JobState(
+                processed={},
+                candidates={
+                    str(media_path): CandidateSnapshot(
+                        size=123,
+                        mtime=2.0,
+                        seen_at=1.0,
+                        blocked_kind="missing_tool",
+                        blocked_reason="ffprobe not found on PATH",
+                        blocked_since=1.0,
+                    )
+                },
+            )
+        },
+    )
+
+    loaded = load_state(state_path, [job])
+    snapshot = loaded[job.name].candidates[str(media_path)]
+
+    assert snapshot.blocked_kind == "missing_tool"
+    assert snapshot.blocked_reason == "ffprobe not found on PATH"
+    assert snapshot.blocked_since == 1.0
+
+
 def test_scan_job_does_not_count_processed_files_as_queued(tmp_path: Path) -> None:
     media_path = tmp_path / "meeting.m4a"
     media_path.write_bytes(b"audio")
@@ -268,6 +318,191 @@ def test_scan_job_does_not_count_processed_files_as_queued(tmp_path: Path) -> No
     assert changed is False
     assert stats.candidate_count == 0
     assert stats.processed_attempts == 0
+
+
+def test_scan_job_records_minimum_age_blocked_reason(tmp_path: Path) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=3600,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    job_state = JobState(processed={}, candidates={})
+
+    changed, stats = scan_job(job, job_state, verbose=False)
+    snapshot = job_state.candidates[str(media_path.resolve())]
+
+    assert changed is True
+    assert stats.candidate_count == 1
+    assert stats.blocked_reasons == {"minimum_age": 1}
+    assert snapshot.blocked_kind == "minimum_age"
+    assert "minimum age" in snapshot.blocked_reason
+
+
+def test_scan_job_settling_reason_does_not_create_fake_progress(tmp_path: Path) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=3600,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    job_state = JobState(processed={}, candidates={})
+
+    first_changed, first_stats = scan_job(job, job_state, verbose=False)
+    second_changed, second_stats = scan_job(job, job_state, verbose=False)
+
+    assert first_changed is True
+    assert first_stats.blocked_reasons == {"settling": 1}
+    assert second_changed is False
+    assert second_stats.blocked_reasons == {"settling": 1}
+
+
+def test_scan_job_keeps_retry_backoff_visible_as_queued(tmp_path: Path) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    media_stats = media_path.stat()
+    size = int(media_stats.st_size)
+    mtime = float(media_stats.st_mtime)
+    retry_after = time.time() + 3600
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    job_state = JobState(
+        processed={
+            str(media_path.resolve()): ProcessedRecord(
+                status="failed",
+                completed_at=time.time(),
+                size=size,
+                mtime=mtime,
+                fingerprint=fingerprint_for(media_path.resolve(), size, mtime),
+                command=["python", "assembly_transcribe.py"],
+                returncode=1,
+                backend="assembly",
+                attempted_backends=["assembly"],
+                next_retry_after=retry_after,
+                failure_kind="auth_config_failed",
+                failure_reason="missing API key",
+            )
+        },
+        candidates={},
+    )
+
+    changed, stats = scan_job(job, job_state, verbose=False)
+    snapshot = job_state.candidates[str(media_path.resolve())]
+
+    assert changed is True
+    assert stats.candidate_count == 1
+    assert stats.processed_attempts == 0
+    assert stats.blocked_reasons == {"retry_backoff": 1}
+    assert snapshot.blocked_kind == "retry_backoff"
+    assert "missing API key" in snapshot.blocked_reason
+
+
+def test_scan_job_records_media_probe_blocked_reason(tmp_path: Path, monkeypatch) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    media_stats = media_path.stat()
+    size = int(media_stats.st_size)
+    mtime = float(media_stats.st_mtime)
+    key = str(media_path.resolve())
+    monkeypatch.setattr(
+        watch_transcriptions,
+        "probe_media_readiness",
+        lambda path: (False, "ffprobe not found on PATH"),
+    )
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    job_state = JobState(
+        processed={},
+        candidates={key: CandidateSnapshot(size=size, mtime=mtime, seen_at=0.0)},
+    )
+
+    changed, stats = scan_job(job, job_state, verbose=False)
+    snapshot = job_state.candidates[key]
+
+    assert changed is True
+    assert stats.blocked_reasons == {"missing_tool": 1}
+    assert snapshot.blocked_kind == "missing_tool"
+    assert snapshot.blocked_reason == "ffprobe not found on PATH"
+
+
+def test_watcher_readiness_reports_missing_ffprobe(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        watch_transcriptions.shutil,
+        "which",
+        lambda name: None if name == "ffprobe" else f"/usr/bin/{name}",
+    )
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+
+    issues = check_watcher_readiness([job])
+
+    assert [issue.code for issue in issues if issue.severity == "error"] == ["missing_ffprobe"]
+
+
+def test_blocked_summary_is_stable_for_heartbeat_logs() -> None:
+    assert format_blocked_summary({}) == "none"
+    assert format_blocked_summary({"settling": 2, "missing_tool": 1}) == "missing_tool=1,settling=2"
 
 
 def test_watcher_store_config_expands_to_job_settings(tmp_path: Path) -> None:
