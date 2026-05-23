@@ -27,10 +27,13 @@ The first deterministic routing slice is implemented. `routing_artifacts.py` def
 - Done: add read-only Odollo/Odoo provenance adapter for contacts and log notes across selectable profiles.
 - Done: generate upgraded contextual readouts with cited route provenance sources.
 - Done: run a reviewed context-packet apply smoke over a real stored transcript/readout pair.
-- Add candidate source adapter for local index.
+- Deferred after Plan 0011: add a metadata/snippet-only candidate source adapter
+  for the local transcript index if calibration shows it improves route
+  decisions. The accepted calibration corpus did not require it.
 - Done: add provenance-source quality filtering and route/contextual warning propagation.
 - Done: add source-type-specific quality scoring beyond generic compact term overlap.
-- Calibrate source-specific thresholds against more known-good meetings.
+- Done under Plan 0011: calibrate source-specific thresholds against a
+  reviewed corpus of known-good and known-bad source decisions.
 - Define Google Drive/Docs and Odoo candidate/depositor contracts.
 - Fetch deeper Google Drive/Docs content for selected route sources.
 

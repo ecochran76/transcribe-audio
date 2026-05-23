@@ -2,6 +2,84 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 181 | 2026-05-23
+
+Summary: Completed Plan 0011 P04 provenance calibration.
+
+Changes:
+
+- Added `p04-source-quality-v1` as the explicit source-quality profile for
+  route provenance filtering.
+- Route decisions now write `provenance_pack.quality_profile`; contextual
+  rereads propagate the same profile into supporting-context and
+  contextualization metadata.
+- Added `scripts/evaluate_provenance_calibration.py` for reviewed manifest
+  evaluation using the existing `context_sources.py` scorer.
+- Added repo-safe calibration docs and fixtures under
+  `docs/dev/fixtures/p04-calibration/`, including a manifest schema and
+  synthetic 12-decision smoke corpus.
+- Created the private accepted reviewed corpus at
+  `~/.local/state/transcribe-audio/p04-calibration/manifests/2026-05-23-p04-source-quality-v1-reviewed.json`.
+- Wrote the sanitized accepted report to
+  `~/.local/state/transcribe-audio/p04-calibration/reports/2026-05-23-p04-source-quality-v1-reviewed-report.json`.
+- Generated route/contextual dry-run evidence under
+  `~/.local/state/transcribe-audio/p04-calibration/dry-runs/2026-05-23-source-quality-v1/`.
+- Closed `docs/dev/plans/0011-2026-05-23-p04-provenance-calibration.md`.
+
+Calibration Evidence:
+
+- Reviewed corpus: 12 source decisions, 1 reviewed case, 4 source families.
+- Result: 12 pass, 0 false positives, 0 false negatives.
+- Family coverage: Calendar 3, Drive/Docs 3, Graphiti 3, Odollo 3.
+- Dry-runs: known-good case retained 5 included sources and 0 excluded sources;
+  weak-source case retained 2 calendar sources, excluded 3 weak non-calendar
+  sources, and carried profile `p04-source-quality-v1` into route and
+  contextual dry-run metadata.
+
+Validation:
+
+- `python -m py_compile context_sources.py route_transcript.py contextual_reread.py scripts/evaluate_provenance_calibration.py transcript_api.py`
+- `.venv/bin/python -m pytest tests/test_context_sources.py tests/test_readouts.py tests/test_provenance_calibration.py tests/test_transcript_api.py::test_conversation_detail_includes_identity_and_context_state -q`
+- `.venv/bin/python scripts/evaluate_provenance_calibration.py docs/dev/fixtures/p04-calibration/synthetic-manifest.json --fail-on-mismatch --require-decision-count 12 --require-source-families 4 --include-passed`
+- `.venv/bin/python scripts/evaluate_provenance_calibration.py --manifest-dir ~/.local/state/transcribe-audio/p04-calibration/manifests --output ~/.local/state/transcribe-audio/p04-calibration/reports/2026-05-23-p04-source-quality-v1-reviewed-report.json --fail-on-mismatch --require-decision-count 12 --require-source-families 4 --include-passed`
+- `.venv/bin/python -m pytest -q`
+- `git diff --check`
+
+Next:
+
+- Keep P04 open for deeper Drive/Docs content fetch and target/depositor
+  contracts. The local transcript-index source adapter remains deferred until a
+  reviewed corpus shows it improves route decisions without leaking transcript
+  content.
+
+## Turn 180 | 2026-05-23
+
+Summary: Re-planned P04 provenance calibration as a bounded implementation
+slice.
+
+Changes:
+
+- Added `docs/dev/plans/0011-2026-05-23-p04-provenance-calibration.md`
+  for source-quality calibration, reviewed corpus handling, threshold evidence,
+  profile metadata, and validation requirements.
+- Kept Plan 0004 as the parent matter-routing/contextual-reread plan and
+  moved the local-index adapter and threshold-calibration work into the new
+  bounded Plan 0011 slice.
+- Updated `ROADMAP.md` so P04 points at Plan 0011 as the active calibration
+  work before deeper Drive/Docs content fetch expands.
+
+Validation:
+
+- Re-read repo planning policy and architecture/memory policies for P04 scope.
+- Ran Graphiti discovery for group `transcribe_audio_main`; returned only broad
+  P04 planning facts, so repo-local roadmap/plan files remain authoritative.
+- `git diff --check`
+
+Next:
+
+- Implement Plan 0011 slice 1: calibration manifest schema, repo-safe example
+  README, and local-state directory contract for reviewed live manifests.
+
 ## Turn 179 | 2026-05-23
 
 Summary: Closed Plan 0010 as the M1 dogfoodable conversation review loop.

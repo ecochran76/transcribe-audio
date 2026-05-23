@@ -149,6 +149,9 @@ def build_supporting_context(
     excluded_sources = (
         provenance_pack.get("excluded_sources") if isinstance(provenance_pack.get("excluded_sources"), list) else []
     )
+    quality_profile = (
+        provenance_pack.get("quality_profile") if isinstance(provenance_pack.get("quality_profile"), dict) else {}
+    )
     selected_ids = selected_source_ids(route)
     selected_candidate = route.get("selected_candidate") if isinstance(route.get("selected_candidate"), dict) else {}
     warnings = route.get("warnings") if isinstance(route.get("warnings"), list) else []
@@ -178,6 +181,7 @@ def build_supporting_context(
         "review_required": route.get("review_required"),
         "selected_candidate": selected_candidate,
         "sources": compact_sources,
+        "quality_profile": quality_profile,
         "warnings": [normalize_string(item) for item in warnings if normalize_string(item)],
         "excluded_source_count": len(excluded_sources),
     }
@@ -222,6 +226,7 @@ def build_contextual_artifact(
             "review_required": route.get("review_required"),
             "selected_candidate": route.get("selected_candidate"),
             "confidence_threshold": route.get("confidence_threshold"),
+            "quality_profile": supporting_context["quality_profile"],
         },
         "supporting_context": supporting_context,
     }
@@ -231,6 +236,7 @@ def build_contextual_artifact(
         "review_required": route.get("review_required"),
         "selected_candidate": route.get("selected_candidate"),
         "supporting_context_sources": supporting_context["sources"],
+        "quality_profile": supporting_context["quality_profile"],
         "warnings": supporting_context["warnings"],
         "excluded_source_count": supporting_context["excluded_source_count"],
     }

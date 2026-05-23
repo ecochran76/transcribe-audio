@@ -506,6 +506,13 @@ def context_workbench_state(
         else {}
     )
     route_pack = route_payload.get("provenance_pack") if isinstance(route_payload.get("provenance_pack"), dict) else {}
+    quality_profile = (
+        contextualization.get("quality_profile")
+        if isinstance(contextualization.get("quality_profile"), dict)
+        else route_pack.get("quality_profile")
+        if isinstance(route_pack.get("quality_profile"), dict)
+        else {}
+    )
     included = contextualization.get("supporting_context_sources") or route_pack.get("sources") or []
     excluded = route_pack.get("excluded_sources") or []
     warnings = []
@@ -528,6 +535,7 @@ def context_workbench_state(
         "included_source_count": len(included) if isinstance(included, list) else 0,
         "excluded_source_count": excluded_count,
         "warnings": warnings,
+        "quality_profile": quality_profile,
         "summary_document_id": (detail.get("summary_document") or {}).get("id") if detail.get("summary_document") else "",
         "contextual_readout_document_id": contextual_document.get("id") if contextual_document else "",
         "route_status": contextualization.get("route_status") or route_payload.get("status") or "",

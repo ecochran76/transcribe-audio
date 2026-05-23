@@ -76,6 +76,7 @@ class ContextProvenancePack:
     sources: list[ProvenanceSource] = field(default_factory=list)
     excluded_sources: list[ProvenanceSource] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    quality_profile: dict[str, Any] = field(default_factory=dict)
     generated_at: str = field(default_factory=utc_now_iso)
     schema_version: int = ROUTING_SCHEMA_VERSION
 
@@ -87,6 +88,7 @@ class ContextProvenancePack:
                 "sources": [source.to_dict() for source in self.sources],
                 "excluded_sources": [source.to_dict() for source in self.excluded_sources],
                 "warnings": self.warnings,
+                "quality_profile": self.quality_profile,
             }
         )
 
@@ -295,9 +297,12 @@ def build_route_decision(
     extra_provenance_sources: Optional[list[ProvenanceSource]] = None,
     excluded_provenance_sources: Optional[list[ProvenanceSource]] = None,
     provenance_warnings: Optional[list[str]] = None,
+    provenance_quality_profile: Optional[dict[str, Any]] = None,
     extra_candidates: Optional[list[RouteCandidate]] = None,
 ) -> RouteDecision:
     provenance_pack = provenance_from_transcript(transcript)
+    if provenance_quality_profile:
+        provenance_pack.quality_profile = provenance_quality_profile
     if extra_provenance_sources:
         provenance_pack.sources.extend(extra_provenance_sources)
     if excluded_provenance_sources:

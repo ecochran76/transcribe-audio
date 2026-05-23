@@ -37,6 +37,21 @@ QUALITY_STOP_TERMS = {
     "transcript",
     "with",
 }
+SOURCE_QUALITY_PROFILE_ID = "p04-source-quality-v1"
+SOURCE_QUALITY_PROFILE_VERSION = 1
+SOURCE_QUALITY_DEFAULT_MIN_SCORE = 2
+SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES = {
+    "calendar_event": 0,
+    "gws_calendar_overlap": 0,
+    "gws_calendar_event_detail": 0,
+    "gws_drive_file": 2,
+    "gws_docs_file": 2,
+    "odollo_contact": 2,
+    "odollo_log_note": 2,
+    "graphiti_fact": 2,
+    "graphiti_node": 2,
+    "graphiti_episode": 2,
+}
 
 
 @dataclass
@@ -306,6 +321,8 @@ def source_quality_text(source: ProvenanceSource) -> str:
 
 
 def source_quality_profile(source: ProvenanceSource) -> str:
+    if source.source_type in QUALITY_CALENDAR_SOURCE_TYPES:
+        return "calendar_trusted"
     if source.source_type in {"gws_drive_file", "gws_docs_file"}:
         return "drive_file_identity"
     if source.source_type == "odollo_contact":
@@ -318,15 +335,27 @@ def source_quality_profile(source: ProvenanceSource) -> str:
 
 
 def source_type_min_score(source: ProvenanceSource, default_min_score: int) -> int:
-    if source.source_type in QUALITY_CALENDAR_SOURCE_TYPES:
-        return 0
-    if source.source_type in {"gws_drive_file", "gws_docs_file"}:
-        return max(default_min_score, 2)
-    if source.source_type in {"odollo_contact", "odollo_log_note"}:
-        return max(default_min_score, 2)
-    if source.source_type.startswith("graphiti_"):
-        return max(default_min_score, 2)
+    if source.source_type in SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES:
+        configured = SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES[source.source_type]
+        return 0 if configured == 0 else max(default_min_score, configured)
     return max(default_min_score, 2)
+
+
+def provenance_quality_profile_summary(
+    *,
+    min_score: int = SOURCE_QUALITY_DEFAULT_MIN_SCORE,
+    enabled: bool = True,
+) -> dict[str, Any]:
+    return {
+        "profile_id": SOURCE_QUALITY_PROFILE_ID,
+        "profile_version": SOURCE_QUALITY_PROFILE_VERSION,
+        "enabled": enabled,
+        "default_min_score": max(min_score, 0),
+        "source_type_min_scores": {
+            source_type: max(max(min_score, 0), score) if score else 0
+            for source_type, score in SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES.items()
+        },
+    }
 
 
 def annotate_source_quality(
@@ -336,9 +365,14 @@ def annotate_source_quality(
     score: float,
     matched_terms: list[str],
     reason: str,
+    profile: str,
+    required_score: int,
 ) -> ProvenanceSource:
     source.metadata = {
         **source.metadata,
+        "quality_profile_id": SOURCE_QUALITY_PROFILE_ID,
+        "quality_profile": profile,
+        "quality_min_score": required_score,
         "quality_status": status,
         "quality_score": score,
         "quality_matched_terms": matched_terms,
@@ -387,6 +421,8 @@ def filter_provenance_sources(
                     score=0.0,
                     matched_terms=[],
                     reason="quality filter disabled",
+                    profile="unfiltered",
+                    required_score=0,
                 )
                 for source in sources
             ],
@@ -398,12 +434,16 @@ def filter_provenance_sources(
     excluded: list[ProvenanceSource] = []
     for source in sources:
         status, score, matched_terms, reason = quality_for_source(source, terms=terms, min_score=max(min_score, 0))
+        profile = source_quality_profile(source)
+        required_score = source_type_min_score(source, max(min_score, 0))
         annotated = annotate_source_quality(
             source,
             status=status,
             score=score,
             matched_terms=matched_terms,
             reason=reason,
+            profile=profile,
+            required_score=required_score,
         )
         if status == "included":
             included.append(annotated)

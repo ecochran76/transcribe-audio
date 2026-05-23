@@ -19,6 +19,7 @@ from context_sources import (
     collect_gws_provenance,
     collect_odollo_provenance,
     filter_provenance_sources,
+    provenance_quality_profile_summary,
 )
 from routing_artifacts import (
     ReviewQueueItem,
@@ -219,6 +220,10 @@ def generate_route(args: argparse.Namespace) -> tuple[Path, Optional[Path]]:
         min_score=args.provenance_quality_threshold,
         enabled=not args.no_provenance_quality_filter,
     )
+    quality_profile = provenance_quality_profile_summary(
+        min_score=args.provenance_quality_threshold,
+        enabled=not args.no_provenance_quality_filter,
+    )
     retained_graphiti_sources = [source for source in retained_sources if source.source_type.startswith("graphiti_")]
     graphiti_candidates = (
         [] if args.no_graphiti_candidates else candidates_from_graphiti_sources(retained_graphiti_sources)
@@ -233,6 +238,7 @@ def generate_route(args: argparse.Namespace) -> tuple[Path, Optional[Path]]:
         extra_provenance_sources=retained_sources,
         excluded_provenance_sources=excluded_sources,
         provenance_warnings=provenance_warnings,
+        provenance_quality_profile=quality_profile,
         extra_candidates=graphiti_candidates,
     )
     route_path = output_base_path(readout_path, args.output_dir).with_suffix(".route.json")

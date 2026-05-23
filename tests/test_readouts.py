@@ -452,6 +452,7 @@ def test_contextual_reread_supporting_context_prefers_selected_and_calendar_sour
             "provenance_source_ids": ["odollo-contact-1"],
         },
         "provenance_pack": {
+            "quality_profile": {"profile_id": "p04-source-quality-v1", "enabled": True},
             "excluded_sources": [{"source_type": "odollo_contact", "source_id": "bad-1", "label": "Unrelated"}],
             "sources": [
                 {"source_type": "graphiti_node", "source_id": "node-1", "label": "Graphiti matter"},
@@ -468,6 +469,7 @@ def test_contextual_reread_supporting_context_prefers_selected_and_calendar_sour
     assert context["selected_candidate"]["label"] == "Tempo matter"
     assert context["excluded_source_count"] == 1
     assert context["warnings"] == ["Excluded 1 provenance source(s) below quality threshold 2."]
+    assert context["quality_profile"]["profile_id"] == "p04-source-quality-v1"
 
 
 def test_contextual_reread_generate_uses_provider_and_writes_outputs(monkeypatch, tmp_path: Path) -> None:
@@ -484,6 +486,7 @@ def test_contextual_reread_generate_uses_provider_and_writes_outputs(monkeypatch
                 "review_required": False,
                 "selected_candidate": {"label": "Tempo matter", "provenance_source_ids": ["contact-1"]},
                 "provenance_pack": {
+                    "quality_profile": {"profile_id": "p04-source-quality-v1", "enabled": True},
                     "sources": [
                         {"source_type": "odollo_contact", "source_id": "contact-1", "label": "Tempo Chemical"}
                     ]
@@ -531,3 +534,4 @@ def test_contextual_reread_generate_uses_provider_and_writes_outputs(monkeypatch
     assert markdown_path.name == "meeting.contextual.readout.md"
     assert payload["summary"] == "Updated summary."
     assert payload["contextualization"]["supporting_context_sources"][0]["source_id"] == "contact-1"
+    assert payload["contextualization"]["quality_profile"]["profile_id"] == "p04-source-quality-v1"

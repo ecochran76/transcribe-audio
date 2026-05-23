@@ -13,6 +13,7 @@ from context_sources import (
     GraphitiProvenanceConfig,
     GwsProvenanceConfig,
     OdolloProvenanceConfig,
+    SOURCE_QUALITY_PROFILE_ID,
     build_drive_query,
     build_graphiti_query,
     build_odollo_terms,
@@ -20,6 +21,7 @@ from context_sources import (
     collect_gws_provenance,
     collect_odollo_provenance,
     filter_provenance_sources,
+    provenance_quality_profile_summary,
 )
 
 
@@ -256,10 +258,24 @@ def test_filter_provenance_sources_excludes_weak_non_calendar_sources() -> None:
 
     assert [source.source_id for source in retained] == ["event-1", "contact-1"]
     assert [source.source_id for source in excluded] == ["contact-2"]
+    assert retained[0].metadata["quality_profile_id"] == SOURCE_QUALITY_PROFILE_ID
+    assert retained[0].metadata["quality_profile"] == "calendar_trusted"
+    assert retained[0].metadata["quality_min_score"] == 0
     assert retained[1].metadata["quality_status"] == "included"
     assert "odollo_contact_identity" in retained[1].metadata["quality_reason"]
+    assert retained[1].metadata["quality_min_score"] == 2
     assert excluded[0].metadata["quality_status"] == "excluded_low_quality"
     assert warnings == ["Excluded 1 provenance source(s) below quality threshold 2."]
+
+
+def test_provenance_quality_profile_summary_is_explicit() -> None:
+    profile = provenance_quality_profile_summary(min_score=2, enabled=True)
+
+    assert profile["profile_id"] == SOURCE_QUALITY_PROFILE_ID
+    assert profile["enabled"] is True
+    assert profile["source_type_min_scores"]["calendar_event"] == 0
+    assert profile["source_type_min_scores"]["gws_docs_file"] == 2
+    assert profile["source_type_min_scores"]["graphiti_fact"] == 2
 
 
 def test_filter_provenance_sources_ignores_retrieval_control_metadata() -> None:
@@ -476,4 +492,5 @@ def test_route_transcript_records_excluded_low_quality_sources(monkeypatch, tmp_
     assert "odoo-contact-42" in payload["selected_candidate"]["provenance_source_ids"]
     assert "odoo-contact-99" not in payload["selected_candidate"]["provenance_source_ids"]
     assert payload["provenance_pack"]["excluded_sources"][0]["source_id"] == "odoo-contact-99"
+    assert payload["provenance_pack"]["quality_profile"]["profile_id"] == SOURCE_QUALITY_PROFILE_ID
     assert payload["warnings"] == ["Excluded 1 provenance source(s) below quality threshold 2."]

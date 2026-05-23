@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cases": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "case_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "decision_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "evidence_label": {
+                  "type": "string"
+                },
+                "expected": {
+                  "enum": [
+                    "include",
+                    "exclude"
+                  ],
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                },
+                "source": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object"
+                    },
+                    "snippet": {
+                      "type": "string"
+                    },
+                    "source_id": {
+                      "type": "string"
+                    },
+                    "source_type": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "uri": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "source_type",
+                    "label"
+                  ],
+                  "type": "object"
+                },
+                "source_family": {
+                  "enum": [
+                    "calendar",
+                    "drive_docs",
+                    "graphiti",
+                    "odollo"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "decision_id",
+                "expected",
+                "source"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "readout": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "review_basis": {
+            "type": "string"
+          },
+          "transcript": {
+            "additionalProperties": true,
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "text"
+                  ]
+                },
+                {
+                  "required": [
+                    "transcript_text"
+                  ]
+                },
+                {
+                  "required": [
+                    "raw_text"
+                  ]
+                },
+                {
+                  "required": [
+                    "raw_transcript"
+                  ]
+                },
+                {
+                  "required": [
+                    "utterances"
+                  ]
+                },
+                {
+                  "required": [
+                    "words"
+                  ]
+                }
+              ]
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "case_id",
+          "transcript",
+          "readout",
+          "decisions"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "manifest_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "profile_id": {
+      "const": "p04-source-quality-v1",
+      "type": "string"
+    },
+    "review_status": {
+      "enum": [
+        "accepted",
+        "draft",
+        "rejected"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "review_status",
+    "cases"
+  ],
+  "title": "P04 provenance calibration manifest",
+  "type": "object"
+}

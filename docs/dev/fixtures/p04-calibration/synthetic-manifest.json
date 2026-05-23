@@ -1,0 +1,205 @@
+{
+  "cases": [
+    {
+      "case_id": "synthetic-northstar-example-pilot",
+      "decisions": [
+        {
+          "decision_id": "calendar-event-include",
+          "evidence_label": "fictional calendar summary",
+          "expected": "include",
+          "rationale": "Calendar event metadata is trusted route context.",
+          "source": {
+            "label": "Northstar and Example Chemical pilot planning",
+            "source_id": "synthetic-event-1",
+            "source_type": "calendar_event"
+          },
+          "source_family": "calendar"
+        },
+        {
+          "decision_id": "calendar-overlap-include",
+          "evidence_label": "fictional calendar overlap",
+          "expected": "include",
+          "rationale": "Calendar overlap should support contextual reread.",
+          "source": {
+            "label": "primary",
+            "snippet": "Northstar and Example Chemical pilot planning",
+            "source_id": "synthetic-overlap-1",
+            "source_type": "gws_calendar_overlap"
+          },
+          "source_family": "calendar"
+        },
+        {
+          "decision_id": "docs-nda-include",
+          "evidence_label": "fictional Drive document",
+          "expected": "include",
+          "rationale": "Document identity overlaps with the meeting and matter terms.",
+          "source": {
+            "label": "Example Chemical NDA and MTA",
+            "metadata": {
+              "mime_type": "application/vnd.google-apps.document",
+              "owners": [
+                "example owner"
+              ]
+            },
+            "snippet": "Northstar Example Chemical NDA MTA samples",
+            "source_id": "synthetic-doc-1",
+            "source_type": "gws_docs_file"
+          },
+          "source_family": "drive_docs"
+        },
+        {
+          "decision_id": "drive-samples-include",
+          "evidence_label": "fictional Drive file",
+          "expected": "include",
+          "rationale": "File identity overlaps with sample and pilot context.",
+          "source": {
+            "label": "Northstar pilot sample data",
+            "snippet": "pilot samples scaleup Example Chemical",
+            "source_id": "synthetic-drive-1",
+            "source_type": "gws_drive_file"
+          },
+          "source_family": "drive_docs"
+        },
+        {
+          "decision_id": "drive-lease-exclude",
+          "evidence_label": "fictional unrelated Drive file",
+          "expected": "exclude",
+          "rationale": "Unrelated office document should not support the route.",
+          "source": {
+            "label": "Office lease checklist",
+            "snippet": "facility renewal lease checklist",
+            "source_id": "synthetic-drive-2",
+            "source_type": "gws_drive_file"
+          },
+          "source_family": "drive_docs"
+        },
+        {
+          "decision_id": "graphiti-matter-include",
+          "evidence_label": "fictional reviewed graph memory",
+          "expected": "include",
+          "rationale": "Reviewed graph fact overlaps with the route label.",
+          "source": {
+            "label": "RELATES_TO",
+            "metadata": {
+              "candidate_label": "Northstar Example Chemical pilot matter"
+            },
+            "snippet": "Northstar Example Chemical pilot collaboration",
+            "source_id": "synthetic-fact-1",
+            "source_type": "graphiti_fact"
+          },
+          "source_family": "graphiti"
+        },
+        {
+          "decision_id": "graphiti-bootstrap-exclude",
+          "evidence_label": "fictional unrelated graph fact",
+          "expected": "exclude",
+          "rationale": "Repository bootstrap memory should remain advisory noise.",
+          "source": {
+            "label": "HAS_PLAN_LOCATION",
+            "snippet": "Repository planning surfaces include docs and runbooks.",
+            "source_id": "synthetic-fact-2",
+            "source_type": "graphiti_fact"
+          },
+          "source_family": "graphiti"
+        },
+        {
+          "decision_id": "graphiti-node-exclude",
+          "evidence_label": "fictional weak graph node",
+          "expected": "exclude",
+          "rationale": "A generic unrelated node should not support contextual reread.",
+          "source": {
+            "label": "legacy import workflow",
+            "snippet": "Historical import process for old artifacts.",
+            "source_id": "synthetic-node-1",
+            "source_type": "graphiti_node"
+          },
+          "source_family": "graphiti"
+        },
+        {
+          "decision_id": "odollo-contact-include",
+          "evidence_label": "fictional Odoo contact",
+          "expected": "include",
+          "rationale": "Contact identity overlaps with meeting participant and company.",
+          "source": {
+            "label": "Jordan Example | Example Chemical",
+            "metadata": {
+              "company": "Example Chemical",
+              "email": "jordan@example.invalid"
+            },
+            "snippet": "Jordan Example; Example Chemical",
+            "source_id": "synthetic-contact-1",
+            "source_type": "odollo_contact"
+          },
+          "source_family": "odollo"
+        },
+        {
+          "decision_id": "odollo-contact-exclude",
+          "evidence_label": "fictional unrelated Odoo contact",
+          "expected": "exclude",
+          "rationale": "Unrelated contact identity should be excluded.",
+          "source": {
+            "label": "Alex Other | Other Materials",
+            "snippet": "Alex Other; Other Materials",
+            "source_id": "synthetic-contact-2",
+            "source_type": "odollo_contact"
+          },
+          "source_family": "odollo"
+        },
+        {
+          "decision_id": "odollo-note-include",
+          "evidence_label": "fictional Odoo log note",
+          "expected": "include",
+          "rationale": "Note subject and snippet overlap with pilot sample work.",
+          "source": {
+            "label": "Pilot sample follow-up",
+            "snippet": "Example Chemical pilot samples and MTA follow-up",
+            "source_id": "synthetic-note-1",
+            "source_type": "odollo_log_note"
+          },
+          "source_family": "odollo"
+        },
+        {
+          "decision_id": "odollo-note-exclude",
+          "evidence_label": "fictional unrelated Odoo log note",
+          "expected": "exclude",
+          "rationale": "Unrelated billing note should not support the route.",
+          "source": {
+            "label": "Billing reminder",
+            "snippet": "quarterly billing reminder and invoice status",
+            "source_id": "synthetic-note-2",
+            "source_type": "odollo_log_note"
+          },
+          "source_family": "odollo"
+        }
+      ],
+      "readout": {
+        "matter_candidates": [
+          {
+            "confidence": 0.93,
+            "label": "Northstar Example Chemical pilot collaboration"
+          }
+        ],
+        "title": "Northstar Example Chemical readout",
+        "topics": [
+          "pilot samples",
+          "NDA",
+          "MTA",
+          "scaleup"
+        ]
+      },
+      "review_basis": "fictional regression case for repo-local scorer tests",
+      "transcript": {
+        "event": {
+          "participants": [
+            "jordan@example.invalid"
+          ],
+          "summary": "Northstar and Example Chemical pilot planning"
+        }
+      }
+    }
+  ],
+  "manifest_id": "synthetic-p04-source-quality-v1",
+  "profile_id": "p04-source-quality-v1",
+  "review_status": "accepted",
+  "schema_version": 1
+}
