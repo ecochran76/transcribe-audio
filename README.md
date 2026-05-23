@@ -594,6 +594,15 @@ Speaker deanonymization uses deterministic evidence before LLM reasoning. Calend
 
 The `gws` adapter uses read-only People API surfaces exposed by `gws people`: grouped contacts, Other Contacts, and optional directory people when `directory` is added to `surfaces`. The Odollo adapter uses read-only `res.partner` contact lookups against configured tenant profiles. Identity bundles expose compact candidate labels, emails, source types, profile labels, evidence, warnings, and operator decisions; raw contact exports, credentials, and tenant config stay in user-scoped runtime paths.
 
+When `transcript_api.py` runs under `transcripts.service`, Odollo contact provenance inherits only the service environment, not the interactive shell. Put required Odoo API-key variables in a user-scoped environment file such as `~/.local/state/transcribe-audio/odollo.env` with mode `0600`, and load it from a systemd drop-in:
+
+```ini
+[Service]
+EnvironmentFile=/home/ecochran76/.local/state/transcribe-audio/odollo.env
+```
+
+Restart the service after changing that file. Missing `ODOO_*_API_KEY` variables surface as Odollo `401 Unauthorized` warnings in the participant identity bundle.
+
 Smoke the replay-manifest and registered artifact reader against the live API:
 
 ```bash

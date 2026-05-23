@@ -18,6 +18,7 @@ IDENTITY_BUNDLE_SCHEMA_VERSION = "transcribe-audio.participant-identity-bundle.v
 CONTACT_SOURCE_CONFIG_NAME = "contact-provenance.config.json"
 EMAIL_RE = re.compile(r"(?P<email>[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})", re.IGNORECASE)
 TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._%+\-]{1,}")
+SPEAKER_WORD_RE = re.compile(r"^(?:speaker|spk|unknown|participant|person)(?:[\s_-]*[A-Za-z0-9]+)?$", re.IGNORECASE)
 
 
 def normalize_email(value: Any) -> str:
@@ -35,6 +36,15 @@ def text_tokens(value: Any) -> set[str]:
             continue
         tokens.add(token)
     return tokens
+
+
+def is_anonymous_speaker_label(value: Any) -> bool:
+    text = normalize_string(value).strip()
+    if not text:
+        return True
+    if len(text) <= 2 and re.fullmatch(r"[A-Za-z0-9]+", text):
+        return True
+    return bool(SPEAKER_WORD_RE.fullmatch(text))
 
 
 def compact_person(value: Any, *, source: str, event_summary: str = "", calendar_summary: str = "") -> dict[str, Any]:
@@ -152,10 +162,10 @@ def identity_query_terms(
     for person in [*calendar_attendees, *readout_participants]:
         for value in [person.get("email", ""), person.get("name", ""), person.get("label", "")]:
             text = normalize_string(value)
-            if text.lower().startswith("speaker "):
+            if is_anonymous_speaker_label(text):
                 continue
             values.append(text)
-    values.extend(label for label in speaker_labels if not label.lower().startswith("speaker "))
+    values.extend(label for label in speaker_labels if not is_anonymous_speaker_label(label))
     return unique_strings([normalize_string(value) for value in values if normalize_string(value)])[:16]
 
 
@@ -344,6 +354,62 @@ def local_contact_candidate(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def candidate_dedupe_key(candidate: dict[str, Any]) -> str:
+    return f"{candidate.get('source')}:{candidate.get('email') or candidate.get('label')}"
+
+
+def candidate_group_key(candidate: dict[str, Any]) -> str:
+    return f"{candidate.get('source_type') or candidate.get('source')}:{candidate.get('source_profile') or ''}"
+
+
+def candidate_sort_key(candidate: dict[str, Any]) -> tuple[float, str, str]:
+    return (
+        float(candidate.get("confidence") or 0.0),
+        normalize_string(candidate.get("source_type") or candidate.get("source")),
+        normalize_string(candidate.get("label")),
+    )
+
+
+def ranked_contact_candidates(
+    candidates: list[dict[str, Any]],
+    *,
+    limit: int = 20,
+    per_source_profile: int = 3,
+) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for candidate in sorted(candidates, key=candidate_sort_key, reverse=True):
+        key = candidate_dedupe_key(candidate)
+        if not key or key in seen:
+            continue
+        deduped.append(candidate)
+        seen.add(key)
+
+    selected: list[dict[str, Any]] = []
+    selected_keys: set[str] = set()
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for candidate in deduped:
+        groups.setdefault(candidate_group_key(candidate), []).append(candidate)
+    for group in sorted(groups.values(), key=lambda values: candidate_sort_key(values[0]), reverse=True):
+        for candidate in group[: max(0, per_source_profile)]:
+            key = candidate_dedupe_key(candidate)
+            if key in selected_keys:
+                continue
+            selected.append(candidate)
+            selected_keys.add(key)
+            if len(selected) >= limit:
+                return sorted(selected, key=candidate_sort_key, reverse=True)
+    for candidate in deduped:
+        key = candidate_dedupe_key(candidate)
+        if key in selected_keys:
+            continue
+        selected.append(candidate)
+        selected_keys.add(key)
+        if len(selected) >= limit:
+            break
+    return sorted(selected, key=candidate_sort_key, reverse=True)
+
+
 def assignment_decision(assignment: dict[str, Any] | None) -> dict[str, Any] | None:
     if not assignment:
         return None
@@ -389,14 +455,7 @@ def build_participant_identity_bundle(
         for source in provenance_sources
     ]
     local_candidates = [local_contact_candidate(row) for row in local_contacts]
-    candidate_seen: set[str] = set()
-    all_candidates = []
-    for candidate in sorted([*provenance_candidates, *local_candidates], key=lambda item: item.get("confidence", 0), reverse=True):
-        key = f"{candidate.get('source')}:{candidate.get('email') or candidate.get('label')}"
-        if not key or key in candidate_seen:
-            continue
-        all_candidates.append(candidate)
-        candidate_seen.add(key)
+    all_candidates = ranked_contact_candidates([*provenance_candidates, *local_candidates], limit=20)
 
     speakers = []
     unresolved = []
@@ -436,7 +495,7 @@ def build_participant_identity_bundle(
         "readout_participants": normalized_readout_participants,
         "query_terms": query_terms,
         "source_profiles": source_profiles,
-        "contact_candidates": all_candidates[:20],
+        "contact_candidates": all_candidates,
         "speakers": speakers,
         "operator_decisions": [assignment_decision(assignments[label]) for label in speaker_labels if label in assignments],
         "unresolved_ambiguities": unresolved,

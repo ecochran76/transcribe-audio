@@ -279,11 +279,16 @@ def test_build_odollo_terms_uses_participants_not_raw_transcript() -> None:
                 "participants": ["eric@soylei.com", "paul@tempochem.com"],
             },
         },
-        sample_readout(),
+        {
+            **sample_readout(),
+            "participants": [{"name": "Paula Partner", "email": "paula@example.com"}],
+        },
     )
 
     assert "Soylei" in query_terms
     assert "Tempo" in query_terms
+    assert "Paula Partner" in query_terms
+    assert "paula@example.com" in query_terms
     assert "soylei" in [term.lower() for term in query_terms]
     assert "raw" not in [term.lower() for term in query_terms]
 

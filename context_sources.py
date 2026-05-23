@@ -436,7 +436,22 @@ def build_graphiti_query(transcript: dict[str, Any], readout: dict[str, Any]) ->
 
 def build_odollo_terms(transcript: dict[str, Any], readout: dict[str, Any]) -> list[str]:
     """Build compact Odoo lookup terms without copying raw transcript text."""
-    terms = search_terms_from_readout(transcript, readout) + participant_terms(transcript)
+    terms: list[str] = []
+    for participant in readout.get("participants") or []:
+        if isinstance(participant, dict):
+            terms.append(normalize_string(participant.get("email")))
+            terms.append(
+                normalize_string(
+                    participant.get("name")
+                    or participant.get("label")
+                    or participant.get("displayName")
+                    or participant.get("display_name")
+                )
+            )
+        else:
+            terms.append(normalize_string(participant))
+    terms.extend(search_terms_from_readout(transcript, readout))
+    terms.extend(participant_terms(transcript))
     event = transcript.get("event") if isinstance(transcript.get("event"), dict) else {}
     for attendee in event.get("attendees") or []:
         if isinstance(attendee, dict):

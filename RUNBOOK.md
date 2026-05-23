@@ -2,6 +2,63 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 186 | 2026-05-23
+
+Summary: Repaired Odollo contact provenance in the live transcript console.
+
+Findings:
+
+- The selected conversation
+  `6e8eee4f19a1d5a9b23f` surfaced Odollo `401 Unauthorized` warnings in the
+  participant identity bundle.
+- Interactive Odollo auth succeeded for `soylei-prod` and `saber-prod`, but
+  `transcripts.service` did not inherit `ODOO_SOYLEI_API_KEY` or
+  `ODOO_SABER_API_KEY`.
+- After the env repair, Odollo returned contacts, but the identity bundle still
+  displayed only Google candidates because anonymous speaker labels `A/B/C/D`
+  were used as broad contact-system search terms and the 20-candidate cap was
+  filled by noisy Google results.
+
+Changes:
+
+- Wrote a user-scoped secret env file at
+  `~/.local/state/transcribe-audio/odollo.env` with redacted Odoo API-key
+  variables and mode `0600`.
+- Added `~/.config/systemd/user/transcripts.service.d/20-odollo-env.conf` with
+  `EnvironmentFile=/home/ecochran76/.local/state/transcribe-audio/odollo.env`.
+- Restarted `transcripts.service`.
+- Updated identity query building to ignore anonymous speaker labels such as
+  `A`, `B`, `Speaker C`, and `SPEAKER_00`.
+- Updated Odollo term building to include readout participant names/emails.
+- Updated candidate ranking to preserve representation from configured source
+  profiles so Odollo candidates cannot be completely crowded out by broad
+  Google results.
+- Documented the systemd Odollo environment requirement in README.
+
+Validation:
+
+- `odollo.cli ... odoo auth test` passed for `soylei-prod` and `saber-prod`
+  from the interactive shell.
+- `systemctl --user show transcripts.service` reports the Odollo environment
+  file.
+- `curl http://127.0.0.1:18876/api/health` returned `status: ok`.
+- The selected conversation now has query terms limited to
+  `ecochran76@gmail.com`, no Odollo `401` warnings, and 11 compact contact
+  candidates: 1 `gws_contact`, 2 `gws_other_contact`, and 8 `odollo_contact`.
+- Browser check on the selected conversation found
+  `odollo_contact · soylei-prod · 0.4` in the speaker candidate UI and no
+  `401`/`Unauthorized` text.
+- `.venv/bin/python -m pytest tests/test_participant_identity.py tests/test_context_sources.py tests/test_transcript_api.py -q`
+  passed: 61 tests.
+- `.venv/bin/python -m py_compile participant_identity.py context_sources.py transcript_api.py tests/test_participant_identity.py tests/test_context_sources.py tests/test_transcript_api.py`
+  passed.
+
+Next:
+
+- Review whether low-confidence self-email-derived Odollo candidates should be
+  visually separated from direct attendee/name matches before scaling identity
+  review to more raw transcripts.
+
 ## Turn 185 | 2026-05-23
 
 Summary: Completed M2 speaker deanonymization and participant-aware context
