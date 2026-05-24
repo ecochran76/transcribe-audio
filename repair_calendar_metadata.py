@@ -39,6 +39,13 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--since-days", type=float, default=4.0, help="Only consider artifacts modified this many days ago.")
     parser.add_argument("--calendar-id", default="primary", help="Calendar ID to query.")
+    parser.add_argument(
+        "--calendar-provenance-calendar-id",
+        dest="calendar_provenance_calendar_ids",
+        action="append",
+        default=[],
+        help="Additional calendar ID to scan for overlapping provenance events. Repeat for multiple shared calendars.",
+    )
     parser.add_argument("--calendar-window", type=float, default=24.0, help="Calendar lookup window in hours.")
     parser.add_argument(
         "--calendar-providers",
@@ -57,6 +64,11 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Rename source media files and update watcher state (default: true).",
+    )
+    parser.add_argument(
+        "--refresh-matching-calendars",
+        action="store_true",
+        help="Refresh event.matching_calendars even when existing calendar overlap metadata is present.",
     )
     return parser.parse_args(argv)
 
@@ -116,11 +128,13 @@ def build_repair_plan(
     *,
     calendar_service: Any,
     calendar_id: str,
+    provenance_calendar_ids: list[str],
     calendar_window: float,
     rename_media: bool,
+    refresh_matching_calendars: bool,
 ) -> Optional[dict[str, Any]]:
     existing_event_info = artifact.get("event") if isinstance(artifact.get("event"), dict) else None
-    if existing_event_info and existing_event_info.get("matching_calendars"):
+    if existing_event_info and existing_event_info.get("matching_calendars") and not refresh_matching_calendars:
         return None
 
     recording_start = parse_datetime(str(artifact["recording_start"]))
@@ -131,6 +145,7 @@ def build_repair_plan(
         recording_start,
         recording_end,
         calendar_window,
+        provenance_calendar_ids,
     )
     event = matching_events[0]["event"] if matching_events else fallback_event
     if not event and not existing_event_info:
@@ -264,8 +279,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 artifact,
                 calendar_service=service,
                 calendar_id=args.calendar_id,
+                provenance_calendar_ids=args.calendar_provenance_calendar_ids,
                 calendar_window=args.calendar_window,
                 rename_media=args.rename_media,
+                refresh_matching_calendars=args.refresh_matching_calendars,
             )
             if plan:
                 plans.append(plan)

@@ -363,6 +363,30 @@ def format_event_person(person: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def event_attendee_details(event: dict[str, Any]) -> dict[str, list[str]]:
+    attendees: list[str] = []
+    attendee_emails: list[str] = []
+    seen_attendees: set[str] = set()
+    seen_emails: set[str] = set()
+    for attendee in event.get("attendees", []):
+        if not isinstance(attendee, dict) or attendee.get("responseStatus") == "declined":
+            continue
+        value = format_event_person(attendee)
+        if value and value not in seen_attendees:
+            attendees.append(value)
+            seen_attendees.add(value)
+        email = str(attendee.get("email") or "").strip()
+        if email and email not in seen_emails:
+            attendee_emails.append(email)
+            seen_emails.add(email)
+    details: dict[str, list[str]] = {}
+    if attendees:
+        details["attendees"] = attendees
+    if attendee_emails:
+        details["attendee_emails"] = attendee_emails
+    return details
+
+
 def extract_event_metadata(event: dict[str, Any]) -> dict[str, Any]:
     start_dt = parse_event_datetime(event.get("start", {}))
     end_dt = parse_event_datetime(event.get("end", {}))
@@ -703,6 +727,45 @@ def normalize_calendar_entry(calendar: dict[str, Any]) -> Optional[dict[str, Any
     }
 
 
+def normalized_calendar_ids(values: Iterable[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        result.append(text)
+        seen.add(text)
+    return result
+
+
+def merge_requested_calendar_entries(calendars: list[dict[str, Any]], calendar_ids: Iterable[Any]) -> list[dict[str, Any]]:
+    requested_ids = normalized_calendar_ids(calendar_ids)
+    if not requested_ids:
+        return calendars
+    by_id = {calendar["id"]: calendar for calendar in calendars if calendar.get("id")}
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for calendar_id in requested_ids:
+        calendar = by_id.get(calendar_id) or {
+            "id": calendar_id,
+            "summary": calendar_id,
+            "accessRole": None,
+            "primary": calendar_id == "primary",
+            "timeZone": None,
+        }
+        if calendar["id"] in seen:
+            continue
+        result.append(calendar)
+        seen.add(calendar["id"])
+    for calendar in calendars:
+        if calendar["id"] in seen:
+            continue
+        result.append(calendar)
+        seen.add(calendar["id"])
+    return result
+
+
 def list_calendars_for_provider(provider: CalendarProvider) -> list[dict[str, Any]]:
     if provider.name == "google-api":
         ensure_google_calendar_provider_backend(provider)
@@ -764,19 +827,19 @@ def describe_matching_calendars(
     descriptions: list[dict[str, Any]] = []
     for match in matching_events:
         event = match.get("event") or {}
-        descriptions.append(
-            {
-                "calendar_id": calendar["id"],
-                "calendar_summary": calendar["summary"],
-                "accessRole": calendar.get("accessRole"),
-                "event_id": event.get("id"),
-                "event_summary": event.get("summary") or "Untitled Event",
-                "event_start": match.get("start"),
-                "event_end": match.get("end"),
-                "overlap_seconds": match.get("overlap_seconds"),
-                "coverage": match.get("coverage"),
-            }
-        )
+        description = {
+            "calendar_id": calendar["id"],
+            "calendar_summary": calendar["summary"],
+            "accessRole": calendar.get("accessRole"),
+            "event_id": event.get("id"),
+            "event_summary": event.get("summary") or "Untitled Event",
+            "event_start": match.get("start"),
+            "event_end": match.get("end"),
+            "overlap_seconds": match.get("overlap_seconds"),
+            "coverage": match.get("coverage"),
+        }
+        description.update(event_attendee_details(event))
+        descriptions.append(description)
     return descriptions
 
 
@@ -784,6 +847,7 @@ def find_matching_calendars_for_provider(
     provider: CalendarProvider,
     *,
     requested_calendar_id: str,
+    provenance_calendar_ids: Optional[list[str]] = None,
     recording_start: datetime,
     recording_end: datetime,
     time_min: str,
@@ -798,17 +862,10 @@ def find_matching_calendars_for_provider(
         print(f"Calendar lookup: failed to list calendars for provider {provider.name} ({exc}).", file=sys.stderr)
         return []
 
-    if not any(calendar["id"] == requested_calendar_id for calendar in calendars):
-        calendars.insert(
-            0,
-            {
-                "id": requested_calendar_id,
-                "summary": requested_calendar_id,
-                "accessRole": None,
-                "primary": requested_calendar_id == "primary",
-                "timeZone": None,
-            },
-        )
+    calendars = merge_requested_calendar_entries(
+        calendars,
+        [requested_calendar_id, *(provenance_calendar_ids or [])],
+    )
 
     for calendar in calendars:
         try:
@@ -885,6 +942,7 @@ def ensure_selected_calendar_context(
             "event_end": selected_match.get("end") if selected_match else parse_event_datetime(selected_event.get("end", {})),
             "overlap_seconds": selected_match.get("overlap_seconds") if selected_match else None,
             "coverage": selected_match.get("coverage") if selected_match else None,
+            **event_attendee_details(selected_event),
         }
     ]
 
@@ -951,6 +1009,7 @@ def find_matching_events(
     recording_start: datetime,
     recording_end: datetime,
     window_hours: float,
+    provenance_calendar_ids: Optional[list[str]] = None,
 ) -> tuple[list[dict[str, Any]], Optional[dict[str, Any]], list[dict[str, Any]]]:
     if recording_end < recording_start:
         recording_end = recording_start
@@ -974,6 +1033,7 @@ def find_matching_events(
         matching_calendars = find_matching_calendars_for_provider(
             provider,
             requested_calendar_id=calendar_id,
+            provenance_calendar_ids=provenance_calendar_ids,
             recording_start=recording_start,
             recording_end=recording_end,
             time_min=time_min,
@@ -1659,6 +1719,7 @@ def process_transcription_outputs(
                     recording_start,
                     recording_end,
                     args.calendar_window,
+                    getattr(args, "calendar_provenance_calendar_ids", None),
                 )
 
                 if matching_events:

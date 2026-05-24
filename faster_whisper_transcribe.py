@@ -206,6 +206,16 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Google Calendar ID to query when --use-calendar is set (default: %(default)s).",
     )
     parser.add_argument(
+        "--calendar-provenance-calendar-id",
+        dest="calendar_provenance_calendar_ids",
+        action="append",
+        default=[],
+        help=(
+            "Additional calendar ID to scan for overlapping provenance events without changing "
+            "the primary calendar used for event selection. Repeat for multiple shared calendars."
+        ),
+    )
+    parser.add_argument(
         "--calendar-credentials",
         type=Path,
         default=SCRIPT_DIR / "credentials.json",

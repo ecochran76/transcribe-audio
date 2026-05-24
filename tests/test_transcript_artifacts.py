@@ -13,6 +13,8 @@ from transcribe_common import (
     CalendarProvider,
     attach_matching_calendars,
     build_event_base_name,
+    describe_matching_calendars,
+    find_matching_calendars_for_provider,
     build_gog_calendar_list_command,
     build_gog_calendar_events_command,
     build_gws_calendar_env,
@@ -673,6 +675,72 @@ def test_attach_matching_calendars_to_event_metadata() -> None:
     assert "matching_calendars" not in event_info
 
 
+def test_matching_calendar_descriptions_include_attendees() -> None:
+    matching_events = [
+        {
+            "event": {
+                "id": "evt1",
+                "summary": "Shared calendar meeting",
+                "attendees": [
+                    {"displayName": "Alice Example", "email": "alice@example.com"},
+                    {"email": "declined@example.com", "responseStatus": "declined"},
+                ],
+            },
+            "start": "start",
+            "end": "end",
+            "overlap_seconds": 120.0,
+            "coverage": 1.0,
+        }
+    ]
+
+    result = describe_matching_calendars(
+        matching_events,
+        {"id": "team@example.com", "summary": "Team", "accessRole": "reader"},
+    )
+
+    assert result[0]["attendees"] == ["Alice Example <alice@example.com>"]
+    assert result[0]["attendee_emails"] == ["alice@example.com"]
+
+
+def test_explicit_provenance_calendar_ids_are_scanned(monkeypatch) -> None:
+    queried_calendar_ids = []
+
+    def fake_list_calendars_for_provider(provider):
+        assert provider.name == "gog"
+        return [{"id": "primary", "summary": "Primary", "accessRole": "owner"}]
+
+    def fake_list_events_for_provider(provider, calendar_id, *, time_min, time_max):
+        queried_calendar_ids.append(calendar_id)
+        if calendar_id == "shared@example.com":
+            return [
+                {
+                    "id": "evt-shared",
+                    "summary": "Shared Meeting",
+                    "start": {"dateTime": "2026-05-22T15:30:00Z"},
+                    "end": {"dateTime": "2026-05-22T16:00:00Z"},
+                    "attendees": [{"email": "shared-attendee@example.com"}],
+                }
+            ]
+        return []
+
+    monkeypatch.setattr("transcribe_common.list_calendars_for_provider", fake_list_calendars_for_provider)
+    monkeypatch.setattr("transcribe_common.list_events_for_provider", fake_list_events_for_provider)
+
+    result = find_matching_calendars_for_provider(
+        CalendarProvider(name="gog"),
+        requested_calendar_id="primary",
+        provenance_calendar_ids=["shared@example.com"],
+        recording_start=datetime.fromisoformat("2026-05-22T15:30:00+00:00"),
+        recording_end=datetime.fromisoformat("2026-05-22T16:00:00+00:00"),
+        time_min="2026-05-22T15:00:00Z",
+        time_max="2026-05-22T17:00:00Z",
+    )
+
+    assert queried_calendar_ids == ["primary", "shared@example.com"]
+    assert result[0]["calendar_id"] == "shared@example.com"
+    assert result[0]["attendee_emails"] == ["shared-attendee@example.com"]
+
+
 def test_selected_calendar_context_falls_back_to_primary_event() -> None:
     matching_events = [
         {
@@ -719,6 +787,7 @@ def test_watcher_calendar_config_expands_to_cli_args(tmp_path: Path) -> None:
                         "calendar": {
                             "providers": ["gog", "gws", "google-api"],
                             "calendar_id": "primary",
+                            "provenance_calendar_ids": ["shared@example.com", "team@example.com"],
                             "window_hours": 8,
                             "gog": {"account": "me@example.com", "client": "work"},
                             "gws": {"config_dir": "~/.config/gws-work"},
@@ -740,6 +809,10 @@ def test_watcher_calendar_config_expands_to_cli_args(tmp_path: Path) -> None:
         "gog,gws,google-api",
         "--calendar-id",
         "primary",
+        "--calendar-provenance-calendar-id",
+        "shared@example.com",
+        "--calendar-provenance-calendar-id",
+        "team@example.com",
         "--calendar-window",
         "8",
         "--calendar-gog-account",

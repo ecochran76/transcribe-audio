@@ -236,6 +236,7 @@ Example job:
     "enabled": true,
     "providers": ["gog", "gws", "google-api"],
     "calendar_id": "primary",
+    "provenance_calendar_ids": [],
     "gog": {
       "account": "me@example.com",
       "client": "work"
@@ -746,7 +747,11 @@ ffmpeg -y \
 2. Place `credentials.json` or `client_secrets.json` next to `assembly_transcribe.py`.
 3. Invoke the CLI with `--use-calendar`; the first run launches a browser window to authorize access and writes `token.json` for reuse.
 4. Additional flags:
-   - `--calendar-id` for non-primary calendars.
+   - `--calendar-id` for the primary event-selection calendar.
+   - `--calendar-provenance-calendar-id` for additional shared calendars that
+     should contribute overlap/attendee provenance without changing the primary
+     event used for filenames. Repeat the flag or set watcher
+     `calendar.provenance_calendar_ids` for multiple shared calendars.
    - `--calendar-credentials`, `--calendar-token`, and `--calendar-client-secrets` to override file locations.
    - `--calendar-window` (hours on either side of the file timestamp) to tighten or widen the search.
    - `--calendar-providers gog,gws,google-api` to choose provider order.
@@ -761,7 +766,7 @@ Lookup order is:
 
 If an event is found, outputs are renamed to `YYYY-mm-dd HH-MM <event name> <original base>` (colons replaced with dashes) and the transcript is annotated with event metadata, including participants when available. If no provider returns a matching event, transcription continues without renaming.
 
-When accessible calendars contain overlapping events for the same recording window, the transcript sidecar stores `event.matching_calendars`. Each entry includes the calendar ID, calendar summary, access role when available, event ID/summary, event start/end, overlap seconds, and coverage. This is intended for readout/routing context; it does not change the primary event selected for filenames.
+When accessible or explicitly configured provenance calendars contain overlapping events for the same recording window, the transcript sidecar stores `event.matching_calendars`. Each entry includes the calendar ID, calendar summary, access role when available, event ID/summary, event start/end, overlap seconds, coverage, and attendee emails when the calendar provider returns them. This is intended for readout/routing and deterministic speaker-identity context; it does not change the primary event selected for filenames.
 
 ## Development Notes
 

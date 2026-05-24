@@ -2,6 +2,56 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 188 | 2026-05-23
+
+Summary: Added shared-calendar IDs to calendar provenance.
+
+Findings:
+
+- The active calendar provider sees the SABER imported calendar
+  `48gt5h6avb4222kf8r2a8mh1tvp5gqq4@import.calendar.google.com` as
+  `Eric - SABER`.
+- The active calendar provider sees the SoyLei shared calendar
+  `eric.cochran@soylei.com` as `Eric - SoyLei`.
+- Existing `event.matching_calendars` entries recorded overlap metadata but
+  did not carry attendee emails from shared-calendar events into downstream
+  identity evidence.
+
+Changes:
+
+- Added repeated `--calendar-provenance-calendar-id` support to both
+  transcription CLIs and `repair_calendar_metadata.py`.
+- Added watcher `calendar.provenance_calendar_ids` support, with
+  `shared_calendar_ids` accepted as an alias.
+- Updated the live ignored `watch_transcriptions.json` to include the SABER
+  and SoyLei shared calendar IDs for both active recording jobs.
+- Matching-calendar provenance now carries `attendees` and `attendee_emails`
+  when provider event payloads include them.
+- Updated README and the sample watcher config.
+
+Validation:
+
+- `gog calendar calendars --json --results-only --no-input` found
+  `Eric - SABER` and `Eric - SoyLei` in the active provider calendar list.
+- Focused tests passed:
+  `.venv/bin/python -m pytest tests/test_transcript_artifacts.py tests/test_participant_identity.py -q`
+  and `.venv/bin/python -m pytest tests/test_transcript_artifacts.py -q`.
+- `.venv/bin/python -m py_compile transcribe_common.py assembly_transcribe.py faster_whisper_transcribe.py repair_calendar_metadata.py watch_transcriptions.py tests/test_transcript_artifacts.py tests/test_participant_identity.py`
+  passed.
+- `.venv/bin/python -m pytest -q` passed: 217 tests.
+- Refreshed and re-ingested selected conversation
+  `6e8eee4f19a1d5a9b23f` with explicit SABER/SoyLei provenance calendar IDs.
+- Live SoyLei overlap smoke returned attendee names/emails under
+  `event.matching_calendars` when the shared calendar provided them.
+- Restarted `transcribe-watch.service`; readiness check passed and the service
+  is active.
+- `curl http://127.0.0.1:18876/api/health` returned `status: ok`.
+
+Next:
+
+- Tighten Odollo identity candidate generation so broad event-title terms do
+  not appear as speaker/contact proposals without direct attendee evidence.
+
 ## Turn 187 | 2026-05-23
 
 Summary: Added context-workbench contact visibility and selection controls.

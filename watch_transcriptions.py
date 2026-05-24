@@ -313,6 +313,16 @@ def normalize_cli_args(raw_value: Any) -> list[str]:
     raise WatcherError("cli_args must be a list of strings or a shell-style string.")
 
 
+def normalize_calendar_id_values(raw_value: Any) -> list[str]:
+    if raw_value is None:
+        return []
+    if isinstance(raw_value, list):
+        return [str(item).strip() for item in raw_value if str(item).strip()]
+    if isinstance(raw_value, str):
+        return [item.strip() for item in raw_value.split(",") if item.strip()]
+    raise WatcherError("calendar provenance calendar IDs must be a list or comma-separated string.")
+
+
 def parse_calendar_cli_args(raw_job: dict[str, Any]) -> list[str]:
     raw_calendar = raw_job.get("calendar")
     if raw_calendar is None:
@@ -339,6 +349,11 @@ def parse_calendar_cli_args(raw_job: dict[str, Any]) -> list[str]:
     calendar_id = raw_calendar.get("calendar_id")
     if calendar_id:
         cli_args.extend(["--calendar-id", str(calendar_id)])
+    provenance_calendar_ids = normalize_calendar_id_values(
+        raw_calendar.get("provenance_calendar_ids", raw_calendar.get("shared_calendar_ids"))
+    )
+    for provenance_calendar_id in provenance_calendar_ids:
+        cli_args.extend(["--calendar-provenance-calendar-id", provenance_calendar_id])
     window = raw_calendar.get("window_hours")
     if window is not None:
         cli_args.extend(["--calendar-window", str(window)])
