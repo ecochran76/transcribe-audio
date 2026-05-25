@@ -2,6 +2,90 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 202 | 2026-05-25
+
+Summary: Completed Plan 0017, the Settings config workbench implementation.
+
+Findings:
+
+- Plan 0016's design contract could be implemented without new backend
+  endpoints by reusing the existing intelligence, automation, and provenance
+  preview/apply APIs.
+- Initial browser smoke found a stale Apply affordance after Discard; clearing
+  preview action state on draft edits and discard fixed it.
+- Browser network logs confirmed that automation, intelligence, and provenance
+  local edits stay local until explicit Preview.
+
+Changes:
+
+- Replaced the simple Settings tab with a config workbench: status header,
+  section rail, dirty/preview/apply bar, and Account, Intelligence, Automation,
+  Provenance, Safety, and Evidence sections.
+- Added local draft dirty detection for intelligence, automation, and provenance
+  settings.
+- Added Discard behavior that resets local drafts and clears stale preview
+  action state.
+- Added restrained Settings-specific CSS for the workbench layout, row groups,
+  sticky dirty bar, mobile section rail, status chips, and evidence/safety rows.
+- Closed Plan 0017 and updated P09 roadmap state.
+
+Validation:
+
+- `python -m py_compile transcript_api.py intelligence_config.py
+  automation_config.py provenance_config.py` passed.
+- Focused config endpoint pytest passed with 4 tests.
+- `.venv/bin/python -m pytest -q` passed with 243 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `agent-browser` captured desktop and mobile screenshots:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0017-settings-workbench-desktop.png`
+  and
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0017-settings-workbench-mobile.png`.
+- `agent-browser` network checks showed no backend requests for automation
+  toggle, intelligence model edit, or provenance source toggle before Preview.
+- `agent-browser` automation Preview made one
+  `POST /api/automation/config/preview` request and page text showed
+  `will_execute_workflow_stage=false`.
+- `agent-browser` console/error checks reported no page errors.
+
+## Turn 201 | 2026-05-25
+
+Summary: Checkpointed Plans 0013-0016 and opened Plan 0017 for the Settings config workbench.
+
+Findings:
+
+- The dirty worktree contained the accumulated Plan 0013-0016 milestone work:
+  shared user-scoped provenance config, contact-search workbench, one-click
+  initial summary automation settings, and the config-panel design contract.
+- Graphiti was healthy, but discovery for Plan 0017/P09 work returned stale
+  repo-memory entries, so the current roadmap, runbook, and plan files are the
+  authority.
+- Plan 0016 defines the implementation target and requires `agent-browser`
+  evidence that routine local edits do not make backend calls before explicit
+  Preview/Apply.
+
+Changes:
+
+- Created checkpoint commit
+  `926dc65 Checkpoint provenance and settings milestones`.
+- Added `docs/dev/plans/0017-2026-05-25-settings-config-workbench.md`.
+- Wired Plan 0017 into P09 in `ROADMAP.md`.
+
+Validation:
+
+- Secret scan of checkpoint candidates found only documentation, placeholders,
+  env refs, and redaction tests; no live private iCalendar URL surfaced.
+- `git diff --check` passed before checkpoint.
+- `python -m py_compile transcript_api.py intelligence_config.py
+  automation_config.py provenance_config.py participant_identity.py
+  transcribe_common.py assembly_transcribe.py faster_whisper_transcribe.py
+  repair_calendar_metadata.py route_transcript.py watch_transcriptions.py`
+  passed before checkpoint.
+- `npm --prefix frontend run build` passed before checkpoint.
+- `.venv/bin/python -m pytest -q` passed with 243 tests before checkpoint.
+
 ## Turn 200 | 2026-05-25
 
 Summary: Closed Plan 0016 as a completed design-only configuration panel slice.

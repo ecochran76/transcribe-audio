@@ -243,6 +243,68 @@ function automationUpdateFromDraft(draft) {
   };
 }
 
+function intelligenceUpdateFromDraft(draft) {
+  return {
+    provider: draft.provider,
+    model: draft.model,
+    timeout: draft.timeout === "" ? "" : Number(draft.timeout),
+    temperature: draft.temperature === "" ? "" : Number(draft.temperature),
+    fallbacks: String(draft.fallbacks || "").split(",").map((item) => item.trim()).filter(Boolean),
+    human_review: draft.human_review,
+    requires_ledger: Boolean(draft.requires_ledger)
+  };
+}
+
+function taskDraftFromConfig(config) {
+  return {
+    provider: config?.provider || "",
+    model: config?.model || "",
+    timeout: config?.timeout ?? "",
+    temperature: config?.temperature ?? "",
+    fallbacks: (config?.fallbacks || []).join(", "),
+    human_review: config?.human_review || "",
+    requires_ledger: Boolean(config?.requires_ledger)
+  };
+}
+
+function normalizeForCompare(value) {
+  return JSON.stringify(value ?? null);
+}
+
+function automationDraftDirty(draft, automation) {
+  return normalizeForCompare(automationUpdateFromDraft(draft)) !== normalizeForCompare(automationUpdateFromDraft(automationDraftFromConfig(automation)));
+}
+
+function intelligenceDraftDirty(draft, selectedTaskConfig) {
+  if (!selectedTaskConfig) return false;
+  return normalizeForCompare(intelligenceUpdateFromDraft(draft)) !== normalizeForCompare(intelligenceUpdateFromDraft(taskDraftFromConfig(selectedTaskConfig)));
+}
+
+function provenanceDraftDirty(draft, provenance) {
+  const currentProfile = provenance?.config?.active_profile || provenance?.profile || "default";
+  if ((draft.activeProfile || "default") !== currentProfile) return true;
+  if (draft.newIcalId || draft.newIcalLabel || draft.newIcalUrl) return true;
+  return provenanceSourceEntries(provenance).some(([sourceId, source]) => {
+    const currentEnabled = source.enabled !== false;
+    const draftedEnabled = draft.sourceEnabled?.[sourceId];
+    return typeof draftedEnabled === "boolean" && draftedEnabled !== currentEnabled;
+  });
+}
+
+function resetProvenanceDraftFromConfig(provenance) {
+  const sourceEnabled = {};
+  for (const [sourceId, source] of provenanceSourceEntries(provenance)) {
+    sourceEnabled[sourceId] = source.enabled !== false;
+  }
+  return {
+    activeProfile: provenance?.config?.active_profile || provenance?.profile || "default",
+    sourceEnabled,
+    newIcalId: "",
+    newIcalLabel: "",
+    newIcalUrl: ""
+  };
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -1183,15 +1245,7 @@ function App() {
 
   useEffect(() => {
     if (!selectedTaskConfig) return;
-    setTaskDraft({
-      provider: selectedTaskConfig.provider || "",
-      model: selectedTaskConfig.model || "",
-      timeout: selectedTaskConfig.timeout ?? "",
-      temperature: selectedTaskConfig.temperature ?? "",
-      fallbacks: (selectedTaskConfig.fallbacks || []).join(", "),
-      human_review: selectedTaskConfig.human_review || "",
-      requires_ledger: Boolean(selectedTaskConfig.requires_ledger)
-    });
+    setTaskDraft(taskDraftFromConfig(selectedTaskConfig));
     setConfigAction({ status: "idle", message: "", preview: null });
   }, [selectedTask, selectedTaskFingerprint]);
 
@@ -1353,15 +1407,7 @@ function App() {
   }
 
   function taskUpdatePayload() {
-    return {
-      provider: taskDraft.provider,
-      model: taskDraft.model,
-      timeout: taskDraft.timeout === "" ? "" : Number(taskDraft.timeout),
-      temperature: taskDraft.temperature === "" ? "" : Number(taskDraft.temperature),
-      fallbacks: taskDraft.fallbacks.split(",").map((item) => item.trim()).filter(Boolean),
-      human_review: taskDraft.human_review,
-      requires_ledger: taskDraft.requires_ledger
-    };
+    return intelligenceUpdateFromDraft(taskDraft);
   }
 
   async function previewConfigUpdate() {
@@ -2024,11 +2070,31 @@ function App() {
               automation={automation}
               automationAction={automationAction}
               automationDraft={automationDraft}
+              configAction={configAction}
               health={health}
-              intelligenceConfig={intelligence.config}
+              intelligence={intelligence}
+              provenance={provenance}
+              provenanceAction={provenanceAction}
+              provenanceDoctor={provenanceDoctor}
+              provenanceDraft={provenanceDraft}
+              selectedTask={selectedTask}
+              selectedTaskConfig={selectedTaskConfig}
+              setAutomationAction={setAutomationAction}
+              setConfigAction={setConfigAction}
+              setProvenanceAction={setProvenanceAction}
+              setProvenanceDraft={setProvenanceDraft}
+              setSelectedTask={setSelectedTask}
+              setTaskDraft={setTaskDraft}
+              taskDraft={taskDraft}
+              onApplyIntelligence={applyConfigUpdate}
               onApplyAutomation={applyAutomationUpdate}
+              onApplyProvenance={applyProvenanceUpdate}
               onOpenIntelligence={() => setActiveNav("Intelligence")}
+              onOpenProvenance={() => setActiveNav("Provenance")}
+              onPreviewIntelligence={previewConfigUpdate}
               onPreviewAutomation={previewAutomationUpdate}
+              onPreviewProvenance={previewProvenanceUpdate}
+              onRefreshProvenance={refreshProvenanceConfig}
               setAutomationDraft={setAutomationDraft}
             />
           ) : (
@@ -2548,18 +2614,64 @@ function SettingsPanel({
   automation,
   automationAction,
   automationDraft,
+  configAction,
   health,
-  intelligenceConfig,
+  intelligence,
+  provenance,
+  provenanceAction,
+  provenanceDoctor,
+  provenanceDraft,
+  selectedTask,
+  selectedTaskConfig,
+  setAutomationAction,
+  setConfigAction,
+  setProvenanceAction,
+  setProvenanceDraft,
+  setSelectedTask,
+  setTaskDraft,
+  taskDraft,
+  onApplyIntelligence,
   onApplyAutomation,
+  onApplyProvenance,
   onOpenIntelligence,
+  onOpenProvenance,
+  onPreviewIntelligence,
   onPreviewAutomation,
+  onPreviewProvenance,
+  onRefreshProvenance,
   setAutomationDraft
 }) {
+  const [activeSection, setActiveSection] = useState("account");
   const stages = automationStageEntries(automation);
   const modeChoices = automation?.mode_choices || ["manual", "one_click", "automatic"];
+  const intelligenceConfig = intelligence?.config || {};
   const taskEntries = Object.entries(intelligenceConfig?.tasks || {});
+  const providerList = intelligence?.providers?.providers || [];
+  const sources = provenanceSourceEntries(provenance);
+  const provenanceCounts = provenanceSourceCounts(provenance);
+  const enabledSourceCount = sources.filter(([, source]) => source.enabled !== false).length;
+  const provenanceStatus = provenanceDoctor?.status || (provenance?.exists ? "unknown" : "missing");
+  const latestSmoke = intelligence?.smokes?.latest_report || null;
   const enabledCount = Object.values(automationDraft.stages || {}).filter((stage) => stage.enabled).length;
+  const automationDirty = automationDraftDirty(automationDraft, automation);
+  const intelligenceDirty = intelligenceDraftDirty(taskDraft, selectedTaskConfig);
+  const provenanceDirty = provenanceDraftDirty(provenanceDraft, provenance);
+  const dirtySections = [
+    automationDirty ? "Automation" : "",
+    intelligenceDirty ? "Intelligence" : "",
+    provenanceDirty ? "Provenance" : ""
+  ].filter(Boolean);
+  const selectedDraftProvider = providerList.find((provider) => provider.id === taskDraft.provider) || null;
+  const sectionItems = [
+    { id: "account", label: "Account", meta: health.status || "unknown" },
+    { id: "intelligence", label: "Intelligence", meta: `${taskEntries.length} routes` },
+    { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
+    { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
+    { id: "safety", label: "Safety", meta: dirtySections.length ? `${dirtySections.length} staged` : "clear" },
+    { id: "evidence", label: "Evidence", meta: latestSmoke?.status || provenanceStatus }
+  ];
   const updateStage = (stageId, changes) => {
+    setAutomationAction({ status: "idle", message: "", preview: null });
     setAutomationDraft((current) => ({
       ...current,
       stages: {
@@ -2571,101 +2683,392 @@ function SettingsPanel({
       }
     }));
   };
+  const updateTaskDraft = (changes) => {
+    setConfigAction({ status: "idle", message: "", preview: null });
+    setTaskDraft((draft) => ({ ...draft, ...changes }));
+  };
+  const updateSourceEnabled = (sourceId, checked) => {
+    setProvenanceAction({ status: "idle", message: "", preview: null });
+    setProvenanceDraft((current) => ({
+      ...current,
+      sourceEnabled: {
+        ...(current.sourceEnabled || {}),
+        [sourceId]: checked
+      }
+    }));
+  };
+  const updateProvenanceDraft = (changes) => {
+    setProvenanceAction({ status: "idle", message: "", preview: null });
+    setProvenanceDraft((current) => ({ ...current, ...changes }));
+  };
+  const discardDrafts = () => {
+    setAutomationDraft(automationDraftFromConfig(automation));
+    setTaskDraft(taskDraftFromConfig(selectedTaskConfig));
+    setProvenanceDraft(resetProvenanceDraftFromConfig(provenance));
+    setAutomationAction({ status: "idle", message: "", preview: null });
+    setConfigAction({ status: "idle", message: "", preview: null });
+    setProvenanceAction({ status: "idle", message: "", preview: null });
+  };
   return (
-    <div className="settings-grid">
-      <section className="intelligence-card settings-account-panel">
-        <p className="eyebrow">Account</p>
-        <h2>{automationDraft.profile || "default"}</h2>
-        <div className="editor-grid">
-          <label>
-            <span>Runtime profile</span>
-            <input value={automationDraft.profile || "default"} onChange={(event) => setAutomationDraft((current) => ({ ...current, profile: event.target.value }))} />
-          </label>
+    <div className="settings-workbench">
+      <section className="settings-status-header" aria-label="Configuration status">
+        <div>
+          <p className="eyebrow">Settings workbench</p>
+          <h2>{automationDraft.profile || provenanceDraft.activeProfile || "default"}</h2>
         </div>
-        <dl>
-          <dt>API</dt>
-          <dd>{health.status || "unknown"}</dd>
-          <dt>Store</dt>
-          <dd>{health.store_dir || "unknown"}</dd>
-          <dt>Automation config</dt>
-          <dd>{automation.config_path || "unknown"}</dd>
-          <dt>Automation state</dt>
-          <dd>{automation.exists ? "saved" : "defaults"}</dd>
+        <dl className="settings-status-grid">
+          <div>
+            <dt>API</dt>
+            <dd>{health.status || "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Store</dt>
+            <dd>{health.store_dir || "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Intelligence</dt>
+            <dd>{intelligenceConfig?.config_path || "defaults"}</dd>
+          </div>
+          <div>
+            <dt>Automation</dt>
+            <dd>{automation.config_path || "defaults"}</dd>
+          </div>
+          <div>
+            <dt>Provenance</dt>
+            <dd>{provenance?.config_path || "defaults"}</dd>
+          </div>
         </dl>
       </section>
 
-      <section className="intelligence-card settings-intelligence-panel">
-        <p className="eyebrow">Intelligence Settings</p>
-        <h2>{taskEntries.length} task routes</h2>
-        <p className="muted">{intelligenceConfig?.config_path || "No intelligence config path loaded."}</p>
-        <div className="task-table compact">
-          {taskEntries.slice(0, 8).map(([task, route]) => (
-            <article className="task-row" key={task}>
-              <strong>{statusLabel(task)}</strong>
-              <span>{route.provider}</span>
-              <small>{route.model || "provider default"} · {route.source}</small>
-            </article>
-          ))}
+      <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
+        <div>
+          <strong>{dirtySections.length ? `${dirtySections.length} staged section${dirtySections.length === 1 ? "" : "s"}` : "No staged config edits"}</strong>
+          <span>{dirtySections.length ? dirtySections.join(", ") : "Preview and Apply stay disabled until a section has local edits."}</span>
         </div>
-        <div className="notice-actions">
-          <button onClick={onOpenIntelligence} type="button">Open intelligence routing</button>
+        <div className="settings-dirty-actions">
+          {intelligenceDirty && <button onClick={onPreviewIntelligence} disabled={configAction.status === "running"} type="button">Preview intelligence</button>}
+          {automationDirty && <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation</button>}
+          {provenanceDirty && <button onClick={onPreviewProvenance} disabled={provenanceAction.status === "running"} type="button">Preview provenance</button>}
+          {configAction.preview && <button onClick={onApplyIntelligence} disabled={configAction.status === "applying"} type="button">Apply intelligence</button>}
+          {automationAction.preview && <button onClick={onApplyAutomation} disabled={automationAction.status === "applying"} type="button">Apply automation</button>}
+          {provenanceAction.preview && <button onClick={onApplyProvenance} disabled={provenanceAction.status === "applying"} type="button">Apply provenance</button>}
+          <button onClick={discardDrafts} disabled={!dirtySections.length} type="button">Discard draft</button>
         </div>
       </section>
 
-      <section className="intelligence-card settings-automation-panel">
-        <p className="eyebrow">Automation Settings</p>
-        <h2>{enabledCount} enabled stages</h2>
-        <div className="automation-stage-table">
-          {stages.map(([stageId, stage]) => {
-            const draft = automationDraft.stages?.[stageId] || {};
-            const capabilities = stage.capabilities || {};
-            return (
-              <article className={draft.enabled ? "automation-stage-row enabled" : "automation-stage-row"} key={stageId}>
-                <label className="checkbox-line">
-                  <input
-                    checked={Boolean(draft.enabled)}
-                    onChange={(event) => updateStage(stageId, { enabled: event.target.checked })}
-                    type="checkbox"
-                  />
-                  <span>{stage.label || statusLabel(stageId)}</span>
-                </label>
-                <select value={draft.mode || "manual"} onChange={(event) => updateStage(stageId, { mode: event.target.value })}>
-                  {modeChoices.map((mode) => (
-                    <option key={`${stageId}-${mode}`} value={mode}>{statusLabel(mode)}</option>
+      <div className="settings-workbench-body">
+        <nav className="settings-section-rail" aria-label="Settings sections">
+          {sectionItems.map((item) => (
+            <button
+              aria-pressed={activeSection === item.id}
+              className={activeSection === item.id ? "active" : ""}
+              key={item.id}
+              onClick={() => setActiveSection(item.id)}
+              type="button"
+            >
+              <span>{item.label}</span>
+              <strong>{item.meta}</strong>
+            </button>
+          ))}
+        </nav>
+
+        <section className="settings-section-surface">
+          {activeSection === "account" && (
+            <div className="settings-section-grid">
+              <div className="settings-panel-block">
+                <p className="eyebrow">Account</p>
+                <h2>{automationDraft.profile || "default"}</h2>
+                <div className="editor-grid">
+                  <label>
+                    <span>Runtime profile</span>
+                    <input value={automationDraft.profile || "default"} onChange={(event) => {
+                      setAutomationAction({ status: "idle", message: "", preview: null });
+                      setAutomationDraft((current) => ({ ...current, profile: event.target.value }));
+                    }} />
+                  </label>
+                  <label>
+                    <span>Provenance profile</span>
+                    <input value={provenanceDraft.activeProfile || "default"} onChange={(event) => updateProvenanceDraft({ activeProfile: event.target.value })} />
+                  </label>
+                </div>
+                <dl className="settings-detail-list">
+                  <dt>Automation state</dt>
+                  <dd>{automation.exists ? "saved" : "defaults"}</dd>
+                  <dt>Provenance doctor</dt>
+                  <dd>{provenanceStatus}</dd>
+                  <dt>Task routes</dt>
+                  <dd>{taskEntries.length}</dd>
+                </dl>
+              </div>
+              <div className="settings-panel-block">
+                <p className="eyebrow">Runtime roots</p>
+                <div className="settings-path-list">
+                  <code>{health.store_dir || "store unavailable"}</code>
+                  <code>{intelligenceConfig?.config_path || "intelligence config defaults"}</code>
+                  <code>{automation.config_path || "automation config defaults"}</code>
+                  <code>{provenance?.config_path || "provenance config defaults"}</code>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "intelligence" && (
+            <div className="settings-section-grid">
+              <div className="settings-panel-block">
+                <p className="eyebrow">Intelligence</p>
+                <h2>{statusLabel(selectedTask || "task route")}</h2>
+                <div className="editor-grid">
+                  <label>
+                    <span>Task</span>
+                    <select value={selectedTask} onChange={(event) => setSelectedTask(event.target.value)}>
+                      {taskEntries.map(([task]) => <option key={task} value={task}>{statusLabel(task)}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Provider</span>
+                    <select value={taskDraft.provider} onChange={(event) => updateTaskDraft({ provider: event.target.value })}>
+                      {[...new Set([taskDraft.provider, ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
+                        <option key={providerId} value={providerId}>{providerId}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Model</span>
+                    <input value={taskDraft.model} onChange={(event) => updateTaskDraft({ model: event.target.value })} placeholder="provider default" />
+                  </label>
+                  <label>
+                    <span>Timeout</span>
+                    <input type="number" value={taskDraft.timeout} onChange={(event) => updateTaskDraft({ timeout: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Temperature</span>
+                    <input type="number" step="0.1" value={taskDraft.temperature} onChange={(event) => updateTaskDraft({ temperature: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Fallbacks</span>
+                    <input value={taskDraft.fallbacks} onChange={(event) => updateTaskDraft({ fallbacks: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Human review</span>
+                    <input value={taskDraft.human_review} onChange={(event) => updateTaskDraft({ human_review: event.target.value })} />
+                  </label>
+                  <label className="checkbox-line">
+                    <input type="checkbox" checked={taskDraft.requires_ledger} onChange={(event) => updateTaskDraft({ requires_ledger: event.target.checked })} />
+                    <span>Requires run ledger</span>
+                  </label>
+                </div>
+                <div className="notice-actions">
+                  <button onClick={onPreviewIntelligence} disabled={!intelligenceDirty || configAction.status === "running"} type="button">Preview intelligence update</button>
+                  <button onClick={onApplyIntelligence} disabled={!configAction.preview || configAction.status === "applying"} type="button">Apply with approval</button>
+                  <button onClick={onOpenIntelligence} type="button">Open full Intelligence</button>
+                </div>
+                {configAction.message && <div className={`action-notice ${configAction.status}`}><strong>{configAction.message}</strong></div>}
+              </div>
+              <div className="settings-panel-block">
+                <p className="eyebrow">Route map</p>
+                <h2>{selectedDraftProvider?.label || taskDraft.provider || "No provider"}</h2>
+                <div className="task-table compact">
+                  {taskEntries.map(([task, route]) => (
+                    <button className={task === selectedTask ? "task-row active" : "task-row"} key={task} onClick={() => setSelectedTask(task)} type="button">
+                      <strong>{statusLabel(task)}</strong>
+                      <span>{route.provider}</span>
+                      <small>{route.model || "provider default"} · {route.source}</small>
+                    </button>
                   ))}
-                </select>
-                <label className="checkbox-line compact">
-                  <input
-                    checked={draft.requires_review !== false}
-                    onChange={(event) => updateStage(stageId, { requires_review: event.target.checked })}
-                    type="checkbox"
-                  />
-                  <span>Review</span>
-                </label>
-                <span className={capabilities.automatic_available ? "risk-badge read-only" : "risk-badge write-bearing"}>
-                  {capabilities.automatic_available ? "auto-ready" : capabilities.one_click_available ? "one-click" : "manual"}
-                </span>
-              </article>
-            );
-          })}
-        </div>
-        <div className="notice-actions">
-          <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation update</button>
-          <button onClick={onApplyAutomation} disabled={!automationAction.preview || automationAction.status === "applying"} type="button">Apply with approval</button>
-        </div>
-        {automationAction.message && (
-          <div className={`action-notice ${automationAction.status}`}>
-            <strong>{automationAction.message}</strong>
-            {automationAction.preview && (
-              <code>{JSON.stringify({
-                will_write: automationAction.preview.will_write,
-                will_execute_workflow_stage: automationAction.preview.will_execute_workflow_stage,
-                requires_approval_token: automationAction.preview.requires_approval_token
-              }, null, 2)}</code>
-            )}
-          </div>
-        )}
-      </section>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "automation" && (
+            <div className="settings-panel-block">
+              <p className="eyebrow">Automation</p>
+              <h2>{enabledCount} enabled stages</h2>
+              <div className="automation-stage-table settings-automation-table">
+                {stages.map(([stageId, stage]) => {
+                  const draft = automationDraft.stages?.[stageId] || {};
+                  const capabilities = stage.capabilities || {};
+                  return (
+                    <article className={draft.enabled ? "automation-stage-row enabled" : "automation-stage-row"} key={stageId}>
+                      <label className="checkbox-line">
+                        <input
+                          checked={Boolean(draft.enabled)}
+                          onChange={(event) => updateStage(stageId, { enabled: event.target.checked })}
+                          type="checkbox"
+                        />
+                        <span>{stage.label || statusLabel(stageId)}</span>
+                      </label>
+                      <select value={draft.mode || "manual"} onChange={(event) => updateStage(stageId, { mode: event.target.value })}>
+                        {modeChoices.map((mode) => (
+                          <option key={`${stageId}-${mode}`} value={mode}>{statusLabel(mode)}</option>
+                        ))}
+                      </select>
+                      <label className="checkbox-line compact">
+                        <input
+                          checked={draft.requires_review !== false}
+                          onChange={(event) => updateStage(stageId, { requires_review: event.target.checked })}
+                          type="checkbox"
+                        />
+                        <span>Review</span>
+                      </label>
+                      <span className={capabilities.automatic_available ? "risk-badge read-only" : "risk-badge write-bearing"}>
+                        {capabilities.automatic_available ? "auto-ready" : capabilities.one_click_available ? "one-click" : "manual"}
+                      </span>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="notice-actions">
+                <button onClick={onPreviewAutomation} disabled={!automationDirty || automationAction.status === "running"} type="button">Preview automation update</button>
+                <button onClick={onApplyAutomation} disabled={!automationAction.preview || automationAction.status === "applying"} type="button">Apply with approval</button>
+              </div>
+              {automationAction.message && (
+                <div className={`action-notice ${automationAction.status}`}>
+                  <strong>{automationAction.message}</strong>
+                  {automationAction.preview && (
+                    <code>{JSON.stringify({
+                      will_write: automationAction.preview.will_write,
+                      will_execute_workflow_stage: automationAction.preview.will_execute_workflow_stage,
+                      requires_approval_token: automationAction.preview.requires_approval_token
+                    }, null, 2)}</code>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSection === "provenance" && (
+            <div className="settings-section-grid">
+              <div className="settings-panel-block">
+                <p className="eyebrow">Provenance</p>
+                <h2>{enabledSourceCount} enabled sources</h2>
+                <div className="source-toggle-list">
+                  {sources.map(([sourceId, source]) => {
+                    const checked = provenanceDraft.sourceEnabled?.[sourceId] ?? source.enabled !== false;
+                    return (
+                      <label className="source-toggle-row" key={sourceId}>
+                        <input checked={checked} onChange={(event) => updateSourceEnabled(sourceId, event.target.checked)} type="checkbox" />
+                        <span>
+                          <strong>{source.label || sourceId}</strong>
+                          <small>{sourceId}</small>
+                        </span>
+                        <em>{statusLabel(source.kind)}</em>
+                      </label>
+                    );
+                  })}
+                  {!sources.length && <p className="muted">No provenance sources are configured.</p>}
+                </div>
+                <div className="notice-actions">
+                  <button onClick={onPreviewProvenance} disabled={!provenanceDirty || provenanceAction.status === "running"} type="button">Preview provenance update</button>
+                  <button onClick={onApplyProvenance} disabled={!provenanceAction.preview || provenanceAction.status === "applying"} type="button">Apply with approval</button>
+                  <button onClick={onRefreshProvenance} disabled={provenanceAction.status === "refreshing"} type="button">Refresh config</button>
+                  <button onClick={onOpenProvenance} type="button">Open Provenance tab</button>
+                </div>
+                {provenanceAction.message && <div className={`action-notice ${provenanceAction.status}`}><strong>{provenanceAction.message}</strong></div>}
+              </div>
+              <div className="settings-panel-block">
+                <p className="eyebrow">iCal draft</p>
+                <h2>{provenanceDraft.newIcalLabel || "Add feed"}</h2>
+                <div className="editor-grid">
+                  <label>
+                    <span>Source id</span>
+                    <input value={provenanceDraft.newIcalId} onChange={(event) => updateProvenanceDraft({ newIcalId: event.target.value })} placeholder="ical-saber-zoho" />
+                  </label>
+                  <label>
+                    <span>Label</span>
+                    <input value={provenanceDraft.newIcalLabel} onChange={(event) => updateProvenanceDraft({ newIcalLabel: event.target.value })} placeholder="SABER Zoho" />
+                  </label>
+                  <label className="wide-field">
+                    <span>URL or env ref</span>
+                    <input value={provenanceDraft.newIcalUrl} onChange={(event) => updateProvenanceDraft({ newIcalUrl: event.target.value })} placeholder="env:SABER_ICAL_URL" />
+                  </label>
+                </div>
+                <div className="settings-chip-row">
+                  {Object.entries(provenanceCounts).map(([kind, count]) => <span className="status-chip" key={kind}>{statusLabel(kind)} {count}</span>)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "safety" && (
+            <div className="settings-section-grid">
+              <div className="settings-panel-block">
+                <p className="eyebrow">Safety gates</p>
+                <h2>{dirtySections.length ? `${dirtySections.length} staged changes` : "Clear"}</h2>
+                <div className="settings-safety-list">
+                  <article>
+                    <strong>Intelligence apply</strong>
+                    <span>APPLY_INTELLIGENCE_CONFIG_UPDATE</span>
+                    <small>Writes user-scoped config only; no model turn is sent.</small>
+                  </article>
+                  <article>
+                    <strong>Automation apply</strong>
+                    <span>APPLY_AUTOMATION_CONFIG_UPDATE</span>
+                    <small>Must return will_execute_workflow_stage=false.</small>
+                  </article>
+                  <article>
+                    <strong>Provenance apply</strong>
+                    <span>APPLY_PROVENANCE_CONFIG_UPDATE</span>
+                    <small>Writes config only; no contact/calendar refresh starts.</small>
+                  </article>
+                </div>
+              </div>
+              <div className="settings-panel-block">
+                <p className="eyebrow">Preview flags</p>
+                <h2>Latest safety evidence</h2>
+                <div className="settings-preview-stack">
+                  <code>{JSON.stringify({
+                    automation_preview: automationAction.preview ? {
+                      will_write: automationAction.preview.will_write,
+                      will_execute_workflow_stage: automationAction.preview.will_execute_workflow_stage,
+                      requires_approval_token: automationAction.preview.requires_approval_token
+                    } : "not previewed",
+                    intelligence_preview: configAction.preview ? {
+                      will_write: configAction.preview.will_write,
+                      requires_approval_token: configAction.preview.requires_approval_token
+                    } : "not previewed",
+                    provenance_preview: provenanceAction.preview ? {
+                      will_write: provenanceAction.preview.will_write,
+                      requires_approval_token: provenanceAction.preview.requires_approval_token
+                    } : "not previewed"
+                  }, null, 2)}</code>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "evidence" && (
+            <div className="settings-section-grid">
+              <div className="settings-panel-block">
+                <p className="eyebrow">Evidence</p>
+                <h2>{latestSmoke ? `${latestSmoke.status || "unknown"} latest smoke` : "No smoke evidence"}</h2>
+                <dl className="settings-detail-list">
+                  <dt>Provenance doctor</dt>
+                  <dd>{provenanceStatus}</dd>
+                  <dt>Smoke report</dt>
+                  <dd>{latestSmoke?.path || "not yet run"}</dd>
+                  <dt>Smoke screenshot</dt>
+                  <dd>{latestSmoke?.screenshot_exists ? latestSmoke.screenshot_path : "not yet run"}</dd>
+                  <dt>Baseline desktop</dt>
+                  <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-desktop.png</dd>
+                  <dt>Baseline mobile</dt>
+                  <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-mobile.png</dd>
+                </dl>
+              </div>
+              <div className="settings-panel-block">
+                <p className="eyebrow">Readiness</p>
+                <h2>Config surface</h2>
+                <div className="settings-chip-row">
+                  <span className="status-chip">{taskEntries.length} intelligence routes</span>
+                  <span className="status-chip">{stages.length} automation stages</span>
+                  <span className="status-chip">{sources.length} provenance sources</span>
+                  <span className="status-chip">{provenanceStatus}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

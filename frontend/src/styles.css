@@ -960,6 +960,231 @@ td small {
   grid-column: 1 / -1;
 }
 
+.settings-workbench {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.settings-status-header,
+.settings-dirty-bar,
+.settings-panel-block,
+.settings-section-rail {
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 8px;
+  background: rgba(27, 29, 24, 0.9);
+}
+
+.settings-status-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+  padding: 0.9rem;
+}
+
+.settings-status-header h2,
+.settings-panel-block h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  letter-spacing: 0;
+}
+
+.settings-status-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.settings-status-grid div {
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.settings-status-grid dt,
+.settings-detail-list dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.settings-status-grid dd,
+.settings-detail-list dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-dirty-bar {
+  position: sticky;
+  top: 4.1rem;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+}
+
+.settings-dirty-bar.dirty {
+  border-color: rgba(215, 255, 115, 0.32);
+  background: rgba(32, 35, 28, 0.97);
+}
+
+.settings-dirty-bar strong,
+.settings-dirty-bar span {
+  display: block;
+}
+
+.settings-dirty-bar span {
+  color: var(--muted);
+}
+
+.settings-dirty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.settings-dirty-actions button {
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 6px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--ink);
+  padding: 0.48rem 0.65rem;
+  white-space: nowrap;
+}
+
+.settings-dirty-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.settings-workbench-body {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.settings-section-rail {
+  position: sticky;
+  top: 8.6rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem;
+}
+
+.settings-section-rail button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  padding: 0.55rem 0.6rem;
+  text-align: left;
+}
+
+.settings-section-rail button.active {
+  background: rgba(215, 255, 115, 0.1);
+  color: var(--accent);
+}
+
+.settings-section-rail strong {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.settings-section-surface,
+.settings-section-grid,
+.settings-panel-block,
+.settings-path-list,
+.settings-safety-list,
+.settings-preview-stack {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.settings-section-grid {
+  grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.86fr);
+  align-items: start;
+}
+
+.settings-panel-block {
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.settings-workbench .editor-grid label span {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.settings-workbench .editor-grid input,
+.settings-workbench .editor-grid select,
+.settings-automation-table select {
+  border-radius: 6px;
+}
+
+.settings-detail-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.settings-path-list code,
+.settings-preview-stack code {
+  display: block;
+  padding: 0.55rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.settings-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.status-chip {
+  border: 1px solid rgba(127, 183, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(127, 183, 255, 0.1);
+  color: #bcd8ff;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.settings-safety-list article {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.settings-safety-list span {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.settings-safety-list small {
+  color: var(--muted);
+}
+
 .intelligence-card {
   padding: 1.1rem;
   border: 1px solid rgba(244, 236, 216, 0.1);
@@ -2510,12 +2735,35 @@ dd {
   .intelligence-grid,
   .provenance-grid,
   .settings-grid,
+  .settings-status-header,
+  .settings-status-grid,
+  .settings-dirty-bar,
+  .settings-workbench-body,
+  .settings-section-grid,
   .automation-stage-row,
   .editor-grid,
   .test-status-strip,
   .conversation-workspace-body,
   .conversation-modal-grid {
     grid-template-columns: 1fr;
+  }
+
+  .settings-dirty-bar {
+    top: auto;
+    bottom: 0;
+  }
+
+  .settings-dirty-actions {
+    justify-content: flex-start;
+  }
+
+  .settings-section-rail {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-section-rail button {
+    min-height: 44px;
   }
 
   .conversation-rail {
