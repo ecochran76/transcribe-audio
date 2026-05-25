@@ -5,13 +5,12 @@ import "./styles.css";
 const NAV_ITEMS = [
   { id: "Library", label: "Library", enabled: true },
   { id: "Review Queue", label: "Review Queue", enabled: true },
-  { id: "Context Runs", label: "Context Runs", enabled: false },
-  { id: "Contacts", label: "Contacts", enabled: false },
   { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Intelligence", label: "Intelligence", enabled: true },
-  { id: "Depositions", label: "Depositions", enabled: false },
   { id: "Settings", label: "Settings", enabled: true }
 ];
+
+const PRIMARY_NAV_ITEMS = NAV_ITEMS.filter((item) => ["Library", "Review Queue"].includes(item.id));
 
 const LIBRARY_KIND_FILTERS = [
   { id: "all", label: "All artifacts" },
@@ -702,7 +701,7 @@ async function postJson(path, payload) {
 function App() {
   const [initialUrlState] = useState(readInitialUrlState);
   const [activeNav, setActiveNav] = useState(initialUrlState.activeNav);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(initialUrlState.activeNav === "Library");
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftPaneWidth, setLeftPaneWidth] = useState(300);
   const [rightPaneWidth, setRightPaneWidth] = useState(380);
@@ -763,6 +762,7 @@ function App() {
   const [conversationOpen, setConversationOpen] = useState(initialUrlState.conversationOpen);
   const [activeWorkflowView, setActiveWorkflowView] = useState(initialUrlState.activeWorkflowView);
   const [shareAction, setShareAction] = useState({ status: "idle", message: "", url: "" });
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -817,6 +817,26 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setLeftCollapsed(activeNav === "Library");
+  }, [activeNav]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const closeFromPointer = (event) => {
+      if (!event.target.closest(".account-menu-wrap")) setAccountMenuOpen(false);
+    };
+    const closeFromKeyboard = (event) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeFromPointer);
+    window.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromPointer);
+      window.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     const sourceEnabled = {};
@@ -1368,7 +1388,7 @@ function App() {
     setSelectedId(documentId);
     setActiveWorkflowView(workflowViewForStage(item.workflow_stage));
     setConversationOpen(true);
-    setActiveNav("Library");
+    openAppView("Library");
   }
 
   async function recordHumanReviewDecision(item, reviewActionName) {
@@ -1819,6 +1839,11 @@ function App() {
     }
   }
 
+  function openAppView(view) {
+    setActiveNav(view);
+    setAccountMenuOpen(false);
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -1826,34 +1851,57 @@ function App() {
           <span className="brand-mark">tr</span>
           <div>
             <strong>Transcript Console</strong>
-            <small>{health.status === "ok" ? "live local API" : "redacted preview mode"}</small>
+            <small>{health.status === "ok" ? "Local API live" : "Preview data"}</small>
           </div>
         </div>
         <nav className="nav-tabs" aria-label="Primary">
-          {NAV_ITEMS.map((item) => (
+          {PRIMARY_NAV_ITEMS.map((item) => (
             <button
               className={activeNav === item.id ? "active" : ""}
               aria-current={activeNav === item.id ? "page" : undefined}
-              disabled={!item.enabled}
               key={item.id}
-              onClick={() => item.enabled && setActiveNav(item.id)}
-              title={item.enabled ? "" : `${item.label} is planned and not wired yet.`}
+              onClick={() => openAppView(item.id)}
               type="button"
             >
               {item.label}
-              {!item.enabled && <span>planned</span>}
             </button>
           ))}
         </nav>
-        <label className="global-search">
-          <span>Search</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="meeting, person, matter..." />
-        </label>
+        <div className="account-menu-wrap">
+          <button
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
+            className="account-chip"
+            onClick={() => setAccountMenuOpen((open) => !open)}
+            type="button"
+          >
+            <span className="account-avatar" aria-hidden="true">EC</span>
+            <span>
+              <strong>{automationDraft.profile || provenanceDraft.activeProfile || "default"}</strong>
+              <small>{health.status === "ok" ? "connected" : "preview"}</small>
+            </span>
+          </button>
+          {accountMenuOpen ? (
+            <div className="account-menu" role="menu" aria-label="Account and settings">
+              <div className="account-menu-heading">
+                <strong>Account</strong>
+                <small>{health.store_dir || "runtime unavailable"}</small>
+              </div>
+              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Settings</button>
+              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Account management</button>
+              <button role="menuitem" onClick={() => openAppView("Provenance")} type="button">Integrations / provenance</button>
+              <button role="menuitem" onClick={() => openAppView("Intelligence")} type="button">Intelligence</button>
+              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Automation</button>
+              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Runtime status</button>
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <section
         className={[
           "workspace",
+          activeNav === "Library" ? "library-workspace" : "",
           leftCollapsed ? "left-collapsed" : "",
           rightCollapsed ? "right-collapsed" : ""
         ].join(" ")}
@@ -1879,7 +1927,7 @@ function App() {
           )}
           <div className="pane-content">
             <p className="eyebrow">{activeNav}</p>
-            <h2>Workflow filters</h2>
+            <h2>{activeNav === "Library" ? "Filters" : "Workflow filters"}</h2>
             {activeNav === "Intelligence" ? (
               <div className="filter-card task-filter">
                 <span>Task routing</span>
@@ -1897,7 +1945,7 @@ function App() {
                   Account
                   <strong>{health.status || "unknown"}</strong>
                 </button>
-                <button type="button" onClick={() => setActiveNav("Intelligence")}>
+                <button type="button" onClick={() => openAppView("Intelligence")}>
                   Intelligence
                   <strong>{taskEntries.length}</strong>
                 </button>
@@ -1922,6 +1970,18 @@ function App() {
                   </button>
                 )}
               </div>
+            ) : activeNav === "Library" ? (
+              <>
+                <div className="filter-card">
+                  <span>Review buckets</span>
+                  {reviewBuckets.map((bucket) => (
+                    <button key={bucket.id || bucket.label} type="button">
+                      {bucket.label}
+                      <strong>{bucket.count}</strong>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
               <>
                 <div className="filter-card">
@@ -1983,13 +2043,21 @@ function App() {
               {activeNav === "Provenance" && <span>{provenanceStatus}</span>}
               {activeNav === "Settings" && <span>{automationStageEntries(automation).length} automation stages</span>}
               {activeNav === "Settings" && <span>{automation.exists ? "config saved" : "defaults"}</span>}
-              {activeNav === "Library" && (
-                <button className="share-link-button" onClick={copyCurrentWorkspaceUrl} type="button">
-                  Copy workspace link
-                </button>
-              )}
             </div>
           </div>
+          {activeNav === "Library" ? (
+            <LibraryToolbar
+              filterOpen={!leftCollapsed}
+              kindFilter={kindFilter}
+              libraryItems={library.items || []}
+              onCopyWorkspaceUrl={copyCurrentWorkspaceUrl}
+              onSetKindFilter={setKindFilter}
+              onToggleFilters={() => setLeftCollapsed((value) => !value)}
+              query={query}
+              reviewCount={reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)}
+              setQuery={setQuery}
+            />
+          ) : null}
           {activeNav === "Library" && shareAction.message ? (
             <div className={`share-link-notice ${shareAction.status}`} role="status">
               <span>{shareAction.message}</span>
@@ -2003,17 +2071,34 @@ function App() {
               )}
             </div>
           ) : null}
-          <TestStatusStrip
-            activeNav={activeNav}
-            apiStatus={health.status}
-            kindFilter={kindFilter}
-            query={query}
-            visibleCount={activeNav === "Library" ? visibleConversationRows.length : visibleItems.length}
-            totalCount={activeNav === "Library" ? totalConversationCount : library.total ?? (library.items || []).length}
-            latestSmoke={intelligence.smokes?.latest_report}
-            latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
-            provenanceStatus={provenanceStatus}
-          />
+          {activeNav === "Library" ? (
+            <details className="diagnostics-disclosure">
+              <summary>Diagnostics</summary>
+              <TestStatusStrip
+                activeNav={activeNav}
+                apiStatus={health.status}
+                kindFilter={kindFilter}
+                query={query}
+                visibleCount={visibleConversationRows.length}
+                totalCount={totalConversationCount}
+                latestSmoke={intelligence.smokes?.latest_report}
+                latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
+                provenanceStatus={provenanceStatus}
+              />
+            </details>
+          ) : (
+            <TestStatusStrip
+              activeNav={activeNav}
+              apiStatus={health.status}
+              kindFilter={kindFilter}
+              query={query}
+              visibleCount={visibleItems.length}
+              totalCount={library.total ?? (library.items || []).length}
+              latestSmoke={intelligence.smokes?.latest_report}
+              latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
+              provenanceStatus={provenanceStatus}
+            />
+          )}
 
           {activeNav === "Review Queue" ? (
             <ReviewQueue
@@ -2089,8 +2174,8 @@ function App() {
               onApplyIntelligence={applyConfigUpdate}
               onApplyAutomation={applyAutomationUpdate}
               onApplyProvenance={applyProvenanceUpdate}
-              onOpenIntelligence={() => setActiveNav("Intelligence")}
-              onOpenProvenance={() => setActiveNav("Provenance")}
+              onOpenIntelligence={() => openAppView("Intelligence")}
+              onOpenProvenance={() => openAppView("Provenance")}
               onPreviewIntelligence={previewConfigUpdate}
               onPreviewAutomation={previewAutomationUpdate}
               onPreviewProvenance={previewProvenanceUpdate}
@@ -2196,6 +2281,59 @@ function App() {
         />
       ) : null}
     </main>
+  );
+}
+
+function LibraryToolbar({
+  filterOpen,
+  kindFilter,
+  libraryItems,
+  onCopyWorkspaceUrl,
+  onSetKindFilter,
+  onToggleFilters,
+  query,
+  reviewCount,
+  setQuery
+}) {
+  return (
+    <section className="library-toolbar" aria-label="Library search and filters">
+      <label className="library-search">
+        <span>Search library</span>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="meeting, person, matter..."
+        />
+      </label>
+      <div className="library-kind-controls" aria-label="Artifact kind">
+        {LIBRARY_KIND_FILTERS.map((filter) => (
+          <button
+            aria-pressed={kindFilter === filter.id}
+            className={kindFilter === filter.id ? "selected-filter" : ""}
+            key={filter.id}
+            onClick={() => onSetKindFilter(filter.id)}
+            type="button"
+          >
+            <span>{filter.label}</span>
+            <strong>{filterCount(libraryItems, filter.id)}</strong>
+          </button>
+        ))}
+      </div>
+      <div className="library-toolbar-actions">
+        <button
+          aria-expanded={filterOpen}
+          className="toolbar-secondary"
+          onClick={onToggleFilters}
+          type="button"
+        >
+          {filterOpen ? "Hide filters" : "Filters"}
+          <strong>{reviewCount}</strong>
+        </button>
+        <button className="share-link-button" onClick={onCopyWorkspaceUrl} type="button">
+          Copy workspace link
+        </button>
+      </div>
+    </section>
   );
 }
 

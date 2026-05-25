@@ -106,14 +106,14 @@ def run_smoke(
   const text = document.body.innerText;
   const lowerText = text.toLowerCase();
   const url = new URL(window.location.href);
-  const activeFilterText = [...document.querySelectorAll('.filter-card button[aria-pressed="true"]')]
+  const activeFilterText = [...document.querySelectorAll('.library-kind-controls button[aria-pressed="true"], .filter-card button[aria-pressed="true"]')]
     .map((item) => item.textContent.toLowerCase())
     .join(' ');
   return {{
     hasLibrary: text.includes('Transcript library'),
     hasConversationWorkspace: lowerText.includes('conversation workspace'),
     hasWorkflow: lowerText.includes('context workbench'),
-    queryValue: document.querySelector('.global-search input')?.value || '',
+    queryValue: document.querySelector('.library-search input, .global-search input')?.value || '',
     kindFilterPressed: activeFilterText.includes({json.dumps(kind.lower())})
       || ({json.dumps(kind)} === 'readout' && activeFilterText.includes('summaries')),
     activeFilterText,

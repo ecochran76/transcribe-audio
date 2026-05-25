@@ -2,6 +2,101 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 204 | 2026-05-25
+
+Summary: Completed Plan 0018, the landing page navigation and layout redesign.
+
+Findings:
+
+- The Plan 0018 audit was accurate: root navigation mixed workflow and admin
+  concepts, search belonged to the Library workbench, and mobile buried the
+  table behind header and filters.
+- The refactor did not require backend API changes; existing URL state and
+  conversation search endpoints could be reused.
+- `agent-browser` initially captured fallback rows during a service restart;
+  recapturing after health stabilized produced live Library counts and row
+  evidence.
+
+Changes:
+
+- Reduced primary nav to workflow destinations: `Library` and `Review Queue`.
+- Added an upper-right account chip/menu with Settings, Account management,
+  Integrations/provenance, Intelligence, Automation, and Runtime status.
+- Moved search and artifact-kind controls into a Library toolbar.
+- Collapsed Library filters by default and made them open from the toolbar.
+- Reworked responsive layout so mobile shows the Library content before
+  filters and inspector.
+- Updated `scripts/smoke_library_deeplink_share_ui.py` for the new Library
+  search and kind controls.
+- Closed Plan 0018 and updated P09 roadmap state.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile transcript_api.py intelligence_config.py
+  automation_config.py provenance_config.py` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py -q` passed with
+  52 tests.
+- `.venv/bin/python -m pytest -q` passed with 243 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `scripts/smoke_library_deeplink_share_ui.py` passed and wrote
+  `~/.local/state/transcribe-audio/browser-smokes/20260525T213630Z-library-share-ui-smoke.json`.
+- `agent-browser` captured:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0018-landing-desktop-final.png`,
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0018-landing-mobile-final.png`,
+  and
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0018-account-menu.png`.
+- Browser metrics verified desktop first row at y=387, mobile topbar 113px,
+  mobile center pane y=125, mobile table y=599, mobile first row y=661, no
+  global search, Library search present, filters hidden by default, and primary
+  nav limited to `Library` and `Review Queue`.
+- Account-menu snapshot showed Settings, Account management,
+  Integrations/provenance, Intelligence, Automation, and Runtime status.
+- Library filter interaction showed the filter pane opens on demand.
+- `agent-browser` console/error checks reported no page errors.
+
+## Turn 203 | 2026-05-25
+
+Summary: Audited the current root landing page and opened Plan 0018 for navigation/layout redesign.
+
+Findings:
+
+- The current root Library page is a dense console surface: brand, eight nav
+  pills, disabled planned destinations, global search, filters, Library table,
+  operator status, and inspector all compete in the first desktop viewport.
+- Settings are exposed as a top-level nav item, while app-standard account and
+  configuration affordances are missing from the upper-right chrome.
+- Search is implemented as a global topbar control, but the actual user model
+  is Library/workbench search.
+- At 390x844, `agent-browser` measured the topbar at about 196px high, the
+  main Library work surface starting around y=1014, and the inspector around
+  y=9923; the first mobile viewport is mostly header and filters.
+- Graphiti discovery was healthy but stale for this recent P09 UI work, so the
+  current source, roadmap, runbook, and browser screenshots are authoritative.
+
+Changes:
+
+- Added `docs/dev/plans/0018-2026-05-25-landing-page-navigation-redesign.md`.
+- Wired Plan 0018 into P09 in `ROADMAP.md`.
+
+Validation:
+
+- Read the UI audit and agent-browser skills plus the repo planning,
+  architecture, and memory/context policies.
+- Ran `~/.local/bin/graphiti-runtime doctor`; Graphiti was healthy.
+- Ran `~/.local/bin/graphiti-runtime discover --group-id transcribe_audio_main`
+  for P09 navigation/settings/search context; useful results were older than
+  current repo planning state.
+- Used `agent-browser` against `http://transcripts.localhost/` and captured:
+  `~/.local/state/transcribe-audio/ui-audits/2026-05-25-landing-desktop.png`
+  and
+  `~/.local/state/transcribe-audio/ui-audits/2026-05-25-landing-mobile.png`.
+- Verified the screenshots are PNG files at 1440x1100 and 390x844.
+- `agent-browser` console/error checks reported no page errors.
+- No frontend implementation code was changed.
+
 ## Turn 202 | 2026-05-25
 
 Summary: Completed Plan 0017, the Settings config workbench implementation.
