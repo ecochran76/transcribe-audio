@@ -3527,6 +3527,7 @@ function LibraryTable({
   onSelect
 }) {
   const [columnWidths, setColumnWidths] = useState(DEFAULT_LIBRARY_COLUMN_WIDTHS);
+  const tableMinWidth = Object.values(columnWidths).reduce((sum, width) => sum + width, 0);
   const status = searchStatus?.status || "idle";
   const statusMessage = searchStatus?.message || "";
   const showLoading = status === "loading";
@@ -3579,7 +3580,7 @@ function LibraryTable({
 
   return (
     <div className="table-shell">
-      <table className="conversation-table">
+      <table className="conversation-table" style={{ minWidth: `${tableMinWidth}px` }}>
         <colgroup>
           <col style={{ width: `${columnWidths.conversation}px` }} />
           <col style={{ width: `${columnWidths.workflow}px` }} />

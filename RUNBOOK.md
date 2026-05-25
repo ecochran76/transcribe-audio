@@ -2,6 +2,43 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 205 | 2026-05-25
+
+Summary: Fixed the Library conversation table width regression from the Plan
+0018 landing-page refactor.
+
+Findings:
+
+- At wide desktop viewports, `.conversation-table` kept `width: max-content`
+  from the resizable-column implementation, so the table stayed near the
+  default column-width total while its containing section grew wider.
+- `agent-browser` measured a 1920px viewport with a 1458px table shell and a
+  1090px table before the fix.
+
+Changes:
+
+- Kept the Library table at `width: 100%` while setting its minimum width from
+  the current resizable column-width total.
+- Made `.table-shell` explicitly fill its containing section.
+- Added a Library share/deep-link smoke assertion that the rendered table fills
+  the table shell.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/smoke_library_deeplink_share_ui.py` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `agent-browser` measured the fixed 1920px layout with a 1458px bordered
+  table shell and a 1456px table content width.
+- `scripts/smoke_library_deeplink_share_ui.py --viewport 1920x1100` passed
+  with `layout_tableShellWidth=1456`, `layout_tableWidth=1456`, and
+  `layout_tableFillsShell=true`; report:
+  `~/.local/state/transcribe-audio/browser-smokes/20260525T223249Z-library-share-ui-smoke.json`.
+- `agent-browser` console/error checks reported no page errors for the smoke
+  session.
+
 ## Turn 204 | 2026-05-25
 
 Summary: Completed Plan 0018, the landing page navigation and layout redesign.

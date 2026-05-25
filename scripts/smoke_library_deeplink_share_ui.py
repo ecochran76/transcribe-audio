@@ -140,6 +140,24 @@ def run_smoke(
 """.strip(),
     )
     run_agent_browser(agent_browser_bin, session, profile, ["wait", "500"])
+    layout_checks = eval_js(
+        agent_browser_bin,
+        session,
+        profile,
+        """
+(() => {
+  const shell = document.querySelector('.table-shell');
+  const table = document.querySelector('.conversation-table');
+  const shellWidth = shell?.clientWidth || 0;
+  const tableWidth = table?.getBoundingClientRect().width || 0;
+  return {
+    tableShellWidth: Math.round(shellWidth),
+    tableWidth: Math.round(tableWidth),
+    tableFillsShell: tableWidth + 1 >= shellWidth
+  };
+})()
+""".strip(),
+    )
     click_share = eval_js(agent_browser_bin, session, profile, click_button_js("Copy workspace link", contains="Copy workspace link"))
     run_agent_browser(agent_browser_bin, session, profile, ["wait", "500"])
     share_checks = eval_js(
@@ -177,6 +195,7 @@ def run_smoke(
 
     checks = {
         **{f"modal_{key}": value for key, value in modal_checks.items()},
+        **{f"layout_{key}": value for key, value in layout_checks.items()},
         **{f"share_{key}": value for key, value in share_checks.items()},
         "share_flow_ok": share_ok,
     }
@@ -190,6 +209,7 @@ def run_smoke(
         "modal_urlQuery": query,
         "modal_urlConversation": "1",
         "modal_urlWorkflow": workflow,
+        "layout_tableFillsShell": True,
         "share_hasShareButton": True,
         "share_flow_ok": True,
     }
