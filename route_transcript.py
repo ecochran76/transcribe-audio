@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+import provenance_config
 from context_sources import (
     GraphitiProvenanceConfig,
     GwsProvenanceConfig,
@@ -55,6 +56,12 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Do not write a local review queue item even when review is required.",
     )
     parser.add_argument("--gws-provenance", action="store_true", help="Collect read-only provenance through gws.")
+    provenance_config.add_cli_args(parser)
+    parser.add_argument(
+        "--configured-provenance",
+        action="store_true",
+        help="Collect read-only gws/Odollo provenance from the shared provenance config.",
+    )
     parser.add_argument(
         "--gws-config-dir",
         type=Path,
@@ -172,19 +179,30 @@ def generate_route(args: argparse.Namespace) -> tuple[Path, Optional[Path]]:
     readout_path = args.readout.expanduser().resolve()
     transcript = load_json_object(transcript_path)
     readout = load_json_object(readout_path)
-    gws_sources = collect_gws_provenance(
-        transcript,
-        readout,
-        config=GwsProvenanceConfig(
-            enabled=args.gws_provenance,
-            config_dir=args.gws_config_dir,
-            drive_query=args.gws_drive_query or "",
-            drive_page_size=args.gws_drive_page_size,
-            timeout=args.gws_timeout,
-            include_calendar_details=not args.no_gws_calendar_details,
-            include_drive_search=not args.no_gws_drive,
-        ),
+    configured_context = (
+        provenance_config.context_source_configs_from_provenance(
+            path=args.provenance_config,
+            profile=args.provenance_profile,
+        )
+        if args.configured_provenance or args.provenance_config or args.provenance_profile
+        else {"gws": [], "odollo": []}
     )
+    gws_configs = list(configured_context.get("gws") or [])
+    if args.gws_provenance or not gws_configs:
+        gws_configs.append(
+            GwsProvenanceConfig(
+                enabled=args.gws_provenance,
+                config_dir=args.gws_config_dir,
+                drive_query=args.gws_drive_query or "",
+                drive_page_size=args.gws_drive_page_size,
+                timeout=args.gws_timeout,
+                include_calendar_details=not args.no_gws_calendar_details,
+                include_drive_search=not args.no_gws_drive,
+            )
+        )
+    gws_sources = []
+    for gws_config in gws_configs:
+        gws_sources.extend(collect_gws_provenance(transcript, readout, config=gws_config))
     graphiti_sources = collect_graphiti_provenance(
         transcript,
         readout,
@@ -198,21 +216,24 @@ def generate_route(args: argparse.Namespace) -> tuple[Path, Optional[Path]]:
             max_episodes=args.graphiti_max_episodes,
         ),
     )
-    odollo_sources = collect_odollo_provenance(
-        transcript,
-        readout,
-        config=OdolloProvenanceConfig(
-            enabled=args.odollo_provenance,
-            profiles=tuple(args.odollo_profiles or ["soylei-prod", "saber-prod"]),
-            command=tuple(shlex.split(args.odollo_command)),
-            repo_root=args.odollo_repo,
-            config_path=args.odollo_config,
-            timeout=args.odollo_timeout,
-            limit=args.odollo_limit,
-            include_contacts=not args.no_odollo_contacts,
-            include_log_notes=not args.no_odollo_log_notes,
-        ),
-    )
+    odollo_configs = list(configured_context.get("odollo") or [])
+    if args.odollo_provenance or not odollo_configs:
+        odollo_configs.append(
+            OdolloProvenanceConfig(
+                enabled=args.odollo_provenance,
+                profiles=tuple(args.odollo_profiles or ["soylei-prod", "saber-prod"]),
+                command=tuple(shlex.split(args.odollo_command)),
+                repo_root=args.odollo_repo,
+                config_path=args.odollo_config,
+                timeout=args.odollo_timeout,
+                limit=args.odollo_limit,
+                include_contacts=not args.no_odollo_contacts,
+                include_log_notes=not args.no_odollo_log_notes,
+            )
+        )
+    odollo_sources = []
+    for odollo_config in odollo_configs:
+        odollo_sources.extend(collect_odollo_provenance(transcript, readout, config=odollo_config))
     retained_sources, excluded_sources, provenance_warnings = filter_provenance_sources(
         gws_sources + graphiti_sources + odollo_sources,
         transcript=transcript,

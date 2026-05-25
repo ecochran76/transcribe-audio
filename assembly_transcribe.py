@@ -31,6 +31,7 @@ from typing import Iterable, Optional
 
 import requests
 
+import provenance_config
 from transcribe_common import (
     DEFAULT_LANGUAGE_CODE,
     DEFAULT_OPENAI_MODEL,
@@ -206,6 +207,17 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
             "the primary calendar used for event selection. Repeat for multiple shared calendars."
         ),
     )
+    parser.add_argument(
+        "--calendar-provenance-ical-url",
+        dest="calendar_provenance_ical_urls",
+        action="append",
+        default=[],
+        help=(
+            "Additional iCalendar feed URL to scan for overlapping provenance events without changing "
+            "the primary calendar used for event selection. Use 'Label=https://...' to set a display label."
+        ),
+    )
+    provenance_config.add_cli_args(parser)
     parser.add_argument(
         "--calendar-credentials",
         type=Path,
@@ -463,11 +475,17 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     calendar_service = None
     if args.use_calendar:
         try:
+            provider_configs = provenance_config.configured_provider_configs_or_fallback(
+                args,
+                build_calendar_provider_configs_from_args(args),
+            )
+            for warning in getattr(args, "provenance_config_warnings", []) or []:
+                print(f"Warning: provenance config: {warning}", file=sys.stderr)
             calendar_service = build_calendar_service(
                 args.calendar_credentials,
                 args.calendar_token,
                 fallback_client_path=args.calendar_client_secrets,
-                provider_configs=build_calendar_provider_configs_from_args(args),
+                provider_configs=provider_configs,
             )
         except Exception as exc:
             print(

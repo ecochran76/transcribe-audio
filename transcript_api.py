@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import mimetypes
 import os
 import re
@@ -23,8 +24,10 @@ from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import intelligence_config
+import automation_config
 import codex_app_server_client
 import participant_identity
+import provenance_config
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
     apply_validated_structured_decision as apply_app_intelligence_structured_decision,
@@ -63,6 +66,7 @@ from transcript_store import (
     utcish_now,
 )
 from transcribe_common import TranscriptionError
+from routing_artifacts import unique_strings
 
 DEFAULT_API_PORT = 18876
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parent / "frontend" / "dist"
@@ -87,6 +91,13 @@ DEPOSITION_MEMORY_PREVIEW_TOKEN = "QUEUE_DEPOSITION_MEMORY_PREVIEW"
 FIRST_PASS_SUMMARY_SUBMIT_TOKEN = "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
 CONTEXT_WORKBENCH_DIRNAME = "conversation-context-runs"
 CONTEXT_CONTACT_SELECTION_DIRNAME = "conversation-context-contact-selections"
+CONTEXT_CONTACT_SEARCH_CACHE_DIRNAME = "conversation-context-contact-search-cache"
+CONTEXT_CONTACT_REFRESH_DIRNAME = "conversation-context-contact-refresh-jobs"
+CONTEXT_CONTACT_AFFINITY_DIRNAME = "conversation-context-contact-affinity-cache"
+CONTEXT_CONTACT_MERGE_DIRNAME = "conversation-context-contact-merge-decisions"
+CONTEXT_INSTRUCTIONS_DIRNAME = "conversation-context-instructions"
+PARTICIPANT_IDENTITY_CACHE_DIRNAME = "participant-identity-bundles"
+PARTICIPANT_IDENTITY_CACHE_ALGORITHM = "participant-identity-cache-v3"
 CONVERSATION_PREVIEW_DIRNAME = "conversation-preview-decisions"
 
 
@@ -333,6 +344,8 @@ def contact_row_summary(row: sqlite3.Row) -> dict[str, Any]:
         "source": "contact_table",
         "confidence": 0.75,
         "evidence": "Previously reviewed contact record.",
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
     }
 
 
@@ -352,6 +365,118 @@ def assignment_row_summary(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def participant_identity_cache_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / PARTICIPANT_IDENTITY_CACHE_DIRNAME
+
+
+def participant_identity_cache_path(*, state_root: Path, conversation_key: str, source_document_id: str) -> Path:
+    return participant_identity_cache_dir(state_root) / f"{stable_id('participant-identity-cache', conversation_key, source_document_id)}.json"
+
+
+def identity_cache_fingerprint(
+    *,
+    conversation_key: str,
+    source_document: dict[str, Any] | None,
+    participants: list[Any],
+    contacts: list[dict[str, Any]],
+    assignments: dict[str, dict[str, Any]],
+    state_root: Path,
+) -> str:
+    source = source_document or {}
+    source_payload = source.get("json_payload") if isinstance(source.get("json_payload"), dict) else {}
+    contact_config = participant_identity.load_contact_source_config(state_root)
+    contact_aliases = participant_identity.load_contact_aliases(state_root)
+    contact_settings = participant_identity.load_contact_settings(state_root)
+    payload = {
+        "cache_algorithm": PARTICIPANT_IDENTITY_CACHE_ALGORITHM,
+        "conversation_key": conversation_key,
+        "source_document_id": source.get("id") or "",
+        "source_path": source.get("source_path") or "",
+        "source_updated_at": source.get("updated_at") or "",
+        "source_generated_at": source.get("generated_at") or "",
+        "source_event": source_payload.get("event") if isinstance(source_payload, dict) else {},
+        "participants": participants,
+        "contacts": [
+            {
+                "id": contact.get("contact_id") or contact.get("id") or "",
+                "label": contact.get("label") or "",
+                "email": contact.get("email") or "",
+                "updated_at": contact.get("updated_at") or "",
+            }
+            for contact in contacts
+        ],
+        "assignments": assignments,
+        "contact_config": contact_config,
+        "contact_aliases": contact_aliases,
+        "contact_settings": contact_settings,
+    }
+    return stable_id("participant-identity-fingerprint", json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str))
+
+
+def cached_participant_identity_bundle(
+    *,
+    conversation_key: str,
+    source_document: dict[str, Any] | None,
+    participants: list[Any],
+    contacts: list[dict[str, Any]],
+    assignments: dict[str, dict[str, Any]],
+    state_root: Path,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    source_document_id = str((source_document or {}).get("id") or "")
+    if not conversation_key or not source_document_id:
+        return None, {"status": "disabled"}
+    fingerprint = identity_cache_fingerprint(
+        conversation_key=conversation_key,
+        source_document=source_document,
+        participants=participants,
+        contacts=contacts,
+        assignments=assignments,
+        state_root=state_root,
+    )
+    path = participant_identity_cache_path(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        source_document_id=source_document_id,
+    )
+    payload = read_json_file(path) if path.exists() else {}
+    if payload.get("fingerprint") == fingerprint and isinstance(payload.get("identity_bundle"), dict):
+        bundle = dict(payload["identity_bundle"])
+        bundle["cache_status"] = "hit"
+        return bundle, {"status": "hit", "path": str(path), "fingerprint": fingerprint}
+    return None, {"status": "miss", "path": str(path), "fingerprint": fingerprint}
+
+
+def write_participant_identity_bundle_cache(
+    *,
+    identity_bundle: dict[str, Any],
+    conversation_key: str,
+    source_document: dict[str, Any] | None,
+    fingerprint: str,
+    state_root: Path,
+) -> str:
+    source_document_id = str((source_document or {}).get("id") or "")
+    if not conversation_key or not source_document_id:
+        return ""
+    now = utcish_now()
+    path = participant_identity_cache_path(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        source_document_id=source_document_id,
+    )
+    payload = {
+        "schema_version": "transcribe-audio.participant-identity-cache.v1",
+        "conversation_key": conversation_key,
+        "source_document_id": source_document_id,
+        "fingerprint": fingerprint,
+        "updated_at": now,
+        "identity_bundle": identity_bundle,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, payload)
+    return str(path)
+
+
 def conversation_identity_review(
     *,
     conversation_key: str,
@@ -360,6 +485,7 @@ def conversation_identity_review(
     root: Optional[Path] = None,
     state_root: Optional[Path] = None,
 ) -> dict[str, Any]:
+    resolved_state_root = state_root or DEFAULT_STATE_DIR.expanduser()
     with connect(root) as con:
         init_db(con)
         contact_rows = con.execute("SELECT * FROM contacts ORDER BY updated_at DESC, label LIMIT 50").fetchall()
@@ -370,16 +496,34 @@ def conversation_identity_review(
     contacts = [contact_row_summary(row) for row in contact_rows]
     assignments = {row["speaker_label"]: assignment_row_summary(row) for row in assignment_rows}
     source_payload = source_document.get("json_payload") if source_document and isinstance(source_document.get("json_payload"), dict) else {}
-    identity_bundle = participant_identity.build_participant_identity_bundle(
+    identity_bundle, cache_meta = cached_participant_identity_bundle(
         conversation_key=conversation_key,
-        source_document_id=source_document.get("id") if source_document else "",
-        transcript=source_payload,
-        transcript_text=str(source_document.get("text_content") or "") if source_document else "",
-        readout_participants=participants,
-        local_contacts=contacts,
+        source_document=source_document,
+        participants=participants,
+        contacts=contacts,
         assignments=assignments,
-        state_root=state_root,
+        state_root=resolved_state_root,
     )
+    if identity_bundle is None:
+        identity_bundle = participant_identity.build_participant_identity_bundle(
+            conversation_key=conversation_key,
+            source_document_id=source_document.get("id") if source_document else "",
+            transcript=source_payload,
+            transcript_text=str(source_document.get("text_content") or "") if source_document else "",
+            readout_participants=participants,
+            local_contacts=contacts,
+            assignments=assignments,
+            state_root=resolved_state_root,
+        )
+        identity_bundle["cache_status"] = "miss"
+        cache_path = write_participant_identity_bundle_cache(
+            identity_bundle=identity_bundle,
+            conversation_key=conversation_key,
+            source_document=source_document,
+            fingerprint=str(cache_meta.get("fingerprint") or ""),
+            state_root=resolved_state_root,
+        )
+        cache_meta = {**cache_meta, "status": "stored", "path": cache_path}
     speakers = identity_bundle["speakers"]
     return {
         "schema_version": "transcribe-audio.identity-review.v1",
@@ -389,6 +533,7 @@ def conversation_identity_review(
         "contacts": contacts[:20],
         "participants": participants,
         "identity_bundle": identity_bundle,
+        "identity_cache": cache_meta,
         "pending_count": sum(1 for speaker in speakers if speaker["review_required"]),
         "confirmed_count": sum(1 for speaker in speakers if speaker["status"] == "confirmed"),
         "deferred_count": sum(1 for speaker in speakers if speaker["status"] == "deferred"),
@@ -512,6 +657,10 @@ def context_workbench_state(
         state_root=state_root or DEFAULT_STATE_DIR.expanduser(),
         proposed_contacts=proposed_contacts,
     )
+    operator_context = context_instructions_state(
+        detail=detail,
+        state_root=state_root or DEFAULT_STATE_DIR.expanduser(),
+    )
     identity_warnings = identity_bundle.get("warnings") if isinstance(identity_bundle, dict) else []
     if isinstance(identity_warnings, list):
         for item in identity_warnings:
@@ -529,6 +678,8 @@ def context_workbench_state(
         "participant_identity_bundle": identity_bundle if isinstance(identity_bundle, dict) else {},
         "proposed_contact_candidates": proposed_contacts,
         "contact_selection": contact_selection,
+        "operator_context": operator_context,
+        "context_instructions": operator_context,
         "selected_candidate": selected,
         "confidence": selected.get("confidence"),
         "included_sources": [compact_provenance_source(source) for source in included if isinstance(source, dict)][:20],
@@ -550,17 +701,846 @@ def context_contact_selection_path(*, state_root: Path, conversation_key: str) -
     return conversation_context_contact_selections_dir(state_root) / f"{stable_id('context-contact-selection', conversation_key)}.json"
 
 
+def context_instructions_path(*, state_root: Path, conversation_key: str) -> Path:
+    return conversation_context_instructions_dir(state_root) / f"{stable_id('context-instructions', conversation_key)}.json"
+
+
 def compact_context_contact_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     evidence = candidate.get("evidence") if isinstance(candidate.get("evidence"), list) else []
-    return {
-        "contact_id": str(candidate.get("contact_id") or ""),
-        "label": str(candidate.get("label") or ""),
+    merged_sources = candidate.get("merged_sources") if isinstance(candidate.get("merged_sources"), list) else []
+    merged_contact_ids = candidate.get("merged_contact_ids") if isinstance(candidate.get("merged_contact_ids"), list) else []
+    merge_keys = candidate.get("merge_keys") if isinstance(candidate.get("merge_keys"), list) else []
+    relationship_affinity = candidate.get("relationship_affinity") if isinstance(candidate.get("relationship_affinity"), dict) else {}
+    ranking_reasons = candidate.get("ranking_reasons") if isinstance(candidate.get("ranking_reasons"), list) else []
+    compact = {
+        "contact_id": str(candidate.get("contact_id") or candidate.get("id") or ""),
+        "canonical_key": str(candidate.get("canonical_key") or ""),
+        "label": str(candidate.get("label") or candidate.get("contact_label") or ""),
         "email": str(candidate.get("email") or ""),
+        "organization": str(candidate.get("organization") or candidate.get("company") or ""),
+        "role": str(candidate.get("role") or candidate.get("title") or ""),
+        "phone": str(candidate.get("phone") or ""),
         "source": str(candidate.get("source") or ""),
         "source_type": str(candidate.get("source_type") or candidate.get("source") or ""),
         "source_profile": str(candidate.get("source_profile") or ""),
         "confidence": candidate.get("confidence"),
+        "dedupe_key": str(candidate.get("dedupe_key") or participant_identity.candidate_dedupe_key(candidate)),
+        "split_merge_key": str(candidate.get("split_merge_key") or ""),
+        "merge_keys": [str(value) for value in merge_keys if str(value or "")][:20],
+        "source_count": int(candidate.get("source_count") or max(1, len(merged_sources))),
+        "merged_contact_ids": [str(value) for value in merged_contact_ids if str(value or "")],
+        "merged_sources": [
+            {
+                "contact_id": str(source.get("contact_id") or ""),
+                "label": str(source.get("label") or ""),
+                "email": str(source.get("email") or ""),
+                "original_label": str(source.get("original_label") or ""),
+                "original_email": str(source.get("original_email") or ""),
+                "source": str(source.get("source") or ""),
+                "source_type": str(source.get("source_type") or source.get("source") or ""),
+                "source_profile": str(source.get("source_profile") or ""),
+                "confidence": source.get("confidence"),
+            }
+            for source in merged_sources
+            if isinstance(source, dict)
+        ],
         "evidence": evidence[:4],
+        "review_state": str(candidate.get("review_state") or ""),
+        "relationship_affinity": relationship_affinity,
+        "rank_score": candidate.get("rank_score"),
+        "ranking_reasons": [str(value) for value in ranking_reasons if str(value or "")][:4],
+    }
+    if compact["contact_id"] and compact["contact_id"] not in compact["merged_contact_ids"]:
+        compact["merged_contact_ids"].insert(0, compact["contact_id"])
+    return compact
+
+
+def context_contact_candidate_search_text(candidate: dict[str, Any]) -> str:
+    parts = [
+        candidate.get("label"),
+        candidate.get("email"),
+        candidate.get("organization"),
+        candidate.get("role"),
+        candidate.get("source"),
+        candidate.get("source_type"),
+        candidate.get("source_profile"),
+    ]
+    merged_sources = candidate.get("merged_sources") if isinstance(candidate.get("merged_sources"), list) else []
+    for source in merged_sources:
+        if isinstance(source, dict):
+            parts.extend([
+                source.get("label"),
+                source.get("email"),
+                source.get("original_label"),
+                source.get("original_email"),
+                source.get("source_type"),
+                source.get("source_profile"),
+            ])
+    return " ".join(str(part or "").lower() for part in parts)
+
+
+def context_contact_candidate_ids(candidate: dict[str, Any]) -> list[str]:
+    ids = [str(candidate.get("contact_id") or candidate.get("id") or "").strip()]
+    merged_contact_ids = candidate.get("merged_contact_ids") if isinstance(candidate.get("merged_contact_ids"), list) else []
+    ids.extend(str(value or "").strip() for value in merged_contact_ids)
+    return sorted({value for value in ids if value})
+
+
+def context_contact_merge_state(*, state_root: Path, conversation_key: str) -> dict[str, Any]:
+    if not conversation_key:
+        return {
+            "schema_version": "transcribe-audio.context-contact-merge.v1",
+            "status": "missing_conversation_key",
+            "decisions": [],
+            "merge_decisions": [],
+            "split_decisions": [],
+            "decision_path": "",
+            "will_execute_external_action": False,
+            "will_perform_external_write": False,
+        }
+    path = context_contact_merge_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    merge_decisions = [item for item in decisions if isinstance(item, dict) and item.get("action") == "merge"]
+    split_decisions = [item for item in decisions if isinstance(item, dict) and item.get("action") == "split"]
+    return {
+        "schema_version": "transcribe-audio.context-contact-merge.v1",
+        "status": "reviewed" if decisions else "empty",
+        "conversation_key": conversation_key,
+        "decision_path": str(path) if path.exists() else "",
+        "decisions": decisions[-50:],
+        "merge_decisions": merge_decisions[-25:],
+        "split_decisions": split_decisions[-25:],
+        "allowed_actor_types": ["operator", "app_intelligence"],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def apply_context_contact_merge_policy(
+    candidates: Iterable[dict[str, Any]],
+    *,
+    merge_state: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    decisions = merge_state.get("decisions") if isinstance(merge_state, dict) else []
+    if not isinstance(decisions, list) or not decisions:
+        return [dict(candidate) for candidate in candidates if isinstance(candidate, dict)]
+
+    merge_by_id: dict[str, dict[str, Any]] = {}
+    split_by_id: dict[str, str] = {}
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        action = str(decision.get("action") or "")
+        contact_ids = [
+            str(value or "").strip()
+            for value in decision.get("contact_ids", [])
+            if str(value or "").strip()
+        ] if isinstance(decision.get("contact_ids"), list) else []
+        if action == "merge" and len(contact_ids) >= 2:
+            canonical = decision.get("canonical_candidate") if isinstance(decision.get("canonical_candidate"), dict) else {}
+            merge_key = str(decision.get("merge_key") or decision.get("decision_id") or stable_id("contact-merge", *sorted(contact_ids)))
+            for contact_id in contact_ids:
+                merge_by_id[contact_id] = {
+                    "merge_key": merge_key,
+                    "canonical_candidate": canonical,
+                    "decision_id": decision.get("decision_id") or "",
+                }
+        elif action == "split" and contact_ids:
+            decision_id = str(decision.get("decision_id") or stable_id("contact-split", *sorted(contact_ids)))
+            for contact_id in contact_ids:
+                split_by_id[contact_id] = f"{decision_id}:{contact_id}"
+
+    result: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        item = dict(candidate)
+        ids = context_contact_candidate_ids(item)
+        split_key = next((split_by_id[contact_id] for contact_id in ids if contact_id in split_by_id), "")
+        if split_key:
+            primary_id = ids[0] if ids else str(item.get("contact_id") or "")
+            item["split_merge_key"] = split_key
+            item["dedupe_key"] = f"split:{primary_id or split_key}"
+            item.pop("canonical_key", None)
+        merge_decision = next((merge_by_id[contact_id] for contact_id in ids if contact_id in merge_by_id), None)
+        if merge_decision and not split_key:
+            canonical = merge_decision.get("canonical_candidate") or {}
+            item["canonical_key"] = str(merge_decision.get("merge_key") or "")
+            item["dedupe_key"] = f"alias:{item['canonical_key']}"
+            if canonical.get("label"):
+                item["label"] = str(canonical.get("label") or "")
+            if canonical.get("email"):
+                item["email"] = str(canonical.get("email") or "")
+            evidence = item.get("evidence") if isinstance(item.get("evidence"), list) else []
+            item["evidence"] = [
+                *evidence,
+                {
+                    "kind": "reviewed_contact_merge",
+                    "decision_id": merge_decision.get("decision_id") or "",
+                    "merge_key": item["canonical_key"],
+                },
+            ]
+        result.append(item)
+    return result
+
+
+def unique_context_contact_candidates(
+    candidates: Iterable[dict[str, Any]],
+    *,
+    merge_state: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_keys: set[str] = set()
+    compact_candidates = [
+        compact_context_contact_candidate(candidate)
+        for candidate in apply_context_contact_merge_policy(candidates, merge_state=merge_state)
+        if isinstance(candidate, dict)
+    ]
+    merged_candidates = participant_identity.ranked_contact_candidates(
+        compact_candidates,
+        limit=200,
+        per_source_profile=200,
+    )
+    for candidate in merged_candidates:
+        compact = compact_context_contact_candidate(candidate)
+        contact_id = compact.get("contact_id") or ""
+        dedupe_key = compact.get("dedupe_key") or ""
+        if contact_id and contact_id in seen_ids:
+            continue
+        if dedupe_key and dedupe_key in seen_keys:
+            continue
+        if contact_id:
+            seen_ids.add(contact_id)
+        if dedupe_key:
+            seen_keys.add(dedupe_key)
+        result.append(compact)
+    return result
+
+
+def context_contact_dedupe_clusters(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    clusters: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for candidate in candidates:
+        key = str(candidate.get("dedupe_key") or participant_identity.candidate_dedupe_key(candidate))
+        if key:
+            grouped.setdefault(key, []).append(candidate)
+        merged_sources = candidate.get("merged_sources") if isinstance(candidate.get("merged_sources"), list) else []
+        if len(merged_sources) > 1 and key not in seen:
+            clusters.append(
+                {
+                    "dedupe_key": key,
+                    "label": candidate.get("label") or candidate.get("email") or "Contact candidate",
+                    "email": candidate.get("email") or "",
+                    "contact_ids": candidate.get("merged_contact_ids") or [candidate.get("contact_id")],
+                    "source_count": len(merged_sources),
+                    "sources": merged_sources,
+                }
+            )
+            seen.add(key)
+    for key, values in grouped.items():
+        if key in seen or len(values) < 2:
+            continue
+        clusters.append(
+            {
+                "dedupe_key": key,
+                "label": values[0].get("label") or values[0].get("email") or "Contact candidate",
+                "email": values[0].get("email") or "",
+                "contact_ids": [value.get("contact_id") for value in values if value.get("contact_id")],
+                "source_count": len(values),
+                "sources": [
+                    {
+                        "contact_id": value.get("contact_id") or "",
+                        "label": value.get("label") or "",
+                        "email": value.get("email") or "",
+                        "source": value.get("source") or "",
+                        "source_type": value.get("source_type") or value.get("source") or "",
+                        "source_profile": value.get("source_profile") or "",
+                        "confidence": value.get("confidence"),
+                    }
+                    for value in values
+                ],
+            }
+        )
+        seen.add(key)
+    return clusters[:20]
+
+
+def context_contact_search_cache_state(*, state_root: Path, conversation_key: str) -> dict[str, Any]:
+    if not conversation_key:
+        return {"entries": [], "items": [], "path": "", "status": "missing_conversation_key"}
+    path = context_contact_search_cache_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    entries = payload.get("entries") if isinstance(payload.get("entries"), list) else []
+    items: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        values = entry.get("items") if isinstance(entry.get("items"), list) else []
+        items.extend(value for value in values if isinstance(value, dict))
+    return {
+        "schema_version": "transcribe-audio.context-contact-search-cache.v1",
+        "status": "hit" if items else "empty",
+        "path": str(path) if path.exists() else "",
+        "entries": entries[-25:],
+        "items": [compact_context_contact_candidate(item) for item in items],
+    }
+
+
+def append_context_contact_search_cache(
+    *,
+    state_root: Path,
+    conversation_key: str,
+    query: str,
+    items: list[dict[str, Any]],
+    source_profiles: list[dict[str, Any]],
+    warnings: list[str],
+) -> dict[str, Any]:
+    path = context_contact_search_cache_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    entries = payload.get("entries") if isinstance(payload.get("entries"), list) else []
+    now = utcish_now()
+    entry = {
+        "query": query.strip(),
+        "created_at": now,
+        "item_count": len(items),
+        "items": [compact_context_contact_candidate(item) for item in items],
+        "source_profiles": source_profiles,
+        "warnings": warnings,
+        "will_execute_external_action": True,
+        "will_perform_external_write": False,
+    }
+    next_payload = {
+        "schema_version": "transcribe-audio.context-contact-search-cache.v1",
+        "conversation_key": conversation_key,
+        "updated_at": now,
+        "entries": [*entries, entry][-25:],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, next_payload)
+    return {**entry, "cache_path": str(path)}
+
+
+def parse_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, dict):
+        value = value.get("dateTime") or value.get("date")
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def contact_affinity_person_values(candidate: dict[str, Any]) -> dict[str, set[str]]:
+    emails: set[str] = set()
+    labels: set[str] = set()
+    ids = set(context_contact_candidate_ids(candidate))
+    for source in [candidate, *(candidate.get("merged_sources") if isinstance(candidate.get("merged_sources"), list) else [])]:
+        if not isinstance(source, dict):
+            continue
+        email = participant_identity.normalize_email(source.get("email") or source.get("original_email") or source.get("label"))
+        if email:
+            emails.add(email)
+            emails.update(participant_identity.email_alias_keys(email))
+        for field in ("label", "original_label"):
+            label = participant_identity.candidate_name_text(source.get(field))
+            if label and not participant_identity.is_anonymous_speaker_label(label):
+                labels.add(label.lower())
+    return {"ids": ids, "emails": emails, "labels": labels}
+
+
+def contact_affinity_matches_value(terms: dict[str, set[str]], value: Any) -> bool:
+    if isinstance(value, dict):
+        raw_values = [
+            value.get("email"),
+            value.get("emailAddress"),
+            value.get("address"),
+            value.get("mail"),
+            value.get("displayName"),
+            value.get("display_name"),
+            value.get("name"),
+            value.get("label"),
+            value.get("summary"),
+            value.get("formatted"),
+        ]
+    else:
+        raw_values = [value]
+    text = " ".join(str(item or "") for item in raw_values).lower()
+    if not text:
+        return False
+    value_email = participant_identity.normalize_email(text)
+    if value_email and participant_identity.email_alias_keys(value_email) & terms["emails"]:
+        return True
+    if any(email and email in text for email in terms["emails"]):
+        return True
+    value_tokens = set(participant_identity.person_name_tokens(text))
+    if len(value_tokens) < 2:
+        return False
+    for label in terms["labels"]:
+        label_tokens = set(participant_identity.person_name_tokens(label))
+        if len(label_tokens) >= 2 and (label_tokens <= value_tokens or value_tokens <= label_tokens):
+            return True
+    return False
+
+
+def event_people_values(event: dict[str, Any]) -> list[Any]:
+    values: list[Any] = []
+    for field in ("participants", "attendees", "attendee_emails"):
+        field_values = event.get(field)
+        if isinstance(field_values, list):
+            values.extend(field_values)
+    matching = event.get("matching_calendars") if isinstance(event.get("matching_calendars"), list) else []
+    for item in matching:
+        if not isinstance(item, dict):
+            continue
+        for field in ("participants", "attendees", "attendee_emails"):
+            field_values = item.get(field)
+            if isinstance(field_values, list):
+                values.extend(field_values)
+    return values
+
+
+def event_timestamp(event: dict[str, Any], *, fallback: Any = "") -> datetime | None:
+    for value in [
+        (event.get("start") or {}).get("dateTime") if isinstance(event.get("start"), dict) else "",
+        (event.get("start") or {}).get("date") if isinstance(event.get("start"), dict) else "",
+        event.get("start"),
+        event.get("created"),
+        event.get("updated"),
+        fallback,
+    ]:
+        parsed = parse_timestamp(value)
+        if parsed:
+            return parsed
+    return None
+
+
+def context_contact_affinity_inputs(*, root: Optional[Path], state_root: Path) -> dict[str, Any]:
+    decisions: list[dict[str, Any]] = []
+    selection_dir = conversation_context_contact_selections_dir(state_root)
+    for path in sorted(selection_dir.glob("*.json"))[-200:]:
+        payload = read_json_file(path)
+        for decision in payload.get("decisions") if isinstance(payload.get("decisions"), list) else []:
+            if isinstance(decision, dict):
+                decisions.append(decision)
+    calendar_events: list[dict[str, Any]] = []
+    try:
+        with connect(root) as con:
+            init_db(con)
+            rows = con.execute(
+                """
+                SELECT id, kind, title, json_payload, metadata_json, generated_at, updated_at
+                FROM documents
+                WHERE kind = 'transcript'
+                ORDER BY COALESCE(NULLIF(generated_at, ''), updated_at) DESC
+                LIMIT 1000
+                """
+            ).fetchall()
+    except Exception:
+        rows = []
+    for row in rows:
+        payload = parse_object_json(row["json_payload"])
+        metadata = parse_object_json(row["metadata_json"])
+        event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+        if not event and isinstance(metadata.get("event"), dict):
+            event = metadata["event"]
+        if not event:
+            continue
+        calendar_events.append(
+            {
+                "document_id": row["id"],
+                "title": row["title"],
+                "timestamp": event_timestamp(event, fallback=row["generated_at"] or row["updated_at"]),
+                "people": event_people_values(event),
+            }
+        )
+    return {"decisions": decisions, "calendar_events": calendar_events}
+
+
+def increment_affinity_window(counts: dict[str, int], timestamp: datetime | None, *, now: datetime) -> None:
+    if not timestamp:
+        return
+    age_days = max(0, (now - timestamp).days)
+    if age_days <= 30:
+        counts["interaction_count_30d"] += 1
+    if age_days <= 90:
+        counts["interaction_count_90d"] += 1
+    if age_days <= 365:
+        counts["interaction_count_365d"] += 1
+
+
+def relationship_affinity_for_candidate(
+    candidate: dict[str, Any],
+    *,
+    inputs: dict[str, Any],
+    now: datetime,
+) -> dict[str, Any]:
+    terms = contact_affinity_person_values(candidate)
+    counts = {
+        "interaction_count_30d": 0,
+        "interaction_count_90d": 0,
+        "interaction_count_365d": 0,
+        "calendar_overlap_count_365d": 0,
+        "message_count_30d": 0,
+        "message_count_365d": 0,
+        "transcript_overlap_count_365d": 0,
+        "prior_selected_count": 0,
+        "prior_excluded_count": 0,
+    }
+    last_contacted: datetime | None = None
+    last_calendar: datetime | None = None
+    evidence: list[str] = []
+    calendar_events = inputs.get("calendar_events") if isinstance(inputs.get("calendar_events"), list) else []
+    for event in calendar_events:
+        if not isinstance(event, dict):
+            continue
+        people = event.get("people") if isinstance(event.get("people"), list) else []
+        if not any(contact_affinity_matches_value(terms, value) for value in people):
+            continue
+        timestamp = event.get("timestamp") if isinstance(event.get("timestamp"), datetime) else None
+        if timestamp and (now - timestamp).days <= 365:
+            counts["calendar_overlap_count_365d"] += 1
+            counts["transcript_overlap_count_365d"] += 1
+            increment_affinity_window(counts, timestamp, now=now)
+            if not last_calendar or timestamp > last_calendar:
+                last_calendar = timestamp
+            if not last_contacted or timestamp > last_contacted:
+                last_contacted = timestamp
+
+    decisions = inputs.get("decisions") if isinstance(inputs.get("decisions"), list) else []
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        candidate_ids = {str(decision.get("candidate_id") or "").strip()}
+        decision_candidate = decision.get("candidate") if isinstance(decision.get("candidate"), dict) else {}
+        candidate_ids.update(context_contact_candidate_ids(decision_candidate))
+        matches_id = bool(candidate_ids & terms["ids"])
+        matches_value = contact_affinity_matches_value(terms, decision_candidate) if decision_candidate else False
+        if not matches_id and not matches_value:
+            continue
+        created_at = parse_timestamp(decision.get("created_at"))
+        increment_affinity_window(counts, created_at, now=now)
+        counts["transcript_overlap_count_365d"] += 1 if created_at and (now - created_at).days <= 365 else 0
+        if not last_contacted or (created_at and created_at > last_contacted):
+            last_contacted = created_at
+        action = str(decision.get("action") or "")
+        if action == "select":
+            counts["prior_selected_count"] += 1
+        elif action == "exclude":
+            counts["prior_excluded_count"] += 1
+
+    existing = candidate.get("relationship_affinity") if isinstance(candidate.get("relationship_affinity"), dict) else {}
+    for key in ("message_count_30d", "message_count_365d"):
+        try:
+            counts[key] += int(existing.get(key) or 0)
+        except (TypeError, ValueError):
+            pass
+    existing_last = parse_timestamp(existing.get("last_contacted_at"))
+    if existing_last and (not last_contacted or existing_last > last_contacted):
+        last_contacted = existing_last
+
+    if last_contacted:
+        age_days = max(0, (now - last_contacted).days)
+        if age_days == 0:
+            evidence.append("contacted today")
+        elif age_days == 1:
+            evidence.append("contacted 1 day ago")
+        else:
+            evidence.append(f"contacted {age_days} days ago")
+    else:
+        evidence.append("no recent communication")
+    if counts["calendar_overlap_count_365d"]:
+        evidence.append(f"{counts['calendar_overlap_count_365d']} calendar overlaps")
+    if counts["interaction_count_90d"]:
+        evidence.append(f"{counts['interaction_count_90d']} interactions in 90d")
+    if counts["prior_selected_count"]:
+        evidence.append("selected before")
+    if counts["prior_excluded_count"]:
+        evidence.append("excluded before")
+
+    return {
+        "last_contacted_at": last_contacted.isoformat().replace("+00:00", "Z") if last_contacted else "",
+        "last_calendar_overlap_at": last_calendar.isoformat().replace("+00:00", "Z") if last_calendar else "",
+        **counts,
+        "evidence": evidence[:4],
+    }
+
+
+def contact_text_score(candidate: dict[str, Any], query: str) -> float:
+    terms = [term for term in re.split(r"\s+", query.strip().lower()) if term]
+    if not terms:
+        return 0.5
+    label = str(candidate.get("label") or "").lower()
+    email = str(candidate.get("email") or "").lower()
+    text = context_contact_candidate_search_text(candidate)
+    if any(term == email for term in terms if "@" in term):
+        return 1.0
+    if email and any(email.startswith(term) for term in terms):
+        return 0.95
+    if label and label.startswith(" ".join(terms)):
+        return 0.9
+    if all(term in text for term in terms):
+        return 0.75
+    if any(term in text for term in terms):
+        return 0.35
+    return 0.0
+
+
+def contact_conversation_score(candidate: dict[str, Any]) -> float:
+    evidence = candidate.get("evidence") if isinstance(candidate.get("evidence"), list) else []
+    source_type = str(candidate.get("source_type") or candidate.get("source") or "")
+    if source_type in {"operator_participant_hint", "operator_input"}:
+        return 0.85
+    if any(isinstance(item, dict) and "calendar" in str(item.get("source") or item.get("kind") or "") for item in evidence):
+        return 0.8
+    if source_type in {"gws_contact", "odollo_contact", "local_contact"}:
+        return 0.45
+    return 0.25
+
+
+def contact_source_quality_score(candidate: dict[str, Any]) -> float:
+    source_type = str(candidate.get("source_type") or candidate.get("source") or "")
+    if source_type in {"operator_input", "operator_participant_hint", "local_contact"}:
+        return 1.0
+    if source_type == "gws_contact":
+        return 0.85
+    if source_type == "gws_other_contact":
+        return 0.65
+    if source_type == "gws_directory_person":
+        return 0.55
+    if source_type == "odollo_contact":
+        return 0.75
+    return 0.45
+
+
+def contact_affinity_score(affinity: dict[str, Any], *, now: datetime) -> float:
+    last_contacted = parse_timestamp(affinity.get("last_contacted_at"))
+    recency_score = 0.0
+    if last_contacted:
+        recency_score = max(0.0, 1.0 - (max(0, (now - last_contacted).days) / 365.0))
+    count_365 = int(affinity.get("interaction_count_365d") or 0)
+    frequency_score = min(1.0, math.log1p(max(0, count_365)) / math.log1p(20))
+    return round((0.65 * recency_score) + (0.35 * frequency_score), 4)
+
+
+def operator_history_score(affinity: dict[str, Any]) -> float:
+    selected = int(affinity.get("prior_selected_count") or 0)
+    excluded = int(affinity.get("prior_excluded_count") or 0)
+    return max(-1.0, min(1.0, (0.4 * selected) - (0.6 * excluded)))
+
+
+def rank_contact_candidate(candidate: dict[str, Any], *, query: str, now: datetime) -> dict[str, Any]:
+    affinity = candidate.get("relationship_affinity") if isinstance(candidate.get("relationship_affinity"), dict) else {}
+    text_score = contact_text_score(candidate, query)
+    conversation_score = contact_conversation_score(candidate)
+    affinity_score = contact_affinity_score(affinity, now=now)
+    source_quality = contact_source_quality_score(candidate)
+    history_score = operator_history_score(affinity)
+    rank_score = round(
+        (45.0 * text_score)
+        + (15.0 * conversation_score)
+        + (25.0 * affinity_score)
+        + (10.0 * source_quality)
+        + (5.0 * history_score),
+        3,
+    )
+    reasons = []
+    if text_score >= 0.9:
+        reasons.append("strong text match")
+    elif text_score > 0:
+        reasons.append("text match")
+    reasons.extend(str(value) for value in affinity.get("evidence", []) if str(value or ""))
+    if source_quality >= 0.85:
+        reasons.append("trusted contact source")
+    result = dict(candidate)
+    result["rank_score"] = rank_score
+    result["score_components"] = {
+        "text_score": round(text_score, 4),
+        "conversation_score": round(conversation_score, 4),
+        "affinity_score": round(affinity_score, 4),
+        "source_quality_score": round(source_quality, 4),
+        "operator_history_score": round(history_score, 4),
+    }
+    result["ranking_reasons"] = unique_strings(reasons)[:4]
+    return result
+
+
+def compute_contact_affinity_candidates(
+    candidates: list[dict[str, Any]],
+    *,
+    query: str,
+    root: Optional[Path],
+    state_root: Path,
+) -> list[dict[str, Any]]:
+    inputs = context_contact_affinity_inputs(root=root, state_root=state_root)
+    now = datetime.now(timezone.utc)
+    result: list[dict[str, Any]] = []
+    for candidate in candidates:
+        compact = compact_context_contact_candidate(candidate)
+        compact["relationship_affinity"] = relationship_affinity_for_candidate(compact, inputs=inputs, now=now)
+        result.append(rank_contact_candidate(compact, query=query, now=now))
+    return sorted(
+        result,
+        key=lambda item: (
+            float(item.get("rank_score") or 0.0),
+            float(item.get("confidence") or 0.0),
+            str(item.get("label") or item.get("email") or "").lower(),
+        ),
+        reverse=True,
+    )
+
+
+def context_contact_affinity_cache_state(*, state_root: Path, conversation_key: str) -> dict[str, Any]:
+    if not conversation_key:
+        return {"status": "missing_conversation_key", "items": [], "items_by_id": {}, "path": ""}
+    path = context_contact_affinity_cache_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    items = payload.get("items") if isinstance(payload.get("items"), list) else []
+    items_by_id: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for contact_id in context_contact_candidate_ids(item):
+            items_by_id.setdefault(contact_id, item)
+    return {
+        "schema_version": "transcribe-audio.context-contact-affinity-cache.v1",
+        "status": "hit" if items else "empty",
+        "conversation_key": conversation_key,
+        "updated_at": str(payload.get("updated_at") or ""),
+        "query": str(payload.get("query") or ""),
+        "path": str(path) if path.exists() else "",
+        "items": items,
+        "items_by_id": items_by_id,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def apply_cached_contact_affinity(
+    candidates: list[dict[str, Any]],
+    affinity_cache: dict[str, Any],
+    *,
+    query: str = "",
+) -> list[dict[str, Any]]:
+    items_by_id = affinity_cache.get("items_by_id") if isinstance(affinity_cache.get("items_by_id"), dict) else {}
+    now = datetime.now(timezone.utc)
+    result: list[dict[str, Any]] = []
+    for candidate in candidates:
+        cached = next((items_by_id.get(contact_id) for contact_id in context_contact_candidate_ids(candidate) if items_by_id.get(contact_id)), None)
+        item = dict(candidate)
+        if isinstance(cached, dict):
+            item["relationship_affinity"] = cached.get("relationship_affinity") if isinstance(cached.get("relationship_affinity"), dict) else {}
+            item["rank_score"] = cached.get("rank_score")
+            item["ranking_reasons"] = cached.get("ranking_reasons") if isinstance(cached.get("ranking_reasons"), list) else []
+            item["score_components"] = cached.get("score_components") if isinstance(cached.get("score_components"), dict) else {}
+        else:
+            item["relationship_affinity"] = item.get("relationship_affinity") if isinstance(item.get("relationship_affinity"), dict) else {}
+        result.append(rank_contact_candidate(item, query=query or str(affinity_cache.get("query") or ""), now=now))
+    return result
+
+
+def write_context_contact_affinity_cache(
+    *,
+    state_root: Path,
+    conversation_key: str,
+    query: str,
+    items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    path = context_contact_affinity_cache_path(state_root=state_root, conversation_key=conversation_key)
+    now = utcish_now()
+    compact_items = [compact_context_contact_candidate(item) for item in items]
+    payload = {
+        "schema_version": "transcribe-audio.context-contact-affinity-cache.v1",
+        "conversation_key": conversation_key,
+        "query": query,
+        "updated_at": now,
+        "items": compact_items,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, payload)
+    return {
+        **payload,
+        "status": "updated",
+        "path": str(path),
+        "item_count": len(compact_items),
+    }
+
+
+def refresh_context_contact_affinity(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    query: str = "",
+    limit: int = 100,
+) -> dict[str, Any]:
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    if not conversation_key:
+        raise ValueError("Context contact affinity requires a conversation key.")
+    lookup = context_contact_lookup(detail)
+    query_text = query.strip()
+    terms = [term for term in re.split(r"\s+", query_text.lower()) if term]
+    candidates = []
+    for candidate in lookup.values():
+        if terms and not all(term in context_contact_candidate_search_text(candidate) for term in terms):
+            continue
+        candidates.append(candidate)
+    candidates = unique_context_contact_candidates(candidates)[: max(1, limit)]
+    ranked = compute_contact_affinity_candidates(
+        candidates,
+        query=query_text,
+        root=root,
+        state_root=state_root,
+    )
+    cache = write_context_contact_affinity_cache(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        query=query_text,
+        items=ranked[: max(1, limit)],
+    )
+    return {
+        "schema_version": "transcribe-audio.context-contact-affinity.v1",
+        "status": "updated",
+        "query": query_text,
+        "item_count": len(ranked[: max(1, limit)]),
+        "items": ranked[: max(1, limit)],
+        "cache_path": cache["path"],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def context_instructions_state(*, detail: dict[str, Any], state_root: Path) -> dict[str, Any]:
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    path = context_instructions_path(state_root=state_root, conversation_key=conversation_key) if conversation_key else None
+    payload = read_json_file(path) if path and path.exists() else {}
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    instruction_text = str(payload.get("instruction_text") or "").strip()
+    return {
+        "schema_version": "transcribe-audio.context-operator-context.v1",
+        "status": "provided" if instruction_text else "empty",
+        "conversation_key": conversation_key,
+        "source_document_id": source_document.get("id") or "",
+        "instruction_text": instruction_text,
+        "updated_at": str(payload.get("updated_at") or ""),
+        "reviewer": str(payload.get("reviewer") or ""),
+        "instruction_path": str(path) if path and path.exists() else "",
+        "history": history[-10:],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
     }
 
 
@@ -572,12 +1552,36 @@ def context_contact_selection_state(
 ) -> dict[str, Any]:
     conversation_key = str((detail.get("conversation") or {}).get("key") or "")
     source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    merge_state = context_contact_merge_state(state_root=state_root, conversation_key=conversation_key)
     candidates = [
         compact_context_contact_candidate(candidate)
         for candidate in proposed_contacts
         if isinstance(candidate, dict)
     ]
-    candidate_by_id = {candidate["contact_id"]: candidate for candidate in candidates if candidate.get("contact_id")}
+    local_contacts = (detail.get("identity_review") or {}).get("contacts")
+    local_candidates = [
+        compact_context_contact_candidate(participant_identity.local_contact_candidate(contact))
+        for contact in local_contacts
+        if isinstance(contact, dict)
+    ] if isinstance(local_contacts, list) else []
+    search_cache = context_contact_search_cache_state(state_root=state_root, conversation_key=conversation_key)
+    search_cache_candidates = [
+        compact_context_contact_candidate(candidate)
+        for candidate in search_cache.get("items", [])
+        if isinstance(candidate, dict)
+    ]
+    affinity_cache = context_contact_affinity_cache_state(state_root=state_root, conversation_key=conversation_key)
+    searchable_candidates = unique_context_contact_candidates(
+        [*candidates, *local_candidates, *search_cache_candidates],
+        merge_state=merge_state,
+    )
+    searchable_candidates = apply_cached_contact_affinity(searchable_candidates, affinity_cache)
+    candidate_by_id = {candidate["contact_id"]: candidate for candidate in searchable_candidates if candidate.get("contact_id")}
+    for candidate in searchable_candidates:
+        merged_contact_ids = candidate.get("merged_contact_ids") if isinstance(candidate.get("merged_contact_ids"), list) else []
+        for merged_id in merged_contact_ids:
+            if str(merged_id or ""):
+                candidate_by_id.setdefault(str(merged_id), candidate)
     path = context_contact_selection_path(state_root=state_root, conversation_key=conversation_key) if conversation_key else None
     payload = read_json_file(path) if path and path.exists() else {}
     decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
@@ -587,6 +1591,9 @@ def context_contact_selection_state(
             continue
         candidate_id = str(decision.get("candidate_id") or "")
         action = str(decision.get("action") or "")
+        decision_candidate = decision.get("candidate") if isinstance(decision.get("candidate"), dict) else {}
+        if candidate_id and decision_candidate:
+            candidate_by_id.setdefault(candidate_id, compact_context_contact_candidate(decision_candidate))
         if candidate_id and action in {"select", "exclude", "clear"}:
             latest[candidate_id] = decision
     selected_ids = sorted(candidate_id for candidate_id, decision in latest.items() if decision.get("action") == "select")
@@ -600,12 +1607,27 @@ def context_contact_selection_state(
         "source_document_id": source_document.get("id") or "",
         "selection_path": str(path) if path and path.exists() else "",
         "candidate_count": len(candidates),
+        "searchable_candidate_count": len(searchable_candidates),
+        "search_cache_status": search_cache.get("status", "empty"),
+        "search_cache_candidate_count": len(search_cache_candidates),
+        "search_cache_path": search_cache.get("path", ""),
+        "affinity_cache_status": affinity_cache.get("status", "empty"),
+        "affinity_cache_path": affinity_cache.get("path", ""),
+        "searchable_candidates": searchable_candidates[:50],
+        "merge_state": merge_state,
+        "dedupe_clusters": context_contact_dedupe_clusters(searchable_candidates),
         "selected_candidate_ids": selected_ids,
         "excluded_candidate_ids": excluded_ids,
         "selected_candidates": selected,
         "excluded_candidates": excluded,
         "decisions": decisions[-25:],
         "allowed_actor_types": ["operator", "app_intelligence"],
+        "app_intelligence_decision_schema": {
+            "selection_actions": ["select", "exclude", "clear"],
+            "merge_actions": ["merge", "split"],
+            "instruction_action": "save_context_instructions",
+            "external_writes_allowed": False,
+        },
         "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
@@ -792,6 +1814,27 @@ def get_conversation_detail(
     }
 
 
+def warm_participant_identity_cache(
+    document_id: str,
+    *,
+    root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    identity_review = detail.get("identity_review") if isinstance(detail.get("identity_review"), dict) else {}
+    cache = identity_review.get("identity_cache") if isinstance(identity_review.get("identity_cache"), dict) else {}
+    return {
+        "schema_version": "transcribe-audio.participant-identity-cache-warm.v1",
+        "status": cache.get("status") or "unknown",
+        "conversation_key": (detail.get("conversation") or {}).get("key") or "",
+        "source_document_id": (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id") or "",
+        "identity_cache": cache,
+        "candidate_count": len(((identity_review.get("identity_bundle") or {}).get("contact_candidates") or [])),
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
 def get_document(document_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     with connect(root) as con:
         init_db(con)
@@ -873,6 +1916,38 @@ def conversation_context_runs_dir(state_root: Path) -> Path:
 
 def conversation_context_contact_selections_dir(state_root: Path) -> Path:
     return state_root.expanduser() / CONTEXT_CONTACT_SELECTION_DIRNAME
+
+
+def conversation_context_contact_search_cache_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_CONTACT_SEARCH_CACHE_DIRNAME
+
+
+def context_contact_search_cache_path(*, state_root: Path, conversation_key: str) -> Path:
+    return conversation_context_contact_search_cache_dir(state_root) / f"{stable_id('context-contact-search-cache', conversation_key)}.json"
+
+
+def conversation_context_contact_refresh_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_CONTACT_REFRESH_DIRNAME
+
+
+def conversation_context_contact_affinity_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_CONTACT_AFFINITY_DIRNAME
+
+
+def context_contact_affinity_cache_path(*, state_root: Path, conversation_key: str) -> Path:
+    return conversation_context_contact_affinity_dir(state_root) / f"{stable_id('context-contact-affinity-cache', conversation_key)}.json"
+
+
+def conversation_context_contact_merge_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_CONTACT_MERGE_DIRNAME
+
+
+def context_contact_merge_path(*, state_root: Path, conversation_key: str) -> Path:
+    return conversation_context_contact_merge_dir(state_root) / f"{stable_id('context-contact-merge', conversation_key)}.json"
+
+
+def conversation_context_instructions_dir(state_root: Path) -> Path:
+    return state_root.expanduser() / CONTEXT_INSTRUCTIONS_DIRNAME
 
 
 def conversation_preview_dir(state_root: Path) -> Path:
@@ -1076,6 +2151,7 @@ def context_workbench_preview(
         "context_workbench": detail.get("context_workbench") or {},
         "participant_identity_bundle": (detail.get("identity_review") or {}).get("identity_bundle", {}),
         "contact_selection": (detail.get("context_workbench") or {}).get("contact_selection", {}),
+        "operator_context": (detail.get("context_workbench") or {}).get("operator_context", {}),
         "will_execute_external_action": False,
         "will_run_provider": False,
         "will_perform_external_write": False,
@@ -1091,10 +2167,102 @@ def context_workbench_preview(
         "steps": steps,
         "context_workbench": manifest["context_workbench"],
         "contact_selection": manifest["contact_selection"],
+        "operator_context": manifest["operator_context"],
         "will_execute_external_action": False,
         "will_run_provider": False,
         "will_perform_external_write": False,
     }
+
+
+def manual_context_contact_candidate(
+    manual_candidate: dict[str, Any],
+    *,
+    conversation_key: str,
+    reviewer: str,
+) -> dict[str, Any]:
+    raw_email = str(manual_candidate.get("email") or "").strip()
+    email = participant_identity.normalize_email(raw_email) or raw_email.lower()
+    label = str(manual_candidate.get("label") or manual_candidate.get("name") or "").strip()
+    if not label and email:
+        label = email
+    if not label and not email:
+        raise ValueError("Manual context contact requires a label or email.")
+    contact_id = str(manual_candidate.get("contact_id") or "").strip() or stable_id("contact", label.lower(), email.lower())
+    return compact_context_contact_candidate(
+        {
+            "contact_id": contact_id,
+            "label": label,
+            "email": email,
+            "source": "operator_input",
+            "source_type": "operator_input",
+            "source_profile": "context_workbench",
+            "confidence": 1.0,
+            "evidence": [
+                {
+                    "kind": "operator_input",
+                    "source": "context_workbench",
+                    "conversation_key": conversation_key,
+                    "reviewer": reviewer,
+                }
+            ],
+        }
+    )
+
+
+def upsert_context_contact(candidate: dict[str, Any], *, root: Optional[Path], reviewer: str, now: str) -> None:
+    label = str(candidate.get("label") or candidate.get("email") or "").strip()
+    contact_id = str(candidate.get("contact_id") or "").strip()
+    if not label or not contact_id:
+        return
+    with connect(root) as con:
+        init_db(con)
+        con.execute(
+            """
+            INSERT INTO contacts (id, label, email, external_ref, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, '', ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              label = excluded.label,
+              email = excluded.email,
+              metadata_json = excluded.metadata_json,
+              updated_at = excluded.updated_at
+            """,
+            (
+                contact_id,
+                label,
+                str(candidate.get("email") or "").strip(),
+                json.dumps({"source": "context_workbench_operator_input", "reviewer": reviewer}, sort_keys=True),
+                now,
+                now,
+            ),
+        )
+        con.commit()
+
+
+def context_contact_lookup(detail: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    context_state = detail.get("context_workbench") if isinstance(detail.get("context_workbench"), dict) else {}
+    proposed = context_state.get("proposed_contact_candidates") if isinstance(context_state.get("proposed_contact_candidates"), list) else []
+    selection = context_state.get("contact_selection") if isinstance(context_state.get("contact_selection"), dict) else {}
+    merge_state = selection.get("merge_state") if isinstance(selection.get("merge_state"), dict) else {}
+    selection_candidates = []
+    for key in ("searchable_candidates", "selected_candidates", "excluded_candidates"):
+        values = selection.get(key) if isinstance(selection.get(key), list) else []
+        selection_candidates.extend(value for value in values if isinstance(value, dict))
+    local_contacts = (detail.get("identity_review") or {}).get("contacts")
+    local_candidates = [
+        participant_identity.local_contact_candidate(contact)
+        for contact in local_contacts
+        if isinstance(contact, dict)
+    ] if isinstance(local_contacts, list) else []
+    lookup: dict[str, dict[str, Any]] = {}
+    for candidate in unique_context_contact_candidates([*proposed, *selection_candidates, *local_candidates], merge_state=merge_state):
+        contact_id = str(candidate.get("contact_id") or "")
+        if contact_id:
+            lookup.setdefault(contact_id, candidate)
+        merged_contact_ids = candidate.get("merged_contact_ids") if isinstance(candidate.get("merged_contact_ids"), list) else []
+        for merged_id in merged_contact_ids:
+            if str(merged_id or ""):
+                lookup.setdefault(str(merged_id), candidate)
+    return lookup
 
 
 def record_context_contact_selection(
@@ -1107,64 +2275,576 @@ def record_context_contact_selection(
     actor_type: str = "operator",
     reviewer: str = "operator",
     note: str = "",
+    manual_candidate: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    action = action.strip().lower()
-    if action not in {"select", "exclude", "clear"}:
-        raise ValueError("Context contact selection action must be select, exclude, or clear.")
-    actor_type = actor_type.strip().lower() or "operator"
-    if actor_type not in {"operator", "app_intelligence"}:
-        raise ValueError("Context contact selection actor_type must be operator or app_intelligence.")
-    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
-    context_state = detail.get("context_workbench") if isinstance(detail.get("context_workbench"), dict) else {}
-    candidates = context_state.get("proposed_contact_candidates") if isinstance(context_state.get("proposed_contact_candidates"), list) else []
-    candidate_by_id = {
-        str(candidate.get("contact_id") or ""): compact_context_contact_candidate(candidate)
-        for candidate in candidates
-        if isinstance(candidate, dict) and str(candidate.get("contact_id") or "")
-    }
-    candidate_id = candidate_id.strip()
-    if not candidate_id:
-        raise ValueError("Context contact selection requires candidate_id.")
-    if candidate_id not in candidate_by_id:
-        raise ValueError("Context contact selection candidate_id is not available for this conversation.")
-
-    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
-    if not conversation_key:
-        raise ValueError("Context contact selection requires a conversation key.")
-    path = context_contact_selection_path(state_root=state_root, conversation_key=conversation_key)
-    payload = read_json_file(path) if path.exists() else {}
-    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
-    now = utcish_now()
-    decision = {
-        "decision_id": stable_id("context-contact-selection", conversation_key, candidate_id, action, now, str(uuid.uuid4())),
-        "candidate_id": candidate_id,
-        "action": action,
-        "actor_type": actor_type,
-        "reviewer": reviewer.strip() or actor_type,
-        "note": note.strip(),
-        "created_at": now,
-        "candidate": candidate_by_id[candidate_id],
+    batch = record_context_contact_selection_batch(
+        document_id,
+        root=root,
+        state_root=state_root,
+        actions=[
+            {
+                "candidate_id": candidate_id,
+                "action": action,
+                "actor_type": actor_type,
+                "reviewer": reviewer,
+                "note": note,
+                "manual_candidate": manual_candidate,
+            }
+        ],
+    )
+    decision = batch["decisions"][0]
+    return {
+        "schema_version": "transcribe-audio.context-contact-selection-action.v1",
+        "status": decision.get("action") or action,
+        "decision": decision,
+        "selection_path": batch["selection_path"],
+        "context_workbench": batch["context_workbench"],
         "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
+
+
+def record_context_contact_selection_batch(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not actions:
+        raise ValueError("Context contact selection batch requires at least one action.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    if not conversation_key:
+        raise ValueError("Context contact selection requires a conversation key.")
+    candidate_by_id = context_contact_lookup(detail)
+    path = context_contact_selection_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    new_decisions: list[dict[str, Any]] = []
+    updated_at = utcish_now()
+    for item in actions:
+        if not isinstance(item, dict):
+            raise ValueError("Context contact selection batch actions must be objects.")
+        action = str(item.get("action") or "").strip().lower()
+        if action not in {"select", "exclude", "clear"}:
+            raise ValueError("Context contact selection action must be select, exclude, or clear.")
+        actor_type = str(item.get("actor_type") or "operator").strip().lower() or "operator"
+        if actor_type not in {"operator", "app_intelligence"}:
+            raise ValueError("Context contact selection actor_type must be operator or app_intelligence.")
+        reviewer = str(item.get("reviewer") or actor_type).strip() or actor_type
+        candidate_id = str(item.get("candidate_id") or "").strip()
+        manual_payload = item.get("manual_candidate") if isinstance(item.get("manual_candidate"), dict) else {}
+        if candidate_id and candidate_id in candidate_by_id:
+            candidate = candidate_by_id[candidate_id]
+        elif manual_payload:
+            candidate = manual_context_contact_candidate(manual_payload, conversation_key=conversation_key, reviewer=reviewer)
+            candidate_id = str(candidate.get("contact_id") or "")
+        else:
+            raise ValueError("Context contact selection candidate_id is not available for this conversation.")
+        if not candidate_id:
+            raise ValueError("Context contact selection requires candidate_id.")
+        now = utcish_now()
+        if manual_payload and action == "select":
+            upsert_context_contact(candidate, root=root, reviewer=reviewer, now=now)
+        new_decisions.append(
+            {
+                "decision_id": stable_id("context-contact-selection", conversation_key, candidate_id, action, now, str(uuid.uuid4())),
+                "candidate_id": candidate_id,
+                "action": action,
+                "actor_type": actor_type,
+                "reviewer": reviewer,
+                "note": str(item.get("note") or "").strip(),
+                "created_at": now,
+                "candidate": candidate,
+                "will_execute_external_action": False,
+                "will_perform_external_write": False,
+            }
+        )
     payload = {
         "schema_version": "transcribe-audio.context-contact-selection.v1",
         "conversation_key": conversation_key,
         "document_id": document_id,
         "source_document_id": (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id") or "",
-        "updated_at": now,
-        "decisions": [*decisions, decision],
+        "updated_at": updated_at,
+        "decisions": [*decisions, *new_decisions],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, payload)
+    refreshed_context = context_workbench_state(
+        detail=detail,
+        root=root,
+        state_root=state_root,
+    )
+    return {
+        "schema_version": "transcribe-audio.context-contact-selection-batch.v1",
+        "status": "recorded",
+        "decisions": new_decisions,
+        "selection_path": str(path),
+        "context_workbench": refreshed_context,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def search_context_contacts(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    query: str = "",
+    limit: int = 20,
+    mode: str = "cache",
+    source_filters: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    mode = (mode or "cache").strip().lower()
+    if mode not in {"cache", "refresh", "sources"}:
+        raise ValueError("Context contact search mode must be cache or refresh.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    refresh_entry: dict[str, Any] = {}
+    warnings: list[str] = []
+    source_profiles: list[dict[str, Any]] = []
+    lookup = context_contact_lookup(detail)
+    query_text = query.strip().lower()
+    terms = [term for term in re.split(r"\s+", query_text) if term]
+    source_filter_set = {str(value or "").strip().lower() for value in (source_filters or []) if str(value or "").strip()}
+    if mode in {"refresh", "sources"} and len(query_text) >= 2:
+        source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+        transcript_payload = source_document.get("json_payload") if isinstance(source_document.get("json_payload"), dict) else {}
+        transcript_payload = {
+            **transcript_payload,
+            "transcript_text": source_document.get("text_content") or transcript_payload.get("transcript_text") or "",
+        }
+        collect_kwargs: dict[str, Any] = {
+            "query_terms": [query_text],
+            "transcript": transcript_payload,
+            "state_root": state_root,
+        }
+        if source_filter_set:
+            collect_kwargs["source_filters"] = source_filter_set
+        provenance_sources, source_profiles, warnings = participant_identity.collect_configured_contact_sources(**collect_kwargs)
+        if source_filter_set:
+            provenance_sources = [
+                source
+                for source in provenance_sources
+                if str(source.source_type or "").split("_", 1)[0].lower() in source_filter_set
+                or str((source.metadata or {}).get("profile") or "").lower() in source_filter_set
+            ]
+            source_profiles = [
+                profile
+                for profile in source_profiles
+                if str(profile.get("source") or "").lower() in source_filter_set
+                or str(profile.get("profile") or "").lower() in source_filter_set
+            ]
+        evidence_pool = [
+            participant_identity.compact_person(
+                {"name": query_text},
+                source="context_contact_search.query",
+            )
+        ]
+        source_candidates = [
+            participant_identity.provenance_candidate(source, evidence_pool=evidence_pool)
+            for source in provenance_sources
+        ]
+        source_candidates = participant_identity.ranked_contact_candidates(
+            source_candidates,
+            limit=max(1, limit),
+            per_source_profile=max(1, limit),
+            aliases=participant_identity.load_contact_aliases(state_root),
+            min_confidence=0.4,
+        )
+        if conversation_key:
+            refresh_entry = append_context_contact_search_cache(
+                state_root=state_root,
+                conversation_key=conversation_key,
+                query=query,
+                items=source_candidates,
+                source_profiles=source_profiles,
+                warnings=warnings,
+            )
+            detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+            lookup = context_contact_lookup(detail)
+    items = []
+    for candidate in lookup.values():
+        haystack = context_contact_candidate_search_text(candidate)
+        if terms and not all(term in haystack for term in terms):
+            continue
+        items.append(candidate)
+    items = unique_context_contact_candidates(items)
+    affinity_cache = context_contact_affinity_cache_state(state_root=state_root, conversation_key=conversation_key)
+    if mode in {"refresh", "sources"} and items:
+        items = compute_contact_affinity_candidates(
+            items,
+            query=query,
+            root=root,
+            state_root=state_root,
+        )
+        write_context_contact_affinity_cache(
+            state_root=state_root,
+            conversation_key=conversation_key,
+            query=query,
+            items=items[: max(1, limit)],
+        )
+        affinity_cache = context_contact_affinity_cache_state(state_root=state_root, conversation_key=conversation_key)
+    else:
+        items = apply_cached_contact_affinity(items, affinity_cache, query=query)
+    items = sorted(
+        items,
+        key=lambda item: (
+            float(item.get("rank_score") or 0.0),
+            float(item.get("confidence") or 0.0),
+            str(item.get("label") or item.get("email") or "").lower(),
+        ),
+        reverse=True,
+    )[: max(1, limit)]
+    selected_items = []
+    selection = ((detail.get("context_workbench") or {}).get("contact_selection") or {})
+    for candidate in selection.get("selected_candidates") if isinstance(selection.get("selected_candidates"), list) else []:
+        if isinstance(candidate, dict):
+            selected_items.append(candidate)
+    return {
+        "schema_version": "transcribe-audio.context-contact-search.v1",
+        "status": "ok",
+        "query": query,
+        "mode": "refresh" if mode in {"refresh", "sources"} else "cache",
+        "cache_status": "updated" if refresh_entry else "hit" if items else "miss",
+        "source_profiles": source_profiles,
+        "warnings": warnings,
+        "refreshed_candidate_count": int(refresh_entry.get("item_count") or 0),
+        "search_cache_path": refresh_entry.get("cache_path", ""),
+        "affinity_cache_status": affinity_cache.get("status", "empty"),
+        "affinity_cache_path": affinity_cache.get("path", ""),
+        "selected_items": selected_items,
+        "items": items,
+        "total": len(items),
+        "will_execute_external_action": mode in {"refresh", "sources"},
+        "will_perform_external_write": False,
+    }
+
+
+def configured_contact_refresh_sources(*, state_root: Path) -> list[dict[str, Any]]:
+    config = participant_identity.load_contact_source_config(state_root)
+    sources: list[dict[str, Any]] = [
+        {
+            "source": "calendar",
+            "profile": "conversation",
+            "label": "Calendar attendees",
+            "read_only": True,
+            "will_execute_external_action": False,
+            "description": "Refresh local calendar attendee candidates already attached to the transcript.",
+        }
+    ]
+    gws_config = config.get("gws") if isinstance(config.get("gws"), dict) else {}
+    for profile in gws_config.get("profiles") if isinstance(gws_config.get("profiles"), list) else []:
+        if not isinstance(profile, dict) or profile.get("enabled") is False:
+            continue
+        label = str(profile.get("label") or profile.get("profile") or "gws-default")
+        surfaces = profile.get("surfaces") if isinstance(profile.get("surfaces"), list) else ["contacts"]
+        sources.append(
+            {
+                "source": "gws",
+                "profile": label,
+                "label": f"GWS {label}",
+                "surfaces": surfaces,
+                "read_only": True,
+                "will_execute_external_action": True,
+                "description": "Search configured Google People/Contacts surfaces.",
+            }
+        )
+    odollo_config = config.get("odollo") if isinstance(config.get("odollo"), dict) else {}
+    for profile in odollo_config.get("profiles") if isinstance(odollo_config.get("profiles"), list) else []:
+        if isinstance(profile, str):
+            profile = {"label": profile}
+        if not isinstance(profile, dict) or profile.get("enabled") is False:
+            continue
+        label = str(profile.get("label") or profile.get("profile") or "")
+        if not label:
+            continue
+        sources.append(
+            {
+                "source": "odollo",
+                "profile": label,
+                "label": f"Odollo {label}",
+                "models": ["res.partner"],
+                "read_only": True,
+                "will_execute_external_action": True,
+                "description": "Search configured read-only Odollo contact provenance.",
+            }
+        )
+    msgcli_config = config.get("msgcli") if isinstance(config.get("msgcli"), dict) else {}
+    if msgcli_config:
+        sources.append(
+            {
+                "source": "msgcli",
+                "profile": str(msgcli_config.get("profile") or "default"),
+                "label": "msgcli mail metadata",
+                "read_only": True,
+                "enabled": bool(msgcli_config.get("enabled")),
+                "will_execute_external_action": bool(msgcli_config.get("enabled")),
+                "description": "Future bounded mail metadata source for relationship affinity.",
+            }
+        )
+    return sources
+
+
+def context_contact_refresh_preview(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    query: str = "",
+    source_filters: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    source_filter_set = {str(value or "").strip().lower() for value in (source_filters or []) if str(value or "").strip()}
+    sources = configured_contact_refresh_sources(state_root=state_root)
+    if source_filter_set:
+        sources = [
+            source
+            for source in sources
+            if str(source.get("source") or "").lower() in source_filter_set
+            or str(source.get("profile") or "").lower() in source_filter_set
+        ]
+    return {
+        "schema_version": "transcribe-audio.context-contact-refresh-preview.v1",
+        "status": "ready",
+        "conversation_key": conversation_key,
+        "query": query.strip(),
+        "sources": sources,
+        "source_count": len(sources),
+        "warnings": [] if sources else ["No configured contact refresh sources matched the requested filters."],
+        "will_execute_external_action": any(bool(source.get("will_execute_external_action")) for source in sources),
+        "will_perform_external_write": False,
+    }
+
+
+def context_contact_refresh_job_path(*, state_root: Path, job_id: str) -> Path:
+    return conversation_context_contact_refresh_dir(state_root) / f"{job_id}.json"
+
+
+def refresh_context_contacts(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    query: str = "",
+    limit: int = 30,
+    source_filters: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    preview = context_contact_refresh_preview(
+        document_id,
+        root=root,
+        state_root=state_root,
+        query=query,
+        source_filters=source_filters,
+    )
+    now = utcish_now()
+    job_id = f"contact-refresh-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
+    search = search_context_contacts(
+        document_id,
+        root=root,
+        state_root=state_root,
+        query=query,
+        limit=limit,
+        mode="refresh",
+        source_filters=source_filters,
+    )
+    source_counts = [
+        {
+            "source": source.get("source") or "",
+            "profile": source.get("profile") or "",
+            "status": "completed",
+            "candidate_count": search.get("refreshed_candidate_count", 0),
+        }
+        for source in preview.get("sources", [])
+        if isinstance(source, dict)
+    ]
+    manifest = {
+        "schema_version": "transcribe-audio.context-contact-refresh-job.v1",
+        "job_id": job_id,
+        "status": "completed",
+        "created_at": now,
+        "finished_at": utcish_now(),
+        "document_id": document_id,
+        "conversation_key": preview.get("conversation_key", ""),
+        "query": query.strip(),
+        "source_filters": source_filters or [],
+        "preview": preview,
+        "source_counts": source_counts,
+        "search": search,
+        "warnings": search.get("warnings", []),
+        "will_execute_external_action": preview.get("will_execute_external_action", False),
+        "will_perform_external_write": False,
+    }
+    path = context_contact_refresh_job_path(state_root=state_root, job_id=job_id)
+    write_json_file(path, manifest)
+    return {
+        "schema_version": "transcribe-audio.context-contact-refresh.v1",
+        "status": "completed",
+        "job_id": job_id,
+        "job_path": str(path),
+        "source_counts": source_counts,
+        "items": search.get("items", []),
+        "total": search.get("total", 0),
+        "warnings": search.get("warnings", []),
+        "cache_status": search.get("cache_status", ""),
+        "affinity_cache_status": search.get("affinity_cache_status", ""),
+        "will_execute_external_action": preview.get("will_execute_external_action", False),
+        "will_perform_external_write": False,
+    }
+
+
+def read_context_contact_refresh_job(*, state_root: Path, job_id: str) -> dict[str, Any]:
+    path = context_contact_refresh_job_path(state_root=state_root, job_id=job_id)
+    payload = read_json_file(path)
+    if not payload:
+        raise FileNotFoundError(f"Contact refresh job not found: {job_id}")
+    return {**payload, "job_path": str(path)}
+
+
+def record_context_contact_merge_batch(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not actions:
+        raise ValueError("Context contact merge batch requires at least one action.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    if not conversation_key:
+        raise ValueError("Context contact merge requires a conversation key.")
+    path = context_contact_merge_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    new_decisions: list[dict[str, Any]] = []
+    lookup = context_contact_lookup(detail)
+    for item in actions:
+        if not isinstance(item, dict):
+            raise ValueError("Context contact merge actions must be objects.")
+        action = str(item.get("action") or "").strip().lower()
+        if action not in {"merge", "split"}:
+            raise ValueError("Context contact merge action must be merge or split.")
+        actor_type = str(item.get("actor_type") or "operator").strip().lower() or "operator"
+        if actor_type not in {"operator", "app_intelligence"}:
+            raise ValueError("Context contact merge actor_type must be operator or app_intelligence.")
+        reviewer = str(item.get("reviewer") or actor_type).strip() or actor_type
+        contact_ids = [
+            str(value or "").strip()
+            for value in item.get("contact_ids", [])
+            if str(value or "").strip()
+        ] if isinstance(item.get("contact_ids"), list) else []
+        if len(contact_ids) < 2:
+            raise ValueError("Context contact merge/split requires at least two contact_ids.")
+        canonical_payload = item.get("canonical_candidate") if isinstance(item.get("canonical_candidate"), dict) else {}
+        candidate_sources = [lookup[contact_id] for contact_id in contact_ids if contact_id in lookup]
+        canonical = compact_context_contact_candidate(canonical_payload) if canonical_payload else {}
+        if not canonical and candidate_sources:
+            canonical = compact_context_contact_candidate(candidate_sources[0])
+        now = utcish_now()
+        decision_id = stable_id("context-contact-merge", conversation_key, action, ",".join(sorted(contact_ids)), now, str(uuid.uuid4()))
+        new_decisions.append(
+            {
+                "decision_id": decision_id,
+                "action": action,
+                "actor_type": actor_type,
+                "reviewer": reviewer,
+                "note": str(item.get("note") or "").strip(),
+                "created_at": now,
+                "contact_ids": contact_ids,
+                "dedupe_key": str(item.get("dedupe_key") or ""),
+                "merge_key": stable_id("reviewed-contact-merge", conversation_key, *sorted(contact_ids)) if action == "merge" else "",
+                "canonical_candidate": canonical,
+                "sources": [compact_context_contact_candidate(candidate) for candidate in candidate_sources],
+                "will_execute_external_action": False,
+                "will_perform_external_write": False,
+            }
+        )
+    updated_at = utcish_now()
+    payload = {
+        "schema_version": "transcribe-audio.context-contact-merge.v1",
+        "conversation_key": conversation_key,
+        "document_id": document_id,
+        "updated_at": updated_at,
+        "decisions": [*decisions, *new_decisions],
         "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
     write_json_file(path, payload)
     refreshed = get_conversation_detail(document_id, root=root, state_root=state_root)
     return {
-        "schema_version": "transcribe-audio.context-contact-selection-action.v1",
-        "status": action,
-        "decision": decision,
-        "selection_path": str(path),
-        "context_workbench": refreshed.get("context_workbench"),
+        "schema_version": "transcribe-audio.context-contact-merge-batch.v1",
+        "status": "recorded",
+        "decisions": new_decisions,
+        "merge_path": str(path),
+        "context_workbench": refreshed.get("context_workbench") or {},
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def record_context_instructions(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+    instruction_text: str,
+    actor_type: str = "operator",
+    reviewer: str = "operator",
+    note: str = "",
+) -> dict[str, Any]:
+    actor_type = actor_type.strip().lower() or "operator"
+    if actor_type not in {"operator", "app_intelligence"}:
+        raise ValueError("Context instruction actor_type must be operator or app_intelligence.")
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+    if not conversation_key:
+        raise ValueError("Context instructions require a conversation key.")
+    source_document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    path = context_instructions_path(state_root=state_root, conversation_key=conversation_key)
+    payload = read_json_file(path) if path.exists() else {}
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    now = utcish_now()
+    text = instruction_text.strip()
+    entry = {
+        "entry_id": stable_id("context-instruction", conversation_key, now, str(uuid.uuid4())),
+        "instruction_text": text,
+        "actor_type": actor_type,
+        "reviewer": reviewer.strip() or actor_type,
+        "note": note.strip(),
+        "created_at": now,
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    payload = {
+        "schema_version": "transcribe-audio.context-operator-context.v1",
+        "conversation_key": conversation_key,
+        "document_id": document_id,
+        "source_document_id": source_document.get("id") or "",
+        "instruction_text": text,
+        "actor_type": actor_type,
+        "reviewer": reviewer.strip() or actor_type,
+        "updated_at": now,
+        "history": [*history, entry],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+    write_json_file(path, payload)
+    refreshed_context = context_workbench_state(
+        detail=detail,
+        root=root,
+        state_root=state_root,
+    )
+    return {
+        "schema_version": "transcribe-audio.context-instructions-action.v1",
+        "status": "saved" if text else "cleared",
+        "entry": entry,
+        "instruction_path": str(path),
+        "context_workbench": refreshed_context,
         "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
@@ -3037,6 +4717,49 @@ def submit_selected_first_pass_summary(
     }
 
 
+def run_selected_first_pass_summary(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Path,
+    env_file: Path,
+    approval_token: str,
+    store: bool = True,
+    model: str = "",
+) -> dict[str, Any]:
+    if approval_token != FIRST_PASS_SUMMARY_SUBMIT_TOKEN:
+        raise ValueError(f"Run requires approval_token={FIRST_PASS_SUMMARY_SUBMIT_TOKEN}.")
+    prepared = prepare_selected_first_pass_summary(
+        document_id,
+        state_root=state_root,
+        store_root=store_root,
+        env_file=env_file,
+        store=store,
+        model=model,
+    )
+    submitted = submit_selected_first_pass_summary(
+        document_id,
+        state_root=state_root,
+        store_root=store_root,
+        env_file=env_file,
+        manifest=str(prepared["manifest"]),
+        approval_token=approval_token,
+    )
+    return {
+        **submitted,
+        "action": "run_selected_first_pass_summary",
+        "prepared": {
+            "action": prepared.get("action"),
+            "status": prepared.get("status"),
+            "manifest": prepared.get("manifest"),
+            "request_count": prepared.get("request_count"),
+        },
+        "one_click": True,
+        "will_execute_external_action": True,
+        "will_perform_external_write": True,
+    }
+
+
 def selected_first_pass_summary_status(
     document_id: str,
     *,
@@ -3289,6 +5012,59 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["context_workbench"]
                     )
                     return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-search":
+                    self.write_json(
+                        search_context_contacts(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            query=first(params, "q") or first(params, "query"),
+                            limit=parse_int(first(params, "limit"), 20, minimum=1, maximum=100),
+                            mode=first(params, "mode") or "cache",
+                            source_filters=params.get("source") or params.get("sources") or [],
+                        )
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-refresh":
+                    self.write_json(
+                        context_contact_refresh_preview(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            query=first(params, "q") or first(params, "query"),
+                            source_filters=params.get("source") or params.get("sources") or [],
+                        )
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-affinity":
+                    query = first(params, "q") or first(params, "query")
+                    detail = get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)
+                    conversation_key = str((detail.get("conversation") or {}).get("key") or "")
+                    cache = context_contact_affinity_cache_state(state_root=self.state_root, conversation_key=conversation_key)
+                    items = cache.get("items") if isinstance(cache.get("items"), list) else []
+                    if query:
+                        terms = [term for term in re.split(r"\s+", query.lower()) if term]
+                        items = [
+                            item for item in items
+                            if isinstance(item, dict)
+                            and all(term in context_contact_candidate_search_text(item) for term in terms)
+                        ]
+                    self.write_json(
+                        {
+                            "schema_version": "transcribe-audio.context-contact-affinity.v1",
+                            "status": cache.get("status", "empty"),
+                            "query": query,
+                            "items": items,
+                            "total": len(items),
+                            "cache_path": cache.get("path", ""),
+                            "will_execute_external_action": False,
+                            "will_perform_external_write": False,
+                        }
+                    )
+                    return
+                if len(parts) == 6 and parts[3] == "context-workbench" and parts[4] == "contact-refresh":
+                    self.write_json(read_context_contact_refresh_job(state_root=self.state_root, job_id=parts[5]))
+                    return
                 if len(parts) == 4 and parts[3] == "final-preview":
                     self.write_json(
                         get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["final_preview"]
@@ -3355,6 +5131,25 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     return
             if parsed.path == "/api/intelligence/config":
                 self.write_json(intelligence_config.all_task_configs())
+                return
+            if parsed.path == "/api/automation/config":
+                self.write_json(automation_config.all_config(state_root=self.state_root))
+                return
+            if parsed.path == "/api/provenance/config":
+                self.write_json(
+                    provenance_config.all_config(
+                        state_root=self.state_root,
+                        profile=first(params, "profile"),
+                    )
+                )
+                return
+            if parsed.path == "/api/provenance/config/doctor":
+                self.write_json(
+                    provenance_config.doctor(
+                        state_root=self.state_root,
+                        profile=first(params, "profile"),
+                    )
+                )
                 return
             if parsed.path == "/api/intelligence/runs":
                 self.write_json(
@@ -3510,6 +5305,21 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         status=HTTPStatus.ACCEPTED,
                     )
                     return
+                if len(parts) == 5 and parts[3] == "first-pass-summary" and parts[4] == "run":
+                    body = self.read_json_body()
+                    self.write_json(
+                        run_selected_first_pass_summary(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            env_file=self.server.batch_env_file,  # type: ignore[attr-defined]
+                            approval_token=str(body.get("approval_token") or ""),
+                            store=bool(body.get("store", True)),
+                            model=str(body.get("model") or ""),
+                        ),
+                        status=HTTPStatus.ACCEPTED,
+                    )
+                    return
                 if len(parts) == 5 and parts[3] == "first-pass-summary" and parts[4] == "status":
                     body = self.read_json_body()
                     self.write_json(
@@ -3545,6 +5355,85 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             state_root=self.state_root,
                             candidate_id=str(body.get("candidate_id") or ""),
                             action=str(body.get("action") or ""),
+                            actor_type=str(body.get("actor_type") or "operator"),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
+                            manual_candidate=body.get("manual_candidate") if isinstance(body.get("manual_candidate"), dict) else None,
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-selection-batch":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_context_contact_selection_batch(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            actions=body.get("actions") if isinstance(body.get("actions"), list) else [],
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-refresh":
+                    body = self.read_json_body()
+                    self.write_json(
+                        refresh_context_contacts(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            query=str(body.get("query") or body.get("q") or ""),
+                            limit=parse_int(str(body.get("limit") or ""), 30, minimum=1, maximum=100),
+                            source_filters=body.get("sources") if isinstance(body.get("sources"), list) else [],
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 6 and parts[3] == "context-workbench" and parts[4] == "contact-refresh" and parts[5] == "preview":
+                    body = self.read_json_body()
+                    self.write_json(
+                        context_contact_refresh_preview(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            query=str(body.get("query") or body.get("q") or ""),
+                            source_filters=body.get("sources") if isinstance(body.get("sources"), list) else [],
+                        )
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "contact-merge-batch":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_context_contact_merge_batch(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            actions=body.get("actions") if isinstance(body.get("actions"), list) else [],
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 6 and parts[3] == "context-workbench" and parts[4] == "contact-affinity" and parts[5] == "refresh":
+                    body = self.read_json_body()
+                    self.write_json(
+                        refresh_context_contact_affinity(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            query=str(body.get("query") or body.get("q") or ""),
+                            limit=parse_int(str(body.get("limit") or ""), 100, minimum=1, maximum=200),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "context-workbench" and parts[4] == "instructions":
+                    body = self.read_json_body()
+                    self.write_json(
+                        record_context_instructions(
+                            parts[2],
+                            root=self.store_root,
+                            state_root=self.state_root,
+                            instruction_text=str(body.get("instruction_text") or body.get("text") or ""),
                             actor_type=str(body.get("actor_type") or "operator"),
                             reviewer=str(body.get("reviewer") or "operator"),
                             note=str(body.get("note") or ""),
@@ -3648,6 +5537,46 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         task=str(body.get("task") or ""),
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
                         approval_token=str(body.get("approval_token") or ""),
+                    ),
+                    status=HTTPStatus.ACCEPTED,
+                )
+                return
+            if parsed.path == "/api/automation/config/preview":
+                body = self.read_json_body()
+                self.write_json(
+                    automation_config.preview_config_update(
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        state_root=self.state_root,
+                    )
+                )
+                return
+            if parsed.path == "/api/automation/config/apply":
+                body = self.read_json_body()
+                self.write_json(
+                    automation_config.apply_config_update(
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        approval_token=str(body.get("approval_token") or ""),
+                        state_root=self.state_root,
+                    ),
+                    status=HTTPStatus.ACCEPTED,
+                )
+                return
+            if parsed.path == "/api/provenance/config/preview":
+                body = self.read_json_body()
+                self.write_json(
+                    provenance_config.preview_config_update(
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        state_root=self.state_root,
+                    )
+                )
+                return
+            if parsed.path == "/api/provenance/config/apply":
+                body = self.read_json_body()
+                self.write_json(
+                    provenance_config.apply_config_update(
+                        update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        approval_token=str(body.get("approval_token") or ""),
+                        state_root=self.state_root,
                     ),
                     status=HTTPStatus.ACCEPTED,
                 )

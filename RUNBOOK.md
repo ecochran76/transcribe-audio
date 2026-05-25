@@ -2,6 +2,548 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 200 | 2026-05-25
+
+Summary: Closed Plan 0016 as a completed design-only configuration panel slice.
+
+Findings:
+
+- Plan 0016's scope is explicitly design-only: it authorizes planning docs,
+  read-only API checks, and `agent-browser` inspection evidence, but no React,
+  CSS, Python, API, schema, provider, source-refresh, or workflow-stage changes.
+- The plan already defines the required aesthetics, information architecture,
+  section model, draft/preview/apply lifecycle, component contract,
+  accessibility expectations, and required browser inspection gates.
+- The baseline browser evidence exists as PNG files at the expected desktop and
+  mobile sizes.
+
+Changes:
+
+- Marked Plan 0016 `CLOSED`.
+- Added Plan 0016 closeout notes clarifying that post-implementation browser
+  checks remain required for the next build slice.
+- Updated P09 roadmap text to show Plan 0016 closed as the design authority.
+
+Validation:
+
+- Re-read Plan 0016 and the repo planning, runtime-state, architecture, and
+  memory/context policies.
+- Ran `~/.local/bin/graphiti-runtime doctor`; Graphiti was healthy.
+- Ran `~/.local/bin/graphiti-runtime discover --group-id transcribe_audio_main`
+  for Plan 0016/config-panel context; results remained older than the current
+  repo docs, so current files are authoritative.
+- Verified the baseline screenshots exist:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-desktop.png`
+  and
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-mobile.png`.
+- Verified those screenshots are PNG files at 1440x1100 and 390x844.
+- Ran `git diff --check` for tracked docs and a trailing-whitespace check for
+  the new plan, roadmap, and runbook files.
+- No implementation code was changed.
+
+## Turn 199 | 2026-05-25
+
+Summary: Planned the design path for the full configuration panel before code.
+
+Findings:
+
+- The current Settings tab from Plan 0015 is functional but still a first-pass
+  page: account/runtime status, intelligence route summary, and automation rows
+  are present, while provenance, safety gates, staged-change evidence, and
+  browser-validation expectations are not yet unified into one workbench.
+- The correct design track is dense Product UI: a calm operations console with
+  restrained surfaces, semantic status colors, row-based matrices, and
+  user-scoped runtime paths rather than marketing-style panels.
+- Graphiti discovery was healthy but stale for the recent P09 settings work, so
+  current `ROADMAP.md`, `RUNBOOK.md`, Plan 0015, and source files remain the
+  authority.
+
+Changes:
+
+- Added `docs/dev/plans/0016-2026-05-25-config-panel-design-path.md`.
+- Wired Plan 0016 into P09 in `ROADMAP.md`.
+- Defined the Settings workbench target: Account, Intelligence, Automation,
+  Provenance, Safety, and Evidence sections with a persistent dirty
+  preview/apply lifecycle.
+- Required `$agent-browser` for baseline inspection and later implementation
+  validation.
+
+Validation:
+
+- Read the repo planning, runtime-state, architecture, and memory/context
+  policies.
+- Ran `~/.local/bin/graphiti-runtime doctor`; Graphiti was healthy.
+- Ran `~/.local/bin/graphiti-runtime discover --group-id transcribe_audio_main`
+  for config-panel/P09 context; useful results were older than current repo
+  planning state.
+- Reviewed `ROADMAP.md`, `RUNBOOK.md`, Plan 0015, current Settings component,
+  and current Settings CSS.
+- Used `agent-browser` against `http://transcripts.localhost` to inspect the
+  current Settings UI and captured baseline screenshots:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-desktop.png`
+  and
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-mobile.png`.
+- No implementation code was changed.
+
+## Turn 198 | 2026-05-25
+
+Summary: Opened Plan 0015 for one-click initial summary and automation settings.
+
+Findings:
+
+- The selected-conversation first-pass summary workflow already has scoped
+  prepare, submit, and status operations, but the operator UI still requires
+  separate clicks for the normal initial-summary path.
+- Intelligence task routing already has a user-scoped config, while workflow
+  stage automation needs a separate user-scoped policy config so provider choice
+  and auto-run policy do not collapse into one setting.
+- Production automation should remain disabled/manual by default until every
+  stage from ingestion through final readout has targeted tests and browser
+  smoke evidence.
+
+Changes:
+
+- Added `docs/dev/plans/0015-2026-05-25-one-click-initial-summary-automation-settings.md`.
+- Wired Plan 0015 into P09 in `ROADMAP.md`.
+- Added `automation_config.py` with user-scoped stage policy defaults,
+  preview/apply support, CLI inspection/update commands, and
+  `APPLY_AUTOMATION_CONFIG_UPDATE` gating.
+- Added `POST /api/conversations/<id>/first-pass-summary/run` so the selected
+  initial summary prepares and submits in one reviewed action using the existing
+  `SUBMIT_FIRST_PASS_SUMMARY_BATCH` token.
+- Added `GET /api/automation/config`, `/preview`, and `/apply`; reads and
+  previews never run workflow stages, and apply writes only user-scoped config.
+- Enabled the React Settings tab with account/runtime status, intelligence route
+  summaries, and automation stage toggles. The conversation summary view now
+  exposes `Run initial summary` as the primary action while keeping Prepare only,
+  Submit, and Check as secondary/resume controls.
+- Updated README and API docs for the one-click initial summary and automation
+  config boundaries.
+
+Validation:
+
+- `python -m py_compile transcript_api.py intelligence_config.py
+  automation_config.py` passed.
+- `.venv/bin/python -m pytest
+  tests/test_transcript_api.py::test_selected_first_pass_summary_run_endpoint_prepares_and_submits
+  tests/test_transcript_api.py::test_automation_config_endpoint_defaults_preview_and_apply
+  -q` passed.
+- `.venv/bin/python -m pytest tests/test_transcript_api.py
+  tests/test_intelligence_config.py -q` passed with 59 tests.
+- `.venv/bin/python -m pytest -q` passed with 243 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; `systemctl --user is-active
+  transcripts.service` returned `active`.
+- Direct and ingress health checks returned HTTP 200 with `status: ok`.
+- Live `GET /api/automation/config` returned
+  `schema_version=transcribe-audio.automation-config.v1`, `exists=false`, and
+  every workflow stage disabled/manual.
+- Live `GET /api/conversations/6e8eee4f19a1d5a9b23f/first-pass-summary`
+  returned `status=needs_summary` and the
+  `SUBMIT_FIRST_PASS_SUMMARY_BATCH` future token.
+- `agent-browser` smoke on the live UI verified `Run initial summary` appears
+  in the selected conversation summary tab and the Settings tab shows Account,
+  Intelligence, and six disabled/manual automation stages. No live provider
+  submission button was clicked. Screenshot:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0015-settings-summary-smoke.png`.
+
+## Turn 197 | 2026-05-25
+
+Summary: Completed Plan 0014, the contact search workbench.
+
+Findings:
+
+- The remaining Plan 0014 gaps were explicit refresh/job APIs, relationship
+  affinity ranking, merge/split persistence, richer candidate evidence in the
+  UI, and browser proof that selection stays local until Save.
+- Cache-only search and explicit source refresh needed to stay separate:
+  typing/search ranking can use local state and cached affinity, while provider
+  refresh is an operator action with read-only source/job records.
+- Broad searches such as `chris` work better when deterministic ranking uses
+  communication recency/frequency and calendar/local transcript overlap without
+  treating affinity as identity proof.
+
+Changes:
+
+- Added user-scoped contact refresh job, contact affinity cache, and
+  merge/split decision state under `~/.local/state/transcribe-audio/`.
+- Added contact refresh preview/refresh/job-read endpoints, contact-affinity
+  read/refresh endpoints, and `contact-merge-batch`.
+- Ranked search results with deterministic text, conversation, affinity,
+  source-quality, and operator-history score components plus visible reasons.
+- Made reviewed merge/split decisions feed deterministic candidate generation.
+- Extended the React context workbench with cache/affinity/merge status,
+  Refresh ranking, explicit source refresh, ranking reason chips, source
+  details, and Merge/Split controls.
+- Documented the new API endpoints and closed Plan 0014 in `ROADMAP.md`.
+
+Validation:
+
+- `python -m py_compile transcript_api.py participant_identity.py
+  provenance_config.py` passed.
+- `.venv/bin/python -m pytest -q` passed with 241 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; direct and ingress health checks returned
+  HTTP 200 with `status: ok`.
+- Live API smoke against conversation `6e8eee4f19a1d5a9b23f` showed
+  `contact-affinity/refresh` ranks `Chris Williams` first for query `chris`
+  with `contacted 13 days ago`, `5 calendar overlaps`, and
+  `5 interactions in 90d`; follow-up cached search returned
+  `affinity_cache_status=hit`.
+- `agent-browser` smoke on the Context workbench showed the selected strip
+  remains visible while searching, ranking reasons render, Use causes zero
+  contact-selection requests, and Save choices causes exactly one
+  `/context-workbench/contact-selection-batch` request. The temporary smoke
+  selection was cleared afterward.
+
+## Turn 196 | 2026-05-24
+
+Summary: Planned relationship-affinity ranking for contact search.
+
+Findings:
+
+- Broad first-name queries such as `chris` should not rank equal text matches
+  randomly or only alphabetically.
+- Recency and frequency of communication are useful ranking signals but should
+  not be treated as proof that a contact attended or spoke in the selected
+  meeting.
+- Plan 0013 already makes `gws`, `msgcli`, Odollo, calendar, and iCalendar
+  sources configurable through the shared user-scoped provenance profile.
+
+Changes:
+
+- Added a Relationship Affinity Ranking section to Plan 0014.
+- Defined `relationship_affinity` fields such as last contact date, message
+  counts, calendar overlap counts, transcript overlap counts, prior selected
+  count, prior exclusion count, and compact ranking evidence.
+- Planned user-scoped affinity caching with no raw message bodies, private
+  contact exports, full unrelated attendee lists, attachment bytes, or
+  credentials.
+- Added planned contact-affinity refresh/read endpoints and a deterministic
+  scoring model combining text relevance, conversation relevance, relationship
+  affinity, source quality, and operator history.
+- Updated P09 roadmap text to include recency/frequency relationship affinity
+  as an explainable ranking signal.
+
+Validation:
+
+- Planning update was checked against repo planning and memory/context policy.
+- Graphiti discovery found only general provider/calendar context; the concrete
+  affinity plan was grounded in current Plan 0014 and the shared provenance
+  configuration contract.
+
+## Turn 195 | 2026-05-24
+
+Summary: Added explicit configured-source contact search for cache misses.
+
+Findings:
+
+- Searching `chris` returned zero results because the workbench search was
+  cache-only and `Chris` did not exist in the selected conversation's cached
+  candidates, local contacts table, or existing participant identity caches.
+- The cache-only behavior is still the right default for zero-lag typing, but
+  the UI needed an explicit path to query configured read-only contact sources.
+
+Changes:
+
+- Added a user-scoped conversation contact-search cache under
+  `~/.local/state/transcribe-audio/conversation-context-contact-search-cache/`.
+- Extended `/api/conversations/<id>/context-workbench/contact-search` with
+  `mode=refresh` to query configured read-only contact sources, cache compact
+  candidates, and return redacted source profile/warning metadata.
+- Included cached source-search candidates in context contact lookup and
+  selection state so refreshed contacts can be selected and batch-saved.
+- Added a `Search sources` button to the context workbench while preserving
+  cache-only typing and instant selection.
+- Moved Plan 0014 to `OPEN` and updated P09 roadmap state.
+
+Validation:
+
+- `python -m py_compile transcript_api.py` passed.
+- Targeted tests for source-search caching and batch selection passed.
+- `.venv/bin/python -m pytest -q tests/test_transcript_api.py` passed with 47
+  tests.
+- `npm --prefix frontend run build` passed.
+- Restarted `transcripts.service`; API health returned `status: ok`.
+- Live cache-only search for `chris` initially returned zero results.
+- Live `mode=refresh` source search for `chris` queried the configured read-only
+  `gws` and Odollo profiles, cached 18 refreshed candidates, and returned 10
+  matching compact candidates without warnings.
+- Follow-up cache-only search for `chris` returned the cached 10 candidates.
+- Headless Chromium CDP smoke verified the rendered workbench shows `Search
+  sources`, keeps the selected strip visible, and filters the grid to `Chris`
+  candidates after entering `chris`.
+
+## Turn 194 | 2026-05-24
+
+Summary: Planned the Contact Search Workbench.
+
+Findings:
+
+- P09 remains open after M1/M2/Plan 0013 for richer contact and provenance
+  ergonomics.
+- The current contact picker has the right initial direction: local staging,
+  batch save, selected-contact strip, deterministic merge keys, and
+  user-scoped provenance config.
+- The next work needs a bounded contract separating instant cached selection
+  from explicit slow source refresh/search.
+
+Changes:
+
+- Added `docs/dev/plans/0014-2026-05-24-contact-search-workbench.md`.
+- Wired Plan 0014 into P09 in `ROADMAP.md`.
+- Defined the workbench UX contract: selected strip, cached search, candidate
+  grid, source controls, manual add, natural-language instructions, merge
+  review, dirty state, batch save, and final-preview flush.
+- Defined the backend contract for cache-only search by default,
+  `contact-selection-batch`, explicit source refresh endpoints, merge/split
+  persistence, and App Intelligence structured decisions.
+
+Validation:
+
+- Planning artifacts were checked against repo policy, P09 roadmap state, and
+  closed Plans 0010, 0012, and 0013.
+- Graphiti discovery for `transcribe_audio_main` returned only general
+  planning-surface facts, so the plan was grounded in current repo files and
+  live runbook/roadmap state.
+
+## Turn 193 | 2026-05-24
+
+Summary: Removed contact-picking lag and repaired context contact search display.
+
+Findings:
+
+- The context workbench called the backend `contact-selection` endpoint on
+  every Use/Exclude/Clear click, so picking already-fetched candidates waited
+  for a full selection write/refresh path.
+- The search display swapped to backend search results and could hide already
+  selected contacts while a query was active.
+
+Changes:
+
+- Made contact Use/Exclude/Clear update local React state immediately.
+- Added a persistent selected-contact strip that stays visible while searching.
+- Added a Save choices action and a `contact-selection-batch` backend endpoint
+  so persistence is a single explicit backend action instead of one request per
+  click.
+- Final preview queueing flushes any unsaved local contact choices before it
+  queues the preview.
+- De-duplicated UI contact display by candidate ids, dedupe keys, and email so
+  stale selected duplicates do not clutter the selected strip.
+
+Validation:
+
+- `python -m py_compile transcript_api.py` passed.
+- `.venv/bin/python -m pytest -q tests/test_transcript_api.py` passed with 46
+  tests.
+- `npm --prefix frontend run build` passed.
+- Restarted `transcripts.service`; API health returned `status: ok`.
+- Headless Chromium CDP smoke against
+  `/?selected=6e8eee4f19a1d5a9b23f&conversation=1&workflow=context#raw-audio`
+  verified the selected strip showed Eric Cochran, Sean Solberg, Michael, and
+  Baker Kuehl; clicking a contact action produced zero
+  `/context-workbench/contact-selection*` network requests; typing `solberg`
+  filtered the grid to Sean Solberg while the selected strip remained visible.
+
+## Turn 192 | 2026-05-24
+
+Summary: Strengthened deterministic participant contact de-duplication.
+
+Findings:
+
+- The F&B/SABER transcript contact candidates were still too fragmented when a
+  person had multiple email addresses or inverted display-name formats.
+- Email-first de-duplication merged exact addresses and configured aliases, but
+  kept `Baker Kuehl <baker@saberchemical.com>` separate from
+  `Baker Kuehl <bwkuehl@iastate.edu>` and kept `Sean Solberg` separate from
+  `Solberg, Sean <ssolberg@fredlaw.com>`.
+
+Changes:
+
+- Added deterministic full-name merge keys to `participant_identity.py` for
+  two-token-or-stronger person names, including inverted `Last, First` labels.
+- Kept weak single-token names such as `Michael` out of automatic name merges
+  to avoid broad false positives.
+- Reused the same merge logic in context-workbench candidate de-duplication.
+- Bumped the participant identity cache algorithm key so stale bundles rebuild.
+
+Validation:
+
+- `python -m py_compile participant_identity.py transcript_api.py` passed.
+- `.venv/bin/python -m pytest -q tests/test_participant_identity.py tests/test_transcript_api.py`
+  passed with 57 tests.
+- Rebuilt the identity cache for source document `6e8eee4f19a1d5a9b23f`.
+- Restarted `transcripts.service` and `transcribe-watch.service`; both are
+  active.
+- Live API candidates for `6e8eee4f19a1d5a9b23f` now show four top-level
+  proposals: Eric Cochran, Sean Solberg, Michael, and Baker Kuehl. Sean merges
+  the Fredrikson email source, Baker merges the SABER and Iowa State email
+  sources, and no proposed candidate label/email matches `ecochran76`, Gmail,
+  or Facebook aliases.
+
+## Turn 191 | 2026-05-24
+
+Summary: Implemented the shared user-scoped provenance configuration system.
+
+Findings:
+
+- The live user-scoped provenance config now resolves the migrated SABER Zoho
+  iCalendar feed, SABER/SoyLei shared calendar IDs, one `gws` contact profile,
+  disabled `msgcli` placeholder settings, and two Odollo tenant profiles.
+- Direct calendar repair can find the selected F&B/SABER iCalendar attendee
+  evidence with only `--provenance-profile default`.
+- The ignored watcher config no longer stores private iCalendar feed URLs or
+  duplicated shared-calendar provenance IDs; jobs point at the shared
+  `default` provenance profile instead.
+
+Changes:
+
+- Added `provenance_config.py` with config loading, validation, redaction,
+  doctor, sample initialization, preview/apply mutation, atomic writes, audit
+  writes, and adapters for calendar metadata, participant identity, and
+  context-workbench source config.
+- Wired `--provenance-config` and `--provenance-profile` into both
+  transcription CLIs, `repair_calendar_metadata.py`, and `route_transcript.py`.
+- Made direct `--use-calendar` resolve configured `gog`/`gws` providers,
+  shared calendar IDs, and iCalendar feeds by default while retaining explicit
+  one-off calendar flags.
+- Made `participant_identity.py` prefer the shared provenance config and fall
+  back to legacy `contact-provenance.config.json` only when needed.
+- Added transcript API endpoints for redacted provenance config GET, doctor,
+  preview, and apply.
+- Enabled the React Provenance tab with source toggles, active-profile display,
+  redacted iCalendar feed display, iCal add/update controls, preview/apply
+  actions, and inspector diagnostics.
+- Migrated the live user-scoped config to
+  `~/.local/state/transcribe-audio/provenance.config.json` and moved the
+  pre-migration watcher backup under user-scoped runtime backups.
+- Updated README, `ROADMAP.md`, the sample watcher config, and plan 0013.
+
+Validation:
+
+- `.venv/bin/python -m py_compile provenance_config.py transcript_api.py participant_identity.py assembly_transcribe.py faster_whisper_transcribe.py repair_calendar_metadata.py route_transcript.py watch_transcriptions.py tests/test_provenance_config.py tests/test_transcript_api.py`
+  passed.
+- Focused pytest passed: 14 tests across provenance config, participant
+  identity, transcript API provenance endpoints, and watcher calendar config
+  expansion.
+- `.venv/bin/python -m pytest -q` passed: 227 tests.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python provenance_config.py doctor` reported `status: ok`.
+- `watch_transcriptions.py --check --check-json` reported `status: ok`.
+- Live repair of conversation `6e8eee4f19a1d5a9b23f` with only
+  `--provenance-profile default` found one iCalendar provenance match and four
+  Google calendar matches, then re-ingested the stored transcript.
+- Refreshed source/store artifacts and ignored watcher config do not contain
+  the private Zoho URL; the artifacts retain a hashed iCalendar calendar id and
+  two attendee emails.
+- Live API provenance config and doctor endpoints returned redacted, valid
+  payloads; the selected context workbench returned three calendar attendees,
+  20 proposed contacts, and GWS/Odollo sources.
+- Browser smoke for `/?view=Provenance` rendered six source controls, showed
+  `SABER Zoho=[redacted]`, previewed a no-write config update, and did not leak
+  the private Zoho URL.
+- Restarted `transcripts.service` and `transcribe-watch.service`; both are
+  active and API health returned `status: ok`.
+
+Next:
+
+- Dogfood the shared context-workbench source profile over more recent
+  recordings and decide which provenance-source readiness controls should be
+  promoted into the UI before any future external apply contracts.
+
+## Turn 190 | 2026-05-24
+
+Summary: Defined the user-scoped provenance configuration system.
+
+Findings:
+
+- Provenance settings are currently split across watcher calendar config,
+  direct CLI flags, and user-scoped `contact-provenance.config.json`.
+- Direct CLI `--use-calendar` should resolve the same configured shared
+  calendars and private iCalendar feeds that the watcher and web service use.
+- The web console needs a shared config surface it can inspect and mutate
+  without writing private operator settings into the repo.
+
+Changes:
+
+- Added open plan
+  `docs/dev/plans/0013-2026-05-24-user-scoped-provenance-config.md`.
+- Added redacted schema sample `provenance.config.json.sample`.
+- Wired plan 0013 into P09 in `ROADMAP.md`.
+- The defined config contract lives at
+  `~/.local/state/transcribe-audio/provenance.config.json` by default, with
+  `TRANSCRIPTS_PROVENANCE_CONFIG` and explicit CLI/API overrides.
+- The schema covers `gog`, `gws`, `msgcli`, multiple `odollo` tenant profiles,
+  and private/shared `ical_calendar` feeds.
+- The plan defines redaction, secret refs, local preview/apply mutation,
+  workflow profiles, direct CLI integration, watcher migration, and web API
+  endpoints.
+
+Validation:
+
+- `python -m json.tool provenance.config.json.sample` parsed the sample
+  configuration successfully.
+
+Next:
+
+- Implement `provenance_config.py` and migrate the live watcher/contact
+  settings into the new user-scoped config so direct `--use-calendar` and the
+  web service resolve the same SABER/SoyLei/Zoho provenance profile.
+
+## Turn 189 | 2026-05-24
+
+Summary: Added private iCalendar feed support to calendar provenance.
+
+Findings:
+
+- SABER's authoritative attendee feed is available through a private Zoho
+  iCalendar export rather than only the imported Google calendar.
+- The selected F&B/SABER transcript already had Google calendar overlap
+  provenance, but the imported SABER Google calendar did not expose attendee
+  emails.
+
+Changes:
+
+- Added repeated `--calendar-provenance-ical-url` support to both
+  transcription CLIs and `repair_calendar_metadata.py`.
+- Added watcher `calendar.provenance_ical_urls` support. Entries may be plain
+  URL strings or redacted-label objects such as
+  `{"label": "SABER Zoho", "url": "https://..."}`.
+- Implemented standard-library iCalendar parsing for VEVENT summaries,
+  DTSTART/DTEND, attendees, organizer, EXDATE, and common daily/weekly/monthly
+  RRULE expansion.
+- iCalendar provenance writes only a stable hashed `ical:<hash>` calendar id to
+  artifacts; private feed URLs stay in ignored runtime config.
+- Updated the ignored live `watch_transcriptions.json` so both active watcher
+  jobs include the SABER Zoho feed.
+- Refreshed and re-ingested selected conversation `6e8eee4f19a1d5a9b23f`.
+
+Validation:
+
+- Watcher config readiness passed with status `ok`.
+- Live Zoho provenance smoke found one matching F&B/SABER event for the
+  selected recording and two attendee emails without printing or storing the
+  private feed URL in transcript artifacts.
+- Refreshed source and store artifacts do not contain the private feed URL.
+- The conversation API now shows a hashed `SABER Zoho` iCalendar provenance
+  event and the context workbench identity bundle includes three calendar
+  attendees, including the two SABER attendees from Zoho.
+- `.venv/bin/python -m py_compile transcribe_common.py assembly_transcribe.py faster_whisper_transcribe.py repair_calendar_metadata.py watch_transcriptions.py tests/test_transcript_artifacts.py`
+  passed.
+- `.venv/bin/python -m pytest tests/test_transcript_artifacts.py tests/test_participant_identity.py -q`
+  passed: 33 tests.
+- `.venv/bin/python -m pytest -q` passed: 219 tests.
+- Restarted `transcribe-watch.service`; it is active.
+- `curl http://127.0.0.1:18876/api/health` returned `status: ok`.
+
+Next:
+
+- Dogfood the refreshed F&B/SABER context workbench and decide whether the two
+  Zoho attendee identities should be preselected for speaker assignment or left
+  as reviewed contact candidates.
+
 ## Turn 188 | 2026-05-23
 
 Summary: Added shared-calendar IDs to calendar provenance.

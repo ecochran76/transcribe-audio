@@ -7,10 +7,10 @@ const NAV_ITEMS = [
   { id: "Review Queue", label: "Review Queue", enabled: true },
   { id: "Context Runs", label: "Context Runs", enabled: false },
   { id: "Contacts", label: "Contacts", enabled: false },
-  { id: "Provenance", label: "Provenance", enabled: false },
+  { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Intelligence", label: "Intelligence", enabled: true },
   { id: "Depositions", label: "Depositions", enabled: false },
-  { id: "Settings", label: "Settings", enabled: false }
+  { id: "Settings", label: "Settings", enabled: true }
 ];
 
 const LIBRARY_KIND_FILTERS = [
@@ -124,6 +124,45 @@ const FALLBACK_INTELLIGENCE = {
   smokeJobs: { items: [], total: 0, available_job_types: [] }
 };
 
+const FALLBACK_PROVENANCE = {
+  schema_version: "transcribe-audio.provenance-config.v1",
+  config_path: "~/.local/state/transcribe-audio/provenance.config.json",
+  exists: false,
+  profile: "default",
+  config: {
+    active_profile: "default",
+    profiles: {},
+    sources: {},
+    mutation_policy: {}
+  },
+  calendar_metadata: {
+    provider_configs: [],
+    provenance_calendar_ids: [],
+    provenance_ical_urls: [],
+    warnings: []
+  },
+  contact_source_config: {}
+};
+
+const FALLBACK_AUTOMATION = {
+  schema_version: "transcribe-audio.automation-config.v1",
+  config_path: "~/.local/state/transcribe-audio/automation.config.json",
+  exists: false,
+  profile: "default",
+  stage_order: ["ingest_audio", "transcribe_audio", "initial_summary", "speaker_identity", "context_collection", "final_readout"],
+  mode_choices: ["manual", "one_click", "automatic"],
+  stages: {
+    ingest_audio: { label: "Ingest audio", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: false, automatic_available: false } },
+    transcribe_audio: { label: "Transcribe audio", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: false, automatic_available: false } },
+    initial_summary: { label: "Initial summary", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: true, automatic_available: false } },
+    speaker_identity: { label: "Speaker identity", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: false, automatic_available: false } },
+    context_collection: { label: "Context collection", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: false, automatic_available: false } },
+    final_readout: { label: "Final readout", enabled: false, mode: "manual", requires_review: true, notes: "", capabilities: { one_click_available: false, automatic_available: false } }
+  },
+  will_execute_workflow_stage: false,
+  will_execute_external_action: false
+};
+
 function formatDate(value) {
   if (!value) return "Unknown";
   const date = new Date(value);
@@ -161,6 +200,47 @@ function capabilityLabels(capabilities) {
       .map(([name]) => statusLabel(name));
   }
   return [];
+}
+
+function automationStageEntries(automation) {
+  const stages = automation?.stages || {};
+  const order = automation?.stage_order || Object.keys(stages);
+  return order
+    .filter((stageId) => stages[stageId])
+    .map((stageId) => [stageId, stages[stageId]]);
+}
+
+function automationDraftFromConfig(automation) {
+  const stageDrafts = {};
+  for (const [stageId, stage] of automationStageEntries(automation)) {
+    stageDrafts[stageId] = {
+      enabled: Boolean(stage.enabled),
+      mode: stage.mode || "manual",
+      requires_review: stage.requires_review !== false,
+      notes: stage.notes || ""
+    };
+  }
+  return {
+    profile: automation?.profile || "default",
+    stages: stageDrafts
+  };
+}
+
+function automationUpdateFromDraft(draft) {
+  return {
+    profile: draft.profile || "default",
+    stages: Object.fromEntries(
+      Object.entries(draft.stages || {}).map(([stageId, stage]) => [
+        stageId,
+        {
+          enabled: Boolean(stage.enabled),
+          mode: stage.mode || "manual",
+          requires_review: stage.requires_review !== false,
+          notes: stage.notes || ""
+        }
+      ])
+    )
+  };
 }
 
 function clamp(value, min, max) {
@@ -376,6 +456,163 @@ function displayLabel(value, fallback = "Item") {
   return fallback;
 }
 
+function normalizeSourceId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function contactCandidateText(candidate) {
+  const parts = [
+    candidate?.label,
+    candidate?.email,
+    candidate?.organization,
+    candidate?.role,
+    candidate?.source,
+    candidate?.source_type,
+    candidate?.source_profile
+  ];
+  if (Array.isArray(candidate?.merged_sources)) {
+    candidate.merged_sources.forEach((source) => {
+      parts.push(source?.label, source?.email, source?.source_type, source?.source_profile);
+    });
+  }
+  return parts.filter(Boolean).join(" ").toLowerCase();
+}
+
+function contactRankScore(candidate) {
+  const value = Number(candidate?.rank_score);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function contactConfidence(candidate) {
+  const value = Number(candidate?.confidence);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function contactRankingReasons(candidate) {
+  const reasons = [];
+  if (Array.isArray(candidate?.ranking_reasons)) reasons.push(...candidate.ranking_reasons);
+  if (Array.isArray(candidate?.relationship_affinity?.evidence)) reasons.push(...candidate.relationship_affinity.evidence);
+  return [...new Set(reasons.map((reason) => String(reason || "").trim()).filter(Boolean))].slice(0, 3);
+}
+
+function contactMatchesQuery(candidate, query) {
+  const terms = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+  const text = contactCandidateText(candidate);
+  return terms.every((term) => text.includes(term));
+}
+
+function contactCandidateId(candidate) {
+  return String(candidate?.contact_id || candidate?.id || candidate?.dedupe_key || "").trim();
+}
+
+function contactCandidateIds(candidate) {
+  const ids = [contactCandidateId(candidate)];
+  if (Array.isArray(candidate?.merged_contact_ids)) {
+    candidate.merged_contact_ids.forEach((id) => ids.push(String(id || "").trim()));
+  }
+  return [...new Set(ids.filter(Boolean))];
+}
+
+function contactIdSetHasCandidate(idSet, candidate) {
+  return contactCandidateIds(candidate).some((id) => idSet.has(id));
+}
+
+function uniqueContactCandidates(candidates) {
+  const result = [];
+  const seen = new Set();
+  candidates.filter(Boolean).forEach((candidate) => {
+    const ids = contactCandidateIds(candidate);
+    const email = String(candidate?.email || "").trim().toLowerCase();
+    const dedupeKey = String(candidate?.dedupe_key || "").trim();
+    const keys = [...ids, dedupeKey ? `dedupe:${dedupeKey}` : "", email ? `email:${email}` : ""].filter(Boolean);
+    const key = keys[0] || contactCandidateText(candidate);
+    if (!key || keys.some((id) => seen.has(id))) return;
+    result.push(candidate);
+    keys.forEach((id) => seen.add(id));
+  });
+  return result;
+}
+
+function provenanceSourceEntries(provenance) {
+  return Object.entries(provenance?.config?.sources || {});
+}
+
+function provenanceSourceCounts(provenance) {
+  return provenanceSourceEntries(provenance).reduce((counts, [, source]) => {
+    const kind = source?.kind || "unknown";
+    counts[kind] = (counts[kind] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function buildProvenanceUpdate(draft, provenance) {
+  const config = provenance?.config || {};
+  const currentProfile = config.active_profile || provenance?.profile || "default";
+  const activeProfile = draft.activeProfile || currentProfile;
+  const update = {};
+  const sourceUpdates = {};
+  for (const [sourceId, source] of provenanceSourceEntries(provenance)) {
+    const currentEnabled = source.enabled !== false;
+    const draftedEnabled = draft.sourceEnabled?.[sourceId];
+    if (typeof draftedEnabled === "boolean" && draftedEnabled !== currentEnabled) {
+      sourceUpdates[sourceId] = { enabled: draftedEnabled };
+    }
+  }
+  const newIcalId = normalizeSourceId(draft.newIcalId);
+  const newIcalLabel = String(draft.newIcalLabel || "").trim();
+  const newIcalUrl = String(draft.newIcalUrl || "").trim();
+  if (newIcalId || newIcalLabel || newIcalUrl) {
+    if (!newIcalId || !newIcalLabel || !newIcalUrl) {
+      throw new Error("iCal source id, label, and URL or env ref are required.");
+    }
+    sourceUpdates[newIcalId] = {
+      kind: "ical_calendar",
+      enabled: true,
+      label: newIcalLabel,
+      capabilities: ["calendar"],
+      read_only: true,
+      calendar: {
+        timezone: "America/Chicago",
+        max_events: 250,
+        cache_ttl_seconds: 900
+      },
+      sensitive_fields: newIcalUrl.startsWith("env:") ? ["url_ref"] : ["url"]
+    };
+    if (newIcalUrl.startsWith("env:")) {
+      sourceUpdates[newIcalId].url_ref = newIcalUrl;
+    } else {
+      sourceUpdates[newIcalId].url = newIcalUrl;
+    }
+    const profile = config.profiles?.[activeProfile] || {};
+    const workflows = profile.workflows || {};
+    const calendarWorkflow = workflows.calendar_metadata || {};
+    const profileSourceIds = Array.isArray(profile.source_ids) ? profile.source_ids : [];
+    const provenanceSources = Array.isArray(calendarWorkflow.provenance_sources)
+      ? calendarWorkflow.provenance_sources
+      : [];
+    update.profiles = {
+      [activeProfile]: {
+        source_ids: [...new Set([...profileSourceIds, newIcalId])],
+        workflows: {
+          calendar_metadata: {
+            provenance_sources: provenanceSources.some((item) => item?.source_id === newIcalId)
+              ? provenanceSources
+              : [...provenanceSources, { source_id: newIcalId }]
+          }
+        }
+      }
+    };
+  }
+  if (activeProfile !== currentProfile) update.active_profile = activeProfile;
+  if (Object.keys(sourceUpdates).length) update.sources = sourceUpdates;
+  return update;
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -420,9 +657,22 @@ function App() {
   const [firstPassBatchManifests, setFirstPassBatchManifests] = useState({ items: [], total: 0, limit: 0 });
   const [humanReviewAction, setHumanReviewAction] = useState({ status: "idle", message: "", payload: null });
   const [intelligence, setIntelligence] = useState(FALLBACK_INTELLIGENCE);
+  const [provenance, setProvenance] = useState(FALLBACK_PROVENANCE);
+  const [automation, setAutomation] = useState(FALLBACK_AUTOMATION);
+  const [provenanceDoctor, setProvenanceDoctor] = useState(null);
+  const [provenanceDraft, setProvenanceDraft] = useState({
+    activeProfile: "default",
+    sourceEnabled: {},
+    newIcalId: "",
+    newIcalLabel: "",
+    newIcalUrl: ""
+  });
+  const [provenanceAction, setProvenanceAction] = useState({ status: "idle", message: "", preview: null });
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
   const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
   const [configAction, setConfigAction] = useState({ status: "idle", message: "", preview: null });
+  const [automationDraft, setAutomationDraft] = useState(automationDraftFromConfig(FALLBACK_AUTOMATION));
+  const [automationAction, setAutomationAction] = useState({ status: "idle", message: "", preview: null });
   const [runAction, setRunAction] = useState({ status: "idle", message: "", runId: "" });
   const [selectedRunId, setSelectedRunId] = useState("");
   const [selectedRunDetail, setSelectedRunDetail] = useState(null);
@@ -456,7 +706,20 @@ function App() {
     let cancelled = false;
     async function load() {
       try {
-        const [healthPayload, libraryPayload, reviewPayload, batchManifestPayload, providerPayload, configPayload, runsPayload, smokesPayload, smokeJobsPayload] = await Promise.all([
+        const [
+          healthPayload,
+          libraryPayload,
+          reviewPayload,
+          batchManifestPayload,
+          providerPayload,
+          configPayload,
+          runsPayload,
+          smokesPayload,
+          smokeJobsPayload,
+          provenancePayload,
+          automationPayload,
+          provenanceDoctorPayload
+        ] = await Promise.all([
           fetchJson("/api/health"),
           fetchJson("/api/library?limit=200"),
           fetchJson("/api/review-queue?limit=100"),
@@ -465,7 +728,10 @@ function App() {
           fetchJson("/api/intelligence/config"),
           fetchJson("/api/intelligence/runs?limit=8"),
           fetchJson("/api/intelligence/smokes?limit=5"),
-          fetchJson("/api/intelligence/smoke-jobs?limit=20")
+          fetchJson("/api/intelligence/smoke-jobs?limit=20"),
+          fetchJson("/api/provenance/config"),
+          fetchJson("/api/automation/config"),
+          fetchJson("/api/provenance/config/doctor")
         ]);
         if (cancelled) return;
         setHealth(healthPayload);
@@ -473,6 +739,9 @@ function App() {
         setReviewQueue(reviewPayload);
         setFirstPassBatchManifests(batchManifestPayload);
         setIntelligence({ providers: providerPayload, config: configPayload, runs: runsPayload, smokes: smokesPayload, smokeJobs: smokeJobsPayload });
+        setProvenance(provenancePayload);
+        setAutomation(automationPayload);
+        setProvenanceDoctor(provenanceDoctorPayload);
         setSelectedId((currentId) => currentId || libraryPayload.items?.[0]?.id || "");
         setSelectedRunId(runsPayload.items?.[0]?.run_id || "");
         setApiError("");
@@ -486,6 +755,27 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const sourceEnabled = {};
+    for (const [sourceId, source] of provenanceSourceEntries(provenance)) {
+      sourceEnabled[sourceId] = source.enabled !== false;
+    }
+    setProvenanceDraft((current) => ({
+      ...current,
+      activeProfile: provenance.config?.active_profile || provenance.profile || "default",
+      sourceEnabled
+    }));
+  }, [
+    JSON.stringify(Object.entries(provenance.config?.sources || {}).map(([sourceId, source]) => [sourceId, source?.enabled !== false])),
+    provenance.config?.active_profile,
+    provenance.profile
+  ]);
+
+  useEffect(() => {
+    setAutomationDraft(automationDraftFromConfig(automation));
+    setAutomationAction({ status: "idle", message: "", preview: null });
+  }, [automation.config_path, automation.profile, JSON.stringify(automationStageEntries(automation).map(([stageId, stage]) => [stageId, stage.enabled, stage.mode, stage.requires_review, stage.notes]))]);
 
   useEffect(() => {
     let cancelled = false;
@@ -767,6 +1057,10 @@ function App() {
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
   const smokeJobsActive = hasActiveSmokeJob(intelligence.smokeJobs);
+  const provenanceEntries = provenanceSourceEntries(provenance);
+  const provenanceCounts = provenanceSourceCounts(provenance);
+  const enabledProvenanceSourceCount = provenanceEntries.filter(([, source]) => source.enabled !== false).length;
+  const provenanceStatus = provenanceDoctor?.status || (provenance.exists ? "unknown" : "missing");
 
   async function loadMoreConversations() {
     if (!canLoadMoreConversations) return;
@@ -1111,6 +1405,114 @@ function App() {
     }
   }
 
+  async function refreshProvenanceConfig() {
+    setProvenanceAction((current) => ({ ...current, status: "refreshing", message: "Refreshing provenance config..." }));
+    try {
+      const [configPayload, doctorPayload] = await Promise.all([
+        fetchJson("/api/provenance/config"),
+        fetchJson("/api/provenance/config/doctor")
+      ]);
+      setProvenance(configPayload);
+      setProvenanceDoctor(doctorPayload);
+      setProvenanceAction({ status: "loaded", message: "Provenance config refreshed.", preview: null });
+    } catch (error) {
+      setProvenanceAction({ status: "error", message: `Refresh failed: ${error.message}`, preview: null });
+    }
+  }
+
+  function provenanceUpdatePayload() {
+    const update = buildProvenanceUpdate(provenanceDraft, provenance);
+    if (!Object.keys(update).length) throw new Error("No provenance config changes are staged.");
+    return update;
+  }
+
+  async function previewProvenanceUpdate() {
+    setProvenanceAction({ status: "running", message: "Previewing provenance config update...", preview: null });
+    try {
+      const payload = await postJson("/api/provenance/config/preview", {
+        update: provenanceUpdatePayload()
+      });
+      setProvenanceAction({
+        status: "previewed",
+        message: "Preview ready; no provenance config was written.",
+        preview: payload
+      });
+    } catch (error) {
+      setProvenanceAction({ status: "error", message: `Preview failed: ${error.message}`, preview: null });
+    }
+  }
+
+  async function applyProvenanceUpdate() {
+    const preview = provenanceAction.preview;
+    if (!preview) return;
+    const approved = window.confirm("Apply provenance config update?");
+    if (!approved) return;
+    setProvenanceAction((current) => ({ ...current, status: "applying", message: "Applying provenance config update..." }));
+    try {
+      const payload = await postJson("/api/provenance/config/apply", {
+        update: provenanceUpdatePayload(),
+        approval_token: "APPLY_PROVENANCE_CONFIG_UPDATE"
+      });
+      const [configPayload, doctorPayload] = await Promise.all([
+        fetchJson("/api/provenance/config"),
+        fetchJson("/api/provenance/config/doctor")
+      ]);
+      setProvenance(configPayload);
+      setProvenanceDoctor(doctorPayload);
+      setProvenanceDraft((current) => ({
+        ...current,
+        newIcalId: "",
+        newIcalLabel: "",
+        newIcalUrl: ""
+      }));
+      setProvenanceAction({
+        status: "applied",
+        message: "Applied provenance config update.",
+        preview: payload
+      });
+    } catch (error) {
+      setProvenanceAction((current) => ({ ...current, status: "error", message: `Apply failed: ${error.message}` }));
+    }
+  }
+
+  async function previewAutomationUpdate() {
+    setAutomationAction({ status: "running", message: "Previewing automation settings update...", preview: null });
+    try {
+      const payload = await postJson("/api/automation/config/preview", {
+        update: automationUpdateFromDraft(automationDraft)
+      });
+      setAutomationAction({
+        status: "previewed",
+        message: "Preview ready; no workflow stage was run and no config was written.",
+        preview: payload
+      });
+    } catch (error) {
+      setAutomationAction({ status: "error", message: `Automation preview failed: ${error.message}`, preview: null });
+    }
+  }
+
+  async function applyAutomationUpdate() {
+    if (!automationAction.preview) return;
+    const approved = window.confirm("Apply automation settings update?");
+    if (!approved) return;
+    setAutomationAction((current) => ({ ...current, status: "applying", message: "Applying automation settings update..." }));
+    try {
+      const payload = await postJson("/api/automation/config/apply", {
+        update: automationUpdateFromDraft(automationDraft),
+        approval_token: "APPLY_AUTOMATION_CONFIG_UPDATE"
+      });
+      const automationPayload = await fetchJson("/api/automation/config");
+      setAutomation(automationPayload);
+      setAutomationAction({
+        status: "applied",
+        message: "Applied automation settings; no workflow stage was run.",
+        preview: payload
+      });
+    } catch (error) {
+      setAutomationAction((current) => ({ ...current, status: "error", message: `Automation apply failed: ${error.message}` }));
+    }
+  }
+
   async function prepareAppRun() {
     const taskLabel = statusLabel(selectedTask);
     setRunAction({ status: "running", message: `Preparing ${taskLabel} run ledger...`, runId: "" });
@@ -1442,6 +1844,38 @@ function App() {
                   </button>
                 ))}
               </div>
+            ) : activeNav === "Settings" ? (
+              <div className="filter-card task-filter">
+                <span>Settings</span>
+                <button type="button">
+                  Account
+                  <strong>{health.status || "unknown"}</strong>
+                </button>
+                <button type="button" onClick={() => setActiveNav("Intelligence")}>
+                  Intelligence
+                  <strong>{taskEntries.length}</strong>
+                </button>
+                <button type="button">
+                  Automation
+                  <strong>{automationStageEntries(automation).filter(([, stage]) => stage.enabled).length}</strong>
+                </button>
+              </div>
+            ) : activeNav === "Provenance" ? (
+              <div className="filter-card task-filter">
+                <span>Source kinds</span>
+                {Object.entries(provenanceCounts).map(([kind, count]) => (
+                  <button key={kind} type="button">
+                    {statusLabel(kind)}
+                    <strong>{count}</strong>
+                  </button>
+                ))}
+                {!Object.keys(provenanceCounts).length && (
+                  <button disabled type="button">
+                    No sources
+                    <strong>0</strong>
+                  </button>
+                )}
+              </div>
             ) : (
               <>
                 <div className="filter-card">
@@ -1482,13 +1916,27 @@ function App() {
           <div className="view-heading">
             <div>
               <p className="eyebrow">Operator Surface</p>
-              <h1>{activeNav === "Review Queue" ? "Review queue" : activeNav === "Intelligence" ? "Intelligence routing" : "Transcript library"}</h1>
+              <h1>
+                {activeNav === "Review Queue"
+                  ? "Review queue"
+                  : activeNav === "Intelligence"
+                    ? "Intelligence routing"
+                    : activeNav === "Provenance"
+                      ? "Provenance configuration"
+                      : activeNav === "Settings"
+                        ? "Account settings"
+                        : "Transcript library"}
+              </h1>
             </div>
             <div className="summary-strip">
               <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
               <span>{library.total ?? visibleItems.length} artifacts</span>
               <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
               {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
+              {activeNav === "Provenance" && <span>{enabledProvenanceSourceCount} enabled sources</span>}
+              {activeNav === "Provenance" && <span>{provenanceStatus}</span>}
+              {activeNav === "Settings" && <span>{automationStageEntries(automation).length} automation stages</span>}
+              {activeNav === "Settings" && <span>{automation.exists ? "config saved" : "defaults"}</span>}
               {activeNav === "Library" && (
                 <button className="share-link-button" onClick={copyCurrentWorkspaceUrl} type="button">
                   Copy workspace link
@@ -1518,6 +1966,7 @@ function App() {
             totalCount={activeNav === "Library" ? totalConversationCount : library.total ?? (library.items || []).length}
             latestSmoke={intelligence.smokes?.latest_report}
             latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
+            provenanceStatus={provenanceStatus}
           />
 
           {activeNav === "Review Queue" ? (
@@ -1558,6 +2007,29 @@ function App() {
               onApply={applyConfigUpdate}
               onPrepareRun={prepareAppRun}
               onSelectRun={setSelectedRunId}
+            />
+          ) : activeNav === "Provenance" ? (
+            <ProvenancePanel
+              provenance={provenance}
+              doctor={provenanceDoctor}
+              draft={provenanceDraft}
+              setDraft={setProvenanceDraft}
+              action={provenanceAction}
+              onPreview={previewProvenanceUpdate}
+              onApply={applyProvenanceUpdate}
+              onRefresh={refreshProvenanceConfig}
+            />
+          ) : activeNav === "Settings" ? (
+            <SettingsPanel
+              automation={automation}
+              automationAction={automationAction}
+              automationDraft={automationDraft}
+              health={health}
+              intelligenceConfig={intelligence.config}
+              onApplyAutomation={applyAutomationUpdate}
+              onOpenIntelligence={() => setActiveNav("Intelligence")}
+              onPreviewAutomation={previewAutomationUpdate}
+              setAutomationDraft={setAutomationDraft}
             />
           ) : (
             <LibraryTable
@@ -1636,6 +2108,9 @@ function App() {
             runArtifactAction={runArtifactAction}
             onLoadRunArtifact={loadRunArtifact}
             intelligence={intelligence}
+            provenance={provenance}
+            provenanceDoctor={provenanceDoctor}
+            provenanceAction={provenanceAction}
           />
         </aside>
       </section>
@@ -1666,11 +2141,14 @@ function TestStatusStrip({
   visibleCount,
   totalCount,
   latestSmoke,
-  latestSmokeJob
+  latestSmokeJob,
+  provenanceStatus
 }) {
   const target =
     activeNav === "Intelligence"
       ? "Queue a smoke, inspect the tail, then verify the latest report."
+      : activeNav === "Provenance"
+        ? `Shared provenance config is ${provenanceStatus || "unknown"}.`
       : activeNav === "Review Queue"
         ? "Pick one queue bucket, run a dry preview, then materialize only after review."
         : "Search or filter, select a row, then verify playback and source metadata in the inspector.";
@@ -1690,7 +2168,7 @@ function TestStatusStrip({
       </div>
       <div>
         <span>Latest smoke</span>
-        <strong>{latestSmokeJob?.status || latestSmoke?.status || "none"}</strong>
+        <strong>{activeNav === "Provenance" ? provenanceStatus || "unknown" : latestSmokeJob?.status || latestSmoke?.status || "none"}</strong>
       </div>
       <p>{target}</p>
     </section>
@@ -2061,6 +2539,287 @@ function IntelligencePanel({
             )}
           </div>
         )}
+      </section>
+    </div>
+  );
+}
+
+function SettingsPanel({
+  automation,
+  automationAction,
+  automationDraft,
+  health,
+  intelligenceConfig,
+  onApplyAutomation,
+  onOpenIntelligence,
+  onPreviewAutomation,
+  setAutomationDraft
+}) {
+  const stages = automationStageEntries(automation);
+  const modeChoices = automation?.mode_choices || ["manual", "one_click", "automatic"];
+  const taskEntries = Object.entries(intelligenceConfig?.tasks || {});
+  const enabledCount = Object.values(automationDraft.stages || {}).filter((stage) => stage.enabled).length;
+  const updateStage = (stageId, changes) => {
+    setAutomationDraft((current) => ({
+      ...current,
+      stages: {
+        ...(current.stages || {}),
+        [stageId]: {
+          ...(current.stages?.[stageId] || {}),
+          ...changes
+        }
+      }
+    }));
+  };
+  return (
+    <div className="settings-grid">
+      <section className="intelligence-card settings-account-panel">
+        <p className="eyebrow">Account</p>
+        <h2>{automationDraft.profile || "default"}</h2>
+        <div className="editor-grid">
+          <label>
+            <span>Runtime profile</span>
+            <input value={automationDraft.profile || "default"} onChange={(event) => setAutomationDraft((current) => ({ ...current, profile: event.target.value }))} />
+          </label>
+        </div>
+        <dl>
+          <dt>API</dt>
+          <dd>{health.status || "unknown"}</dd>
+          <dt>Store</dt>
+          <dd>{health.store_dir || "unknown"}</dd>
+          <dt>Automation config</dt>
+          <dd>{automation.config_path || "unknown"}</dd>
+          <dt>Automation state</dt>
+          <dd>{automation.exists ? "saved" : "defaults"}</dd>
+        </dl>
+      </section>
+
+      <section className="intelligence-card settings-intelligence-panel">
+        <p className="eyebrow">Intelligence Settings</p>
+        <h2>{taskEntries.length} task routes</h2>
+        <p className="muted">{intelligenceConfig?.config_path || "No intelligence config path loaded."}</p>
+        <div className="task-table compact">
+          {taskEntries.slice(0, 8).map(([task, route]) => (
+            <article className="task-row" key={task}>
+              <strong>{statusLabel(task)}</strong>
+              <span>{route.provider}</span>
+              <small>{route.model || "provider default"} · {route.source}</small>
+            </article>
+          ))}
+        </div>
+        <div className="notice-actions">
+          <button onClick={onOpenIntelligence} type="button">Open intelligence routing</button>
+        </div>
+      </section>
+
+      <section className="intelligence-card settings-automation-panel">
+        <p className="eyebrow">Automation Settings</p>
+        <h2>{enabledCount} enabled stages</h2>
+        <div className="automation-stage-table">
+          {stages.map(([stageId, stage]) => {
+            const draft = automationDraft.stages?.[stageId] || {};
+            const capabilities = stage.capabilities || {};
+            return (
+              <article className={draft.enabled ? "automation-stage-row enabled" : "automation-stage-row"} key={stageId}>
+                <label className="checkbox-line">
+                  <input
+                    checked={Boolean(draft.enabled)}
+                    onChange={(event) => updateStage(stageId, { enabled: event.target.checked })}
+                    type="checkbox"
+                  />
+                  <span>{stage.label || statusLabel(stageId)}</span>
+                </label>
+                <select value={draft.mode || "manual"} onChange={(event) => updateStage(stageId, { mode: event.target.value })}>
+                  {modeChoices.map((mode) => (
+                    <option key={`${stageId}-${mode}`} value={mode}>{statusLabel(mode)}</option>
+                  ))}
+                </select>
+                <label className="checkbox-line compact">
+                  <input
+                    checked={draft.requires_review !== false}
+                    onChange={(event) => updateStage(stageId, { requires_review: event.target.checked })}
+                    type="checkbox"
+                  />
+                  <span>Review</span>
+                </label>
+                <span className={capabilities.automatic_available ? "risk-badge read-only" : "risk-badge write-bearing"}>
+                  {capabilities.automatic_available ? "auto-ready" : capabilities.one_click_available ? "one-click" : "manual"}
+                </span>
+              </article>
+            );
+          })}
+        </div>
+        <div className="notice-actions">
+          <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation update</button>
+          <button onClick={onApplyAutomation} disabled={!automationAction.preview || automationAction.status === "applying"} type="button">Apply with approval</button>
+        </div>
+        {automationAction.message && (
+          <div className={`action-notice ${automationAction.status}`}>
+            <strong>{automationAction.message}</strong>
+            {automationAction.preview && (
+              <code>{JSON.stringify({
+                will_write: automationAction.preview.will_write,
+                will_execute_workflow_stage: automationAction.preview.will_execute_workflow_stage,
+                requires_approval_token: automationAction.preview.requires_approval_token
+              }, null, 2)}</code>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ProvenancePanel({
+  provenance,
+  doctor,
+  draft,
+  setDraft,
+  action,
+  onPreview,
+  onApply,
+  onRefresh
+}) {
+  const sources = provenanceSourceEntries(provenance);
+  const profiles = Object.keys(provenance?.config?.profiles || {});
+  const profileOptions = [...new Set([draft.activeProfile, provenance?.profile, provenance?.config?.active_profile, ...profiles, "default"].filter(Boolean))];
+  const calendar = provenance?.calendar_metadata || {};
+  const contactConfig = provenance?.contact_source_config || {};
+  return (
+    <div className="provenance-grid">
+      <section className="intelligence-card provenance-overview">
+        <p className="eyebrow">Profile</p>
+        <h2>{draft.activeProfile || "default"}</h2>
+        <div className="editor-grid">
+          <label>
+            <span>Active profile</span>
+            <select
+              value={draft.activeProfile}
+              onChange={(event) => setDraft((current) => ({ ...current, activeProfile: event.target.value }))}
+            >
+              {profileOptions.map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Doctor status</span>
+            <input readOnly value={doctor?.status || "unknown"} />
+          </label>
+        </div>
+        <div className="source-toggle-list">
+          {sources.map(([sourceId, source]) => {
+            const checked = draft.sourceEnabled?.[sourceId] ?? source.enabled !== false;
+            return (
+              <label className="source-toggle-row" key={sourceId}>
+                <input
+                  checked={checked}
+                  onChange={(event) => setDraft((current) => ({
+                    ...current,
+                    sourceEnabled: {
+                      ...current.sourceEnabled,
+                      [sourceId]: event.target.checked
+                    }
+                  }))}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>{source.label || sourceId}</strong>
+                  <small>{sourceId}</small>
+                </span>
+                <em>{statusLabel(source.kind)}</em>
+              </label>
+            );
+          })}
+          {!sources.length && <p className="muted">No provenance sources are configured.</p>}
+        </div>
+        <div className="notice-actions">
+          <button onClick={onPreview} disabled={action.status === "running"} type="button">Preview update</button>
+          <button onClick={onApply} disabled={!action.preview || action.status === "applying"} type="button">Apply with approval</button>
+          <button onClick={onRefresh} disabled={action.status === "refreshing"} type="button">Refresh</button>
+        </div>
+        {action.message && <div className={`action-notice ${action.status}`}><strong>{action.message}</strong></div>}
+      </section>
+
+      <section className="intelligence-card provenance-ical-editor">
+        <p className="eyebrow">iCal Calendar</p>
+        <h2>Add feed</h2>
+        <div className="editor-grid">
+          <label>
+            <span>Source id</span>
+            <input
+              value={draft.newIcalId}
+              onChange={(event) => setDraft((current) => ({ ...current, newIcalId: event.target.value }))}
+              placeholder="ical-saber-zoho"
+            />
+          </label>
+          <label>
+            <span>Label</span>
+            <input
+              value={draft.newIcalLabel}
+              onChange={(event) => setDraft((current) => ({ ...current, newIcalLabel: event.target.value }))}
+              placeholder="SABER Zoho"
+            />
+          </label>
+          <label className="wide-field">
+            <span>URL or env ref</span>
+            <input
+              value={draft.newIcalUrl}
+              onChange={(event) => setDraft((current) => ({ ...current, newIcalUrl: event.target.value }))}
+              placeholder="env:SABER_ICAL_URL"
+            />
+          </label>
+        </div>
+        <div className="provenance-feed-list">
+          {(calendar.provenance_ical_urls || []).map((feed) => (
+            <article key={feed}>
+              <strong>{feed}</strong>
+              <span>configured</span>
+            </article>
+          ))}
+          {!(calendar.provenance_ical_urls || []).length && <p className="muted">No iCal feeds are active in this profile.</p>}
+        </div>
+      </section>
+
+      <section className="intelligence-card provenance-calendar-map">
+        <p className="eyebrow">Calendar Metadata</p>
+        <h2>{calendar.primary_calendar_id || "primary"}</h2>
+        <div className="task-table">
+          {(calendar.provider_configs || []).map((provider, index) => (
+            <article className="task-row" key={`${provider.name}-${index}`}>
+              <strong>{provider.name}</strong>
+              <span>{provider.account || provider.config_dir || "default"}</span>
+              <small>{provider.client || "calendar provider"}</small>
+            </article>
+          ))}
+          {(calendar.provenance_calendar_ids || []).map((calendarId) => (
+            <article className="task-row" key={calendarId}>
+              <strong>{calendarId}</strong>
+              <span>shared calendar</span>
+              <small>resolved from provenance config</small>
+            </article>
+          ))}
+        </div>
+        {calendar.warnings?.length ? (
+          <div className="warning-list">
+            {calendar.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="intelligence-card provenance-contact-map">
+        <p className="eyebrow">Contact Sources</p>
+        <h2>Participant identity</h2>
+        <div className="task-table">
+          {Object.entries(contactConfig).flatMap(([kind, config]) => (
+            (config?.profiles || []).map((profile) => (
+              <article className="task-row" key={`${kind}-${profile.label || profile.display_label}`}>
+                <strong>{profile.display_label || profile.label}</strong>
+                <span>{kind}</span>
+                <small>{profile.surfaces?.join(", ") || profile.repo_root || profile.config_dir || "configured"}</small>
+              </article>
+            ))
+          ))}
+          {!Object.keys(contactConfig).length && <p className="muted">No contact sources are active in this profile.</p>}
+        </div>
       </section>
     </div>
   );
@@ -2608,8 +3367,54 @@ function Inspector({
   onRunRollbackPreflight,
   runArtifactAction,
   onLoadRunArtifact,
-  intelligence
+  intelligence,
+  provenance,
+  provenanceDoctor,
+  provenanceAction
 }) {
+  if (activeNav === "Provenance") {
+    const preview = provenanceAction.preview;
+    const sources = provenanceSourceEntries(provenance);
+    return (
+      <div className="inspector-content">
+        <p className="eyebrow">Provenance Inspector</p>
+        <h2>{provenance.profile || provenance.config?.active_profile || "default"}</h2>
+        <dl>
+          <dt>Status</dt>
+          <dd>{provenanceDoctor?.status || "unknown"}</dd>
+          <dt>Config path</dt>
+          <dd>{provenance.config_path || "Unavailable"}</dd>
+          <dt>Sources</dt>
+          <dd>{sources.length} total · {sources.filter(([, source]) => source.enabled !== false).length} enabled</dd>
+          <dt>Calendar IDs</dt>
+          <dd>{provenance.calendar_metadata?.provenance_calendar_ids?.length || 0}</dd>
+          <dt>iCal feeds</dt>
+          <dd>{provenance.calendar_metadata?.provenance_ical_urls?.length || 0}</dd>
+          <dt>Contact profiles</dt>
+          <dd>
+            {Object.entries(provenance.contact_source_config || {})
+              .map(([kind, config]) => `${kind}: ${config?.profiles?.length || 0}`)
+              .join(" · ") || "None"}
+          </dd>
+        </dl>
+        {provenanceDoctor?.errors?.length ? (
+          <div className="action-notice error">
+            <strong>{provenanceDoctor.errors.join(" · ")}</strong>
+          </div>
+        ) : null}
+        {preview ? (
+          <div className="preview-card">
+            <span>Preview</span>
+            <strong>{preview.will_write ? "Apply response" : "No write preview"}</strong>
+            <code>{JSON.stringify(preview.after || preview, null, 2)}</code>
+          </div>
+        ) : (
+          <p className="muted">Preview a provenance edit to inspect the redacted config diff.</p>
+        )}
+      </div>
+    );
+  }
+
   if (activeNav === "Intelligence") {
     const preview = configAction.preview;
     const run = selectedRunDetail?.run || null;
@@ -3138,6 +3943,20 @@ function ConversationWorkflowModal({
   const [speakerManualLabels, setSpeakerManualLabels] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
   const [contextContactAction, setContextContactAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextContactQuery, setContextContactQuery] = useState("");
+  const [contextSearchAction, setContextSearchAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextAffinityAction, setContextAffinityAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextMergeAction, setContextMergeAction] = useState({ status: "idle", message: "", payload: null });
+  const [contextManualContact, setContextManualContact] = useState({ label: "", email: "" });
+  const [contextLocalSelection, setContextLocalSelection] = useState({
+    selectedIds: [],
+    excludedIds: [],
+    pendingActions: {},
+    candidatesById: {},
+    dirty: false
+  });
+  const [contextInstructionDraft, setContextInstructionDraft] = useState("");
+  const [contextInstructionAction, setContextInstructionAction] = useState({ status: "idle", message: "", payload: null });
   const [finalPreviewAction, setFinalPreviewAction] = useState({ status: "idle", message: "", payload: null });
   const selectedDetail = conversationDetail?.selected_document || documentDetail;
   const sourceDocument = conversationDetail?.transcript_document || relatedSourceDocument(relatedDocuments) || findSourceDocument(item, items);
@@ -3161,12 +3980,53 @@ function ConversationWorkflowModal({
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
-  const contextWorkbench = contextContactAction.payload?.context_workbench || contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
+  const contextWorkbench = contextInstructionAction.payload?.context_workbench || contextContactAction.payload?.context_workbench || contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
   const identityBundle = activeIdentityReview.identity_bundle || contextWorkbench.participant_identity_bundle || {};
   const contactSelection = contextWorkbench.contact_selection || {};
+  const operatorContext = contextWorkbench.operator_context || contextWorkbench.context_instructions || {};
   const proposedContextContacts = contextWorkbench.proposed_contact_candidates?.length
     ? contextWorkbench.proposed_contact_candidates
     : identityBundle.contact_candidates || [];
+  const searchableContextContacts = contactSelection.searchable_candidates?.length
+    ? contactSelection.searchable_candidates
+    : proposedContextContacts;
+  const backendSearchContacts = contextSearchAction.payload?.items || contextAffinityAction.payload?.items || [];
+  const selectedIdSet = useMemo(() => new Set(contextLocalSelection.selectedIds), [contextLocalSelection.selectedIds]);
+  const excludedIdSet = useMemo(() => new Set(contextLocalSelection.excludedIds), [contextLocalSelection.excludedIds]);
+  const contextContactsForDisplay = useMemo(
+    () => uniqueContactCandidates([
+      ...searchableContextContacts,
+      ...(contextSearchAction.status === "loaded" ? backendSearchContacts : []),
+      ...Object.values(contextLocalSelection.candidatesById || {}),
+      ...(contactSelection.selected_candidates || []),
+      ...(contactSelection.excluded_candidates || [])
+    ]),
+    [
+      contextLocalSelection.candidatesById,
+      contactSelection.selected_candidates,
+      contactSelection.excluded_candidates,
+      searchableContextContacts,
+      contextSearchAction.status,
+      contextAffinityAction.status,
+      backendSearchContacts
+    ]
+  );
+  const selectedContextContacts = contextContactsForDisplay.filter((candidate) => contactIdSetHasCandidate(selectedIdSet, candidate));
+  const visibleContextContacts = contextContactsForDisplay
+    .filter((candidate) => contactMatchesQuery(candidate, contextContactQuery))
+    .sort((left, right) => {
+      const leftSelected = contactIdSetHasCandidate(selectedIdSet, left) ? 1 : 0;
+      const rightSelected = contactIdSetHasCandidate(selectedIdSet, right) ? 1 : 0;
+      if (leftSelected !== rightSelected) return rightSelected - leftSelected;
+      const rankDelta = contactRankScore(right) - contactRankScore(left);
+      if (rankDelta !== 0) return rankDelta;
+      const confidenceDelta = contactConfidence(right) - contactConfidence(left);
+      if (confidenceDelta !== 0) return confidenceDelta;
+      return String(left.label || left.email || "").localeCompare(String(right.label || right.email || ""));
+    })
+    .slice(0, 30);
+  const dedupeClusters = contactSelection.dedupe_clusters || [];
+  const contactMergeState = contactSelection.merge_state || {};
   const finalPreview = finalPreviewAction.payload?.final_preview || conversationDetail?.final_preview || {};
   const finalPreviewBlocked = finalPreview.status === "blocked_identity_or_context_review" || Boolean(finalPreview.identity_context_warnings?.length);
   useEffect(() => {
@@ -3176,8 +4036,73 @@ function ConversationWorkflowModal({
     setSpeakerReviewAction({ status: "idle", message: "", payload: null });
     setContextAction({ status: "idle", message: "", payload: null });
     setContextContactAction({ status: "idle", message: "", payload: null });
+    setContextContactQuery("");
+    setContextSearchAction({ status: "idle", message: "", payload: null });
+    setContextAffinityAction({ status: "idle", message: "", payload: null });
+    setContextMergeAction({ status: "idle", message: "", payload: null });
+    setContextManualContact({ label: "", email: "" });
+    setContextLocalSelection({ selectedIds: [], excludedIds: [], pendingActions: {}, candidatesById: {}, dirty: false });
+    setContextInstructionDraft("");
+    setContextInstructionAction({ status: "idle", message: "", payload: null });
     setFinalPreviewAction({ status: "idle", message: "", payload: null });
   }, [conversationDetail?.conversation?.key, item.id]);
+  useEffect(() => {
+    const candidatesById = {};
+    [
+      ...(contactSelection.selected_candidates || []),
+      ...(contactSelection.excluded_candidates || []),
+      ...searchableContextContacts
+    ].forEach((candidate) => {
+      contactCandidateIds(candidate).forEach((id) => {
+        if (!candidatesById[id]) candidatesById[id] = candidate;
+      });
+    });
+    setContextLocalSelection((current) => {
+      if (current.dirty) return current;
+      return {
+        selectedIds: [...(contactSelection.selected_candidate_ids || [])],
+        excludedIds: [...(contactSelection.excluded_candidate_ids || [])],
+        pendingActions: {},
+        candidatesById,
+        dirty: false
+      };
+    });
+  }, [
+    conversationDetail?.conversation?.key,
+    item.id,
+    contactSelection.selection_path,
+    JSON.stringify(contactSelection.selected_candidate_ids || []),
+    JSON.stringify(contactSelection.excluded_candidate_ids || []),
+    searchableContextContacts
+  ]);
+  useEffect(() => {
+    setContextInstructionDraft(operatorContext.instruction_text || "");
+  }, [conversationDetail?.conversation?.key, operatorContext.instruction_text]);
+  useEffect(() => {
+    let cancelled = false;
+    const query = contextContactQuery.trim();
+    if (activeWorkflowView !== "context" || query.length < 2) {
+      setContextSearchAction({ status: "idle", message: "", payload: null });
+      return () => {
+        cancelled = true;
+      };
+    }
+    setContextSearchAction((current) => ({ ...current, status: "loading", message: "Searching contacts..." }));
+    const timer = window.setTimeout(async () => {
+      try {
+        const payload = await fetchJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-search?q=${encodeURIComponent(query)}&limit=30`);
+        if (cancelled) return;
+        setContextSearchAction({ status: "loaded", message: "", payload });
+      } catch (error) {
+        if (cancelled) return;
+        setContextSearchAction({ status: "error", message: `Contact search failed: ${error.message}`, payload: null });
+      }
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeWorkflowView, contextContactQuery, item.id]);
   useEffect(() => {
     let cancelled = false;
     async function loadSourceDetail() {
@@ -3287,6 +4212,23 @@ function ConversationWorkflowModal({
     }
   }
 
+  async function runSelectedFirstPassSummary() {
+    setFirstPassAction({ status: "running", message: "Running initial summary...", payload: firstPassAction.payload });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/first-pass-summary/run`, {
+        store: true,
+        approval_token: firstPassSummaryState.future_required_approval_token_for_submit || "SUBMIT_FIRST_PASS_SUMMARY_BATCH"
+      });
+      setFirstPassAction({
+        status: payload.status || "submitted",
+        message: `Initial summary submitted; batch ${payload.batch_id || "pending id"}.`,
+        payload
+      });
+    } catch (error) {
+      setFirstPassAction((current) => ({ ...current, status: "error", message: `Initial summary failed: ${error.message}` }));
+    }
+  }
+
   async function refreshSelectedFirstPassSummary() {
     if (!selectedFirstPassManifest) return;
     setFirstPassAction((current) => ({ ...current, status: "checking", message: "Checking selected summary batch..." }));
@@ -3349,33 +4291,230 @@ function ConversationWorkflowModal({
     }
   }
 
-  async function chooseContextContact(candidate, action) {
+  function stageContextContactSelection(candidate, action) {
+    const id = contactCandidateId(candidate) || `manual-${Date.now()}`;
+    const ids = contactCandidateIds({ ...candidate, contact_id: id });
+    setContextLocalSelection((current) => {
+      const selected = new Set(current.selectedIds || []);
+      const excluded = new Set(current.excludedIds || []);
+      ids.forEach((candidateId) => {
+        if (action === "select") {
+          selected.add(candidateId);
+          excluded.delete(candidateId);
+        } else if (action === "exclude") {
+          excluded.add(candidateId);
+          selected.delete(candidateId);
+        } else {
+          selected.delete(candidateId);
+          excluded.delete(candidateId);
+        }
+      });
+      const candidatesById = { ...(current.candidatesById || {}) };
+      ids.forEach((candidateId) => {
+        candidatesById[candidateId] = { ...candidate, contact_id: contactCandidateId(candidate) || candidateId };
+      });
+      return {
+        selectedIds: [...selected],
+        excludedIds: [...excluded],
+        pendingActions: {
+          ...(current.pendingActions || {}),
+          [id]: { action, candidate: { ...candidate, contact_id: contactCandidateId(candidate) || id } }
+        },
+        candidatesById,
+        dirty: true
+      };
+    });
     setContextContactAction({
-      status: "running",
-      message: `${action === "select" ? "Selecting" : "Excluding"} ${candidate.label || "contact"} for context...`,
+      status: "dirty",
+      message: action === "select"
+        ? "Contact marked for context."
+        : action === "exclude"
+          ? "Contact marked as excluded."
+          : "Contact choice cleared.",
       payload: null
     });
+  }
+
+  async function persistContextContactSelection({ silent = false } = {}) {
+    const pendingActions = Object.values(contextLocalSelection.pendingActions || {});
+    if (!pendingActions.length) return null;
+    if (!silent) {
+      setContextContactAction({ status: "running", message: "Saving contact choices...", payload: null });
+    }
     try {
-      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-selection`, {
-        action,
-        candidate_id: candidate.contact_id,
-        actor_type: "operator",
-        reviewer: "operator",
-        note: action === "select" ? "Selected in the context workbench." : "Excluded in the context workbench."
+      const actions = pendingActions.map((pending) => {
+        const candidate = pending.candidate || {};
+        const action = {
+          action: pending.action,
+          candidate_id: candidate.contact_id || "",
+          actor_type: "operator",
+          reviewer: "operator",
+          note: pending.action === "select"
+            ? "Selected in the context workbench."
+            : pending.action === "exclude"
+              ? "Excluded in the context workbench."
+              : "Cleared in the context workbench."
+        };
+        if (candidate.manual_candidate) action.manual_candidate = candidate.manual_candidate;
+        return action;
       });
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-selection-batch`, { actions });
       setContextContactAction({
-        status: payload.status || "recorded",
-        message: action === "select" ? "Contact selected for context." : "Contact excluded from context.",
+        status: "saved",
+        message: silent ? "" : "Contact choices saved.",
+        payload
+      });
+      setContextLocalSelection((current) => ({
+        ...current,
+        pendingActions: {},
+        dirty: false
+      }));
+      return payload;
+    } catch (error) {
+      setContextContactAction({ status: "error", message: `Contact selection failed: ${error.message}`, payload: null });
+      throw error;
+    }
+  }
+
+  function addManualContextContact() {
+    const label = contextManualContact.label.trim();
+    const email = contextManualContact.email.trim();
+    if (!label && !email) {
+      setContextContactAction({ status: "error", message: "Enter a contact name or email before adding.", payload: null });
+      return;
+    }
+    const contact_id = `manual-${Date.now()}`;
+    stageContextContactSelection(
+      {
+        contact_id,
+        label: label || email,
+        email,
+        source_type: "manual_context_contact",
+        source_profile: "operator",
+        confidence: 1,
+        manual_candidate: { label, email }
+      },
+      "select"
+    );
+    setContextManualContact({ label: "", email: "" });
+  }
+
+  async function searchConfiguredContextContacts() {
+    const query = contextContactQuery.trim();
+    if (query.length < 2) {
+      setContextSearchAction({ status: "error", message: "Enter at least two characters before searching sources.", payload: null });
+      return;
+    }
+    setContextSearchAction({ status: "refreshing", message: "Searching configured contact sources...", payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-refresh`, {
+        query,
+        limit: 30
+      });
+      setContextSearchAction({
+        status: "loaded",
+        message: payload.total
+          ? `Found ${payload.total} contact candidate(s) from configured sources.`
+          : "No configured source contacts matched.",
         payload
       });
     } catch (error) {
-      setContextContactAction({ status: "error", message: `Contact selection failed: ${error.message}`, payload: null });
+      setContextSearchAction({ status: "error", message: `Configured source search failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function refreshContextContactAffinity() {
+    const query = contextContactQuery.trim();
+    setContextAffinityAction({ status: "refreshing", message: "Refreshing relationship ranking...", payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-affinity/refresh`, {
+        query,
+        limit: 50
+      });
+      setContextAffinityAction({
+        status: "loaded",
+        message: payload.item_count
+          ? `Ranked ${payload.item_count} contact candidate(s) with local relationship signals.`
+          : "No contact candidates were available for affinity ranking.",
+        payload
+      });
+      setContextSearchAction((current) => current.status === "loaded" ? { ...current, payload } : current);
+    } catch (error) {
+      setContextAffinityAction({ status: "error", message: `Relationship ranking failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function recordContextContactMerge(cluster, action) {
+    const contactIds = (cluster.contact_ids || []).filter(Boolean);
+    if (contactIds.length < 2) {
+      setContextMergeAction({ status: "error", message: "Merge review requires at least two contact ids.", payload: null });
+      return;
+    }
+    setContextMergeAction({
+      status: "running",
+      message: action === "split" ? "Recording reviewed split..." : "Recording reviewed merge...",
+      payload: null
+    });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/contact-merge-batch`, {
+        actions: [
+          {
+            action,
+            contact_ids: contactIds,
+            dedupe_key: cluster.dedupe_key || "",
+            canonical_candidate: {
+              contact_id: contactIds[0],
+              label: cluster.label || cluster.email || "",
+              email: cluster.email || ""
+            },
+            actor_type: "operator",
+            reviewer: "operator",
+            note: action === "split"
+              ? "Split from the context workbench merge review."
+              : "Approved from the context workbench merge review."
+          }
+        ]
+      });
+      setContextMergeAction({
+        status: "saved",
+        message: action === "split" ? "Reviewed split saved." : "Reviewed merge saved.",
+        payload
+      });
+      setContextContactAction({
+        status: "saved",
+        message: action === "split" ? "Reviewed split saved." : "Reviewed merge saved.",
+        payload
+      });
+    } catch (error) {
+      setContextMergeAction({ status: "error", message: `Merge review failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function saveContextInstructions() {
+    setContextInstructionAction({ status: "running", message: "Saving context instructions...", payload: null });
+    try {
+      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/context-workbench/instructions`, {
+        instruction_text: contextInstructionDraft,
+        actor_type: "operator",
+        reviewer: "operator",
+        note: "Saved in the context workbench."
+      });
+      setContextInstructionAction({
+        status: payload.status || "saved",
+        message: contextInstructionDraft.trim() ? "Context instructions saved." : "Context instructions cleared.",
+        payload
+      });
+    } catch (error) {
+      setContextInstructionAction({ status: "error", message: `Context instructions failed: ${error.message}`, payload: null });
     }
   }
 
   async function queueFinalPreview() {
     setFinalPreviewAction({ status: "running", message: "Queueing deposition and memory preview...", payload: null });
     try {
+      if (Object.keys(contextLocalSelection.pendingActions || {}).length) {
+        await persistContextContactSelection({ silent: true });
+      }
       const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/final-preview/queue`, {
         approval_token: "QUEUE_DEPOSITION_MEMORY_PREVIEW"
       });
@@ -3560,13 +4699,16 @@ function ConversationWorkflowModal({
                     <dd>{firstPassSummaryState.source_document_id || "Not linked"}</dd>
                     <dt>Summary</dt>
                     <dd>{firstPassSummaryState.summary_document_id || "Not materialized"}</dd>
-                  </dl>
-                  <div className="workflow-action-row">
-                    <button onClick={prepareSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
-                      Prepare selected
-                    </button>
-                    <button onClick={submitSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "submitting"} type="button">
-                      Submit
+	                  </dl>
+	                  <div className="workflow-action-row">
+	                    <button className="primary-workflow-action" onClick={runSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
+	                      Run initial summary
+	                    </button>
+	                    <button onClick={prepareSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
+	                      Prepare only
+	                    </button>
+	                    <button onClick={submitSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "submitting"} type="button">
+	                      Submit
                     </button>
                     <button onClick={refreshSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "checking"} type="button">
                       Check
@@ -3624,60 +4766,228 @@ function ConversationWorkflowModal({
                 <div className="context-contact-panel">
                   <div className="workflow-view-heading compact">
                     <div>
-                      <span>Proposed contacts</span>
-                      <h3>{contactSelection.selected_candidates?.length || 0} selected for context</h3>
+                      <span>Contacts for context</span>
+                      <h3>{selectedContextContacts.length || 0} selected for context</h3>
                     </div>
-                    <strong>{proposedContextContacts.length || 0} proposed</strong>
+                    <strong>{contextContactsForDisplay.length || 0} searchable</strong>
                   </div>
-                  {contactSelection.selected_candidates?.length ? (
-                    <div className="chip-cloud">
-                      {contactSelection.selected_candidates.map((candidate) => (
-                        <span key={`selected-${candidate.contact_id}`}>{candidate.label || candidate.email}</span>
+                  <div className="context-contact-tools">
+                    <label className="workflow-field">
+                      Search contacts
+                      <input
+                        onChange={(event) => setContextContactQuery(event.target.value)}
+                        placeholder="Name, email, source, or tenant"
+                        type="search"
+                        value={contextContactQuery}
+                      />
+                    </label>
+                    <div className="manual-contact-row">
+                      <input
+                        aria-label="New contact name"
+                        onChange={(event) => setContextManualContact((current) => ({ ...current, label: event.target.value }))}
+                        placeholder="Contact name"
+                        type="text"
+                        value={contextManualContact.label}
+                      />
+                      <input
+                        aria-label="New contact email"
+                        onChange={(event) => setContextManualContact((current) => ({ ...current, email: event.target.value }))}
+                        placeholder="Email"
+                        type="email"
+                        value={contextManualContact.email}
+                      />
+                      <button disabled={contextContactAction.status === "running"} onClick={addManualContextContact} type="button">
+                        Add
+                      </button>
+                    </div>
+                    <button
+                      className="save-contact-selection"
+                      disabled={!Object.keys(contextLocalSelection.pendingActions || {}).length || contextContactAction.status === "running"}
+                      onClick={() => persistContextContactSelection()}
+                      type="button"
+                    >
+                      Save choices
+                    </button>
+                    <button
+                      className="source-contact-search"
+                      disabled={contextContactQuery.trim().length < 2 || contextSearchAction.status === "refreshing"}
+                      onClick={searchConfiguredContextContacts}
+                      type="button"
+                    >
+                      Search sources
+                    </button>
+                    <button
+                      className="source-contact-search affinity-refresh"
+                      disabled={contextAffinityAction.status === "refreshing"}
+                      onClick={refreshContextContactAffinity}
+                      type="button"
+                    >
+                      Refresh ranking
+                    </button>
+                  </div>
+                  <div className="contact-workbench-status">
+                    <span>Search cache: {statusLabel(contactSelection.search_cache_status || "empty")}</span>
+                    <span>Affinity: {statusLabel(contactSelection.affinity_cache_status || contextSearchAction.payload?.affinity_cache_status || "empty")}</span>
+                    <span>Merge review: {statusLabel(contactMergeState.status || "empty")}</span>
+                  </div>
+                  {selectedContextContacts.length ? (
+                    <div className="selected-contact-strip">
+                      {selectedContextContacts.map((candidate) => (
+                        <button
+                          key={`selected-${contactCandidateId(candidate)}`}
+                          onClick={() => stageContextContactSelection(candidate, "clear")}
+                          type="button"
+                        >
+                          {candidate.label || candidate.email}
+                        </button>
                       ))}
                     </div>
                   ) : null}
-                  {proposedContextContacts.length ? (
+                  {dedupeClusters.length ? (
+                    <div className="dedupe-cluster-list">
+                      {dedupeClusters.slice(0, 4).map((cluster) => (
+                        <article key={cluster.dedupe_key}>
+                          <div>
+                            <strong>{cluster.label || cluster.email}</strong>
+                            <small>{cluster.source_count} merged sources · {(cluster.contact_ids || []).length} contact ids</small>
+                          </div>
+                          <div className="context-contact-actions">
+                            <button
+                              disabled={contextMergeAction.status === "running"}
+                              onClick={() => recordContextContactMerge(cluster, "merge")}
+                              type="button"
+                            >
+                              Merge
+                            </button>
+                            <button
+                              disabled={contextMergeAction.status === "running"}
+                              onClick={() => recordContextContactMerge(cluster, "split")}
+                              type="button"
+                            >
+                              Split
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+                  {visibleContextContacts.length ? (
                     <div className="context-contact-grid">
-                      {proposedContextContacts.slice(0, 12).map((candidate) => {
-                        const selected = contactSelection.selected_candidate_ids?.includes(candidate.contact_id);
-                        const excluded = contactSelection.excluded_candidate_ids?.includes(candidate.contact_id);
+                      {visibleContextContacts.map((candidate) => {
+                        const selected = contactIdSetHasCandidate(selectedIdSet, candidate);
+                        const excluded = contactIdSetHasCandidate(excludedIdSet, candidate);
                         return (
                           <article className={selected ? "selected" : excluded ? "excluded" : ""} key={`${candidate.contact_id}-${candidate.source_type}`}>
                             <div>
                               <strong>{candidate.label || candidate.email || "Contact candidate"}</strong>
                               <small>
-                                {[candidate.email, candidate.source_type || candidate.source, candidate.source_profile, candidate.confidence ? `confidence ${candidate.confidence}` : ""]
+                                {[candidate.email, candidate.source_type || candidate.source, candidate.source_profile, candidate.source_count > 1 ? `${candidate.source_count} merged sources` : "", candidate.confidence ? `confidence ${candidate.confidence}` : "", candidate.rank_score ? `rank ${candidate.rank_score}` : ""]
                                   .filter(Boolean)
                                   .join(" · ")}
                               </small>
+                              {contactRankingReasons(candidate).length ? (
+                                <div className="ranking-reason-list">
+                                  {contactRankingReasons(candidate).map((reason) => (
+                                    <span key={`${candidate.contact_id}-${reason}`}>{reason}</span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {candidate.merged_sources?.length ? (
+                                <details className="contact-evidence-details">
+                                  <summary>Sources</summary>
+                                  <ul>
+                                    {candidate.merged_sources.slice(0, 5).map((source) => (
+                                      <li key={`${candidate.contact_id}-${source.contact_id}-${source.source_type}`}>
+                                        {[source.label || source.email || "source", source.source_type, source.source_profile]
+                                          .filter(Boolean)
+                                          .join(" · ")}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </details>
+                              ) : null}
                             </div>
                             <div className="context-contact-actions">
                               <button
-                                disabled={selected || contextContactAction.status === "running"}
-                                onClick={() => chooseContextContact(candidate, "select")}
+                                disabled={selected}
+                                onClick={() => stageContextContactSelection(candidate, "select")}
                                 type="button"
                               >
                                 Use
                               </button>
                               <button
-                                disabled={excluded || contextContactAction.status === "running"}
-                                onClick={() => chooseContextContact(candidate, "exclude")}
+                                disabled={excluded}
+                                onClick={() => stageContextContactSelection(candidate, "exclude")}
                                 type="button"
                               >
                                 Exclude
                               </button>
+                              {(selected || excluded) ? (
+                                <button
+                                  onClick={() => stageContextContactSelection(candidate, "clear")}
+                                  type="button"
+                                >
+                                  Clear
+                                </button>
+                              ) : null}
                             </div>
                           </article>
                         );
                       })}
                     </div>
                   ) : (
-                    <p className="muted">No proposed contacts are available yet.</p>
+                    <p className="muted">{contextContactQuery ? "No cached contacts match the search." : "No proposed contacts are available yet."}</p>
                   )}
+                  {contextSearchAction.message ? (
+                    <div className={`action-notice ${contextSearchAction.status}`}>
+                      <strong>{contextSearchAction.message}</strong>
+                      {contextSearchAction.payload?.job_id ? <small>{contextSearchAction.payload.job_id}</small> : null}
+                    </div>
+                  ) : null}
+                  {contextAffinityAction.message ? (
+                    <div className={`action-notice ${contextAffinityAction.status}`}>
+                      <strong>{contextAffinityAction.message}</strong>
+                      {contextAffinityAction.payload?.cache_path ? <small>{contextAffinityAction.payload.cache_path}</small> : null}
+                    </div>
+                  ) : null}
+                  {contextMergeAction.message ? (
+                    <div className={`action-notice ${contextMergeAction.status}`}>
+                      <strong>{contextMergeAction.message}</strong>
+                      {contextMergeAction.payload?.merge_path ? <small>{contextMergeAction.payload.merge_path}</small> : null}
+                    </div>
+                  ) : null}
                   {contextContactAction.message ? (
                     <div className={`action-notice ${contextContactAction.status}`}>
                       <strong>{contextContactAction.message}</strong>
                       {contextContactAction.payload?.selection_path ? <small>{contextContactAction.payload.selection_path}</small> : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="context-contact-panel">
+                  <div className="workflow-view-heading compact">
+                    <div>
+                      <span>Operator instructions</span>
+                      <h3>{operatorContext.status === "provided" ? "Saved context is attached" : "No saved context yet"}</h3>
+                    </div>
+                  </div>
+                  <label className="workflow-field">
+                    Natural language context
+                    <textarea
+                      onChange={(event) => setContextInstructionDraft(event.target.value)}
+                      placeholder="Add participant notes, identity hints, customer context, disambiguation rules, or readout instructions."
+                      rows={5}
+                      value={contextInstructionDraft}
+                    />
+                  </label>
+                  <div className="workflow-action-row">
+                    <button disabled={contextInstructionAction.status === "running"} onClick={saveContextInstructions} type="button">
+                      Save instructions
+                    </button>
+                  </div>
+                  {contextInstructionAction.message ? (
+                    <div className={`action-notice ${contextInstructionAction.status}`}>
+                      <strong>{contextInstructionAction.message}</strong>
+                      {contextInstructionAction.payload?.instruction_path ? <small>{contextInstructionAction.payload.instruction_path}</small> : null}
                     </div>
                   ) : null}
                 </div>

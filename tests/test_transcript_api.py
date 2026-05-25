@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -422,7 +423,442 @@ def test_conversation_identity_bundle_uses_configured_contact_provenance(tmp_pat
     assert selected_state["status"] == "selected"
     assert selected_state["selected_candidates"][0]["label"] == "Alice Example"
     assert Path(selected_state["selection_path"]).exists()
+    manual_selection = transcript_api.record_context_contact_selection(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        candidate_id="",
+        action="select",
+        manual_candidate={"label": "Bob Buyer", "email": "bob@example.com"},
+        reviewer="operator-test",
+        note="Added from context workbench search.",
+    )
+    manual_state = manual_selection["context_workbench"]["contact_selection"]
+    assert "Bob Buyer" in {candidate["label"] for candidate in manual_state["selected_candidates"]}
+    search = transcript_api.search_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="bob",
+    )
+    assert search["items"][0]["email"] == "bob@example.com"
+    instructions = transcript_api.record_context_instructions(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        instruction_text="Treat Bob as the purchasing contact and include the sample follow-up context.",
+        reviewer="operator-test",
+    )
+    assert instructions["context_workbench"]["operator_context"]["status"] == "provided"
+    preview = transcript_api.context_workbench_preview(transcript.id, root=store_root, state_root=state_root)
+    manifest = json.loads(Path(preview["manifest"]).read_text(encoding="utf-8"))
+    assert manifest["operator_context"]["instruction_text"].startswith("Treat Bob")
+    assert any(candidate["email"] == "bob@example.com" for candidate in manifest["contact_selection"]["selected_candidates"])
     assert payload["final_preview"]["status"] == "blocked_identity_or_context_review"
+
+
+def test_context_contact_candidates_merge_same_person_across_sources() -> None:
+    candidates = transcript_api.unique_context_contact_candidates(
+        [
+            {
+                "contact_id": "operator-sean",
+                "label": "Sean Solberg",
+                "source": "operator_participant_hint",
+                "source_type": "operator_participant_hint",
+                "source_profile": "user_config",
+                "confidence": 0.9,
+            },
+            {
+                "contact_id": "gws-sean",
+                "label": "Solberg, Sean",
+                "email": "ssolberg@fredlaw.com",
+                "source": "gws_other_contact",
+                "source_type": "gws_other_contact",
+                "source_profile": "work",
+                "confidence": 0.78,
+            },
+        ]
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0]["label"] == "Sean Solberg"
+    assert candidates[0]["email"] == "ssolberg@fredlaw.com"
+    assert candidates[0]["source_count"] == 2
+    assert set(candidates[0]["merged_contact_ids"]) == {"operator-sean", "gws-sean"}
+
+
+def test_context_contact_selection_batch_records_multiple_actions(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    (state_root / participant_identity.CONTACT_SOURCE_CONFIG_NAME).write_text(
+        json.dumps({"gws": {"profiles": [{"label": "work", "surfaces": ["contacts"]}]}}),
+        encoding="utf-8",
+    )
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+
+    def fake_gws(query_terms, *, config):
+        return [
+            ProvenanceSource(
+                source_type="gws_contact",
+                source_id="people/alice",
+                label="Alice Example",
+                snippet="Alice Example; alice@example.com",
+                metadata={"profile": "work", "email": "alice@example.com"},
+            )
+        ]
+
+    monkeypatch.setattr(participant_identity, "collect_gws_contact_provenance", fake_gws)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    detail = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    candidate_id = detail["identity_review"]["identity_bundle"]["contact_candidates"][0]["contact_id"]
+
+    batch = transcript_api.record_context_contact_selection_batch(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        actions=[
+            {"candidate_id": candidate_id, "action": "select", "reviewer": "operator-test"},
+            {
+                "candidate_id": "",
+                "action": "select",
+                "reviewer": "operator-test",
+                "manual_candidate": {"label": "Bob Buyer", "email": "bob@example.com"},
+            },
+        ],
+    )
+
+    selection = batch["context_workbench"]["contact_selection"]
+    assert batch["schema_version"] == "transcribe-audio.context-contact-selection-batch.v1"
+    assert len(batch["decisions"]) == 2
+    assert {candidate["email"] for candidate in selection["selected_candidates"]} == {
+        "alice@example.com",
+        "bob@example.com",
+    }
+
+
+def test_context_contact_search_refresh_caches_configured_source_results(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+    calls = []
+
+    def fake_collect(query_terms, *, transcript, state_root):
+        calls.append(list(query_terms))
+        if query_terms == ["chris"]:
+            return (
+                [
+                    ProvenanceSource(
+                        source_type="gws_contact",
+                        source_id="people/chris",
+                        label="Chris Example",
+                        snippet="Chris Example; chris@example.com",
+                        metadata={"profile": "work", "email": "chris@example.com"},
+                    )
+                ],
+                [{"source": "gws", "profile": "work", "read_only": True}],
+                [],
+            )
+        return [], [], []
+
+    monkeypatch.setattr(participant_identity, "collect_configured_contact_sources", fake_collect)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    empty = transcript_api.search_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+    )
+    calls_before_refresh = len(calls)
+    refreshed = transcript_api.search_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+        mode="refresh",
+    )
+    cached = transcript_api.search_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+    )
+    selected = transcript_api.record_context_contact_selection_batch(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        actions=[{"candidate_id": cached["items"][0]["contact_id"], "action": "select"}],
+    )
+
+    assert empty["total"] == 0
+    assert refreshed["will_execute_external_action"] is True
+    assert refreshed["items"][0]["label"] == "Chris Example"
+    assert refreshed["cache_status"] == "updated"
+    assert cached["items"][0]["email"] == "chris@example.com"
+    assert calls[calls_before_refresh:] == [["chris"]]
+    assert selected["context_workbench"]["contact_selection"]["selected_candidates"][0]["label"] == "Chris Example"
+
+
+def test_context_contact_affinity_refresh_ranks_recent_frequent_contacts(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    detail = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    conversation_key = detail["conversation"]["key"]
+    recent = {
+        "contact_id": "contact-chris-recent",
+        "label": "Chris Recent",
+        "email": "recent@example.com",
+        "source": "gws_contact",
+        "source_type": "gws_contact",
+        "source_profile": "work",
+        "confidence": 0.7,
+    }
+    stale = {
+        "contact_id": "contact-chris-stale",
+        "label": "Chris Stale",
+        "email": "stale@example.com",
+        "source": "gws_contact",
+        "source_type": "gws_contact",
+        "source_profile": "work",
+        "confidence": 0.7,
+    }
+    transcript_api.append_context_contact_search_cache(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        query="chris",
+        items=[stale, recent],
+        source_profiles=[{"source": "gws", "profile": "work", "read_only": True}],
+        warnings=[],
+    )
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    selection_path = transcript_api.context_contact_selection_path(
+        state_root=state_root,
+        conversation_key=conversation_key,
+    )
+    transcript_api.write_json_file(
+        selection_path,
+        {
+            "schema_version": "transcribe-audio.context-contact-selection.v1",
+            "conversation_key": conversation_key,
+            "decisions": [
+                {
+                    "candidate_id": recent["contact_id"],
+                    "action": "select",
+                    "created_at": (now - timedelta(days=3)).isoformat().replace("+00:00", "Z"),
+                    "candidate": recent,
+                },
+                {
+                    "candidate_id": recent["contact_id"],
+                    "action": "select",
+                    "created_at": (now - timedelta(days=20)).isoformat().replace("+00:00", "Z"),
+                    "candidate": recent,
+                },
+                {
+                    "candidate_id": stale["contact_id"],
+                    "action": "exclude",
+                    "created_at": (now - timedelta(days=320)).isoformat().replace("+00:00", "Z"),
+                    "candidate": stale,
+                },
+            ],
+        },
+    )
+
+    affinity = transcript_api.refresh_context_contact_affinity(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+    )
+    cached_search = transcript_api.search_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+    )
+
+    assert affinity["items"][0]["label"] == "Chris Recent"
+    assert affinity["items"][0]["relationship_affinity"]["prior_selected_count"] == 2
+    assert "selected before" in affinity["items"][0]["ranking_reasons"]
+    assert cached_search["items"][0]["label"] == "Chris Recent"
+    assert cached_search["items"][0]["rank_score"] > cached_search["items"][1]["rank_score"]
+
+
+def test_context_contact_merge_batch_persists_reviewed_split(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    detail = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    conversation_key = detail["conversation"]["key"]
+    transcript_api.append_context_contact_search_cache(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        query="sean",
+        items=[
+            {
+                "contact_id": "operator-sean",
+                "label": "Sean Solberg",
+                "source": "operator_participant_hint",
+                "source_type": "operator_participant_hint",
+                "source_profile": "user_config",
+                "confidence": 0.9,
+            },
+            {
+                "contact_id": "gws-sean",
+                "label": "Solberg, Sean",
+                "email": "ssolberg@fredlaw.com",
+                "source": "gws_other_contact",
+                "source_type": "gws_other_contact",
+                "source_profile": "work",
+                "confidence": 0.78,
+            },
+        ],
+        source_profiles=[],
+        warnings=[],
+    )
+    before = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    before_candidates = before["context_workbench"]["contact_selection"]["searchable_candidates"]
+    assert len([candidate for candidate in before_candidates if "sean" in candidate["label"].lower()]) == 1
+
+    split = transcript_api.record_context_contact_merge_batch(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        actions=[
+            {
+                "action": "split",
+                "contact_ids": ["operator-sean", "gws-sean"],
+                "reviewer": "operator-test",
+                "note": "Reviewed split test.",
+            }
+        ],
+    )
+    after_candidates = split["context_workbench"]["contact_selection"]["searchable_candidates"]
+    sean_candidates = [candidate for candidate in after_candidates if "sean" in candidate["label"].lower()]
+
+    assert split["schema_version"] == "transcribe-audio.context-contact-merge-batch.v1"
+    assert split["context_workbench"]["contact_selection"]["merge_state"]["status"] == "reviewed"
+    assert len(sean_candidates) == 2
+    assert {candidate["contact_id"] for candidate in sean_candidates} == {"operator-sean", "gws-sean"}
+
+
+def test_context_contact_refresh_writes_job_manifest(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+
+    def fake_collect(query_terms, *, transcript, state_root):
+        return (
+            [
+                ProvenanceSource(
+                    source_type="gws_contact",
+                    source_id="people/chris",
+                    label="Chris Example",
+                    snippet="Chris Example; chris@example.com",
+                    metadata={"profile": "work", "email": "chris@example.com"},
+                )
+            ],
+            [{"source": "gws", "profile": "work", "read_only": True}],
+            [],
+        )
+
+    monkeypatch.setattr(participant_identity, "collect_configured_contact_sources", fake_collect)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    refresh = transcript_api.refresh_context_contacts(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        query="chris",
+    )
+    job = transcript_api.read_context_contact_refresh_job(
+        state_root=state_root,
+        job_id=refresh["job_id"],
+    )
+
+    assert refresh["status"] == "completed"
+    assert Path(refresh["job_path"]).exists()
+    assert refresh["items"][0]["email"] == "chris@example.com"
+    assert job["search"]["items"][0]["label"] == "Chris Example"
+    assert job["will_perform_external_write"] is False
+
+
+def test_conversation_identity_bundle_cache_avoids_repeated_contact_provenance(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    (state_root / participant_identity.CONTACT_SOURCE_CONFIG_NAME).write_text(
+        json.dumps({"gws": {"profiles": [{"label": "work", "surfaces": ["contacts"]}]}}),
+        encoding="utf-8",
+    )
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+    calls = {"gws": 0}
+
+    def fake_gws(query_terms, *, config):
+        calls["gws"] += 1
+        return [
+            ProvenanceSource(
+                source_type="gws_contact",
+                source_id="people/alice",
+                label="Alice Example",
+                snippet="Alice Example; alice@example.com",
+                metadata={"profile": "work", "email": "alice@example.com"},
+            )
+        ]
+
+    monkeypatch.setattr(participant_identity, "collect_gws_contact_provenance", fake_gws)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    first = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    second = transcript_api.get_conversation_detail(transcript.id, root=store_root, state_root=state_root)
+    selection = transcript_api.record_context_contact_selection(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        candidate_id=first["identity_review"]["identity_bundle"]["contact_candidates"][0]["contact_id"],
+        action="select",
+    )
+
+    assert calls["gws"] == 1
+    assert first["identity_review"]["identity_cache"]["status"] == "stored"
+    assert second["identity_review"]["identity_cache"]["status"] == "hit"
+    assert selection["context_workbench"]["contact_selection"]["selected_candidates"][0]["label"] == "Alice Example"
 
 
 def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Path) -> None:
@@ -476,6 +912,96 @@ def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Pa
     assert manifest["queue"]["items"][0]["participant_identity_bundle"]["schema_version"]
     assert "participant_identity" in request["input"][1]["content"]
     assert status["status"] == "prepared"
+
+
+def test_selected_first_pass_summary_run_endpoint_prepares_and_submits(tmp_path: Path) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    env_file = tmp_path / "auracall.env"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    FakeAuraCallHandler.requests = []
+    provider = ThreadingHTTPServer(("127.0.0.1", 0), FakeAuraCallHandler)
+    provider_thread = threading.Thread(target=provider.serve_forever, daemon=True)
+    provider_thread.start()
+    host, provider_port = provider.server_address
+    env_file.write_text(
+        "\n".join(
+            [
+                f"OPENAI_BASE_URL=http://{host}:{provider_port}/v1",
+                "OPENAI_API_KEY=test-key",
+                f"AURACALL_BATCH_URL=http://{host}:{provider_port}/v1/response-batches",
+                "AURACALL_DISPATCH_TEAM=transcribe-audio-chatgpt-pro-pool",
+                "AURACALL_DISPATCH_MODEL=gpt-5.2-pro",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        batch_env_file=env_file,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        api_host, port = server.server_address
+        blocked_request = Request(
+            f"http://{api_host}:{port}/api/conversations/{quote(transcript.id)}/first-pass-summary/run",
+            data=json.dumps({"store": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(blocked_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 400
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("one-click run without approval token must fail")
+        assert FakeAuraCallHandler.requests == []
+
+        run_request = Request(
+            f"http://{api_host}:{port}/api/conversations/{quote(transcript.id)}/first-pass-summary/run",
+            data=json.dumps(
+                {
+                    "store": True,
+                    "approval_token": "SUBMIT_FIRST_PASS_SUMMARY_BATCH",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        run_response = urlopen(run_request, timeout=5)
+        payload = json.loads(run_response.read())
+        manifest = json.loads(Path(payload["manifest"]).read_text(encoding="utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        provider.shutdown()
+        provider.server_close()
+
+    assert run_response.status == 202
+    assert payload["action"] == "run_selected_first_pass_summary"
+    assert payload["prepared"]["status"] == "prepared"
+    assert payload["status"] == "submitted"
+    assert payload["batch_id"] == "batch_test"
+    assert payload["one_click"] is True
+    assert payload["will_execute_external_action"] is True
+    assert payload["will_perform_external_write"] is True
+    assert manifest["dry_run"] is False
+    assert manifest["batch"]["id"] == "batch_test"
+    assert manifest["batch_payload"]["metadata"]["scopedDocumentId"] == transcript.id
+    assert FakeAuraCallHandler.requests[0]["metadata"]["workflow"] == "transcribe-audio-first-pass-summary"
 
 
 def test_speaker_identity_review_records_contact_and_defer_queue(tmp_path: Path) -> None:
@@ -1545,6 +2071,210 @@ def test_intelligence_config_preview_and_apply_endpoints(tmp_path: Path, monkeyp
     assert applied["applied"] is True
     assert config["tasks"]["first_pass_summary"]["provider"] == "codex-exec"
     assert config["tasks"]["first_pass_summary"]["model"] == "gpt-applied"
+
+
+def test_automation_config_endpoint_defaults_preview_and_apply(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TRANSCRIPTS_AUTOMATION_CONFIG", raising=False)
+    state_root = tmp_path / "state"
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        defaults = json.loads(urlopen(f"http://{host}:{port}/api/automation/config", timeout=5).read())
+        config_path = state_root / "automation.config.json"
+        assert defaults["exists"] is False
+        assert defaults["stages"]["initial_summary"]["enabled"] is False
+        assert defaults["stages"]["initial_summary"]["mode"] == "manual"
+        assert defaults["config_path"] == str(config_path)
+
+        preview_request = Request(
+            f"http://{host}:{port}/api/automation/config/preview",
+            data=json.dumps(
+                {
+                    "update": {
+                        "stages": {
+                            "initial_summary": {
+                                "enabled": True,
+                                "mode": "one_click",
+                                "requires_review": True,
+                            }
+                        }
+                    }
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preview = json.loads(urlopen(preview_request, timeout=5).read())
+        assert preview["will_write"] is False
+        assert preview["will_execute_workflow_stage"] is False
+        assert preview["after"]["stages"]["initial_summary"]["enabled"] is True
+        assert not config_path.exists()
+
+        blocked_request = Request(
+            f"http://{host}:{port}/api/automation/config/apply",
+            data=json.dumps({"update": {"stages": {"initial_summary": {"enabled": True}}}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(blocked_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 400
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("automation apply without approval token must fail")
+
+        apply_request = Request(
+            f"http://{host}:{port}/api/automation/config/apply",
+            data=json.dumps(
+                {
+                    "update": {
+                        "stages": {
+                            "initial_summary": {
+                                "enabled": True,
+                                "mode": "one_click",
+                                "requires_review": True,
+                            }
+                        }
+                    },
+                    "approval_token": "APPLY_AUTOMATION_CONFIG_UPDATE",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        applied_response = urlopen(apply_request, timeout=5)
+        applied = json.loads(applied_response.read())
+        updated = json.loads(urlopen(f"http://{host}:{port}/api/automation/config", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert applied_response.status == 202
+    assert applied["applied"] is True
+    assert updated["exists"] is True
+    assert updated["stages"]["initial_summary"]["enabled"] is True
+    assert updated["stages"]["initial_summary"]["mode"] == "one_click"
+    assert json.loads(config_path.read_text(encoding="utf-8"))["stages"]["initial_summary"]["enabled"] is True
+
+
+def test_provenance_config_endpoint_redacts_and_applies_updates(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    config_path = state_root / "provenance.config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "transcribe-audio.provenance-config.v1",
+                "active_profile": "default",
+                "profiles": {"default": {"source_ids": ["ical-private"]}},
+                "sources": {
+                    "ical-private": {
+                        "kind": "ical_calendar",
+                        "enabled": True,
+                        "label": "Private calendar",
+                        "url": "https://calendar.example.invalid/private-token",
+                        "read_only": True,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        payload = json.loads(urlopen(f"http://{host}:{port}/api/provenance/config", timeout=5).read())
+        assert payload["exists"] is True
+        assert "private-token" not in json.dumps(payload)
+
+        preview_request = Request(
+            f"http://{host}:{port}/api/provenance/config/preview",
+            data=json.dumps(
+                {
+                    "update": {
+                        "sources": {
+                            "gws-work": {
+                                "kind": "gws",
+                                "enabled": True,
+                                "label": "Work gws",
+                                "read_only": True,
+                            }
+                        }
+                    }
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preview = json.loads(urlopen(preview_request, timeout=5).read())
+        assert preview["will_write"] is False
+        assert "gws-work" not in json.loads(config_path.read_text(encoding="utf-8"))["sources"]
+
+        blocked_request = Request(
+            f"http://{host}:{port}/api/provenance/config/apply",
+            data=json.dumps({"update": {"active_profile": "default"}}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(blocked_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 400
+            assert "approval_token" in json.loads(exc.read())["error"]
+        else:
+            raise AssertionError("apply without approval token must fail")
+
+        apply_request = Request(
+            f"http://{host}:{port}/api/provenance/config/apply",
+            data=json.dumps(
+                {
+                    "approval_token": "APPLY_PROVENANCE_CONFIG_UPDATE",
+                    "update": {
+                        "sources": {
+                            "gws-work": {
+                                "kind": "gws",
+                                "enabled": True,
+                                "label": "Work gws",
+                                "read_only": True,
+                            }
+                        }
+                    },
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        applied_response = urlopen(apply_request, timeout=5)
+        applied = json.loads(applied_response.read())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert applied_response.status == 202
+    assert applied["applied"] is True
+    assert "private-token" not in json.dumps(applied)
+    assert "gws-work" in json.loads(config_path.read_text(encoding="utf-8"))["sources"]
 
 
 def test_app_intelligence_run_prepare_and_read_endpoints(tmp_path: Path) -> None:

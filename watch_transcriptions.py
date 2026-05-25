@@ -323,6 +323,27 @@ def normalize_calendar_id_values(raw_value: Any) -> list[str]:
     raise WatcherError("calendar provenance calendar IDs must be a list or comma-separated string.")
 
 
+def normalize_ical_feed_values(raw_value: Any) -> list[str]:
+    if raw_value is None:
+        return []
+    raw_items = raw_value if isinstance(raw_value, list) else [raw_value]
+    result: list[str] = []
+    for item in raw_items:
+        if isinstance(item, dict):
+            url = str(item.get("url") or item.get("feed_url") or "").strip()
+            label = str(item.get("label") or item.get("name") or "").strip()
+            if not url:
+                continue
+            result.append(f"{label}={url}" if label else url)
+        elif isinstance(item, str):
+            result.extend(value.strip() for value in item.split(",") if value.strip())
+        else:
+            value = str(item).strip()
+            if value:
+                result.append(value)
+    return result
+
+
 def parse_calendar_cli_args(raw_job: dict[str, Any]) -> list[str]:
     raw_calendar = raw_job.get("calendar")
     if raw_calendar is None:
@@ -349,11 +370,22 @@ def parse_calendar_cli_args(raw_job: dict[str, Any]) -> list[str]:
     calendar_id = raw_calendar.get("calendar_id")
     if calendar_id:
         cli_args.extend(["--calendar-id", str(calendar_id)])
+    provenance_config = raw_calendar.get("provenance_config")
+    if provenance_config:
+        cli_args.extend(["--provenance-config", str(provenance_config)])
+    provenance_profile = raw_calendar.get("provenance_profile")
+    if provenance_profile:
+        cli_args.extend(["--provenance-profile", str(provenance_profile)])
     provenance_calendar_ids = normalize_calendar_id_values(
         raw_calendar.get("provenance_calendar_ids", raw_calendar.get("shared_calendar_ids"))
     )
     for provenance_calendar_id in provenance_calendar_ids:
         cli_args.extend(["--calendar-provenance-calendar-id", provenance_calendar_id])
+    provenance_ical_urls = normalize_ical_feed_values(
+        raw_calendar.get("provenance_ical_urls", raw_calendar.get("ical_urls"))
+    )
+    for provenance_ical_url in provenance_ical_urls:
+        cli_args.extend(["--calendar-provenance-ical-url", provenance_ical_url])
     window = raw_calendar.get("window_hours")
     if window is not None:
         cli_args.extend(["--calendar-window", str(window)])
@@ -1087,6 +1119,27 @@ def ingest_store_artifacts(job: WatchJob, artifact_paths: list[str]) -> list[str
             f"[{job.name}] Stored {result.kind} artifact in transcript store: {result.stored_path}",
             flush=True,
         )
+        result_id = str(getattr(result, "id", "") or "")
+        if result.kind == "transcript" and result_id:
+            try:
+                from transcript_api import DEFAULT_STATE_DIR, warm_participant_identity_cache
+
+                warm = warm_participant_identity_cache(
+                    result_id,
+                    root=job.store_dir,
+                    state_root=DEFAULT_STATE_DIR.expanduser(),
+                )
+                print(
+                    f"[{job.name}] Warmed participant identity cache: "
+                    f"{warm.get('status', 'unknown')} ({warm.get('candidate_count', 0)} contact candidates)",
+                    flush=True,
+                )
+            except Exception as exc:
+                print(
+                    f"[{job.name}] Warning: participant identity cache warm failed for {artifact_path}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
         if result.stored_path not in store_paths:
             store_paths.append(result.stored_path)
     return store_paths

@@ -166,13 +166,17 @@ Current State: OPEN. A bounded product plan defines the React + Vite operator co
 
 The Library now calls `/api/conversations` with active query/kind filters to group transcript, first-pass readout, and contextual readout artifacts into server-backed conversation rows with workflow progress icons, explicit loading/empty/error table states, a `Load more` control for paginated results, URL-addressable query/filter/selection/workspace-tab state, a copy-workspace-link affordance for dogfooding feedback, and no separate artifact rows, and the conversation workspace loads `/api/conversations/<document_id>` so transcript, summary, final readout, artifact membership, participants, and media are available in one payload. Library columns are operator-resizable, and the media column exposes a healthy `Play` action when source audio is available instead of raw blob-status text. The inspector shows metadata, audio, and a short conversation summary without falling back to misleading raw transcript text. The browser-reviewed UI density pass tightened topbar navigation, pane/card spacing, Library/inspector headings, workflow tabs, and conversation workspace chrome; the share fallback is a non-blocking selectable URL field rather than a JavaScript prompt. `scripts/smoke_library_deeplink_share_ui.py` now makes the Library deep-link/share checks repeatable with `agent-browser` and persisted JSON/screenshot evidence. The conversation workspace now uses the full viewport with selectable Transcript, First-pass summary, Context workbench, Speakers, and Final readout views; the transcript view loads source transcripts for readouts, parses text into speaker turns when structured utterances are unavailable, and renders a scrollable color-coded transcript frame. The re-transcription workflow includes dry-run preflight and reviewed queue-manifest actions, but queueing still does not start a speech backend or write transcript outputs.
 
-Plan 0010/M1 is closed as the first dogfoodable conversation review loop. The workspace now exposes selected-conversation first-pass summary prepare/submit/status actions, durable speaker/contact review backed by SQLite contact and assignment tables, context workbench provenance with included/excluded sources and warnings, no-write deposition/memory preview queueing, and Review Queue rows that link back to the relevant conversation workflow tab. Plan 0012/M2 is also closed: `participant_identity.py` builds a participant identity bundle from calendar attendee evidence, readout participants, local reviewed contacts, configured user-scoped `gws` People/Contacts provenance, configured Odollo contact provenance, and operator decisions. The identity bundle is exposed through the conversation API, context-workbench previews, selected first-pass summary request artifacts, contextual reread artifacts, and AuraCall/Extended Pro ChatGPT prompt payloads. The React workspace shows calendar evidence, source-profile chips, contact candidates, manual contact entry, and final-preview blocking while identity/context warnings remain. `scripts/smoke_conversation_review_loop_ui.py` validates the M2 path against local runtime state with persisted JSON/screenshot evidence. P09 remains open for broader console productization, share/auth surfaces, richer contact/provenance/deposition sections, and eventual external apply contracts.
+Plan 0010/M1 is closed as the first dogfoodable conversation review loop. The workspace now exposes selected-conversation first-pass summary prepare/submit/status actions, durable speaker/contact review backed by SQLite contact and assignment tables, context workbench provenance with included/excluded sources and warnings, no-write deposition/memory preview queueing, and Review Queue rows that link back to the relevant conversation workflow tab. Plan 0012/M2 is also closed: `participant_identity.py` builds a participant identity bundle from calendar attendee evidence, readout participants, local reviewed contacts, configured user-scoped `gws` People/Contacts provenance, configured Odollo contact provenance, and operator decisions. The identity bundle is exposed through the conversation API, context-workbench previews, selected first-pass summary request artifacts, contextual reread artifacts, and AuraCall/Extended Pro ChatGPT prompt payloads. The React workspace shows calendar evidence, source-profile chips, contact candidates, manual contact entry, and final-preview blocking while identity/context warnings remain. `scripts/smoke_conversation_review_loop_ui.py` validates the M2 path against local runtime state with persisted JSON/screenshot evidence. Plan 0013 is closed: `provenance_config.py` now centralizes user-scoped `gog`, `gws`, `msgcli`, `odollo`, and iCalendar source definitions for CLI calendar lookup, watcher jobs, participant identity, route/context provenance, transcript API endpoints, and the React Provenance tab. Plan 0014 is closed: the contact-search workbench is cache-first by default, already-fetched contacts select instantly without backend calls, selected contacts stay visible while searching, explicit configured-source refresh populates user-scoped cache/job records, recency/frequency relationship affinity ranks broad searches with visible reasons, merge/split decisions are reviewed and persisted locally, and App Intelligence uses the same local batch contracts as the operator. Plan 0015 is closed: selected-conversation initial summary now has a one-click reviewed run action, `automation_config.py` centralizes user-scoped workflow-stage automation policy, automation preview/apply APIs never run stages, and the React Settings tab exposes account/runtime status, intelligence route summaries, and automation toggles with every stage disabled/manual by default. Plan 0016 is closed as the design authority for turning Settings into a full configuration workbench before implementation code changes. P09 remains open for broader console productization, share/auth surfaces, richer contact/provenance/deposition sections, and eventual external apply contracts.
 
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
 - `docs/dev/plans/0010-2026-05-23-dogfoodable-conversation-review-loop.md`
 - `docs/dev/plans/0012-2026-05-23-speaker-deanonymization-context-workbench.md`
+- `docs/dev/plans/0013-2026-05-24-user-scoped-provenance-config.md`
+- `docs/dev/plans/0014-2026-05-24-contact-search-workbench.md`
+- `docs/dev/plans/0015-2026-05-25-one-click-initial-summary-automation-settings.md`
+- `docs/dev/plans/0016-2026-05-25-config-panel-design-path.md`
 
 Milestone Focus:
 
@@ -194,6 +198,22 @@ Milestone Focus:
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
+- Plan 0013 moved provenance configuration into the shared user-scoped profile.
+  Next P09 work can focus on workflow ergonomics and deeper source-specific
+  readiness controls rather than inventing parallel config stores.
+- Plan 0014 closed the conversation-scoped contact search workbench: cached
+  search remains instant, provider refresh is explicit, relationship-affinity
+  ranking uses local/calendar/contact history, reviewed merge/split policy is
+  durable, and operator/App Intelligence actions share the same local batch
+  contracts.
+- Plan 0015 closed summary-workflow ergonomics and automation settings:
+  first-pass summary has one primary reviewed action, while production
+  automation toggles stay user-scoped and disabled/manual until each stage is
+  validated.
+- Plan 0016 closed the design-first contract for the configuration panel:
+  aesthetics, ergonomics, provenance/intelligence/automation sectioning,
+  staged preview/apply behavior, and required `agent-browser` inspection must
+  be settled before implementation.
 
 Definition of Done:
 

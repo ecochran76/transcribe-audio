@@ -944,6 +944,22 @@ td small {
   gap: 1rem;
 }
 
+.provenance-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(300px, 0.9fr);
+  gap: 1rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(360px, 1.2fr);
+  gap: 1rem;
+}
+
+.settings-automation-panel {
+  grid-column: 1 / -1;
+}
+
 .intelligence-card {
   padding: 1.1rem;
   border: 1px solid rgba(244, 236, 216, 0.1);
@@ -975,6 +991,10 @@ td small {
   gap: 0.35rem;
 }
 
+.editor-grid .wide-field {
+  grid-column: 1 / -1;
+}
+
 .editor-grid label span,
 .preview-card span {
   color: var(--accent);
@@ -1004,6 +1024,102 @@ td small {
 .checkbox-line input {
   width: 1rem;
   height: 1rem;
+}
+
+.automation-stage-table {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+}
+
+.automation-stage-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(9rem, 0.6fr) minmax(6.5rem, 0.4fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.7rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.automation-stage-row.enabled {
+  border-color: rgba(215, 255, 115, 0.35);
+  background: rgba(215, 255, 115, 0.08);
+}
+
+.automation-stage-row select {
+  width: 100%;
+  border: 1px solid rgba(244, 236, 216, 0.16);
+  border-radius: 0.7rem;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--ink);
+  padding: 0.55rem 0.65rem;
+}
+
+.checkbox-line.compact {
+  padding: 0;
+}
+
+.source-toggle-list,
+.provenance-feed-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 1rem;
+}
+
+.source-toggle-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.7rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.8rem;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.source-toggle-row input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.source-toggle-row strong,
+.source-toggle-row small {
+  display: block;
+}
+
+.source-toggle-row small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.source-toggle-row em {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.provenance-feed-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(118, 223, 170, 0.18);
+  border-radius: 0.8rem;
+  background: rgba(118, 223, 170, 0.07);
+}
+
+.provenance-feed-list strong {
+  overflow-wrap: anywhere;
+}
+
+.provenance-feed-list span {
+  color: var(--ok);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .provider-list,
@@ -1665,6 +1781,95 @@ dd {
   gap: 0.45rem;
 }
 
+.context-contact-tools {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.dedupe-cluster-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dedupe-cluster-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid rgba(133, 183, 255, 0.22);
+  border-radius: 0.5rem;
+  background: rgba(133, 183, 255, 0.08);
+  color: var(--ink);
+  padding: 0.52rem 0.62rem;
+}
+
+.dedupe-cluster-list strong,
+.dedupe-cluster-list small {
+  display: block;
+}
+
+.dedupe-cluster-list small {
+  color: var(--muted);
+  margin-top: 0.12rem;
+}
+
+.contact-workbench-status,
+.ranking-reason-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.contact-workbench-status span,
+.ranking-reason-list span {
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 999px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.46rem;
+}
+
+.ranking-reason-list {
+  margin-top: 0.35rem;
+}
+
+.ranking-reason-list span {
+  color: var(--ink);
+}
+
+.selected-contact-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.selected-contact-strip button,
+.save-contact-selection,
+.source-contact-search {
+  border: 1px solid rgba(118, 223, 170, 0.35);
+  border-radius: 999px;
+  background: rgba(118, 223, 170, 0.12);
+  color: var(--ink);
+  padding: 0.38rem 0.62rem;
+}
+
+.source-contact-search {
+  border-color: rgba(133, 183, 255, 0.35);
+  background: rgba(133, 183, 255, 0.1);
+}
+
+.source-contact-search.affinity-refresh {
+  border-color: rgba(244, 236, 216, 0.24);
+  background: rgba(244, 236, 216, 0.07);
+}
+
+.save-contact-selection:disabled,
+.source-contact-search:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .context-contact-grid article {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1690,6 +1895,21 @@ dd {
   margin-top: 0.18rem;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.contact-evidence-details {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.contact-evidence-details summary {
+  cursor: pointer;
+}
+
+.contact-evidence-details ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1rem;
 }
 
 .context-contact-actions {
@@ -2104,6 +2324,22 @@ dd {
   text-transform: none;
 }
 
+.workflow-field input,
+.workflow-field textarea {
+  min-width: 0;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(9, 14, 20, 0.58);
+  color: var(--ink);
+  padding: 0.55rem 0.7rem;
+  text-transform: none;
+}
+
+.workflow-field textarea {
+  line-height: 1.45;
+  resize: vertical;
+}
+
 .workflow-action-panel {
   display: grid;
   gap: 0.75rem;
@@ -2144,6 +2380,13 @@ dd {
   color: var(--ink);
   padding: 0.52rem 0.75rem;
   text-decoration: none;
+}
+
+.workflow-action-row .primary-workflow-action {
+  border-color: rgba(215, 255, 115, 0.54);
+  background: rgba(215, 255, 115, 0.16);
+  color: var(--accent);
+  font-weight: 850;
 }
 
 .workflow-action-row button:disabled,
@@ -2219,7 +2462,7 @@ dd {
 .manual-contact-row {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.8fr) auto;
   gap: 0.45rem;
 }
 
@@ -2248,6 +2491,10 @@ dd {
     grid-template-columns: 1fr;
   }
 
+  .manual-contact-row {
+    grid-template-columns: 1fr;
+  }
+
   .left-collapsed .pane-content,
   .right-collapsed .inspector-content {
     opacity: 1;
@@ -2261,6 +2508,9 @@ dd {
   .queue-list-heading,
   .queue-row,
   .intelligence-grid,
+  .provenance-grid,
+  .settings-grid,
+  .automation-stage-row,
   .editor-grid,
   .test-status-strip,
   .conversation-workspace-body,

@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import glob
+import hashlib
 import json
 import os
 import re
@@ -14,10 +15,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 from docx import Document
@@ -40,6 +43,12 @@ EVENT_WINDOW_BUFFER_SECONDS = 5 * 60
 SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
 OTHER_EVENTS_PREFIX_RE = re.compile(r"^and \d+ other\(s\)\s+", re.IGNORECASE)
 MIN_SRT_CUE_DURATION = 0.5
+ICAL_PROVENANCE_PREFIX = "ical:"
+ICAL_USER_AGENT = "transcribe-audio/ical-provenance"
+ICAL_DURATION_RE = re.compile(
+    r"^(?P<sign>[+-])?P(?:(?P<weeks>\d+)W)?(?:(?P<days>\d+)D)?"
+    r"(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?$"
+)
 LANGUAGE_CODE_ALIASES = {
     "en": "en_us",
     "en_us": "en_us",
@@ -89,6 +98,12 @@ class CalendarProviderConfig:
     env: Optional[dict[str, str]] = None
 
 
+@dataclass
+class IcalProvenanceFeed:
+    label: str
+    url: str
+
+
 DEFAULT_CALENDAR_PROVIDER_ORDER = ["gog", "gws", "google-api"]
 SUPPORTED_CALENDAR_PROVIDERS = {"google-api", "google", "gog", "gws"}
 
@@ -124,6 +139,16 @@ def raise_for_status_with_details(response: requests.Response, *, context: str) 
 
 def to_rfc3339(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_rfc3339_datetime(value: str) -> datetime:
+    raw = str(value or "").strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(raw)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_file_modified_time(path: Path) -> datetime:
@@ -343,6 +368,372 @@ def parse_event_datetime(event_time: dict[str, Any]) -> Optional[datetime]:
     if "T" in raw and "+" not in raw[10:] and "-" not in raw[10:]:
         raw = f"{raw}+00:00"
     return datetime.fromisoformat(raw)
+
+
+def parse_ical_text_value(value: str) -> str:
+    text = str(value)
+    text = text.replace("\\n", "\n").replace("\\N", "\n")
+    text = text.replace("\\,", ",").replace("\\;", ";")
+    text = text.replace("\\\\", "\\")
+    return text
+
+
+def split_ical_content_line(line: str) -> Optional[tuple[str, dict[str, str], str]]:
+    name_and_params, separator, value = line.partition(":")
+    if not separator:
+        return None
+    parts = name_and_params.split(";")
+    name = parts[0].strip().upper()
+    if not name:
+        return None
+    params: dict[str, str] = {}
+    for raw_param in parts[1:]:
+        key, _, raw_value = raw_param.partition("=")
+        if not key:
+            continue
+        params[key.strip().upper()] = raw_value.strip().strip('"')
+    return name, params, value
+
+
+def unfold_ical_lines(text: str) -> list[str]:
+    unfolded: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip("\r")
+        if line.startswith((" ", "\t")) and unfolded:
+            unfolded[-1] += line[1:]
+        else:
+            unfolded.append(line)
+    return unfolded
+
+
+def parse_ical_datetime(value: str, params: dict[str, str], *, default_tz: timezone | ZoneInfo = timezone.utc) -> Optional[datetime]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    is_date = params.get("VALUE", "").upper() == "DATE" or re.fullmatch(r"\d{8}", raw) is not None
+    if is_date:
+        return datetime.strptime(raw[:8], "%Y%m%d").replace(tzinfo=default_tz)
+    if raw.endswith("Z"):
+        return datetime.strptime(raw, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+
+    tz: timezone | ZoneInfo = default_tz
+    tzid = params.get("TZID")
+    if tzid:
+        try:
+            tz = ZoneInfo(tzid)
+        except ZoneInfoNotFoundError:
+            tz = default_tz
+
+    for pattern in ("%Y%m%dT%H%M%S", "%Y%m%dT%H%M"):
+        try:
+            return datetime.strptime(raw, pattern).replace(tzinfo=tz)
+        except ValueError:
+            continue
+    try:
+        parsed = parse_rfc3339_datetime(raw)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=tz)
+
+
+def parse_ical_duration(value: str) -> Optional[timedelta]:
+    match = ICAL_DURATION_RE.match(str(value or "").strip())
+    if not match:
+        return None
+    values = {name: int(match.group(name) or 0) for name in ("weeks", "days", "hours", "minutes", "seconds")}
+    duration = timedelta(
+        weeks=values["weeks"],
+        days=values["days"],
+        hours=values["hours"],
+        minutes=values["minutes"],
+        seconds=values["seconds"],
+    )
+    if match.group("sign") == "-":
+        duration = -duration
+    return duration
+
+
+def parse_ical_rrule(value: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for part in str(value or "").split(";"):
+        key, separator, raw_value = part.partition("=")
+        if separator and key:
+            result[key.strip().upper()] = raw_value.strip()
+    return result
+
+
+def add_months(dt_value: datetime, months: int) -> datetime:
+    month_index = dt_value.month - 1 + months
+    year = dt_value.year + month_index // 12
+    month = month_index % 12 + 1
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1, tzinfo=dt_value.tzinfo)
+    else:
+        next_month = datetime(year, month + 1, 1, tzinfo=dt_value.tzinfo)
+    max_day = (next_month - timedelta(days=1)).day
+    return dt_value.replace(year=year, month=month, day=min(dt_value.day, max_day))
+
+
+def iter_monthly_recurrences(start: datetime, interval: int) -> Iterable[datetime]:
+    index = 0
+    while True:
+        yield add_months(start, index * interval)
+        index += 1
+
+
+def iter_fixed_recurrences(start: datetime, *, freq: str, interval: int, byday: list[int]) -> Iterable[datetime]:
+    if freq == "DAILY":
+        occurrence = start
+        while True:
+            yield occurrence
+            occurrence += timedelta(days=interval)
+    elif freq == "WEEKLY" and byday:
+        week_start = start - timedelta(days=start.weekday())
+        week_index = 0
+        while True:
+            for weekday in sorted(byday):
+                occurrence = (week_start + timedelta(weeks=week_index * interval, days=weekday)).replace(
+                    hour=start.hour,
+                    minute=start.minute,
+                    second=start.second,
+                    microsecond=start.microsecond,
+                )
+                if occurrence >= start:
+                    yield occurrence
+            week_index += 1
+    elif freq == "WEEKLY":
+        occurrence = start
+        while True:
+            yield occurrence
+            occurrence += timedelta(weeks=interval)
+    elif freq == "MONTHLY":
+        yield from iter_monthly_recurrences(start, interval)
+    elif freq == "YEARLY":
+        yield from iter_monthly_recurrences(start, interval * 12)
+
+
+def materialize_ical_event(base_event: dict[str, Any], occurrence_start: datetime, duration: timedelta) -> dict[str, Any]:
+    occurrence_end = occurrence_start + duration
+    event_id = str(base_event.get("id") or "").strip() or stable_ical_event_id(base_event)
+    if base_event.get("_recurring"):
+        event_id = f"{event_id}#{to_rfc3339(occurrence_start)}"
+    event = {
+        "id": event_id,
+        "summary": base_event.get("summary") or "Untitled Event",
+        "start": {"dateTime": to_rfc3339(occurrence_start)},
+        "end": {"dateTime": to_rfc3339(occurrence_end)},
+    }
+    for field in ("location", "description", "attendees", "organizer", "creator"):
+        if base_event.get(field):
+            event[field] = base_event[field]
+    return event
+
+
+def stable_ical_event_id(event: dict[str, Any]) -> str:
+    material = json.dumps(
+        {
+            "summary": event.get("summary"),
+            "start": event.get("_start").isoformat() if event.get("_start") else None,
+            "end": event.get("_end").isoformat() if event.get("_end") else None,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def build_ical_event(block_lines: list[str]) -> Optional[dict[str, Any]]:
+    event: dict[str, Any] = {"attendees": []}
+    start_dt: Optional[datetime] = None
+    end_dt: Optional[datetime] = None
+    duration: Optional[timedelta] = None
+    rrule: dict[str, str] = {}
+    exdates: list[datetime] = []
+    status = ""
+
+    for line in block_lines:
+        parsed = split_ical_content_line(line)
+        if not parsed:
+            continue
+        name, params, value = parsed
+        decoded_value = parse_ical_text_value(value)
+        if name == "UID":
+            event["id"] = decoded_value
+        elif name == "SUMMARY":
+            event["summary"] = decoded_value
+        elif name == "DESCRIPTION":
+            event["description"] = decoded_value
+        elif name == "LOCATION":
+            event["location"] = decoded_value
+        elif name == "STATUS":
+            status = decoded_value.strip().upper()
+        elif name == "DTSTART":
+            start_dt = parse_ical_datetime(value, params)
+        elif name == "DTEND":
+            end_dt = parse_ical_datetime(value, params)
+        elif name == "DURATION":
+            duration = parse_ical_duration(value)
+        elif name == "RRULE":
+            rrule = parse_ical_rrule(value)
+        elif name == "EXDATE":
+            for raw_date in value.split(","):
+                exdate = parse_ical_datetime(raw_date, params)
+                if exdate:
+                    exdates.append(exdate)
+        elif name == "ATTENDEE":
+            email = decoded_value
+            if email.lower().startswith("mailto:"):
+                email = email[7:]
+            attendee: dict[str, Any] = {"email": email.strip()}
+            if params.get("CN"):
+                attendee["displayName"] = parse_ical_text_value(params["CN"])
+            partstat = params.get("PARTSTAT", "").strip().lower()
+            if partstat:
+                attendee["responseStatus"] = {
+                    "accepted": "accepted",
+                    "declined": "declined",
+                    "tentative": "tentative",
+                    "needs-action": "needsAction",
+                }.get(partstat, partstat)
+            event["attendees"].append(attendee)
+        elif name == "ORGANIZER":
+            email = decoded_value
+            if email.lower().startswith("mailto:"):
+                email = email[7:]
+            organizer: dict[str, Any] = {"email": email.strip()}
+            if params.get("CN"):
+                organizer["displayName"] = parse_ical_text_value(params["CN"])
+            event["organizer"] = organizer
+            event["creator"] = organizer
+
+    if status == "CANCELLED" or not start_dt:
+        return None
+    if not end_dt:
+        end_dt = start_dt + (duration or timedelta(days=1 if start_dt.hour == start_dt.minute == start_dt.second == 0 else 0, hours=0 if start_dt.hour == start_dt.minute == start_dt.second == 0 else 1))
+    if end_dt < start_dt:
+        end_dt = start_dt
+    event["_start"] = start_dt
+    event["_end"] = end_dt
+    event["_duration"] = end_dt - start_dt
+    event["_rrule"] = rrule
+    event["_exdates"] = exdates
+    return event
+
+
+def extract_ical_event_blocks(text: str) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    current: Optional[list[str]] = None
+    for line in unfold_ical_lines(text):
+        upper = line.upper()
+        if upper == "BEGIN:VEVENT":
+            current = []
+            continue
+        if upper == "END:VEVENT":
+            if current is not None:
+                blocks.append(current)
+            current = None
+            continue
+        if current is not None:
+            current.append(line)
+    return blocks
+
+
+def expand_ical_event(event: dict[str, Any], *, window_start: datetime, window_end: datetime) -> list[dict[str, Any]]:
+    start_dt = event["_start"]
+    duration = event["_duration"]
+    rrule = event.get("_rrule") or {}
+    if not rrule:
+        event_start = start_dt
+        event_end = start_dt + duration
+        if event_end >= window_start and event_start <= window_end:
+            return [materialize_ical_event(event, event_start, duration)]
+        return []
+
+    freq = str(rrule.get("FREQ") or "").upper()
+    interval = max(int(rrule.get("INTERVAL") or 1), 1)
+    count = int(rrule.get("COUNT") or 0)
+    until = parse_ical_datetime(str(rrule.get("UNTIL") or ""), {}, default_tz=start_dt.tzinfo or timezone.utc)
+    byday_map = {"MO": 0, "TU": 1, "WE": 2, "TH": 3, "FR": 4, "SA": 5, "SU": 6}
+    byday = [byday_map[item] for item in str(rrule.get("BYDAY") or "").split(",") if item in byday_map]
+    generator = iter_fixed_recurrences(start_dt, freq=freq, interval=interval, byday=byday)
+    if generator is None:
+        return []
+
+    expanded: list[dict[str, Any]] = []
+    exdate_keys = {to_rfc3339(value) for value in event.get("_exdates", [])}
+    occurrence_index = 0
+    for occurrence_start in generator:
+        if count and occurrence_index >= count:
+            break
+        occurrence_index += 1
+        if until and occurrence_start > until:
+            break
+        occurrence_end = occurrence_start + duration
+        if occurrence_end < window_start:
+            continue
+        if occurrence_start > window_end:
+            break
+        if to_rfc3339(occurrence_start) in exdate_keys:
+            continue
+        recurring_event = dict(event)
+        recurring_event["_recurring"] = True
+        expanded.append(materialize_ical_event(recurring_event, occurrence_start, duration))
+        if len(expanded) >= 250:
+            break
+    return expanded
+
+
+def fetch_ical_text(url: str, *, timeout_seconds: float = 15.0) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": ICAL_USER_AGENT})
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        raw_body = response.read()
+        charset = response.headers.get_content_charset() or "utf-8"
+    return raw_body.decode(charset, errors="replace")
+
+
+def ical_calendar_id(url: str) -> str:
+    return f"{ICAL_PROVENANCE_PREFIX}{hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]}"
+
+
+def parse_ical_provenance_feed(value: Any) -> Optional[IcalProvenanceFeed]:
+    if isinstance(value, dict):
+        url = str(value.get("url") or value.get("feed_url") or "").strip()
+        label = str(value.get("label") or value.get("name") or "").strip()
+    else:
+        text = str(value or "").strip()
+        label = ""
+        url = text
+        match = re.match(r"^(?P<label>[^=]+?)=(?P<url>https?://.+)$", text)
+        if match:
+            label = match.group("label").strip()
+            url = match.group("url").strip()
+    if not url:
+        return None
+    return IcalProvenanceFeed(label=label or "iCalendar provenance", url=url)
+
+
+def parse_ical_provenance_feeds(values: Optional[Iterable[Any]]) -> list[IcalProvenanceFeed]:
+    feeds: list[IcalProvenanceFeed] = []
+    seen: set[str] = set()
+    for value in values or []:
+        feed = parse_ical_provenance_feed(value)
+        if not feed or feed.url in seen:
+            continue
+        feeds.append(feed)
+        seen.add(feed.url)
+    return feeds
+
+
+def list_events_via_ical_feed(feed: IcalProvenanceFeed, *, time_min: str, time_max: str) -> list[dict[str, Any]]:
+    window_start = parse_rfc3339_datetime(time_min)
+    window_end = parse_rfc3339_datetime(time_max)
+    events: list[dict[str, Any]] = []
+    for block in extract_ical_event_blocks(fetch_ical_text(feed.url)):
+        event = build_ical_event(block)
+        if not event:
+            continue
+        events.extend(expand_ical_event(event, window_start=window_start, window_end=window_end))
+    events.sort(key=lambda item: parse_event_datetime(item.get("start", {})) or window_start)
+    return events
 
 
 def format_event_datetime(dt_value: Optional[datetime]) -> Optional[str]:
@@ -904,6 +1295,50 @@ def find_matching_calendars_for_provider(
     return matching_calendars
 
 
+def find_matching_ical_provenance_calendars(
+    provenance_ical_feeds: Optional[Iterable[Any]],
+    *,
+    recording_start: datetime,
+    recording_end: datetime,
+    time_min: str,
+    time_max: str,
+) -> list[dict[str, Any]]:
+    matching_calendars: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for feed in parse_ical_provenance_feeds(provenance_ical_feeds):
+        calendar = {
+            "id": ical_calendar_id(feed.url),
+            "summary": feed.label,
+            "accessRole": "reader",
+            "primary": False,
+            "timeZone": None,
+        }
+        try:
+            events = list_events_via_ical_feed(feed, time_min=time_min, time_max=time_max)
+        except Exception as exc:
+            print(f"Calendar lookup: iCal provenance feed '{feed.label}' failed ({exc}).", file=sys.stderr)
+            continue
+        calendar_matches, _ = score_calendar_events(
+            events,
+            recording_start=recording_start,
+            recording_end=recording_end,
+        )
+        for description in describe_matching_calendars(calendar_matches, calendar):
+            pair = (description["calendar_id"], str(description.get("event_id") or description.get("event_summary")))
+            if pair in seen_pairs:
+                continue
+            matching_calendars.append(description)
+            seen_pairs.add(pair)
+    matching_calendars.sort(
+        key=lambda item: (
+            str(item.get("calendar_summary") or "").lower(),
+            str(item.get("event_start") or ""),
+            str(item.get("event_summary") or "").lower(),
+        )
+    )
+    return matching_calendars
+
+
 def attach_matching_calendars(event_info: dict[str, Any], matching_calendars: list[dict[str, Any]]) -> dict[str, Any]:
     event_info = dict(event_info)
     event_info["matching_calendars"] = matching_calendars
@@ -1010,6 +1445,7 @@ def find_matching_events(
     recording_end: datetime,
     window_hours: float,
     provenance_calendar_ids: Optional[list[str]] = None,
+    provenance_ical_feeds: Optional[Iterable[Any]] = None,
 ) -> tuple[list[dict[str, Any]], Optional[dict[str, Any]], list[dict[str, Any]]]:
     if recording_end < recording_start:
         recording_end = recording_start
@@ -1018,6 +1454,18 @@ def find_matching_events(
     time_max = to_rfc3339(recording_end + timedelta(hours=window_hours))
     provider_errors: list[str] = []
     successful_lookup = False
+    ical_matching_calendars = find_matching_ical_provenance_calendars(
+        provenance_ical_feeds,
+        recording_start=recording_start,
+        recording_end=recording_end,
+        time_min=time_min,
+        time_max=time_max,
+    )
+    if ical_matching_calendars:
+        print(
+            f"Calendar lookup: iCal provenance found {len(ical_matching_calendars)} matching event(s).",
+            file=sys.stderr,
+        )
 
     for provider in normalize_calendar_providers(service):
         try:
@@ -1039,6 +1487,7 @@ def find_matching_events(
             time_min=time_min,
             time_max=time_max,
         )
+        matching_calendars = [*matching_calendars, *ical_matching_calendars]
         if matching_calendars:
             print(
                 f"Calendar lookup: provider {provider.name} found "
@@ -1061,10 +1510,10 @@ def find_matching_events(
         return matching_events, best_event, matching_calendars
 
     if successful_lookup:
-        return [], None, []
+        return [], None, ical_matching_calendars
     if provider_errors:
         raise TranscriptionError("all calendar providers failed: " + "; ".join(provider_errors))
-    return [], None, []
+    return [], None, ical_matching_calendars
 
 
 def sanitize_filename_part(value: str) -> str:
@@ -1720,6 +2169,7 @@ def process_transcription_outputs(
                     recording_end,
                     args.calendar_window,
                     getattr(args, "calendar_provenance_calendar_ids", None),
+                    getattr(args, "calendar_provenance_ical_urls", None),
                 )
 
                 if matching_events:

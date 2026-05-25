@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Optional
 
+import provenance_config
 from context_sources import (
     GwsProvenanceConfig,
     OdolloProvenanceConfig,
@@ -16,15 +19,53 @@ from transcript_store import utcish_now
 
 IDENTITY_BUNDLE_SCHEMA_VERSION = "transcribe-audio.participant-identity-bundle.v1"
 CONTACT_SOURCE_CONFIG_NAME = "contact-provenance.config.json"
+CONTACT_ALIAS_CONFIG_NAME = "contact-aliases.config.json"
 EMAIL_RE = re.compile(r"(?P<email>[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})", re.IGNORECASE)
 TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._%+\-]{1,}")
+NAME_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z'\-]*")
 SPEAKER_WORD_RE = re.compile(r"^(?:speaker|spk|unknown|participant|person)(?:[\s_-]*[A-Za-z0-9]+)?$", re.IGNORECASE)
+NAME_STOP_TOKENS = {
+    "and",
+    "attendee",
+    "calendar",
+    "candidate",
+    "contact",
+    "contacts",
+    "corp",
+    "corporation",
+    "dr",
+    "email",
+    "event",
+    "inc",
+    "llc",
+    "meeting",
+    "mr",
+    "mrs",
+    "ms",
+    "participant",
+    "person",
+    "speaker",
+    "the",
+}
 
 
 def normalize_email(value: Any) -> str:
     text = normalize_string(value).lower()
     match = EMAIL_RE.search(text)
     return match.group("email").lower() if match else ""
+
+
+def email_alias_keys(value: Any) -> set[str]:
+    email = normalize_email(value)
+    if not email or "@" not in email:
+        return set()
+    local, domain = email.split("@", 1)
+    keys = {email}
+    if domain in {"gmail.com", "googlemail.com"}:
+        base = local.split("+", 1)[0].replace(".", "")
+        keys.add(f"{base}@gmail.com")
+        keys.add(f"{base}@googlemail.com")
+    return keys
 
 
 def text_tokens(value: Any) -> set[str]:
@@ -36,6 +77,44 @@ def text_tokens(value: Any) -> set[str]:
             continue
         tokens.add(token)
     return tokens
+
+
+def candidate_name_text(value: Any) -> str:
+    text = normalize_string(value)
+    if not text:
+        return ""
+    text = EMAIL_RE.sub(" ", text)
+    if "|" in text:
+        text = text.split("|", 1)[0]
+    parts = [part.strip() for part in text.split(",") if part.strip()]
+    if len(parts) == 2:
+        text = f"{parts[1]} {parts[0]}"
+    return normalize_string(text)
+
+
+def person_name_tokens(value: Any) -> list[str]:
+    text = candidate_name_text(value).lower()
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw_token in NAME_TOKEN_RE.findall(text):
+        token = raw_token.strip("'-").lower()
+        if len(token) < 2 or token in NAME_STOP_TOKENS:
+            continue
+        if token in seen:
+            continue
+        tokens.append(token)
+        seen.add(token)
+    return tokens
+
+
+def strong_person_name_keys(value: Any) -> list[str]:
+    tokens = person_name_tokens(value)
+    if len(tokens) < 2:
+        return []
+    keys = {f"name:{' '.join(tokens)}", f"name_tokens:{' '.join(sorted(tokens))}"}
+    if len(tokens) > 2:
+        keys.add(f"name_first_last:{tokens[0]} {tokens[-1]}")
+    return sorted(keys)
 
 
 def is_anonymous_speaker_label(value: Any) -> bool:
@@ -160,11 +239,15 @@ def identity_query_terms(
 ) -> list[str]:
     values: list[str] = []
     for person in [*calendar_attendees, *readout_participants]:
-        for value in [person.get("email", ""), person.get("name", ""), person.get("label", "")]:
+        email = normalize_email(person.get("email"))
+        if email:
+            values.append(email)
+        for value in [person.get("name", ""), person.get("label", "")]:
             text = normalize_string(value)
-            if is_anonymous_speaker_label(text):
+            if not text or text == email or is_anonymous_speaker_label(text):
                 continue
-            values.append(text)
+            if email or len(text_tokens(text)) >= 2:
+                values.append(text)
     values.extend(label for label in speaker_labels if not is_anonymous_speaker_label(label))
     return unique_strings([normalize_string(value) for value in values if normalize_string(value)])[:16]
 
@@ -175,6 +258,12 @@ def contact_source_config_path(state_root: Optional[Path]) -> Path:
 
 
 def load_contact_source_config(state_root: Optional[Path]) -> dict[str, Any]:
+    try:
+        shared_config = provenance_config.contact_source_config_from_provenance(state_root=state_root)
+    except ValueError:
+        shared_config = {}
+    if shared_config:
+        return shared_config
     path = contact_source_config_path(state_root)
     if not path.exists():
         return {}
@@ -183,6 +272,115 @@ def load_contact_source_config(state_root: Optional[Path]) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def load_contact_settings(state_root: Optional[Path]) -> dict[str, Any]:
+    try:
+        raw_provenance = provenance_config.read_config(state_root=state_root)
+    except ValueError:
+        raw_provenance = {}
+    contacts = raw_provenance.get("contacts") if isinstance(raw_provenance.get("contacts"), dict) else {}
+    if contacts:
+        return contacts
+    path = contact_alias_config_path(state_root)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {"canonical_aliases": payload} if isinstance(payload, list) else {}
+
+
+def contact_alias_config_path(state_root: Optional[Path]) -> Path:
+    root = state_root.expanduser() if state_root else Path("~/.local/state/transcribe-audio").expanduser()
+    return root / CONTACT_ALIAS_CONFIG_NAME
+
+
+def normalize_contact_aliases(raw_aliases: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_aliases, list):
+        return []
+    aliases: list[dict[str, Any]] = []
+    for item in raw_aliases:
+        if not isinstance(item, dict):
+            continue
+        label = normalize_string(item.get("label") or item.get("name"))
+        emails = unique_strings(
+            normalize_email(value)
+            for value in item.get("emails", [])
+            if normalize_email(value)
+        ) if isinstance(item.get("emails"), list) else []
+        email_patterns = unique_strings(
+            normalize_string(value).lower()
+            for value in item.get("email_patterns", [])
+            if normalize_string(value)
+        ) if isinstance(item.get("email_patterns"), list) else []
+        primary_email = normalize_email(item.get("primary_email")) or (emails[0] if emails else "")
+        names = unique_strings(
+            normalize_string(value).lower()
+            for value in item.get("names", [])
+            if normalize_string(value)
+        ) if isinstance(item.get("names"), list) else []
+        if label:
+            names = unique_strings([label.lower(), *names])
+        name_keys = sorted({key for name in names for key in strong_person_name_keys(name)})
+        if not label or not (emails or email_patterns or names):
+            continue
+        alias_id = normalize_string(item.get("id")) or stable_id("contact-alias", label.lower(), ",".join(emails), ",".join(names))
+        aliases.append(
+            {
+                "id": alias_id,
+                "label": label,
+                "primary_email": primary_email,
+                "emails": emails,
+                "email_keys": sorted({key for email in emails for key in email_alias_keys(email)}),
+                "email_patterns": email_patterns,
+                "names": names,
+                "name_keys": name_keys,
+            }
+        )
+    return aliases
+
+
+def load_contact_aliases(state_root: Optional[Path]) -> list[dict[str, Any]]:
+    settings = load_contact_settings(state_root)
+    raw_aliases = settings.get("canonical_aliases") or settings.get("aliases") or []
+    return normalize_contact_aliases(raw_aliases)
+
+
+def load_operator_participant_hints(
+    *,
+    state_root: Optional[Path],
+    conversation_key: str,
+    source_document_id: str,
+) -> list[dict[str, Any]]:
+    settings = load_contact_settings(state_root)
+    raw_hints = settings.get("participant_hints")
+    if not isinstance(raw_hints, list):
+        return []
+    hints: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in raw_hints:
+        if not isinstance(item, dict):
+            continue
+        match = item.get("match") if isinstance(item.get("match"), dict) else {}
+        match_source_id = normalize_string(match.get("source_document_id"))
+        match_conversation = normalize_string(match.get("conversation_key"))
+        if match_source_id and match_source_id != source_document_id:
+            continue
+        if match_conversation and match_conversation != conversation_key:
+            continue
+        if not match_source_id and not match_conversation:
+            continue
+        participants = item.get("participants") if isinstance(item.get("participants"), list) else []
+        for participant in participants:
+            person = compact_person(participant, source="operator_participant_hint")
+            key = person.get("email") or person.get("label")
+            if not key or key in seen:
+                continue
+            hints.append(person)
+            seen.add(key)
+    return hints
 
 
 def bool_config(value: Any, default: bool = False) -> bool:
@@ -197,11 +395,21 @@ def source_list(value: Any) -> list[str]:
     return []
 
 
+def command_tuple(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
+    if isinstance(value, list):
+        result = tuple(str(item) for item in value if str(item))
+        return result or default
+    if isinstance(value, str) and value.strip():
+        return tuple(shlex.split(value))
+    return default
+
+
 def collect_configured_contact_sources(
     *,
     query_terms: list[str],
     transcript: dict[str, Any],
     state_root: Optional[Path],
+    source_filters: Optional[set[str]] = None,
 ) -> tuple[list[ProvenanceSource], list[dict[str, Any]], list[str]]:
     config = load_contact_source_config(state_root)
     if not config or not query_terms:
@@ -209,6 +417,7 @@ def collect_configured_contact_sources(
     sources: list[ProvenanceSource] = []
     profiles: list[dict[str, Any]] = []
     warnings: list[str] = []
+    filters = {normalize_string(value).lower() for value in (source_filters or set()) if normalize_string(value)}
 
     gws_config = config.get("gws") if isinstance(config.get("gws"), dict) else {}
     for profile in gws_config.get("profiles") if isinstance(gws_config.get("profiles"), list) else []:
@@ -216,6 +425,8 @@ def collect_configured_contact_sources(
             continue
         surfaces = set(source_list(profile.get("surfaces")) or ["contacts"])
         label = normalize_string(profile.get("label")) or normalize_string(profile.get("profile")) or "gws-default"
+        if filters and "gws" not in filters and label.lower() not in filters:
+            continue
         gws = GwsProvenanceConfig(
             enabled=True,
             profile_label=label,
@@ -245,10 +456,13 @@ def collect_configured_contact_sources(
         label = normalize_string(profile.get("label")) or normalize_string(profile.get("profile"))
         if not label:
             continue
+        if filters and "odollo" not in filters and label.lower() not in filters:
+            continue
         default_odollo = OdolloProvenanceConfig()
         odollo = OdolloProvenanceConfig(
             enabled=True,
             profiles=(label,),
+            command=command_tuple(profile.get("command"), default_odollo.command),
             repo_root=Path(profile["repo_root"]).expanduser() if profile.get("repo_root") else default_odollo.repo_root,
             config_path=Path(profile["config_path"]).expanduser() if profile.get("config_path") else default_odollo.config_path,
             timeout=float(profile.get("timeout") or 30.0),
@@ -354,8 +568,203 @@ def local_contact_candidate(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def operator_hint_candidate(person: dict[str, Any]) -> dict[str, Any]:
+    label = normalize_string(person.get("label") or person.get("name") or person.get("email"))
+    email = normalize_email(person.get("email"))
+    return {
+        "contact_id": stable_id("operator-participant-contact", label.lower(), email),
+        "label": label or email,
+        "email": email,
+        "source": "operator_participant_hint",
+        "source_type": "operator_participant_hint",
+        "source_profile": "user_config",
+        "confidence": 0.9,
+        "evidence": [
+            {
+                "kind": "operator_participant_hint",
+                "participant_evidence_id": person.get("id", ""),
+                "participant_label": label,
+                "participant_email": email,
+                "source": person.get("source", "operator_participant_hint"),
+            }
+        ],
+    }
+
+
 def candidate_dedupe_key(candidate: dict[str, Any]) -> str:
-    return f"{candidate.get('source')}:{candidate.get('email') or candidate.get('label')}"
+    existing = normalize_string(candidate.get("dedupe_key"))
+    if existing:
+        return existing
+    split_merge_key = normalize_string(candidate.get("split_merge_key"))
+    if split_merge_key:
+        return f"split:{split_merge_key}"
+    canonical_key = normalize_string(candidate.get("canonical_key"))
+    if canonical_key:
+        return f"alias:{canonical_key}"
+    email = normalize_email(candidate.get("email") or candidate.get("label"))
+    if email:
+        return f"email:{email}"
+    label = normalize_string(candidate.get("label")).lower()
+    if label and not is_anonymous_speaker_label(label):
+        return f"label:{label}"
+    contact_id = normalize_string(candidate.get("contact_id"))
+    if contact_id:
+        return f"contact:{contact_id}"
+    return f"{candidate.get('source_type') or candidate.get('source')}:{candidate.get('source_id') or ''}"
+
+
+def candidate_merge_keys(candidate: dict[str, Any]) -> list[str]:
+    keys: set[str] = set()
+    split_merge_key = normalize_string(candidate.get("split_merge_key"))
+    if split_merge_key:
+        return [f"split:{split_merge_key}"]
+    canonical_key = normalize_string(candidate.get("canonical_key"))
+    if canonical_key:
+        keys.add(f"alias:{canonical_key}")
+    existing = normalize_string(candidate.get("dedupe_key"))
+    if existing.startswith("alias:"):
+        keys.add(existing)
+    email = normalize_email(candidate.get("email") or candidate.get("label"))
+    for key in email_alias_keys(email):
+        keys.add(f"email:{key}")
+    if existing.startswith("email:"):
+        keys.add(existing)
+    label = normalize_string(candidate.get("label") or candidate.get("contact_label"))
+    for key in strong_person_name_keys(label):
+        keys.add(key)
+    return sorted(keys)
+
+
+def candidate_fallback_group_key(candidate: dict[str, Any], index: int) -> str:
+    key = candidate_dedupe_key(candidate)
+    if key and not key.startswith("label:"):
+        return key
+    contact_id = normalize_string(candidate.get("contact_id"))
+    if contact_id:
+        return f"contact:{contact_id}"
+    source_type = normalize_string(candidate.get("source_type") or candidate.get("source"))
+    source_profile = normalize_string(candidate.get("source_profile"))
+    return f"candidate:{source_type}:{source_profile}:{index}"
+
+
+def contact_alias_for_candidate(candidate: dict[str, Any], aliases: list[dict[str, Any]]) -> dict[str, Any] | None:
+    email = normalize_email(candidate.get("email") or candidate.get("label"))
+    keys = email_alias_keys(email)
+    label = normalize_string(candidate.get("label")).lower()
+    name_keys = set(strong_person_name_keys(label))
+    for alias in aliases:
+        alias_keys = set(alias.get("email_keys") or alias.get("emails") or [])
+        if email and (email in alias.get("emails", []) or keys & alias_keys):
+            return alias
+        for pattern in alias.get("email_patterns") or []:
+            if email and fnmatch(email, pattern):
+                return alias
+        if label and label in alias.get("names", []):
+            return alias
+        if name_keys and name_keys & set(alias.get("name_keys") or []):
+            return alias
+    return None
+
+
+def apply_contact_alias(candidate: dict[str, Any], alias: dict[str, Any]) -> dict[str, Any]:
+    result = dict(candidate)
+    original = {
+        "label": normalize_string(candidate.get("label")),
+        "email": normalize_email(candidate.get("email") or candidate.get("label")),
+        "contact_id": str(candidate.get("contact_id") or ""),
+        "source_type": normalize_string(candidate.get("source_type") or candidate.get("source")),
+        "source_profile": normalize_string(candidate.get("source_profile")),
+    }
+    result["canonical_key"] = str(alias.get("id") or "")
+    result["dedupe_key"] = f"alias:{alias.get('id')}"
+    result["label"] = str(alias.get("label") or result.get("label") or "")
+    result["email"] = str(alias.get("primary_email") or result.get("email") or "")
+    result["canonical_contact"] = {
+        "id": alias.get("id"),
+        "label": alias.get("label"),
+        "primary_email": alias.get("primary_email"),
+        "matched_original": original,
+    }
+    evidence = result.get("evidence") if isinstance(result.get("evidence"), list) else []
+    result["evidence"] = [
+        *evidence,
+        {
+            "kind": "contact_alias",
+            "alias_id": alias.get("id"),
+            "canonical_label": alias.get("label"),
+            "original_label": original["label"],
+            "original_email": original["email"],
+        },
+    ]
+    return result
+
+
+def apply_contact_aliases(candidates: list[dict[str, Any]], aliases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not aliases:
+        return candidates
+    result: list[dict[str, Any]] = []
+    for candidate in candidates:
+        alias = contact_alias_for_candidate(candidate, aliases)
+        result.append(apply_contact_alias(candidate, alias) if alias else candidate)
+    return result
+
+
+def contact_candidate_source_summary(candidate: dict[str, Any]) -> dict[str, Any]:
+    canonical = candidate.get("canonical_contact") if isinstance(candidate.get("canonical_contact"), dict) else {}
+    original = canonical.get("matched_original") if isinstance(canonical.get("matched_original"), dict) else {}
+    return {
+        "contact_id": str(candidate.get("contact_id") or ""),
+        "label": normalize_string(candidate.get("label")),
+        "email": normalize_email(candidate.get("email") or candidate.get("label")),
+        "original_label": normalize_string(original.get("label")),
+        "original_email": normalize_email(original.get("email")),
+        "source": normalize_string(candidate.get("source")),
+        "source_type": normalize_string(candidate.get("source_type") or candidate.get("source")),
+        "source_profile": normalize_string(candidate.get("source_profile")),
+        "confidence": candidate.get("confidence"),
+    }
+
+
+def merged_contact_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    primary = dict(candidates[0])
+    merged_sources = [contact_candidate_source_summary(candidate) for candidate in candidates]
+    merge_keys = sorted({key for candidate in candidates for key in candidate_merge_keys(candidate)})
+    merged_contact_ids = [
+        str(candidate.get("contact_id") or "")
+        for candidate in candidates
+        if str(candidate.get("contact_id") or "")
+    ]
+    evidence: list[Any] = []
+    seen_evidence: set[str] = set()
+    for candidate in candidates:
+        candidate_evidence = candidate.get("evidence") if isinstance(candidate.get("evidence"), list) else []
+        for item in candidate_evidence:
+            key = json.dumps(item, sort_keys=True) if isinstance(item, dict) else str(item)
+            if key in seen_evidence:
+                continue
+            evidence.append(item)
+            seen_evidence.add(key)
+    primary["dedupe_key"] = candidate_dedupe_key(primary)
+    primary["merge_keys"] = merge_keys
+    primary["merged_contact_ids"] = merged_contact_ids
+    primary["merged_sources"] = merged_sources
+    primary["source_count"] = len(merged_sources)
+    if evidence:
+        primary["evidence"] = evidence
+    if len(candidates) > 1 and any(key.startswith("name") for key in merge_keys):
+        primary["evidence"] = [
+            *primary.get("evidence", []),
+            {
+                "kind": "deterministic_contact_name_merge",
+                "merge_keys": [key for key in merge_keys if key.startswith("name")][:4],
+                "source_count": len(candidates),
+            },
+        ]
+    if not primary.get("email"):
+        primary["email"] = next((source["email"] for source in merged_sources if source.get("email")), "")
+    if not primary.get("label"):
+        primary["label"] = next((source["label"] for source in merged_sources if source.get("label")), "")
+    return primary
 
 
 def candidate_group_key(candidate: dict[str, Any]) -> str:
@@ -375,15 +784,48 @@ def ranked_contact_candidates(
     *,
     limit: int = 20,
     per_source_profile: int = 3,
+    aliases: Optional[list[dict[str, Any]]] = None,
+    min_confidence: float = 0.0,
 ) -> list[dict[str, Any]]:
-    deduped: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    candidates = apply_contact_aliases(candidates, aliases or [])
+    eligible: list[dict[str, Any]] = []
     for candidate in sorted(candidates, key=candidate_sort_key, reverse=True):
-        key = candidate_dedupe_key(candidate)
-        if not key or key in seen:
+        if float(candidate.get("confidence") or 0.0) < min_confidence:
             continue
-        deduped.append(candidate)
-        seen.add(key)
+        eligible.append(candidate)
+    parents = list(range(len(eligible)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    key_owner: dict[str, int] = {}
+    for index, candidate in enumerate(eligible):
+        keys = candidate_merge_keys(candidate) or [candidate_fallback_group_key(candidate, index)]
+        for key in keys:
+            owner = key_owner.get(key)
+            if owner is None:
+                key_owner[key] = index
+            else:
+                union(owner, index)
+
+    dedupe_groups: dict[int, list[dict[str, Any]]] = {}
+    for index, candidate in enumerate(eligible):
+        dedupe_groups.setdefault(find(index), []).append(candidate)
+    deduped = [
+        merged_contact_candidate(group)
+        for group in dedupe_groups.values()
+        if group
+    ]
+    deduped = sorted(deduped, key=candidate_sort_key, reverse=True)
 
     selected: list[dict[str, Any]] = []
     selected_keys: set[str] = set()
@@ -439,9 +881,14 @@ def build_participant_identity_bundle(
     speaker_labels = speaker_labels_from_transcript(transcript_payload)
     calendar_attendees = extract_calendar_attendees(transcript_payload)
     normalized_readout_participants = normalize_readout_participants(readout_participants)
+    operator_participant_hints = load_operator_participant_hints(
+        state_root=state_root,
+        conversation_key=conversation_key,
+        source_document_id=source_document_id,
+    )
     query_terms = identity_query_terms(
         calendar_attendees=calendar_attendees,
-        readout_participants=normalized_readout_participants,
+        readout_participants=[*normalized_readout_participants, *operator_participant_hints],
         speaker_labels=speaker_labels,
     )
     provenance_sources, source_profiles, warnings = collect_configured_contact_sources(
@@ -449,13 +896,20 @@ def build_participant_identity_bundle(
         transcript=transcript_payload,
         state_root=state_root,
     )
-    evidence_pool = [*calendar_attendees, *normalized_readout_participants]
+    evidence_pool = [*calendar_attendees, *normalized_readout_participants, *operator_participant_hints]
     provenance_candidates = [
         provenance_candidate(source, evidence_pool=evidence_pool)
         for source in provenance_sources
     ]
+    operator_candidates = [operator_hint_candidate(person) for person in operator_participant_hints]
     local_candidates = [local_contact_candidate(row) for row in local_contacts]
-    all_candidates = ranked_contact_candidates([*provenance_candidates, *local_candidates], limit=20)
+    contact_aliases = load_contact_aliases(state_root)
+    all_candidates = ranked_contact_candidates(
+        [*operator_candidates, *provenance_candidates, *local_candidates],
+        limit=20,
+        aliases=contact_aliases,
+        min_confidence=0.55,
+    )
 
     speakers = []
     unresolved = []
@@ -493,8 +947,18 @@ def build_participant_identity_bundle(
         "speaker_labels": speaker_labels,
         "calendar_attendees": calendar_attendees,
         "readout_participants": normalized_readout_participants,
+        "operator_participant_hints": operator_participant_hints,
         "query_terms": query_terms,
         "source_profiles": source_profiles,
+        "contact_aliases": [
+            {
+                "id": alias["id"],
+                "label": alias["label"],
+                "email_count": len(alias.get("emails") or []),
+                "name_count": len(alias.get("names") or []),
+            }
+            for alias in contact_aliases
+        ],
         "contact_candidates": all_candidates,
         "speakers": speakers,
         "operator_decisions": [assignment_decision(assignments[label]) for label in speaker_labels if label in assignments],

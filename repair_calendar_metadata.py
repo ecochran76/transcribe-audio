@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+import provenance_config
 from transcript_artifacts import json_ready
 from transcribe_common import (
     CalendarProviderConfig,
@@ -46,11 +47,21 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         default=[],
         help="Additional calendar ID to scan for overlapping provenance events. Repeat for multiple shared calendars.",
     )
+    parser.add_argument(
+        "--calendar-provenance-ical-url",
+        dest="calendar_provenance_ical_urls",
+        action="append",
+        default=[],
+        help=(
+            "Additional iCalendar feed URL to scan for overlapping provenance events. "
+            "Use 'Label=https://...' to set a display label."
+        ),
+    )
+    provenance_config.add_cli_args(parser)
     parser.add_argument("--calendar-window", type=float, default=24.0, help="Calendar lookup window in hours.")
     parser.add_argument(
         "--calendar-providers",
-        default="gog,gws",
-        help="Comma-separated provider list for repair. Default avoids Google OAuth fallback.",
+        help="Comma-separated provider list for repair. Defaults to provenance config or gog,gws.",
     )
     parser.add_argument(
         "--state-file",
@@ -129,6 +140,7 @@ def build_repair_plan(
     calendar_service: Any,
     calendar_id: str,
     provenance_calendar_ids: list[str],
+    provenance_ical_urls: list[str],
     calendar_window: float,
     rename_media: bool,
     refresh_matching_calendars: bool,
@@ -146,6 +158,7 @@ def build_repair_plan(
         recording_end,
         calendar_window,
         provenance_calendar_ids,
+        provenance_ical_urls,
     )
     event = matching_events[0]["event"] if matching_events else fallback_event
     if not event and not existing_event_info:
@@ -266,10 +279,16 @@ def apply_plan(plan: dict[str, Any]) -> None:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
     try:
+        provider_configs_for_lookup = provenance_config.configured_provider_configs_or_fallback(
+            args,
+            provider_configs(args.calendar_providers or "gog,gws"),
+        )
+        for warning in getattr(args, "provenance_config_warnings", []) or []:
+            print(f"Warning: provenance config: {warning}", file=sys.stderr)
         service = build_calendar_service(
             Path("credentials.json"),
             Path("token.json"),
-            provider_configs=provider_configs(args.calendar_providers),
+            provider_configs=provider_configs_for_lookup,
         )
         plans = []
         for artifact_path in candidate_artifacts(args.artifact_glob, args.since_days):
@@ -280,6 +299,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                 calendar_service=service,
                 calendar_id=args.calendar_id,
                 provenance_calendar_ids=args.calendar_provenance_calendar_ids,
+                provenance_ical_urls=args.calendar_provenance_ical_urls,
                 calendar_window=args.calendar_window,
                 rename_media=args.rename_media,
                 refresh_matching_calendars=args.refresh_matching_calendars,

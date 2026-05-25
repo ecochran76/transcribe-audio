@@ -25,6 +25,7 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/conversations/<document_id>/first-pass-summary`: selected-conversation first-pass summary state.
 - `POST /api/conversations/<document_id>/first-pass-summary/prepare`: write a one-request dry-run first-pass summary manifest scoped to the selected conversation source transcript under `~/.local/state/transcribe-audio/first-pass-summary-batches/`. The request artifact carries the participant identity bundle for high-powered readout providers. It does not submit provider work.
 - `POST /api/conversations/<document_id>/first-pass-summary/submit`: submit the selected-conversation manifest after verifying it is scoped to that source transcript. Requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`.
+- `POST /api/conversations/<document_id>/first-pass-summary/run`: prepare and submit one selected-conversation initial-summary request in a single reviewed call. It requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, returns the prepared manifest and submitted batch metadata, and reports external action flags.
 - `POST /api/conversations/<document_id>/first-pass-summary/status`: poll a selected-conversation manifest and optionally materialize completed readouts with `materialize=true`, using the same manifest path confinement and source-document validation as submit.
 - `GET /api/conversations/<document_id>/identity-review`: selected-conversation speaker/contact review state and participant identity bundle. The bundle normalizes speaker labels, calendar attendees, matching-calendar participants, configured `gws` People/Contacts and Odollo contact candidates, local reviewed contacts, operator decisions, unresolved ambiguities, source profile metadata, and warnings.
 - `POST /api/conversations/<document_id>/identity-review`: record a local confirm/defer decision. Confirm writes contact and speaker-assignment rows plus an audit record; operator-created labels are stored as local contact provenance. Defer also queues a local `speaker_identity_review` item. It performs no external action.
@@ -32,6 +33,12 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `POST /api/conversations/<document_id>/context-workbench/preview`: write a local context-workbench preview manifest only. The manifest includes the participant identity bundle and warning status.
 - `POST /api/conversations/<document_id>/context-workbench/queue`: queue a local context-workbench manifest. Requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers.
 - `POST /api/conversations/<document_id>/context-workbench/contact-selection`: record a local `select`, `exclude`, or `clear` decision for one proposed contact candidate. The body accepts `candidate_id`, `action`, `actor_type=operator|app_intelligence`, `reviewer`, and `note`. It writes only user-scoped runtime state and performs no provider, CRM, memory, or external write.
+- `POST /api/conversations/<document_id>/context-workbench/contact-selection-batch`: persist staged select/exclude/clear/manual decisions in one local batch.
+- `GET /api/conversations/<document_id>/context-workbench/contact-search`: search cached local contact candidates by default. `mode=refresh` is the explicit slow path for configured read-only source search.
+- `POST /api/conversations/<document_id>/context-workbench/contact-refresh/preview`: preview configured contact refresh sources and whether the refresh would call external read-only tools.
+- `POST /api/conversations/<document_id>/context-workbench/contact-refresh`: refresh configured read-only sources into the user-scoped contact-search cache and write a refresh job record. `GET /api/conversations/<document_id>/context-workbench/contact-refresh/<job_id>` reads that record.
+- `GET /api/conversations/<document_id>/context-workbench/contact-affinity` and `POST /api/conversations/<document_id>/context-workbench/contact-affinity/refresh`: read or refresh cached relationship-affinity facts used to rank broad searches by communication recency/frequency, operator history, and calendar/local transcript overlap.
+- `POST /api/conversations/<document_id>/context-workbench/contact-merge-batch`: record reviewed merge/split decisions for dedupe clusters. Decisions are user-scoped local policy and perform no external writes.
 - `GET /api/conversations/<document_id>/final-preview`: selected-conversation deposition/memory preview summary plus identity/context gate status.
 - `POST /api/conversations/<document_id>/final-preview/queue`: create a no-write deposition/memory preview from the contextual readout and queue it for human review only when identity/context warnings are resolved. Requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`; Drive, Odoo, Graphiti, and filesystem apply remain disabled.
 - `GET /api/review-queue?limit=50`: read-only review queue aggregation over local route-review files, App Intelligence human-review decisions, filename-conflict reviews, and first-pass summary queue counts.
@@ -44,6 +51,9 @@ When `frontend/dist/` exists, the same server also serves the built React consol
 - `GET /api/intelligence/config`: resolved task-level intelligence routing from defaults, optional user config, environment, and runtime overrides.
 - `POST /api/intelligence/config/preview`: validate and preview a task routing update without writing.
 - `POST /api/intelligence/config/apply`: apply a validated task routing update to the user-scoped config. Requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
+- `GET /api/automation/config`: resolved user-scoped workflow automation policy for ingestion, transcription, initial summary, speaker identity, context collection, and final readout. Reading settings never runs a workflow stage.
+- `POST /api/automation/config/preview`: validate and preview an automation policy update without writing or running a stage.
+- `POST /api/automation/config/apply`: apply a validated automation policy update to the user-scoped config. Requires `approval_token=APPLY_AUTOMATION_CONFIG_UPDATE` and still does not run a stage.
 - `GET /api/intelligence/runs?limit=50`: list prepared App Intelligence run ledgers under the user-scoped state directory.
 - `GET /api/intelligence/runs/<run_id>`: read one App Intelligence run ledger, structured decision history, prompt/status artifact paths, and recent append-only events. The console derives preflight artifact choices from event payloads with recorded artifact paths.
 - `GET /api/intelligence/runs/<run_id>/replay-manifest`: read an ordered manifest of registered prompt, status, decision, and preflight artifacts for replay UI display. The manifest reports metadata only; it does not read artifact contents or execute actions.
@@ -177,6 +187,28 @@ The central intelligence library is `intelligence_config.py`. It resolves task-l
 Current task ids are `first_pass_summary`, `contextual_reread`, `context_source_ranking`, `route_selection`, `speaker_disambiguation`, `memory_harvest_review`, `embedding`, and `app_supervisor`.
 
 Config updates use the same preview/apply pattern as other write-bearing operator flows. Preview accepts a task id plus an `update` object with allowed fields `provider`, `model`, `base_url`, `timeout`, `temperature`, `fallbacks`, `requires_ledger`, and `human_review`; it returns before/after config, resolved task values, rollback metadata, and does not write. Apply writes only to the user-scoped config path and requires `approval_token=APPLY_INTELLIGENCE_CONFIG_UPDATE`.
+
+## Automation Config
+
+The central automation policy library is `automation_config.py`. It resolves
+stage enablement from:
+
+1. `~/.local/state/transcribe-audio/automation.config.json`, or
+   `TRANSCRIPTS_AUTOMATION_CONFIG`.
+2. Built-in defaults when no user config exists.
+
+Current stage ids are `ingest_audio`, `transcribe_audio`, `initial_summary`,
+`speaker_identity`, `context_collection`, and `final_readout`. Each stage has
+`enabled`, `mode`, and `requires_review` fields. The current mode values are
+`manual`, `one_click`, and `automatic`; defaults keep every stage disabled and
+manual.
+
+Config preview/apply uses the same reviewed pattern as intelligence and
+provenance settings. Preview returns before/after config and reports
+`will_execute_workflow_stage=false`. Apply writes only the user-scoped config
+and requires `approval_token=APPLY_AUTOMATION_CONFIG_UPDATE`; it still does not
+ingest audio, start transcription, submit summaries, resolve speakers, collect
+context, or generate final readouts.
 
 ## App Intelligence Run Ledgers
 

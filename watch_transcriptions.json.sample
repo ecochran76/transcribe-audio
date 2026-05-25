@@ -15,7 +15,7 @@
         "enabled": true,
         "providers": ["gog", "gws", "google-api"],
         "calendar_id": "primary",
-        "provenance_calendar_ids": [],
+        "provenance_profile": "default",
         "window_hours": 24,
         "gog": {
           "account": "",
@@ -57,7 +57,7 @@
         "enabled": true,
         "providers": ["gog", "gws", "google-api"],
         "calendar_id": "primary",
-        "provenance_calendar_ids": [],
+        "provenance_profile": "default",
         "window_hours": 24
       },
       "cli_args": [

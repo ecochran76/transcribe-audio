@@ -1,0 +1,157 @@
+{
+  "schema_version": "transcribe-audio.provenance-config.v1",
+  "active_profile": "default",
+  "profiles": {
+    "default": {
+      "enabled": true,
+      "description": "Default local operator provenance profile.",
+      "source_ids": [
+        "gog-primary",
+        "gws-default",
+        "msgcli-work",
+        "odollo-tenant-a",
+        "odollo-tenant-b",
+        "ical-shared-calendar"
+      ],
+      "workflows": {
+        "calendar_metadata": {
+          "enabled": true,
+          "primary": {
+            "source_id": "gog-primary",
+            "calendar_id": "primary"
+          },
+          "provenance_sources": [
+            {
+              "source_id": "gog-primary",
+              "calendar_ids": ["primary"]
+            },
+            {
+              "source_id": "gws-default",
+              "calendar_ids": []
+            },
+            {
+              "source_id": "ical-shared-calendar"
+            }
+          ]
+        },
+        "participant_identity": {
+          "enabled": true,
+          "use_calendar_attendees": true,
+          "source_ids": ["gws-default", "odollo-tenant-a", "odollo-tenant-b"]
+        },
+        "context_workbench": {
+          "enabled": true,
+          "source_ids": ["gws-default", "msgcli-work", "odollo-tenant-a", "odollo-tenant-b"]
+        },
+        "message_provenance": {
+          "enabled": false,
+          "source_ids": ["msgcli-work"],
+          "default_query_window_days": 365
+        }
+      }
+    }
+  },
+  "sources": {
+    "gog-primary": {
+      "kind": "gog",
+      "enabled": true,
+      "label": "Google via gog",
+      "account": "operator@example.com",
+      "client": "default",
+      "capabilities": ["calendar", "drive", "gmail", "people"],
+      "read_only": true,
+      "limits": {
+        "calendar_events": 50
+      }
+    },
+    "gws-default": {
+      "kind": "gws",
+      "enabled": true,
+      "label": "Google Workspace via gws",
+      "config_dir": "~/.config/gws",
+      "capabilities": ["calendar", "drive", "people", "gmail"],
+      "people": {
+        "surfaces": ["contacts", "other_contacts"],
+        "query_limit": 8,
+        "limit": 5
+      },
+      "drive": {
+        "page_size": 5
+      },
+      "calendar": {
+        "include_accessible_calendars": true
+      },
+      "read_only": true
+    },
+    "msgcli-work": {
+      "kind": "msgcli",
+      "enabled": false,
+      "label": "Outlook mailbox via msgcli",
+      "command": "msgcli",
+      "account": "work",
+      "capabilities": ["mail", "contacts", "attachments"],
+      "mail": {
+        "folders": ["Inbox", "Sent Items"],
+        "query_limit": 20,
+        "attachment_policy": "metadata_only"
+      },
+      "read_only": true
+    },
+    "odollo-tenant-a": {
+      "kind": "odollo",
+      "enabled": true,
+      "label": "Odoo tenant A",
+      "tenant_profile": "tenant-a-prod",
+      "repo_root": "~/workspace.local/odollo",
+      "config_path": "~/.odollo/odollo.yml",
+      "command": ["~/.local/bin/odollo"],
+      "models": ["res.partner", "mail.message"],
+      "secret_refs": {
+        "api_key": "env:ODOO_TENANT_A_API_KEY"
+      },
+      "limits": {
+        "contacts": 5,
+        "log_notes": 5
+      },
+      "read_only": true
+    },
+    "odollo-tenant-b": {
+      "kind": "odollo",
+      "enabled": true,
+      "label": "Odoo tenant B",
+      "tenant_profile": "tenant-b-prod",
+      "repo_root": "~/workspace.local/odollo",
+      "config_path": "~/.odollo/odollo.yml",
+      "command": ["~/.local/bin/odollo"],
+      "models": ["res.partner", "mail.message"],
+      "secret_refs": {
+        "api_key": "env:ODOO_TENANT_B_API_KEY"
+      },
+      "limits": {
+        "contacts": 5,
+        "log_notes": 5
+      },
+      "read_only": true
+    },
+    "ical-shared-calendar": {
+      "kind": "ical_calendar",
+      "enabled": true,
+      "label": "Shared iCalendar feed",
+      "url_ref": "env:EXAMPLE_SHARED_ICAL_URL",
+      "capabilities": ["calendar"],
+      "calendar": {
+        "timezone": "America/Chicago",
+        "max_events": 250,
+        "cache_ttl_seconds": 900
+      },
+      "read_only": true,
+      "sensitive_fields": ["url", "url_ref"]
+    }
+  },
+  "mutation_policy": {
+    "external_writes_enabled": false,
+    "local_config_mutation_requires_preview": true,
+    "local_config_apply_token": "APPLY_PROVENANCE_CONFIG_UPDATE",
+    "audit_dir": "~/.local/state/transcribe-audio/provenance-config-runs"
+  }
+}

@@ -15,6 +15,7 @@ from transcribe_common import (
     build_event_base_name,
     describe_matching_calendars,
     find_matching_calendars_for_provider,
+    find_matching_ical_provenance_calendars,
     build_gog_calendar_list_command,
     build_gog_calendar_events_command,
     build_gws_calendar_env,
@@ -741,6 +742,70 @@ def test_explicit_provenance_calendar_ids_are_scanned(monkeypatch) -> None:
     assert result[0]["attendee_emails"] == ["shared-attendee@example.com"]
 
 
+def test_ical_provenance_feed_matching_hides_feed_url(monkeypatch) -> None:
+    secret_url = "https://calendar.example.invalid/ical/private-feed-token"
+    ical_text = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:evt-shared
+SUMMARY:SABER Review
+DTSTART:20260522T153000Z
+DTEND:20260522T160000Z
+ATTENDEE;CN=Rae Example;PARTSTAT=ACCEPTED:mailto:rae@example.com
+ATTENDEE;CN=Declined Example;PARTSTAT=DECLINED:mailto:declined@example.com
+ORGANIZER;CN=Organizer Example:mailto:organizer@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+
+    monkeypatch.setattr("transcribe_common.fetch_ical_text", lambda url: ical_text)
+
+    result = find_matching_ical_provenance_calendars(
+        [f"SABER Zoho={secret_url}"],
+        recording_start=datetime.fromisoformat("2026-05-22T15:30:00+00:00"),
+        recording_end=datetime.fromisoformat("2026-05-22T16:00:00+00:00"),
+        time_min="2026-05-22T15:00:00Z",
+        time_max="2026-05-22T17:00:00Z",
+    )
+
+    encoded = json.dumps(result, default=str)
+    assert result[0]["calendar_summary"] == "SABER Zoho"
+    assert result[0]["calendar_id"].startswith("ical:")
+    assert result[0]["event_summary"] == "SABER Review"
+    assert result[0]["attendees"] == ["Rae Example <rae@example.com>"]
+    assert result[0]["attendee_emails"] == ["rae@example.com"]
+    assert secret_url not in encoded
+
+
+def test_ical_provenance_expands_weekly_rrule(monkeypatch) -> None:
+    ical_text = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:weekly-shared
+SUMMARY:Weekly SABER Check-in
+DTSTART;TZID=America/Chicago:20260501T100000
+DTEND;TZID=America/Chicago:20260501T103000
+RRULE:FREQ=WEEKLY;BYDAY=FR;COUNT=8
+ATTENDEE;CN=Casey Example:mailto:casey@example.com
+END:VEVENT
+END:VCALENDAR
+"""
+
+    monkeypatch.setattr("transcribe_common.fetch_ical_text", lambda url: ical_text)
+
+    result = find_matching_ical_provenance_calendars(
+        ["SABER Zoho=https://calendar.example.invalid/ical/feed"],
+        recording_start=datetime.fromisoformat("2026-05-22T15:00:00+00:00"),
+        recording_end=datetime.fromisoformat("2026-05-22T15:30:00+00:00"),
+        time_min="2026-05-22T14:00:00Z",
+        time_max="2026-05-22T16:00:00Z",
+    )
+
+    assert len(result) == 1
+    assert result[0]["event_summary"] == "Weekly SABER Check-in"
+    assert result[0]["attendee_emails"] == ["casey@example.com"]
+
+
 def test_selected_calendar_context_falls_back_to_primary_event() -> None:
     matching_events = [
         {
@@ -788,6 +853,9 @@ def test_watcher_calendar_config_expands_to_cli_args(tmp_path: Path) -> None:
                             "providers": ["gog", "gws", "google-api"],
                             "calendar_id": "primary",
                             "provenance_calendar_ids": ["shared@example.com", "team@example.com"],
+                            "provenance_ical_urls": [
+                                {"label": "SABER Zoho", "url": "https://calendar.example.invalid/ical/feed"}
+                            ],
                             "window_hours": 8,
                             "gog": {"account": "me@example.com", "client": "work"},
                             "gws": {"config_dir": "~/.config/gws-work"},
@@ -813,6 +881,8 @@ def test_watcher_calendar_config_expands_to_cli_args(tmp_path: Path) -> None:
         "shared@example.com",
         "--calendar-provenance-calendar-id",
         "team@example.com",
+        "--calendar-provenance-ical-url",
+        "SABER Zoho=https://calendar.example.invalid/ical/feed",
         "--calendar-window",
         "8",
         "--calendar-gog-account",
