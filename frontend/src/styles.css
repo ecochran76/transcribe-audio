@@ -2744,6 +2744,65 @@ dd {
   margin-top: 1rem;
 }
 
+.workflow-prep-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem 1rem;
+  align-items: start;
+  padding: 0.85rem;
+  border: 1px solid rgba(215, 255, 115, 0.18);
+  border-radius: 0.75rem;
+  background: rgba(215, 255, 115, 0.055);
+}
+
+.workflow-prep-card span,
+.workflow-secondary-actions summary {
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workflow-prep-card strong {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 1rem;
+}
+
+.workflow-prep-card p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.workflow-prep-card .compact-definition-list {
+  grid-column: 1 / -1;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.workflow-prep-card .primary-workflow-action {
+  align-self: start;
+  white-space: nowrap;
+}
+
+.workflow-secondary-actions {
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0.75rem;
+  background: rgba(244, 236, 216, 0.035);
+}
+
+.workflow-secondary-actions summary {
+  cursor: pointer;
+  padding: 0.72rem 0.85rem;
+}
+
+.workflow-secondary-actions .workflow-action-row {
+  padding: 0 0.85rem 0.85rem;
+}
+
 .compact-definition-list {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -2771,6 +2830,7 @@ dd {
 
 .workflow-action-row a,
 .workflow-action-row button,
+.workflow-prep-card button,
 .identity-list button {
   border: 1px solid rgba(244, 236, 216, 0.14);
   border-radius: 999px;
@@ -2780,7 +2840,8 @@ dd {
   text-decoration: none;
 }
 
-.workflow-action-row .primary-workflow-action {
+.workflow-action-row .primary-workflow-action,
+.workflow-prep-card .primary-workflow-action {
   border-color: rgba(215, 255, 115, 0.54);
   background: rgba(215, 255, 115, 0.16);
   color: var(--accent);
@@ -2788,6 +2849,7 @@ dd {
 }
 
 .workflow-action-row button:disabled,
+.workflow-prep-card button:disabled,
 .identity-list button:disabled {
   cursor: not-allowed;
   opacity: 0.54;
@@ -2959,6 +3021,15 @@ dd {
 
   .manual-contact-row {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-prep-card {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-prep-card .primary-workflow-action {
+    width: 100%;
+    white-space: normal;
   }
 
   .left-collapsed .pane-content,

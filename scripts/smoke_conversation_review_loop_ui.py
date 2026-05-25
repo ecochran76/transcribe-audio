@@ -120,6 +120,9 @@ def collect_checks(agent_browser_bin: str, session: str, profile: Path) -> dict[
     .find((button) => button.getAttribute('aria-pressed') === 'true')?.textContent.trim() || '';
   const queuePreviewButton = [...document.querySelectorAll('button')]
     .find((button) => button.textContent.trim() === 'Queue preview review');
+  const summaryPrimaryActions = [...document.querySelectorAll('.workflow-prep-card .primary-workflow-action')];
+  const inlineSummaryActionRow = document.querySelector('.workflow-action-panel > .workflow-action-row');
+  const advancedSummaryControls = document.querySelector('.workflow-secondary-actions');
   return {
     activeTab,
     hasConversationWorkspace: lowerText.includes('conversation workspace'),
@@ -127,6 +130,12 @@ def collect_checks(agent_browser_bin: str, session: str, profile: Path) -> dict[
     hasSourceAudio: Boolean(document.querySelector('.conversation-rail audio[src*="/api/blobs/"]')),
     hasTranscriptTurns: document.querySelectorAll('.transcript-turn').length > 0,
     hasSummaryReady: text.includes('Summary ready') || text.includes('First-pass summary'),
+    hasSummaryPrepCard: Boolean(document.querySelector('.workflow-prep-card')),
+    summaryPrimaryActionCount: summaryPrimaryActions.length,
+    summaryPrimaryActionText: summaryPrimaryActions.map((button) => button.textContent.trim()).join(' | '),
+    hasAdvancedSummaryControls: Boolean(advancedSummaryControls),
+    advancedSummaryControlsText: advancedSummaryControls?.textContent || '',
+    hasInlineSummaryButtonCluster: Boolean(inlineSummaryActionRow),
     hasSpeakerReview: text.includes('pending assignments') || text.includes('Speaker assignment'),
     hasManualContactInput: Boolean(document.querySelector('input[aria-label^="Manual contact for"]')),
     hasManualContactButton: text.includes('Confirm typed'),
@@ -250,6 +259,10 @@ def run_smoke(
         "transcript_hasSourceAudio": True,
         "transcript_hasTranscriptTurns": True,
         "summary_hasSummaryReady": True,
+        "summary_hasSummaryPrepCard": True,
+        "summary_summaryPrimaryActionCount": 1,
+        "summary_hasAdvancedSummaryControls": True,
+        "summary_hasInlineSummaryButtonCluster": False,
         "speakers_hasSpeakerReview": True,
         "context_hasContextWorkbench": True,
         "context_hasParticipantIdentity": True,

@@ -2,6 +2,64 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 206 | 2026-05-25
+
+Summary: Closed Plan 0019, a polish slice for the one-click initial-summary
+workflow prep surface.
+
+Findings:
+
+- Plan 0015 had already created the backend one-click run action and automation
+  settings, but the First-pass summary tab still rendered Run initial summary,
+  Prepare only, Submit, and Check as peer buttons.
+- The correct follow-up was UI ergonomics and browser-smoke protection, not a
+  new provider or automation contract.
+- Graphiti discovery was healthy but stale for current P09 state, so
+  `ROADMAP.md`, `RUNBOOK.md`, and the numbered plan files remained the
+  authority.
+
+Changes:
+
+- Added and closed
+  `docs/dev/plans/0019-2026-05-25-one-click-summary-workflow-prep-polish.md`.
+- Replaced the summary-stage peer button row with an `Initial summary prep`
+  card that exposes one primary next action.
+- The primary action now advances based on state: run initial summary, submit a
+  prepared-only manifest, check a submitted manifest, or stay disabled when a
+  summary is already ready.
+- Moved Prepare only, Submit, and Check into `Advanced summary controls`.
+- Extended `scripts/smoke_conversation_review_loop_ui.py` to assert the
+  summary prep card, exactly one primary summary action, advanced controls, and
+  no inline summary button cluster.
+- Updated P09 roadmap state.
+
+Validation:
+
+- `~/.local/bin/graphiti-runtime doctor` was healthy.
+- `~/.local/bin/graphiti-runtime discover --group-id transcribe_audio_main
+  "one click first pass summary automation settings workflow prep Plan 0015
+  current status"` returned stale facts, so repo docs were used.
+- `npm --prefix frontend run build` passed.
+- `python -m py_compile scripts/smoke_conversation_review_loop_ui.py` passed.
+- `python -m py_compile transcript_api.py intelligence_config.py
+  automation_config.py provenance_config.py participant_identity.py` passed.
+- `.venv/bin/python -m pytest
+  tests/test_transcript_api.py::test_selected_first_pass_summary_run_endpoint_prepares_and_submits
+  -q` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `scripts/smoke_conversation_review_loop_ui.py` passed against
+  `http://transcripts.localhost` and wrote
+  `~/.local/state/transcribe-audio/browser-smokes/20260525T224138Z-conversation-review-loop-smoke.json`.
+- Smoke checks included `summary_hasSummaryPrepCard=true`,
+  `summary_summaryPrimaryActionCount=1`,
+  `summary_hasAdvancedSummaryControls=true`, and
+  `summary_hasInlineSummaryButtonCluster=false`.
+- Screenshot:
+  `~/.local/state/transcribe-audio/browser-smokes/20260525T224138Z-conversation-review-loop-smoke.png`.
+- `agent-browser` console/error checks reported no page errors.
+
 ## Turn 205 | 2026-05-25
 
 Summary: Fixed the Library conversation table width regression from the Plan

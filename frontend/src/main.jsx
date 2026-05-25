@@ -4522,6 +4522,27 @@ function ConversationWorkflowModal({
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
+  const firstPassBusy = ["running", "submitting", "checking"].includes(firstPassAction.status);
+  const firstPassPreparedOnly = Boolean(selectedFirstPassManifest && firstPassAction.payload?.dry_run);
+  const firstPassPrimaryLabel = summaryText
+    ? "Summary ready"
+    : firstPassPreparedOnly
+      ? "Submit prepared summary"
+      : selectedFirstPassManifest
+        ? "Check summary status"
+        : "Run initial summary";
+  const firstPassPrimaryDetail = summaryText
+    ? "A stored first-pass summary is linked to this conversation."
+    : firstPassPreparedOnly
+      ? "Submit the already prepared scoped request to the configured provider."
+      : selectedFirstPassManifest
+        ? "Poll the submitted batch and materialize the readout if the provider has completed it."
+        : "Prepare one scoped request and submit it with the selected first-pass provider route.";
+  const firstPassExternalActionText = summaryText
+    ? "none"
+    : selectedFirstPassManifest && !firstPassPreparedOnly
+      ? "status poll"
+      : "provider submit";
   const contextWorkbench = contextInstructionAction.payload?.context_workbench || contextContactAction.payload?.context_workbench || contextAction.payload?.context_workbench || conversationDetail?.context_workbench || {};
   const identityBundle = activeIdentityReview.identity_bundle || contextWorkbench.participant_identity_bundle || {};
   const contactSelection = contextWorkbench.contact_selection || {};
@@ -4769,6 +4790,19 @@ function ConversationWorkflowModal({
     } catch (error) {
       setFirstPassAction((current) => ({ ...current, status: "error", message: `Initial summary failed: ${error.message}` }));
     }
+  }
+
+  function runFirstPassPrimaryAction() {
+    if (summaryText || firstPassBusy) return;
+    if (firstPassPreparedOnly) {
+      submitSelectedFirstPassSummary();
+      return;
+    }
+    if (selectedFirstPassManifest) {
+      refreshSelectedFirstPassSummary();
+      return;
+    }
+    runSelectedFirstPassSummary();
   }
 
   async function refreshSelectedFirstPassSummary() {
@@ -5234,28 +5268,40 @@ function ConversationWorkflowModal({
                   <div className="chip-cloud">{topics.slice(0, 16).map((topic) => <span key={displayLabel(topic, "Topic")}>{displayLabel(topic, "Topic")}</span>)}</div>
                 ) : null}
                 <div className="workflow-action-panel">
-                  <dl className="compact-definition-list">
-                    <dt>Status</dt>
-                    <dd>{statusLabel(firstPassSummaryState.status || "unknown")}</dd>
-                    <dt>Source</dt>
-                    <dd>{firstPassSummaryState.source_document_id || "Not linked"}</dd>
-                    <dt>Summary</dt>
-                    <dd>{firstPassSummaryState.summary_document_id || "Not materialized"}</dd>
-	                  </dl>
-	                  <div className="workflow-action-row">
-	                    <button className="primary-workflow-action" onClick={runSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
-	                      Run initial summary
-	                    </button>
-	                    <button onClick={prepareSelectedFirstPassSummary} disabled={firstPassAction.status === "running"} type="button">
-	                      Prepare only
-	                    </button>
-	                    <button onClick={submitSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "submitting"} type="button">
-	                      Submit
+                  <div className="workflow-prep-card">
+                    <div>
+                      <span>Initial summary prep</span>
+                      <strong>{firstPassPrimaryLabel}</strong>
+                      <p>{firstPassPrimaryDetail}</p>
+                    </div>
+                    <button className="primary-workflow-action" onClick={runFirstPassPrimaryAction} disabled={Boolean(summaryText) || firstPassBusy} type="button">
+                      {firstPassPrimaryLabel}
                     </button>
-                    <button onClick={refreshSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassAction.status === "checking"} type="button">
-                      Check
-                    </button>
+                    <dl className="compact-definition-list">
+                      <dt>Status</dt>
+                      <dd>{statusLabel(firstPassSummaryState.status || "unknown")}</dd>
+                      <dt>Source</dt>
+                      <dd>{firstPassSummaryState.source_document_id || "Not linked"}</dd>
+                      <dt>Summary</dt>
+                      <dd>{firstPassSummaryState.summary_document_id || "Not materialized"}</dd>
+                      <dt>External action</dt>
+                      <dd>{firstPassExternalActionText}</dd>
+                    </dl>
                   </div>
+                  <details className="workflow-secondary-actions">
+                    <summary>Advanced summary controls</summary>
+                    <div className="workflow-action-row">
+                      <button onClick={prepareSelectedFirstPassSummary} disabled={firstPassBusy} type="button">
+                        Prepare only
+                      </button>
+                      <button onClick={submitSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassBusy} type="button">
+                        Submit
+                      </button>
+                      <button onClick={refreshSelectedFirstPassSummary} disabled={!selectedFirstPassManifest || firstPassBusy} type="button">
+                        Check
+                      </button>
+                    </div>
+                  </details>
                   {firstPassAction.message ? (
                     <div className={`action-notice ${firstPassAction.status}`}>
                       <strong>{firstPassAction.message}</strong>
