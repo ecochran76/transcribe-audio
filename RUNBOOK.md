@@ -2,6 +2,141 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 212 | 2026-05-26
+
+Summary: Tidied planning-contract workspace state.
+
+Changes:
+
+- Normalized `docs/dev/plans/0013-2026-05-24-user-scoped-provenance-config.md`
+  from `State: COMPLETE` to the repo's deterministic `State: CLOSED`
+  vocabulary.
+- Added the exact
+  `docs/dev/plans/0020-2026-05-25-intelligence-profile-settings-redesign.md`
+  filename to the existing Plan 0020 runbook closeout so the planning audit can
+  verify it is wired.
+
+Validation:
+
+- `python repo-policy-selector/scripts/audit_planning_contract.py ... --json`
+  passed after the tidy.
+- `git diff --check` passed.
+
+## Turn 211 | 2026-05-26
+
+Summary: Installed Graphiti and codegraph policy guidance.
+
+Changes:
+
+- Extended `docs/dev/policies/0005-memory-and-context-routing.md` with the
+  shared `graph-backed-memory-usage` discipline and the repo-local Graphiti
+  group `transcribe_audio_main`.
+- Added `docs/dev/policies/0007-codegraph-usage.md` for the installed
+  CodeGraph CLI, sibling `../codegraph` checkout, and local `.codegraph/`
+  index.
+- Wired the new codegraph policy into `AGENTS.md`.
+
+Validation:
+
+- Used `$repo-policy-selector` and enumerated the installed policy catalog from
+  `repo-policy-selector/policy-library/catalog.yaml`; the requested modules map
+  to `graph-backed-memory-usage` and `codegraph-usage`.
+- `~/.local/bin/graphiti-runtime doctor` reported healthy, and Graphiti
+  discovery found existing repo guidance for `transcribe_audio_main`.
+- Initial `python repo-policy-selector/scripts/select_policy.py ... --json`
+  output found `graph-backed-memory-usage` semantically covered and
+  `codegraph-usage` missing. The post-patch selector re-run reports both modules
+  in `already_adopted_modules` with `validation_problems=[]`.
+- `codegraph status . --json` reported this repo is initialized with
+  `.codegraph/codegraph.db`, 65 indexed files, and no skipped files. After
+  `codegraph sync .`, pending added/modified/removed files were all zero.
+- `python repo-policy-selector/scripts/audit_planning_contract.py ... --json`
+  initially reported pre-existing planning-contract issues unrelated to this
+  policy install: Plan 0013 used a nonstandard state value, and Plan 0020 was
+  described without the exact plan filename expected by the audit.
+
+## Turn 210 | 2026-05-25
+
+Summary: Closed Plan 0022, the Settings layout refactor.
+
+Changes:
+
+- Added a Settings-specific workspace class that hides the transcript left pane
+  and inspector and gives Settings a centered 1180px work area.
+- Removed global conversation/artifact/review summary chips from Settings and
+  replaced them with a compact settings-only status row.
+- Refactored the Settings section navigation so labels and status chips do not
+  collide on desktop or mobile.
+- Made the Intelligence route matrix fit the widened Settings detail surface
+  and collapse without horizontal overflow on mobile.
+- Renamed the Settings Evidence section to Validation, replaced visible smoke
+  wording with validation/browser-check wording, and moved raw artifact paths
+  into a disclosure.
+- Updated Plan 0022 and P09 roadmap state.
+
+Validation:
+
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py
+  tests/test_transcript_api.py::test_intelligence_config_endpoint_returns_task_routing
+  tests/test_transcript_api.py::test_intelligence_config_preview_and_apply_endpoints
+  -q` passed with 12 tests.
+- Restarted `transcripts.service`; `http://transcripts.localhost/api/health`
+  returned `status: ok`.
+- Source inspection showed Settings section selection and already-loaded draft
+  edits use local React state setters, while preview/apply keep the reviewed
+  endpoint boundaries.
+- `agent-browser` desktop `1440x960` inspection of Settings > Intelligence
+  measured `center.width=1180`, `settingsSurface.width=952`,
+  `leftPane.display=none`, `rightPane.display=none`, and
+  `routeOverflow=false`; visible text checks found no
+  conversation/artifact/open-review/latest-smoke/smoke-report labels.
+- `agent-browser` mobile `390x844` inspection of Settings > Account and
+  Settings > Intelligence measured no section-nav text overlap, no route-row
+  overflow, and first actionable controls inside the first viewport.
+- `agent-browser` keyboard reachability inspection verified every Settings
+  section button is enabled with `tabIndex=0`.
+- `agent-browser` network capture after local section selection and local draft
+  interaction reported `No requests captured`.
+- `agent-browser` console and page-error checks reported no output.
+- Screenshots:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0022-settings-desktop-intelligence.png`,
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0022-settings-mobile-account.png`,
+  and
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0022-settings-mobile-intelligence.png`.
+
+## Turn 209 | 2026-05-25
+
+Summary: Planned Plan 0022, the Settings layout refactor based on the live UI audit.
+
+Findings:
+
+- The UI audit showed Settings still constrained by the transcript three-pane
+  shell: transcript filters/runtime chrome on the left, transcript inspector on
+  the right, and a narrow settings detail surface in the center.
+- The Intelligence component/profile/policy matrix clipped columns at desktop
+  width because fixed minimum columns exceeded the available Settings surface.
+- Mobile Settings navigation overlapped label and meta text when the section
+  rail became two columns.
+- Global conversation/artifact/review summary chips still consumed
+  first-viewport space on a configuration screen.
+- The Settings Evidence section still used user-visible smoke terminology even
+  after Plan 0021 removed the main diagnostic strip from Settings.
+
+Changes:
+
+- Added `docs/dev/plans/0022-2026-05-25-settings-layout-refactor.md`.
+- Wired Plan 0022 into the P09 roadmap plan list and milestone focus.
+
+Validation:
+
+- Used the `ui-design` Product UI track for the refactor direction.
+- `~/.local/bin/graphiti-runtime doctor` was healthy; discovery returned stale
+  early-roadmap context for this query, so repo docs and live UI audit evidence
+  were used as authority.
+- Reviewed planning/productization policies before creating the plan.
+
 ## Turn 208 | 2026-05-25
 
 Summary: Closed Plan 0021, removing Library/test-status chrome from Settings.
@@ -86,7 +221,8 @@ Changes:
 - Compacted the Settings status area into pills plus a closed
   "Config paths and runtime facts" disclosure, and changed the page heading from
   "Account settings" to "Settings".
-- Closed Plan 0020 and updated P09 roadmap state.
+- Closed `docs/dev/plans/0020-2026-05-25-intelligence-profile-settings-redesign.md`
+  and updated P09 roadmap state.
 
 Validation:
 

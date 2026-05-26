@@ -1211,6 +1211,7 @@ function App() {
   const provenanceCounts = provenanceSourceCounts(provenance);
   const enabledProvenanceSourceCount = provenanceEntries.filter(([, source]) => source.enabled !== false).length;
   const provenanceStatus = provenanceDoctor?.status || (provenance.exists ? "unknown" : "missing");
+  const isSettingsView = activeNav === "Settings";
 
   async function loadMoreConversations() {
     if (!canLoadMoreConversations) return;
@@ -2003,6 +2004,7 @@ function App() {
         className={[
           "workspace",
           activeNav === "Library" ? "library-workspace" : "",
+          isSettingsView ? "settings-workspace" : "",
           leftCollapsed ? "left-collapsed" : "",
           rightCollapsed ? "right-collapsed" : ""
         ].join(" ")}
@@ -2103,7 +2105,7 @@ function App() {
           </div>
         </aside>
 
-        <section className="center-pane">
+        <section className={isSettingsView ? "center-pane settings-center-pane" : "center-pane"}>
           <div className="view-heading">
             <div>
               <p className="eyebrow">Operator Surface</p>
@@ -2119,17 +2121,16 @@ function App() {
                         : "Transcript library"}
               </h1>
             </div>
-            <div className="summary-strip">
-              <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
-              <span>{library.total ?? visibleItems.length} artifacts</span>
-              <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
-              {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
-              {activeNav === "Provenance" && <span>{enabledProvenanceSourceCount} enabled sources</span>}
-              {activeNav === "Provenance" && <span>{provenanceStatus}</span>}
-              {activeNav === "Settings" && <span>{profileEntries.length} intelligence profiles</span>}
-              {activeNav === "Settings" && <span>{automationStageEntries(automation).length} automation stages</span>}
-              {activeNav === "Settings" && <span>{automation.exists ? "config saved" : "defaults"}</span>}
-            </div>
+            {!isSettingsView && (
+              <div className="summary-strip">
+                <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
+                <span>{library.total ?? visibleItems.length} artifacts</span>
+                <span>{reviewQueue.total_open ?? reviewBuckets.reduce((total, item) => total + item.count, 0)} open reviews</span>
+                {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
+                {activeNav === "Provenance" && <span>{enabledProvenanceSourceCount} enabled sources</span>}
+                {activeNav === "Provenance" && <span>{provenanceStatus}</span>}
+              </div>
+            )}
           </div>
           {activeNav === "Library" ? (
             <LibraryToolbar
@@ -2874,7 +2875,7 @@ function SettingsPanel({
   const provenanceCounts = provenanceSourceCounts(provenance);
   const enabledSourceCount = sources.filter(([, source]) => source.enabled !== false).length;
   const provenanceStatus = provenanceDoctor?.status || (provenance?.exists ? "unknown" : "missing");
-  const latestSmoke = intelligence?.smokes?.latest_report || null;
+  const latestValidation = intelligence?.smokes?.latest_report || null;
   const enabledCount = Object.values(automationDraft.stages || {}).filter((stage) => stage.enabled).length;
   const automationDirty = automationDraftDirty(automationDraft, automation);
   const intelligenceDirty = intelligenceDraftDirty(taskDraft, selectedTaskConfig);
@@ -2893,8 +2894,15 @@ function SettingsPanel({
     { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
     { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
     { id: "safety", label: "Safety", meta: dirtySections.length ? `${dirtySections.length} staged` : "clear" },
-    { id: "evidence", label: "Evidence", meta: latestSmoke?.status || provenanceStatus }
+    { id: "validation", label: "Validation", meta: latestValidation?.status || provenanceStatus }
   ];
+  const settingsState = dirtySections.length
+    ? `${dirtySections.length} staged`
+    : configAction.preview || automationAction.preview || provenanceAction.preview
+      ? "preview ready"
+      : automation.exists || provenance.exists
+        ? "saved"
+        : "defaults";
   const updateStage = (stageId, changes) => {
     setAutomationAction({ status: "idle", message: "", preview: null });
     setAutomationDraft((current) => ({
@@ -2947,6 +2955,14 @@ function SettingsPanel({
   );
   return (
     <div className="settings-workbench">
+      <div className="settings-status-row" aria-label="Settings status">
+        <span>Profile <strong>{activeProfileName}</strong></span>
+        <span>Profiles <strong>{profileEntries.length}</strong></span>
+        <span>Automation <strong>{enabledCount} enabled</strong></span>
+        <span>Sources <strong>{enabledSourceCount}</strong></span>
+        <span>State <strong>{settingsState}</strong></span>
+      </div>
+
       {showDraftBar && (
         <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
           <div>
@@ -3308,23 +3324,32 @@ function SettingsPanel({
             </div>
           )}
 
-          {activeSection === "evidence" && (
+          {activeSection === "validation" && (
             <div className="settings-section-grid">
               <div className="settings-panel-block">
-                <p className="eyebrow">Evidence</p>
-                <h2>{latestSmoke ? `${latestSmoke.status || "unknown"} latest smoke` : "No smoke evidence"}</h2>
+                <p className="eyebrow">Validation</p>
+                <h2>{latestValidation ? `${latestValidation.status || "unknown"} latest validation` : "No validation evidence"}</h2>
                 <dl className="settings-detail-list">
                   <dt>Provenance doctor</dt>
                   <dd>{provenanceStatus}</dd>
-                  <dt>Smoke report</dt>
-                  <dd>{latestSmoke?.path || "not yet run"}</dd>
-                  <dt>Smoke screenshot</dt>
-                  <dd>{latestSmoke?.screenshot_exists ? latestSmoke.screenshot_path : "not yet run"}</dd>
-                  <dt>Baseline desktop</dt>
-                  <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-desktop.png</dd>
-                  <dt>Baseline mobile</dt>
-                  <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-mobile.png</dd>
+                  <dt>Validation report</dt>
+                  <dd>{latestValidation ? "available" : "not yet run"}</dd>
+                  <dt>Browser check screenshot</dt>
+                  <dd>{latestValidation?.screenshot_exists ? "available" : "not yet run"}</dd>
                 </dl>
+                <details className="settings-discrete-details inline-details">
+                  <summary>Artifact paths</summary>
+                  <dl className="settings-detail-list">
+                    <dt>Validation report path</dt>
+                    <dd>{latestValidation?.path || "not yet run"}</dd>
+                    <dt>Browser check screenshot path</dt>
+                    <dd>{latestValidation?.screenshot_exists ? latestValidation.screenshot_path : "not yet run"}</dd>
+                    <dt>Baseline desktop</dt>
+                    <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-desktop.png</dd>
+                    <dt>Baseline mobile</dt>
+                    <dd>~/.local/state/transcribe-audio/browser-smokes/plan-0016-config-panel-baseline-mobile.png</dd>
+                  </dl>
+                </details>
               </div>
               <div className="settings-panel-block">
                 <p className="eyebrow">Readiness</p>

@@ -1,6 +1,6 @@
 # Plan 0013 | User-Scoped Provenance Configuration
 
-State: COMPLETE
+State: CLOSED
 
 Lane: P09
 

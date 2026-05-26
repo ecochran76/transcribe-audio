@@ -45,6 +45,7 @@ Read and follow these repo-local policies as applicable:
 - `docs/dev/policies/0004-architecture-productization.md`
 - `docs/dev/policies/0005-memory-and-context-routing.md`
 - `docs/dev/policies/0006-git-release-validation.md`
+- `docs/dev/policies/0007-codegraph-usage.md`
 
 ## Graphiti Memory Discovery
 - Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.

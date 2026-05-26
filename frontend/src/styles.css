@@ -284,6 +284,23 @@ select {
   display: none;
 }
 
+.workspace.settings-workspace,
+.workspace.settings-workspace.left-collapsed,
+.workspace.settings-workspace.right-collapsed,
+.workspace.settings-workspace.left-collapsed.right-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace.settings-workspace .left-pane,
+.workspace.settings-workspace .right-pane {
+  display: none;
+}
+
+.settings-center-pane {
+  justify-self: center;
+  width: min(100%, 1180px);
+}
+
 .left-pane,
 .right-pane,
 .center-pane {
@@ -1138,6 +1155,31 @@ td small {
   gap: 0.8rem;
 }
 
+.settings-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.settings-status-row span {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  border: 1px solid rgba(127, 183, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(127, 183, 255, 0.08);
+  color: var(--muted);
+  padding: 0.3rem 0.45rem;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.settings-status-row strong {
+  color: #dbeaff;
+  font-weight: 800;
+}
+
 .settings-dirty-bar,
 .settings-panel-block,
 .settings-section-rail {
@@ -1210,7 +1252,7 @@ td small {
 
 .settings-workbench-body {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(160px, 184px) minmax(0, 1fr);
   gap: 0.8rem;
   align-items: start;
 }
@@ -1223,11 +1265,15 @@ td small {
   padding: 0.45rem;
 }
 
+.settings-section-rail::-webkit-scrollbar {
+  display: none;
+}
+
 .settings-section-rail button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.22rem;
+  align-items: start;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -1242,9 +1288,14 @@ td small {
 }
 
 .settings-section-rail strong {
+  width: max-content;
+  max-width: 100%;
+  border-radius: 4px;
+  background: rgba(244, 236, 216, 0.06);
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 700;
+  padding: 0.16rem 0.32rem;
 }
 
 .settings-section-surface,
@@ -1356,7 +1407,7 @@ td small {
 .settings-route-matrix-heading,
 .settings-route-row {
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 0.75fr) minmax(11rem, 0.8fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(10rem, 0.8fr) minmax(12rem, 0.95fr);
   gap: 0.6rem;
   align-items: center;
   padding: 0.55rem 0.65rem;
@@ -1380,6 +1431,13 @@ td small {
 
 .settings-route-row small {
   color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inline-details {
+  margin-top: 0.75rem;
+  padding: 0.65rem;
 }
 
 .settings-workbench .editor-grid label span {
@@ -3078,7 +3136,11 @@ dd {
   .workspace.library-workspace,
   .workspace.library-workspace.left-collapsed,
   .workspace.library-workspace.right-collapsed,
-  .workspace.library-workspace.left-collapsed.right-collapsed {
+  .workspace.library-workspace.left-collapsed.right-collapsed,
+  .workspace.settings-workspace,
+  .workspace.settings-workspace.left-collapsed,
+  .workspace.settings-workspace.right-collapsed,
+  .workspace.settings-workspace.left-collapsed.right-collapsed {
     grid-template-columns: 1fr;
   }
 
@@ -3096,6 +3158,10 @@ dd {
 
   .workspace.library-workspace.left-collapsed .left-pane {
     display: none;
+  }
+
+  .settings-center-pane {
+    width: 100%;
   }
 
   .library-toolbar {
@@ -3168,10 +3234,15 @@ dd {
 
   .settings-section-rail {
     position: static;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    gap: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .settings-section-rail button {
+    flex: 0 0 auto;
+    min-width: 8rem;
     min-height: 44px;
   }
 
