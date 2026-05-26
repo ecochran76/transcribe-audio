@@ -5527,6 +5527,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     intelligence_config.preview_config_update(
                         task=str(body.get("task") or ""),
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        profile_id=str(body.get("profile_id") or ""),
+                        profile_update=body.get("profile_update") if isinstance(body.get("profile_update"), dict) else {},
                     )
                 )
                 return
@@ -5536,6 +5538,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     intelligence_config.apply_config_update(
                         task=str(body.get("task") or ""),
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
+                        profile_id=str(body.get("profile_id") or ""),
+                        profile_update=body.get("profile_update") if isinstance(body.get("profile_update"), dict) else {},
                         approval_token=str(body.get("approval_token") or ""),
                     ),
                     status=HTTPStatus.ACCEPTED,

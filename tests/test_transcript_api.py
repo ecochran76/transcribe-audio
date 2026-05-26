@@ -1994,7 +1994,10 @@ def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> No
         server.server_close()
 
     assert payload["schema_version"] == "transcribe-audio.intelligence-config.v1"
+    assert "openai_readout" in payload["profiles"]
+    assert payload["task_profiles"]["first_pass_summary"] == "openai_readout"
     assert payload["tasks"]["first_pass_summary"]["provider"] == "openai-compatible"
+    assert payload["tasks"]["first_pass_summary"]["profile"] == "openai_readout"
     assert payload["tasks"]["app_supervisor"]["provider"] == "codex-app-server"
 
 

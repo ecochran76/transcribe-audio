@@ -1149,17 +1149,56 @@ td small {
 
 .settings-status-header {
   display: grid;
-  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
-  gap: 0.85rem;
-  align-items: start;
-  padding: 0.9rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+}
+
+.settings-status-main {
+  min-width: 0;
 }
 
 .settings-status-header h2,
 .settings-panel-block h2 {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 1.2rem;
   letter-spacing: 0;
+}
+
+.settings-status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.settings-status-pills span {
+  padding: 0.26rem 0.48rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 6px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.settings-status-details {
+  min-width: min(26rem, 100%);
+}
+
+.settings-status-details summary {
+  width: max-content;
+  margin-left: auto;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 6px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0.45rem 0.62rem;
+}
+
+.settings-status-details .settings-detail-list {
+  margin-top: 0.65rem;
 }
 
 .settings-status-grid {
@@ -1294,6 +1333,121 @@ td small {
   padding: 0.9rem;
 }
 
+.settings-account-page,
+.settings-intelligence-page {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-compact-section,
+.settings-discrete-details {
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 8px;
+  background: rgba(27, 29, 24, 0.68);
+}
+
+.settings-section-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.7rem;
+}
+
+.settings-section-title h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+}
+
+.settings-section-title button,
+.settings-section-title select,
+.settings-discrete-details summary {
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 6px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--ink);
+  padding: 0.48rem 0.65rem;
+}
+
+.settings-discrete-details summary {
+  cursor: pointer;
+}
+
+.settings-two-column-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.75rem;
+}
+
+.settings-two-column-form.compact {
+  margin-top: 0.75rem;
+}
+
+.settings-two-column-form label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.settings-two-column-form .wide-field {
+  grid-column: 1 / -1;
+}
+
+.settings-two-column-form label span,
+.settings-route-matrix-heading span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.settings-two-column-form input,
+.settings-two-column-form select {
+  width: 100%;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  padding: 0.5rem 0.6rem;
+}
+
+.settings-route-matrix {
+  display: grid;
+  border: 1px solid rgba(244, 236, 216, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.settings-route-matrix-heading,
+.settings-route-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 0.75fr) minmax(11rem, 0.8fr);
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+}
+
+.settings-route-matrix-heading {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.settings-route-row {
+  border: 0;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.settings-route-row.active {
+  background: rgba(215, 255, 115, 0.08);
+}
+
+.settings-route-row small {
+  color: var(--muted);
+}
+
 .settings-workbench .editor-grid label span {
   letter-spacing: 0;
   text-transform: none;
@@ -1309,7 +1463,7 @@ td small {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 0.45rem 0.75rem;
-  margin: 0;
+  margin: 0.75rem 0 0;
 }
 
 .settings-path-list code,
@@ -1322,6 +1476,10 @@ td small {
   color: var(--muted);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.settings-path-list.compact {
+  gap: 0.45rem;
 }
 
 .settings-chip-row {
@@ -3067,6 +3225,13 @@ dd {
 
   .settings-dirty-actions {
     justify-content: flex-start;
+  }
+
+  .settings-section-title,
+  .settings-two-column-form,
+  .settings-route-matrix-heading,
+  .settings-route-row {
+    grid-template-columns: 1fr;
   }
 
   .settings-section-rail {

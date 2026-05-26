@@ -93,7 +93,12 @@ def test_write_sample_config_contains_all_tasks(tmp_path: Path) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert payload["schema_version"] == intelligence_config.SCHEMA_VERSION
+    assert set(payload["profiles"]) == set(intelligence_config.DEFAULT_PROFILES)
+    assert set(payload["task_profiles"]) == set(intelligence_config.DEFAULT_TASK_PROFILES)
     assert set(payload["tasks"]) == set(intelligence_config.TASK_IDS)
+    assert "provider" not in payload["tasks"]["first_pass_summary"]
+    assert "model" not in payload["tasks"]["first_pass_summary"]
+    assert payload["tasks"]["first_pass_summary"]["human_review"] == "on_warning"
 
 
 def test_preview_config_update_does_not_write(tmp_path: Path) -> None:
@@ -111,6 +116,92 @@ def test_preview_config_update_does_not_write(tmp_path: Path) -> None:
     assert preview["after"]["tasks"]["first_pass_summary"]["provider"] == "codex-exec"
     assert preview["resolved_after"]["model"] == "gpt-test"
     assert not path.exists()
+
+
+def test_profile_assignment_resolves_task_through_profile(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "profiles": {
+                    "extended_readout": {
+                        "label": "Extended readout",
+                        "provider": "openai-compatible",
+                        "model": "gpt-extended",
+                        "timeout": 300,
+                        "temperature": 0.2,
+                    }
+                },
+                "task_profiles": {"first_pass_summary": "extended_readout"},
+                "tasks": {
+                    "first_pass_summary": {
+                        "fallbacks": ["codex-exec"],
+                        "human_review": "on_warning",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = intelligence_config.resolve_task_config("first_pass_summary", path=path)
+
+    assert resolved.profile == "extended_readout"
+    assert resolved.provider == "openai-compatible"
+    assert resolved.model == "gpt-extended"
+    assert resolved.timeout == 300
+    assert resolved.temperature == 0.2
+    assert resolved.human_review == "on_warning"
+
+
+def test_preview_profile_and_task_profile_update(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+
+    preview = intelligence_config.preview_config_update(
+        task="first_pass_summary",
+        update={"profile": "openai_readout", "human_review": "required"},
+        profile_id="openai_readout",
+        profile_update={"model": "gpt-profiled", "timeout": 240},
+        path=path,
+    )
+
+    assert preview["will_write"] is False
+    assert preview["after"]["profiles"]["openai_readout"]["model"] == "gpt-profiled"
+    assert preview["after"]["task_profiles"]["first_pass_summary"] == "openai_readout"
+    assert preview["after"]["tasks"]["first_pass_summary"]["human_review"] == "required"
+    assert "provider" not in preview["after"]["tasks"]["first_pass_summary"]
+    assert preview["resolved_after"]["model"] == "gpt-profiled"
+    assert not path.exists()
+
+
+def test_profile_only_preview_and_apply_do_not_require_task(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+
+    preview = intelligence_config.preview_config_update(
+        profile_id="openai_readout",
+        profile_update={"label": "Extended Pro readout", "model": "gpt-extended-pro"},
+        path=path,
+    )
+
+    assert preview["task"] == ""
+    assert preview["resolved_after"] is None
+    assert preview["after"]["profiles"]["openai_readout"]["label"] == "Extended Pro readout"
+    assert preview["after"]["profiles"]["openai_readout"]["model"] == "gpt-extended-pro"
+    assert "task" not in preview["rollback"]
+    assert not path.exists()
+
+    applied = intelligence_config.apply_config_update(
+        profile_id="openai_readout",
+        profile_update={"label": "Extended Pro readout", "model": "gpt-extended-pro"},
+        approval_token=intelligence_config.APPLY_APPROVAL_TOKEN,
+        path=path,
+    )
+
+    assert applied["will_write"] is True
+    assert applied["resolved_after"] is None
+    assert path.exists()
+    resolved = intelligence_config.resolve_task_config("first_pass_summary", path=path)
+    assert resolved.model == "gpt-extended-pro"
 
 
 def test_apply_config_update_requires_token_and_writes(tmp_path: Path) -> None:

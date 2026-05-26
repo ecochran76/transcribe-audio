@@ -2,6 +2,62 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 207 | 2026-05-25
+
+Summary: Closed Plan 0020, a profile-first redesign of Intelligence settings.
+
+Findings:
+
+- The Settings > Intelligence surface still treated provider/model selection as
+  per-component route data, even though the product model should define named
+  profiles once and let components select those profiles.
+- The broader Settings header used too much first-viewport space for
+  inactionable config paths and status facts. Long paths wrapped into narrow
+  columns and hid the actual workbench controls.
+- `agent-browser` confirmed the original profile page direction but also
+  exposed the wasteful status/header layout, so the slice included that
+  compaction instead of stopping at the route editor.
+- Graphiti discovery was healthy but stale for this recent P09 settings work,
+  so repo docs, code, and live UI evidence remained authoritative.
+
+Changes:
+
+- Added named intelligence profiles and `task_profiles` assignments to
+  `intelligence_config.py`.
+- Kept legacy task-level provider/model overrides compatible, but profile
+  selection now clears component provider/model route fields so the profile is
+  the source of truth.
+- Extended `/api/intelligence/config/preview` and `/apply` so profile-only
+  edits can be previewed/applied without requiring a task update.
+- Reworked Settings > Intelligence into one page with profile definitions,
+  component profile selections, and closed config/resolved-route details.
+- Compacted the Settings status area into pills plus a closed
+  "Config paths and runtime facts" disclosure, and changed the page heading from
+  "Account settings" to "Settings".
+- Closed Plan 0020 and updated P09 roadmap state.
+
+Validation:
+
+- `python -m py_compile intelligence_config.py transcript_api.py` passed.
+- `~/.local/bin/graphiti-runtime doctor` was healthy; discovery for current
+  P09/Plan 0020 context returned older state.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py
+  tests/test_transcript_api.py::test_intelligence_config_endpoint_returns_task_routing
+  tests/test_transcript_api.py::test_intelligence_config_preview_and_apply_endpoints
+  -q` passed with 12 tests.
+- `.venv/bin/python -m pytest -q` passed with 246 tests.
+- `npm --prefix frontend run build` passed.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `agent-browser` inspection of Settings > Intelligence verified
+  `title=Settings`, `routeRowCount=8`, `compactSectionCount=2`,
+  `detailsOpen=false`, `statusDetailsOpen=false`,
+  `hasOldRouteMapText=false`, and `hasRuntimePathCards=false`.
+- Screenshot:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0020-intelligence-settings-profile-page.png`.
+- `agent-browser` console/error checks reported no page errors.
+
 ## Turn 206 | 2026-05-25
 
 Summary: Closed Plan 0019, a polish slice for the one-click initial-summary

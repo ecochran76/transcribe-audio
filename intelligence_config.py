@@ -19,6 +19,8 @@ ENV_CONFIG_PATH = "TRANSCRIPTS_INTELLIGENCE_CONFIG"
 SCHEMA_VERSION = "transcribe-audio.intelligence-config.v1"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 APPLY_APPROVAL_TOKEN = "APPLY_INTELLIGENCE_CONFIG_UPDATE"
+PROFILE_ROUTE_FIELDS = {"provider", "model", "base_url", "timeout", "temperature"}
+PROFILE_FIELDS = {"label", "description", *PROFILE_ROUTE_FIELDS}
 
 TASK_FIRST_PASS_SUMMARY = "first_pass_summary"
 TASK_CONTEXTUAL_REREAD = "contextual_reread"
@@ -115,12 +117,54 @@ DEFAULT_TASKS: dict[str, dict[str, Any]] = {
     },
 }
 
+DEFAULT_PROFILES: dict[str, dict[str, Any]] = {
+    "openai_readout": {
+        "label": "OpenAI readout",
+        "description": "General transcript summarization and contextual readout profile.",
+        "provider": "openai-compatible",
+        "model": DEFAULT_OPENAI_MODEL,
+        "base_url": "",
+        "timeout": 120.0,
+        "temperature": 0.1,
+    },
+    "codex_supervisor": {
+        "label": "Codex supervisor",
+        "description": "Ledger-backed App Intelligence supervisor profile.",
+        "provider": "codex-app-server",
+        "model": "",
+        "base_url": "",
+        "timeout": 120.0,
+        "temperature": 0.0,
+    },
+    "local_embedding": {
+        "label": "Local embeddings",
+        "description": "Local semantic search embedding profile.",
+        "provider": "ollama",
+        "model": "ollama/nomic-embed-text",
+        "base_url": "",
+        "timeout": 60.0,
+        "temperature": 0.0,
+    },
+}
+
+DEFAULT_TASK_PROFILES: dict[str, str] = {
+    TASK_FIRST_PASS_SUMMARY: "openai_readout",
+    TASK_CONTEXTUAL_REREAD: "openai_readout",
+    TASK_CONTEXT_SOURCE_RANKING: "codex_supervisor",
+    TASK_ROUTE_SELECTION: "codex_supervisor",
+    TASK_SPEAKER_DISAMBIGUATION: "codex_supervisor",
+    TASK_MEMORY_HARVEST_REVIEW: "codex_supervisor",
+    TASK_EMBEDDING: "local_embedding",
+    TASK_APP_SUPERVISOR: "codex_supervisor",
+}
+
 
 @dataclass(frozen=True)
 class IntelligenceTaskConfig:
     task: str
     provider: str
     model: str = ""
+    profile: str = ""
     base_url: str = ""
     timeout: float = 120.0
     temperature: float = 0.0
@@ -157,9 +201,15 @@ def read_config(path: Optional[Path] = None) -> dict[str, Any]:
 
 def write_sample_config(path: Optional[Path] = None) -> Path:
     target = config_path(path)
+    task_policy = {
+        task: {key: value for key, value in config.items() if key not in PROFILE_ROUTE_FIELDS}
+        for task, config in DEFAULT_TASKS.items()
+    }
     payload = {
         "schema_version": SCHEMA_VERSION,
-        "tasks": DEFAULT_TASKS,
+        "profiles": DEFAULT_PROFILES,
+        "task_profiles": DEFAULT_TASK_PROFILES,
+        "tasks": task_policy,
     }
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -167,9 +217,13 @@ def write_sample_config(path: Optional[Path] = None) -> Path:
 
 
 def _base_config(raw: dict[str, Any]) -> dict[str, Any]:
+    profiles = raw.get("profiles") if isinstance(raw.get("profiles"), dict) else {}
+    task_profiles = raw.get("task_profiles") if isinstance(raw.get("task_profiles"), dict) else {}
     tasks = raw.get("tasks") if isinstance(raw.get("tasks"), dict) else {}
     return {
         "schema_version": raw.get("schema_version") or SCHEMA_VERSION,
+        "profiles": {**copy.deepcopy(DEFAULT_PROFILES), **copy.deepcopy(profiles)},
+        "task_profiles": {**copy.deepcopy(DEFAULT_TASK_PROFILES), **copy.deepcopy(task_profiles)},
         "tasks": copy.deepcopy(tasks),
     }
 
@@ -178,6 +232,23 @@ def _task_payload(raw: dict[str, Any], task: str) -> dict[str, Any]:
     tasks = raw.get("tasks") if isinstance(raw.get("tasks"), dict) else {}
     payload = tasks.get(task) if isinstance(tasks.get(task), dict) else {}
     return payload
+
+
+def _profile_payload(raw: dict[str, Any], profile_id: str) -> dict[str, Any]:
+    profiles = raw.get("profiles") if isinstance(raw.get("profiles"), dict) else {}
+    payload = profiles.get(profile_id) if isinstance(profiles.get(profile_id), dict) else {}
+    if payload:
+        return payload
+    default = DEFAULT_PROFILES.get(profile_id)
+    return copy.deepcopy(default) if isinstance(default, dict) else {}
+
+
+def _task_profile(raw: dict[str, Any], task: str) -> str:
+    task_profiles = raw.get("task_profiles") if isinstance(raw.get("task_profiles"), dict) else {}
+    value = task_profiles.get(task)
+    if isinstance(value, str) and value:
+        return value
+    return DEFAULT_TASK_PROFILES.get(task, "")
 
 
 def _coerce_float(value: Any, default: float) -> float:
@@ -204,13 +275,13 @@ def _validate_task_update(task: str, update: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Unknown intelligence task: {task}")
     if not isinstance(update, dict):
         raise ValueError("Task update must be an object.")
-    allowed = {"provider", "model", "base_url", "timeout", "temperature", "fallbacks", "requires_ledger", "human_review"}
+    allowed = {"profile", "provider", "model", "base_url", "timeout", "temperature", "fallbacks", "requires_ledger", "human_review"}
     unknown = sorted(set(update) - allowed)
     if unknown:
         raise ValueError(f"Unknown task config field(s): {', '.join(unknown)}")
     normalized: dict[str, Any] = {}
     for key, value in update.items():
-        if key in {"provider", "model", "base_url", "human_review"}:
+        if key in {"profile", "provider", "model", "base_url", "human_review"}:
             normalized[key] = str(value or "")
         elif key in {"timeout", "temperature"}:
             normalized[key] = _coerce_float(value, float(DEFAULT_TASKS[task].get(key) or 0.0))
@@ -222,38 +293,98 @@ def _validate_task_update(task: str, update: dict[str, Any]) -> dict[str, Any]:
             normalized[key] = [str(item) for item in value if str(item)]
     if "provider" in normalized and not normalized["provider"]:
         raise ValueError("provider cannot be empty.")
+    if "profile" in normalized and not normalized["profile"]:
+        raise ValueError("profile cannot be empty.")
+    return normalized
+
+
+def _validate_profile_update(profile_id: str, update: dict[str, Any]) -> dict[str, Any]:
+    if not profile_id:
+        raise ValueError("Missing required profile id.")
+    if not isinstance(update, dict):
+        raise ValueError("Profile update must be an object.")
+    unknown = sorted(set(update) - PROFILE_FIELDS)
+    if unknown:
+        raise ValueError(f"Unknown profile config field(s): {', '.join(unknown)}")
+    normalized: dict[str, Any] = {}
+    for key, value in update.items():
+        if key in {"label", "description", "provider", "model", "base_url"}:
+            normalized[key] = str(value or "")
+        elif key in {"timeout", "temperature"}:
+            default = _profile_payload({}, profile_id).get(key, 0.0)
+            normalized[key] = _coerce_float(value, float(default or 0.0))
+    if "provider" in normalized and not normalized["provider"]:
+        raise ValueError("profile provider cannot be empty.")
     return normalized
 
 
 def preview_config_update(
     *,
-    task: str,
-    update: dict[str, Any],
+    task: str = "",
+    update: Optional[dict[str, Any]] = None,
+    profile_id: str = "",
+    profile_update: Optional[dict[str, Any]] = None,
     path: Optional[Path] = None,
 ) -> dict[str, Any]:
     target = config_path(path)
     raw = read_config(target)
     before = _base_config(raw)
-    normalized_update = _validate_task_update(task, update)
     after = copy.deepcopy(before)
-    tasks = after.setdefault("tasks", {})
-    task_payload = tasks.get(task) if isinstance(tasks.get(task), dict) else {}
-    tasks[task] = {**task_payload, **normalized_update}
-    rollback: dict[str, Any] = {
-        "task": task,
-        "previous_task_config": copy.deepcopy(task_payload),
-        "delete_task": task not in before.get("tasks", {}),
-    }
+    rollback: dict[str, Any] = {}
+    normalized_update: dict[str, Any] = {}
+    normalized_profile_update: dict[str, Any] = {}
+    if profile_id or profile_update:
+        normalized_profile_update = _validate_profile_update(profile_id, profile_update or {})
+        profiles = after.setdefault("profiles", {})
+        current_profile = profiles.get(profile_id) if isinstance(profiles.get(profile_id), dict) else {}
+        profiles[profile_id] = {**current_profile, **normalized_profile_update}
+        rollback["profile"] = {
+            "profile_id": profile_id,
+            "previous_profile_config": copy.deepcopy(before.get("profiles", {}).get(profile_id, {})),
+            "delete_profile": profile_id not in before.get("profiles", {}),
+        }
+    if task or update:
+        normalized_update = _validate_task_update(task, update or {})
+        tasks = after.setdefault("tasks", {})
+        task_profiles = after.setdefault("task_profiles", {})
+        task_payload = tasks.get(task) if isinstance(tasks.get(task), dict) else {}
+        next_task_payload = {**task_payload}
+        selected_profile = normalized_update.pop("profile", "")
+        if selected_profile:
+            if selected_profile not in after.get("profiles", {}) and selected_profile not in DEFAULT_PROFILES:
+                raise ValueError(f"Unknown intelligence profile: {selected_profile}")
+            task_profiles[task] = selected_profile
+            for field in PROFILE_ROUTE_FIELDS:
+                next_task_payload.pop(field, None)
+        next_task_payload.update(normalized_update)
+        tasks[task] = next_task_payload
+        rollback.update(
+            {
+                "task": task,
+                "previous_task_config": copy.deepcopy(task_payload),
+                "delete_task": task not in before.get("tasks", {}),
+            }
+        )
+        rollback["task_update"] = {
+            "task": task,
+            "previous_task_config": copy.deepcopy(task_payload),
+            "previous_profile": before.get("task_profiles", {}).get(task),
+            "delete_task": task not in before.get("tasks", {}),
+        }
+    if not rollback:
+        raise ValueError("No intelligence config update was provided.")
     return {
         "schema_version": SCHEMA_VERSION,
         "action": "preview_intelligence_config_update",
         "config_path": str(target),
         "task": task,
+        "profile_id": profile_id,
         "update": normalized_update,
+        "profile_update": normalized_profile_update,
         "before": before,
         "after": after,
-        "resolved_before": resolve_task_config(task, path=target).to_dict(),
-        "resolved_after": resolve_task_config(task, path=target, overrides=normalized_update).to_dict(),
+        "resolved_before": resolve_task_config(task, path=target).to_dict() if task else None,
+        "resolved_after": resolve_task_config_from_raw(task, after).to_dict() if task else None,
         "rollback": rollback,
         "requires_approval_token": APPLY_APPROVAL_TOKEN,
         "will_write": False,
@@ -262,25 +393,61 @@ def preview_config_update(
 
 def apply_config_update(
     *,
-    task: str,
-    update: dict[str, Any],
+    task: str = "",
+    update: Optional[dict[str, Any]] = None,
+    profile_id: str = "",
+    profile_update: Optional[dict[str, Any]] = None,
     approval_token: str,
     path: Optional[Path] = None,
 ) -> dict[str, Any]:
     if approval_token != APPLY_APPROVAL_TOKEN:
         raise ValueError(f"Apply requires approval_token={APPLY_APPROVAL_TOKEN}.")
-    preview = preview_config_update(task=task, update=update, path=path)
+    preview = preview_config_update(
+        task=task,
+        update=update or {},
+        profile_id=profile_id,
+        profile_update=profile_update or {},
+        path=path,
+    )
     target = Path(preview["config_path"])
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(preview["after"], indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
-    resolved = resolve_task_config(task, path=target)
+    resolved = resolve_task_config(task, path=target) if task else None
     return {
         **preview,
         "action": "apply_intelligence_config_update",
         "will_write": True,
         "applied": True,
-        "resolved_after": resolved.to_dict(),
+        "resolved_after": resolved.to_dict() if resolved else None,
     }
+
+
+def resolve_task_config_from_raw(task: str, raw: dict[str, Any]) -> IntelligenceTaskConfig:
+    if task not in TASK_IDS:
+        raise ValueError(f"Unknown intelligence task: {task}")
+    defaults = DEFAULT_TASKS[task]
+    profile_id = _task_profile(raw, task)
+    profile_payload = {
+        key: value
+        for key, value in _profile_payload(raw, profile_id).items()
+        if key in PROFILE_ROUTE_FIELDS and value not in (None, "")
+    }
+    task_payload = _task_payload(raw, task)
+    task_config = {**defaults, **profile_payload, **task_payload}
+    fallbacks = task_config.get("fallbacks") if isinstance(task_config.get("fallbacks"), list) else []
+    return IntelligenceTaskConfig(
+        task=task,
+        provider=str(task_config.get("provider") or defaults["provider"]),
+        model=str(task_config.get("model") or ""),
+        profile=profile_id,
+        base_url=str(task_config.get("base_url") or ""),
+        timeout=_coerce_float(task_config.get("timeout"), float(defaults.get("timeout") or 120.0)),
+        temperature=_coerce_float(task_config.get("temperature"), float(defaults.get("temperature") or 0.0)),
+        fallbacks=[str(item) for item in fallbacks if str(item)],
+        requires_ledger=_coerce_bool(task_config.get("requires_ledger"), bool(defaults.get("requires_ledger"))),
+        human_review=str(task_config.get("human_review") or defaults.get("human_review") or "on_warning"),
+        source="defaults",
+    )
 
 
 def resolve_task_config(
@@ -293,8 +460,17 @@ def resolve_task_config(
         raise ValueError(f"Unknown intelligence task: {task}")
     raw = read_config(path)
     defaults = DEFAULT_TASKS[task]
-    task_config = {**defaults, **_task_payload(raw, task)}
-    source = str(config_path(path)) if _task_payload(raw, task) else "defaults"
+    profile_id = _task_profile(raw, task)
+    profile_payload = {
+        key: value
+        for key, value in _profile_payload(raw, profile_id).items()
+        if key in PROFILE_ROUTE_FIELDS and value not in (None, "")
+    }
+    task_config = {**defaults, **profile_payload, **_task_payload(raw, task)}
+    has_file_task = bool(_task_payload(raw, task))
+    has_file_profile = profile_id in (raw.get("profiles") if isinstance(raw.get("profiles"), dict) else {})
+    has_file_assignment = task in (raw.get("task_profiles") if isinstance(raw.get("task_profiles"), dict) else {})
+    source = str(config_path(path)) if (has_file_task or has_file_profile or has_file_assignment) else "defaults"
     env_prefix = f"TRANSCRIPTS_INTELLIGENCE_{task.upper()}_"
     env_overrides = {
         "provider": os.getenv(env_prefix + "PROVIDER"),
@@ -317,6 +493,7 @@ def resolve_task_config(
         task=task,
         provider=str(task_config.get("provider") or defaults["provider"]),
         model=str(task_config.get("model") or ""),
+        profile=profile_id,
         base_url=str(task_config.get("base_url") or ""),
         timeout=_coerce_float(task_config.get("timeout"), float(defaults.get("timeout") or 120.0)),
         temperature=_coerce_float(task_config.get("temperature"), float(defaults.get("temperature") or 0.0)),
@@ -328,9 +505,13 @@ def resolve_task_config(
 
 
 def all_task_configs(*, path: Optional[Path] = None) -> dict[str, Any]:
+    raw = read_config(path)
+    base = _base_config(raw)
     return {
         "schema_version": SCHEMA_VERSION,
         "config_path": str(config_path(path)),
+        "profiles": base["profiles"],
+        "task_profiles": base["task_profiles"],
         "tasks": {task: resolve_task_config(task, path=path).to_dict() for task in TASK_IDS},
     }
 

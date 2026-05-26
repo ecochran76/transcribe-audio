@@ -86,9 +86,34 @@ const FALLBACK_INTELLIGENCE = {
   config: {
     schema_version: "transcribe-audio.intelligence-config.v1",
     config_path: "~/.local/state/transcribe-audio/intelligence.config.json",
+    profiles: {
+      openai_readout: {
+        label: "OpenAI readout",
+        description: "General transcript summarization and contextual readout profile.",
+        provider: "openai-compatible",
+        model: "gpt-4o-mini",
+        base_url: "",
+        timeout: 120,
+        temperature: 0.1
+      },
+      codex_supervisor: {
+        label: "Codex supervisor",
+        description: "Ledger-backed App Intelligence supervisor profile.",
+        provider: "codex-app-server",
+        model: "",
+        base_url: "",
+        timeout: 120,
+        temperature: 0
+      }
+    },
+    task_profiles: {
+      first_pass_summary: "openai_readout",
+      app_supervisor: "codex_supervisor"
+    },
     tasks: {
       first_pass_summary: {
         task: "first_pass_summary",
+        profile: "openai_readout",
         provider: "openai-compatible",
         model: "gpt-4o-mini",
         timeout: 120,
@@ -100,6 +125,7 @@ const FALLBACK_INTELLIGENCE = {
       },
       app_supervisor: {
         task: "app_supervisor",
+        profile: "codex_supervisor",
         provider: "codex-app-server",
         model: "",
         timeout: 120,
@@ -243,19 +269,51 @@ function automationUpdateFromDraft(draft) {
 }
 
 function intelligenceUpdateFromDraft(draft) {
-  return {
-    provider: draft.provider,
-    model: draft.model,
-    timeout: draft.timeout === "" ? "" : Number(draft.timeout),
-    temperature: draft.temperature === "" ? "" : Number(draft.temperature),
+  const payload = {
+    profile: draft.profile,
     fallbacks: String(draft.fallbacks || "").split(",").map((item) => item.trim()).filter(Boolean),
     human_review: draft.human_review,
     requires_ledger: Boolean(draft.requires_ledger)
+  };
+  if (draft.provider) payload.provider = draft.provider;
+  if (draft.model) payload.model = draft.model;
+  if (draft.timeout !== "") payload.timeout = Number(draft.timeout);
+  if (draft.temperature !== "") payload.temperature = Number(draft.temperature);
+  return payload;
+}
+
+function intelligenceProfileEntries(config) {
+  const profiles = config?.profiles || {};
+  return Object.entries(profiles);
+}
+
+function profileDraftFromConfig(profile) {
+  return {
+    label: profile?.label || "",
+    description: profile?.description || "",
+    provider: profile?.provider || "",
+    model: profile?.model || "",
+    base_url: profile?.base_url || "",
+    timeout: profile?.timeout ?? "",
+    temperature: profile?.temperature ?? ""
+  };
+}
+
+function profileUpdateFromDraft(draft) {
+  return {
+    label: draft.label,
+    description: draft.description,
+    provider: draft.provider,
+    model: draft.model,
+    base_url: draft.base_url,
+    timeout: draft.timeout === "" ? "" : Number(draft.timeout),
+    temperature: draft.temperature === "" ? "" : Number(draft.temperature)
   };
 }
 
 function taskDraftFromConfig(config) {
   return {
+    profile: config?.profile || "",
     provider: config?.provider || "",
     model: config?.model || "",
     timeout: config?.timeout ?? "",
@@ -277,6 +335,11 @@ function automationDraftDirty(draft, automation) {
 function intelligenceDraftDirty(draft, selectedTaskConfig) {
   if (!selectedTaskConfig) return false;
   return normalizeForCompare(intelligenceUpdateFromDraft(draft)) !== normalizeForCompare(intelligenceUpdateFromDraft(taskDraftFromConfig(selectedTaskConfig)));
+}
+
+function profileDraftDirty(draft, profileConfig) {
+  if (!profileConfig) return false;
+  return normalizeForCompare(profileUpdateFromDraft(draft)) !== normalizeForCompare(profileUpdateFromDraft(profileDraftFromConfig(profileConfig)));
 }
 
 function provenanceDraftDirty(draft, provenance) {
@@ -730,7 +793,9 @@ function App() {
   });
   const [provenanceAction, setProvenanceAction] = useState({ status: "idle", message: "", preview: null });
   const [selectedTask, setSelectedTask] = useState("first_pass_summary");
-  const [taskDraft, setTaskDraft] = useState({ provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
+  const [selectedProfile, setSelectedProfile] = useState("openai_readout");
+  const [profileDraft, setProfileDraft] = useState(profileDraftFromConfig(FALLBACK_INTELLIGENCE.config.profiles.openai_readout));
+  const [taskDraft, setTaskDraft] = useState({ profile: "", provider: "", model: "", timeout: "", temperature: "", fallbacks: "", human_review: "", requires_ledger: false });
   const [configAction, setConfigAction] = useState({ status: "idle", message: "", preview: null });
   const [automationDraft, setAutomationDraft] = useState(automationDraftFromConfig(FALLBACK_AUTOMATION));
   const [automationAction, setAutomationAction] = useState({ status: "idle", message: "", preview: null });
@@ -1135,9 +1200,12 @@ function App() {
     null;
   const reviewBuckets = reviewQueue.buckets || FALLBACK_REVIEW_QUEUE.buckets;
   const taskEntries = Object.entries(intelligence.config?.tasks || {});
+  const profileEntries = intelligenceProfileEntries(intelligence.config);
   const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
+  const selectedProfileConfig = intelligence.config?.profiles?.[selectedProfile] || profileEntries[0]?.[1] || null;
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
+  const selectedProfileFingerprint = selectedProfileConfig ? JSON.stringify(selectedProfileConfig) : "";
   const smokeJobsActive = hasActiveSmokeJob(intelligence.smokeJobs);
   const provenanceEntries = provenanceSourceEntries(provenance);
   const provenanceCounts = provenanceSourceCounts(provenance);
@@ -1268,6 +1336,19 @@ function App() {
     setTaskDraft(taskDraftFromConfig(selectedTaskConfig));
     setConfigAction({ status: "idle", message: "", preview: null });
   }, [selectedTask, selectedTaskFingerprint]);
+
+  useEffect(() => {
+    if (!profileEntries.length) return;
+    if (!profileEntries.some(([profileId]) => profileId === selectedProfile)) {
+      setSelectedProfile(profileEntries[0][0]);
+    }
+  }, [JSON.stringify(profileEntries.map(([profileId]) => profileId)), selectedProfile]);
+
+  useEffect(() => {
+    if (!selectedProfileConfig) return;
+    setProfileDraft(profileDraftFromConfig(selectedProfileConfig));
+    setConfigAction({ status: "idle", message: "", preview: null });
+  }, [selectedProfile, selectedProfileFingerprint]);
 
   useEffect(() => {
     if (!smokeJobsActive) return undefined;
@@ -1430,16 +1511,28 @@ function App() {
     return intelligenceUpdateFromDraft(taskDraft);
   }
 
+  function profileUpdatePayload() {
+    return profileUpdateFromDraft(profileDraft);
+  }
+
   async function previewConfigUpdate() {
     setConfigAction({ status: "running", message: "Previewing intelligence routing update...", preview: null });
     try {
+      const taskDirty = intelligenceDraftDirty(taskDraft, selectedTaskConfig);
+      const editedProfile = profileDraftDirty(profileDraft, selectedProfileConfig);
+      const targetLabel = [
+        editedProfile ? `profile ${selectedProfile}` : "",
+        taskDirty ? `component ${selectedTask}` : ""
+      ].filter(Boolean).join(" and ");
       const payload = await postJson("/api/intelligence/config/preview", {
-        task: selectedTask,
-        update: taskUpdatePayload()
+        task: taskDirty ? selectedTask : "",
+        update: taskDirty ? taskUpdatePayload() : {},
+        profile_id: editedProfile ? selectedProfile : "",
+        profile_update: editedProfile ? profileUpdatePayload() : {}
       });
       setConfigAction({
         status: "previewed",
-        message: `Preview ready for ${selectedTask}; no config was written.`,
+        message: `Preview ready for ${targetLabel || "intelligence config"}; no config was written.`,
         preview: payload
       });
     } catch (error) {
@@ -1450,20 +1543,28 @@ function App() {
   async function applyConfigUpdate() {
     const preview = configAction.preview;
     if (!preview) return;
-    const approved = window.confirm(`Apply intelligence routing update for ${selectedTask}?`);
+    const taskDirty = intelligenceDraftDirty(taskDraft, selectedTaskConfig);
+    const editedProfile = profileDraftDirty(profileDraft, selectedProfileConfig);
+    const targetLabel = [
+      editedProfile ? `profile ${selectedProfile}` : "",
+      taskDirty ? `component ${selectedTask}` : ""
+    ].filter(Boolean).join(" and ");
+    const approved = window.confirm(`Apply intelligence config update for ${targetLabel || "current preview"}?`);
     if (!approved) return;
     setConfigAction((current) => ({ ...current, status: "applying", message: "Applying intelligence routing update..." }));
     try {
       const payload = await postJson("/api/intelligence/config/apply", {
-        task: selectedTask,
-        update: taskUpdatePayload(),
+        task: taskDirty ? selectedTask : "",
+        update: taskDirty ? taskUpdatePayload() : {},
+        profile_id: editedProfile ? selectedProfile : "",
+        profile_update: editedProfile ? profileUpdatePayload() : {},
         approval_token: "APPLY_INTELLIGENCE_CONFIG_UPDATE"
       });
       const configPayload = await fetchJson("/api/intelligence/config");
       setIntelligence((current) => ({ ...current, config: configPayload }));
       setConfigAction({
         status: "applied",
-        message: `Applied ${payload.task}; rollback metadata is available in the last preview response.`,
+        message: `Applied ${targetLabel || "intelligence config"}; rollback metadata is available in the last preview response.`,
         preview: payload
       });
     } catch (error) {
@@ -2030,7 +2131,7 @@ function App() {
                     : activeNav === "Provenance"
                       ? "Provenance configuration"
                       : activeNav === "Settings"
-                        ? "Account settings"
+                        ? "Settings"
                         : "Transcript library"}
               </h1>
             </div>
@@ -2041,6 +2142,7 @@ function App() {
               {activeNav === "Intelligence" && <span>{taskEntries.length} task routes</span>}
               {activeNav === "Provenance" && <span>{enabledProvenanceSourceCount} enabled sources</span>}
               {activeNav === "Provenance" && <span>{provenanceStatus}</span>}
+              {activeNav === "Settings" && <span>{profileEntries.length} intelligence profiles</span>}
               {activeNav === "Settings" && <span>{automationStageEntries(automation).length} automation stages</span>}
               {activeNav === "Settings" && <span>{automation.exists ? "config saved" : "defaults"}</span>}
             </div>
@@ -2162,12 +2264,17 @@ function App() {
               provenanceAction={provenanceAction}
               provenanceDoctor={provenanceDoctor}
               provenanceDraft={provenanceDraft}
+              profileDraft={profileDraft}
               selectedTask={selectedTask}
               selectedTaskConfig={selectedTaskConfig}
+              selectedProfile={selectedProfile}
+              selectedProfileConfig={selectedProfileConfig}
               setAutomationAction={setAutomationAction}
               setConfigAction={setConfigAction}
+              setProfileDraft={setProfileDraft}
               setProvenanceAction={setProvenanceAction}
               setProvenanceDraft={setProvenanceDraft}
+              setSelectedProfile={setSelectedProfile}
               setSelectedTask={setSelectedTask}
               setTaskDraft={setTaskDraft}
               taskDraft={taskDraft}
@@ -2759,12 +2866,17 @@ function SettingsPanel({
   provenanceAction,
   provenanceDoctor,
   provenanceDraft,
+  profileDraft,
+  selectedProfile,
+  selectedProfileConfig,
   selectedTask,
   selectedTaskConfig,
   setAutomationAction,
   setConfigAction,
+  setProfileDraft,
   setProvenanceAction,
   setProvenanceDraft,
+  setSelectedProfile,
   setSelectedTask,
   setTaskDraft,
   taskDraft,
@@ -2784,6 +2896,7 @@ function SettingsPanel({
   const modeChoices = automation?.mode_choices || ["manual", "one_click", "automatic"];
   const intelligenceConfig = intelligence?.config || {};
   const taskEntries = Object.entries(intelligenceConfig?.tasks || {});
+  const profileEntries = intelligenceProfileEntries(intelligenceConfig);
   const providerList = intelligence?.providers?.providers || [];
   const sources = provenanceSourceEntries(provenance);
   const provenanceCounts = provenanceSourceCounts(provenance);
@@ -2793,16 +2906,17 @@ function SettingsPanel({
   const enabledCount = Object.values(automationDraft.stages || {}).filter((stage) => stage.enabled).length;
   const automationDirty = automationDraftDirty(automationDraft, automation);
   const intelligenceDirty = intelligenceDraftDirty(taskDraft, selectedTaskConfig);
+  const profileDirty = profileDraftDirty(profileDraft, selectedProfileConfig);
   const provenanceDirty = provenanceDraftDirty(provenanceDraft, provenance);
   const dirtySections = [
     automationDirty ? "Automation" : "",
-    intelligenceDirty ? "Intelligence" : "",
+    intelligenceDirty || profileDirty ? "Intelligence" : "",
     provenanceDirty ? "Provenance" : ""
   ].filter(Boolean);
-  const selectedDraftProvider = providerList.find((provider) => provider.id === taskDraft.provider) || null;
+  const selectedProfileProvider = providerList.find((provider) => provider.id === profileDraft.provider) || null;
   const sectionItems = [
     { id: "account", label: "Account", meta: health.status || "unknown" },
-    { id: "intelligence", label: "Intelligence", meta: `${taskEntries.length} routes` },
+    { id: "intelligence", label: "Intelligence", meta: `${profileEntries.length} profiles` },
     { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
     { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
     { id: "safety", label: "Safety", meta: dirtySections.length ? `${dirtySections.length} staged` : "clear" },
@@ -2825,6 +2939,10 @@ function SettingsPanel({
     setConfigAction({ status: "idle", message: "", preview: null });
     setTaskDraft((draft) => ({ ...draft, ...changes }));
   };
+  const updateProfileDraft = (changes) => {
+    setConfigAction({ status: "idle", message: "", preview: null });
+    setProfileDraft((draft) => ({ ...draft, ...changes }));
+  };
   const updateSourceEnabled = (sourceId, checked) => {
     setProvenanceAction({ status: "idle", message: "", preview: null });
     setProvenanceDraft((current) => ({
@@ -2842,6 +2960,7 @@ function SettingsPanel({
   const discardDrafts = () => {
     setAutomationDraft(automationDraftFromConfig(automation));
     setTaskDraft(taskDraftFromConfig(selectedTaskConfig));
+    setProfileDraft(profileDraftFromConfig(selectedProfileConfig));
     setProvenanceDraft(resetProvenanceDraftFromConfig(provenance));
     setAutomationAction({ status: "idle", message: "", preview: null });
     setConfigAction({ status: "idle", message: "", preview: null });
@@ -2850,32 +2969,35 @@ function SettingsPanel({
   return (
     <div className="settings-workbench">
       <section className="settings-status-header" aria-label="Configuration status">
-        <div>
+        <div className="settings-status-main">
           <p className="eyebrow">Settings workbench</p>
           <h2>{automationDraft.profile || provenanceDraft.activeProfile || "default"}</h2>
+          <div className="settings-status-pills">
+            <span>API {health.status || "unknown"}</span>
+            <span>{profileEntries.length} profiles</span>
+            <span>{enabledCount} automation enabled</span>
+            <span>{enabledSourceCount} provenance sources</span>
+          </div>
         </div>
-        <dl className="settings-status-grid">
-          <div>
+        <details className="settings-status-details">
+          <summary>Config paths and runtime facts</summary>
+          <dl className="settings-detail-list">
             <dt>API</dt>
             <dd>{health.status || "unknown"}</dd>
-          </div>
-          <div>
             <dt>Store</dt>
             <dd>{health.store_dir || "unknown"}</dd>
-          </div>
-          <div>
             <dt>Intelligence</dt>
             <dd>{intelligenceConfig?.config_path || "defaults"}</dd>
-          </div>
-          <div>
             <dt>Automation</dt>
             <dd>{automation.config_path || "defaults"}</dd>
-          </div>
-          <div>
             <dt>Provenance</dt>
             <dd>{provenance?.config_path || "defaults"}</dd>
-          </div>
-        </dl>
+            <dt>Provenance doctor</dt>
+            <dd>{provenanceStatus}</dd>
+            <dt>Latest smoke</dt>
+            <dd>{latestSmoke?.status || "missing"}</dd>
+          </dl>
+        </details>
       </section>
 
       <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
@@ -2884,7 +3006,7 @@ function SettingsPanel({
           <span>{dirtySections.length ? dirtySections.join(", ") : "Preview and Apply stay disabled until a section has local edits."}</span>
         </div>
         <div className="settings-dirty-actions">
-          {intelligenceDirty && <button onClick={onPreviewIntelligence} disabled={configAction.status === "running"} type="button">Preview intelligence</button>}
+          {(intelligenceDirty || profileDirty) && <button onClick={onPreviewIntelligence} disabled={configAction.status === "running"} type="button">Preview intelligence</button>}
           {automationDirty && <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation</button>}
           {provenanceDirty && <button onClick={onPreviewProvenance} disabled={provenanceAction.status === "running"} type="button">Preview provenance</button>}
           {configAction.preview && <button onClick={onApplyIntelligence} disabled={configAction.status === "applying"} type="button">Apply intelligence</button>}
@@ -2912,11 +3034,15 @@ function SettingsPanel({
 
         <section className="settings-section-surface">
           {activeSection === "account" && (
-            <div className="settings-section-grid">
-              <div className="settings-panel-block">
-                <p className="eyebrow">Account</p>
-                <h2>{automationDraft.profile || "default"}</h2>
-                <div className="editor-grid">
+            <div className="settings-account-page">
+              <section className="settings-compact-section">
+                <div className="settings-section-title">
+                  <div>
+                    <p className="eyebrow">Account</p>
+                    <h2>{automationDraft.profile || "default"}</h2>
+                  </div>
+                </div>
+                <div className="settings-two-column-form">
                   <label>
                     <span>Runtime profile</span>
                     <input value={automationDraft.profile || "default"} onChange={(event) => {
@@ -2937,50 +3063,105 @@ function SettingsPanel({
                   <dt>Task routes</dt>
                   <dd>{taskEntries.length}</dd>
                 </dl>
-              </div>
-              <div className="settings-panel-block">
-                <p className="eyebrow">Runtime roots</p>
-                <div className="settings-path-list">
+              </section>
+              <details className="settings-discrete-details">
+                <summary>Runtime roots</summary>
+                <div className="settings-path-list compact">
                   <code>{health.store_dir || "store unavailable"}</code>
                   <code>{intelligenceConfig?.config_path || "intelligence config defaults"}</code>
                   <code>{automation.config_path || "automation config defaults"}</code>
                   <code>{provenance?.config_path || "provenance config defaults"}</code>
                 </div>
-              </div>
+              </details>
             </div>
           )}
 
           {activeSection === "intelligence" && (
-            <div className="settings-section-grid">
-              <div className="settings-panel-block">
-                <p className="eyebrow">Intelligence</p>
-                <h2>{statusLabel(selectedTask || "task route")}</h2>
-                <div className="editor-grid">
+            <div className="settings-intelligence-page">
+              <section className="settings-compact-section">
+                <div className="settings-section-title">
+                  <div>
+                    <p className="eyebrow">Profiles</p>
+                    <h2>{profileDraft.label || selectedProfile}</h2>
+                  </div>
+                  <select value={selectedProfile} onChange={(event) => setSelectedProfile(event.target.value)}>
+                    {profileEntries.map(([profileId, profile]) => (
+                      <option key={profileId} value={profileId}>{profile.label || profileId}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="settings-two-column-form">
                   <label>
-                    <span>Task</span>
-                    <select value={selectedTask} onChange={(event) => setSelectedTask(event.target.value)}>
-                      {taskEntries.map(([task]) => <option key={task} value={task}>{statusLabel(task)}</option>)}
-                    </select>
+                    <span>Label</span>
+                    <input value={profileDraft.label} onChange={(event) => updateProfileDraft({ label: event.target.value })} />
                   </label>
                   <label>
                     <span>Provider</span>
-                    <select value={taskDraft.provider} onChange={(event) => updateTaskDraft({ provider: event.target.value })}>
-                      {[...new Set([taskDraft.provider, ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
+                    <select value={profileDraft.provider} onChange={(event) => updateProfileDraft({ provider: event.target.value })}>
+                      {[...new Set([profileDraft.provider, ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
                         <option key={providerId} value={providerId}>{providerId}</option>
                       ))}
                     </select>
                   </label>
                   <label>
                     <span>Model</span>
-                    <input value={taskDraft.model} onChange={(event) => updateTaskDraft({ model: event.target.value })} placeholder="provider default" />
+                    <input value={profileDraft.model} onChange={(event) => updateProfileDraft({ model: event.target.value })} placeholder="provider default" />
+                  </label>
+                  <label>
+                    <span>Base URL</span>
+                    <input value={profileDraft.base_url} onChange={(event) => updateProfileDraft({ base_url: event.target.value })} placeholder="env/provider default" />
                   </label>
                   <label>
                     <span>Timeout</span>
-                    <input type="number" value={taskDraft.timeout} onChange={(event) => updateTaskDraft({ timeout: event.target.value })} />
+                    <input type="number" value={profileDraft.timeout} onChange={(event) => updateProfileDraft({ timeout: event.target.value })} />
                   </label>
                   <label>
                     <span>Temperature</span>
-                    <input type="number" step="0.1" value={taskDraft.temperature} onChange={(event) => updateTaskDraft({ temperature: event.target.value })} />
+                    <input type="number" step="0.1" value={profileDraft.temperature} onChange={(event) => updateProfileDraft({ temperature: event.target.value })} />
+                  </label>
+                  <label className="wide-field">
+                    <span>Description</span>
+                    <input value={profileDraft.description} onChange={(event) => updateProfileDraft({ description: event.target.value })} />
+                  </label>
+                </div>
+              </section>
+
+              <section className="settings-compact-section">
+                <div className="settings-section-title">
+                  <div>
+                    <p className="eyebrow">Component profile selections</p>
+                    <h2>{statusLabel(selectedTask || "task")}</h2>
+                  </div>
+                  <button onClick={onOpenIntelligence} type="button">Open full Intelligence</button>
+                </div>
+                <div className="settings-route-matrix">
+                  <div className="settings-route-matrix-heading">
+                    <span>Component</span>
+                    <span>Profile</span>
+                    <span>Policy</span>
+                  </div>
+                  {taskEntries.map(([task, route]) => (
+                    <button className={task === selectedTask ? "settings-route-row active" : "settings-route-row"} key={task} onClick={() => setSelectedTask(task)} type="button">
+                      <strong>{statusLabel(task)}</strong>
+                      <span>{route.profile || intelligenceConfig.task_profiles?.[task] || "unassigned"}</span>
+                      <small>{route.requires_ledger ? "ledger" : "direct"} · {route.human_review || "review policy"}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="settings-two-column-form compact">
+                  <label>
+                    <span>Selected component</span>
+                    <select value={selectedTask} onChange={(event) => setSelectedTask(event.target.value)}>
+                      {taskEntries.map(([task]) => <option key={task} value={task}>{statusLabel(task)}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Uses profile</span>
+                    <select value={taskDraft.profile || selectedTaskConfig?.profile || ""} onChange={(event) => updateTaskDraft({ profile: event.target.value, provider: "", model: "", timeout: "", temperature: "" })}>
+                      {profileEntries.map(([profileId, profile]) => (
+                        <option key={profileId} value={profileId}>{profile.label || profileId}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>Fallbacks</span>
@@ -2995,26 +3176,29 @@ function SettingsPanel({
                     <span>Requires run ledger</span>
                   </label>
                 </div>
-                <div className="notice-actions">
-                  <button onClick={onPreviewIntelligence} disabled={!intelligenceDirty || configAction.status === "running"} type="button">Preview intelligence update</button>
-                  <button onClick={onApplyIntelligence} disabled={!configAction.preview || configAction.status === "applying"} type="button">Apply with approval</button>
-                  <button onClick={onOpenIntelligence} type="button">Open full Intelligence</button>
-                </div>
-                {configAction.message && <div className={`action-notice ${configAction.status}`}><strong>{configAction.message}</strong></div>}
+              </section>
+
+              <details className="settings-discrete-details">
+                <summary>Config facts and resolved route</summary>
+                <dl className="settings-detail-list">
+                  <dt>Config path</dt>
+                  <dd>{intelligenceConfig?.config_path || "defaults"}</dd>
+                  <dt>Selected provider</dt>
+                  <dd>{selectedProfileProvider?.label || profileDraft.provider || "unknown"}</dd>
+                  <dt>Resolved task provider</dt>
+                  <dd>{selectedTaskConfig?.provider || "unknown"}</dd>
+                  <dt>Resolved task model</dt>
+                  <dd>{selectedTaskConfig?.model || "provider default"}</dd>
+                  <dt>Resolved source</dt>
+                  <dd>{selectedTaskConfig?.source || "defaults"}</dd>
+                </dl>
+              </details>
+
+              <div className="notice-actions">
+                <button onClick={onPreviewIntelligence} disabled={(!intelligenceDirty && !profileDirty) || configAction.status === "running"} type="button">Preview intelligence update</button>
+                <button onClick={onApplyIntelligence} disabled={!configAction.preview || configAction.status === "applying"} type="button">Apply with approval</button>
               </div>
-              <div className="settings-panel-block">
-                <p className="eyebrow">Route map</p>
-                <h2>{selectedDraftProvider?.label || taskDraft.provider || "No provider"}</h2>
-                <div className="task-table compact">
-                  {taskEntries.map(([task, route]) => (
-                    <button className={task === selectedTask ? "task-row active" : "task-row"} key={task} onClick={() => setSelectedTask(task)} type="button">
-                      <strong>{statusLabel(task)}</strong>
-                      <span>{route.provider}</span>
-                      <small>{route.model || "provider default"} · {route.source}</small>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {configAction.message && <div className={`action-notice ${configAction.status}`}><strong>{configAction.message}</strong></div>}
             </div>
           )}
 
