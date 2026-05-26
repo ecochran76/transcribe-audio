@@ -2028,7 +2028,7 @@ function App() {
           )}
           <div className="pane-content">
             <p className="eyebrow">{activeNav}</p>
-            <h2>{activeNav === "Library" ? "Filters" : "Workflow filters"}</h2>
+            <h2>{activeNav === "Library" ? "Filters" : activeNav === "Settings" ? "Settings" : "Workflow filters"}</h2>
             {activeNav === "Intelligence" ? (
               <div className="filter-card task-filter">
                 <span>Task routing</span>
@@ -2039,23 +2039,7 @@ function App() {
                   </button>
                 ))}
               </div>
-            ) : activeNav === "Settings" ? (
-              <div className="filter-card task-filter">
-                <span>Settings</span>
-                <button type="button">
-                  Account
-                  <strong>{health.status || "unknown"}</strong>
-                </button>
-                <button type="button" onClick={() => openAppView("Intelligence")}>
-                  Intelligence
-                  <strong>{taskEntries.length}</strong>
-                </button>
-                <button type="button">
-                  Automation
-                  <strong>{automationStageEntries(automation).filter(([, stage]) => stage.enabled).length}</strong>
-                </button>
-              </div>
-            ) : activeNav === "Provenance" ? (
+            ) : activeNav === "Settings" ? null : activeNav === "Provenance" ? (
               <div className="filter-card task-filter">
                 <span>Source kinds</span>
                 {Object.entries(provenanceCounts).map(([kind, count]) => (
@@ -2188,19 +2172,7 @@ function App() {
                 provenanceStatus={provenanceStatus}
               />
             </details>
-          ) : (
-            <TestStatusStrip
-              activeNav={activeNav}
-              apiStatus={health.status}
-              kindFilter={kindFilter}
-              query={query}
-              visibleCount={visibleItems.length}
-              totalCount={library.total ?? (library.items || []).length}
-              latestSmoke={intelligence.smokes?.latest_report}
-              latestSmokeJob={intelligence.smokeJobs?.items?.[0]}
-              provenanceStatus={provenanceStatus}
-            />
-          )}
+          ) : null}
 
           {activeNav === "Review Queue" ? (
             <ReviewQueue
@@ -2914,8 +2886,9 @@ function SettingsPanel({
     provenanceDirty ? "Provenance" : ""
   ].filter(Boolean);
   const selectedProfileProvider = providerList.find((provider) => provider.id === profileDraft.provider) || null;
+  const activeProfileName = automationDraft.profile || provenanceDraft.activeProfile || "default";
   const sectionItems = [
-    { id: "account", label: "Account", meta: health.status || "unknown" },
+    { id: "account", label: "Account", meta: activeProfileName },
     { id: "intelligence", label: "Intelligence", meta: `${profileEntries.length} profiles` },
     { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
     { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
@@ -2966,55 +2939,31 @@ function SettingsPanel({
     setConfigAction({ status: "idle", message: "", preview: null });
     setProvenanceAction({ status: "idle", message: "", preview: null });
   };
+  const showDraftBar = Boolean(
+    dirtySections.length
+    || configAction.preview
+    || automationAction.preview
+    || provenanceAction.preview
+  );
   return (
     <div className="settings-workbench">
-      <section className="settings-status-header" aria-label="Configuration status">
-        <div className="settings-status-main">
-          <p className="eyebrow">Settings workbench</p>
-          <h2>{automationDraft.profile || provenanceDraft.activeProfile || "default"}</h2>
-          <div className="settings-status-pills">
-            <span>API {health.status || "unknown"}</span>
-            <span>{profileEntries.length} profiles</span>
-            <span>{enabledCount} automation enabled</span>
-            <span>{enabledSourceCount} provenance sources</span>
+      {showDraftBar && (
+        <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
+          <div>
+            <strong>{dirtySections.length ? `${dirtySections.length} staged section${dirtySections.length === 1 ? "" : "s"}` : "Preview ready"}</strong>
+            <span>{dirtySections.length ? dirtySections.join(", ") : "Review or apply the prepared config update."}</span>
           </div>
-        </div>
-        <details className="settings-status-details">
-          <summary>Config paths and runtime facts</summary>
-          <dl className="settings-detail-list">
-            <dt>API</dt>
-            <dd>{health.status || "unknown"}</dd>
-            <dt>Store</dt>
-            <dd>{health.store_dir || "unknown"}</dd>
-            <dt>Intelligence</dt>
-            <dd>{intelligenceConfig?.config_path || "defaults"}</dd>
-            <dt>Automation</dt>
-            <dd>{automation.config_path || "defaults"}</dd>
-            <dt>Provenance</dt>
-            <dd>{provenance?.config_path || "defaults"}</dd>
-            <dt>Provenance doctor</dt>
-            <dd>{provenanceStatus}</dd>
-            <dt>Latest smoke</dt>
-            <dd>{latestSmoke?.status || "missing"}</dd>
-          </dl>
-        </details>
-      </section>
-
-      <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
-        <div>
-          <strong>{dirtySections.length ? `${dirtySections.length} staged section${dirtySections.length === 1 ? "" : "s"}` : "No staged config edits"}</strong>
-          <span>{dirtySections.length ? dirtySections.join(", ") : "Preview and Apply stay disabled until a section has local edits."}</span>
-        </div>
-        <div className="settings-dirty-actions">
-          {(intelligenceDirty || profileDirty) && <button onClick={onPreviewIntelligence} disabled={configAction.status === "running"} type="button">Preview intelligence</button>}
-          {automationDirty && <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation</button>}
-          {provenanceDirty && <button onClick={onPreviewProvenance} disabled={provenanceAction.status === "running"} type="button">Preview provenance</button>}
-          {configAction.preview && <button onClick={onApplyIntelligence} disabled={configAction.status === "applying"} type="button">Apply intelligence</button>}
-          {automationAction.preview && <button onClick={onApplyAutomation} disabled={automationAction.status === "applying"} type="button">Apply automation</button>}
-          {provenanceAction.preview && <button onClick={onApplyProvenance} disabled={provenanceAction.status === "applying"} type="button">Apply provenance</button>}
-          <button onClick={discardDrafts} disabled={!dirtySections.length} type="button">Discard draft</button>
-        </div>
-      </section>
+          <div className="settings-dirty-actions">
+            {(intelligenceDirty || profileDirty) && <button onClick={onPreviewIntelligence} disabled={configAction.status === "running"} type="button">Preview intelligence</button>}
+            {automationDirty && <button onClick={onPreviewAutomation} disabled={automationAction.status === "running"} type="button">Preview automation</button>}
+            {provenanceDirty && <button onClick={onPreviewProvenance} disabled={provenanceAction.status === "running"} type="button">Preview provenance</button>}
+            {configAction.preview && <button onClick={onApplyIntelligence} disabled={configAction.status === "applying"} type="button">Apply intelligence</button>}
+            {automationAction.preview && <button onClick={onApplyAutomation} disabled={automationAction.status === "applying"} type="button">Apply automation</button>}
+            {provenanceAction.preview && <button onClick={onApplyProvenance} disabled={provenanceAction.status === "applying"} type="button">Apply provenance</button>}
+            <button onClick={discardDrafts} disabled={!dirtySections.length} type="button">Discard draft</button>
+          </div>
+        </section>
+      )}
 
       <div className="settings-workbench-body">
         <nav className="settings-section-rail" aria-label="Settings sections">

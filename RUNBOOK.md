@@ -2,6 +2,58 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 208 | 2026-05-25
+
+Summary: Closed Plan 0021, removing Library/test-status chrome from Settings.
+
+Findings:
+
+- Settings still inherited the non-Library `TestStatusStrip`, so it showed
+  Library-oriented rows-in-scope/filter copy and "Latest smoke" on a
+  configuration screen.
+- The apparent "API Preview" versus "API offline" contradiction came from the
+  same frontend health state being rendered by two components: the test strip
+  mapped non-`ok` health to "Preview", while the Settings status card printed
+  the raw fallback status.
+- The no-staged-edits bar was also taking space when it offered no action.
+- Graphiti discovery was healthy but stale for current Plan 0021 state, so repo
+  docs, source, and live browser evidence were authoritative.
+
+Changes:
+
+- Added and closed
+  `docs/dev/plans/0021-2026-05-25-settings-screen-chrome-cleanup.md`.
+- Removed the non-Library `TestStatusStrip` render path so Settings no longer
+  shows rows-in-scope, filter state, API preview, or latest-smoke diagnostics.
+- Removed the Settings status card and duplicate API/config-path summary.
+- Made the staged-config bar render only when there is a local draft or
+  prepared preview.
+- Removed the Settings-specific left-pane card and prevented generic Library
+  kind filters from falling through into Settings.
+- Updated P09 roadmap state.
+
+Validation:
+
+- `~/.local/bin/graphiti-runtime doctor` was healthy; discovery for current
+  settings/status strip context returned stale facts.
+- `python -m py_compile transcript_api.py intelligence_config.py` passed.
+- `npm --prefix frontend run build` passed.
+- `.venv/bin/python -m pytest tests/test_intelligence_config.py
+  tests/test_transcript_api.py::test_intelligence_config_endpoint_returns_task_routing
+  tests/test_transcript_api.py::test_intelligence_config_preview_and_apply_endpoints
+  -q` passed with 12 tests.
+- `.venv/bin/python -m pytest -q` passed with 246 tests.
+- `git diff --check` passed.
+- Restarted `transcripts.service`; service was active and
+  `http://transcripts.localhost/api/health` returned `status: ok`.
+- `agent-browser` inspection of Settings > Intelligence verified
+  `hasOperatorTestStatus=false`, `hasRowsInScope=false`,
+  `hasLatestSmoke=false`, `hasApiPreview=false`, `hasApiOffline=false`,
+  `hasNoStagedConfigEdits=false`, `hasDraftBar=false`, and `routeRowCount=8`.
+- Screenshot:
+  `~/.local/state/transcribe-audio/browser-smokes/plan-0021-settings-chrome-cleanup.png`.
+- `agent-browser` console/error checks reported no page errors.
+
 ## Turn 207 | 2026-05-25
 
 Summary: Closed Plan 0020, a profile-first redesign of Intelligence settings.

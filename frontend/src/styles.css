@@ -1138,7 +1138,6 @@ td small {
   gap: 0.8rem;
 }
 
-.settings-status-header,
 .settings-dirty-bar,
 .settings-panel-block,
 .settings-section-rail {
@@ -1147,82 +1146,17 @@ td small {
   background: rgba(27, 29, 24, 0.9);
 }
 
-.settings-status-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.7rem 0.8rem;
-}
-
-.settings-status-main {
-  min-width: 0;
-}
-
-.settings-status-header h2,
 .settings-panel-block h2 {
   margin: 0;
   font-size: 1.2rem;
   letter-spacing: 0;
 }
 
-.settings-status-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
-}
-
-.settings-status-pills span {
-  padding: 0.26rem 0.48rem;
-  border: 1px solid rgba(244, 236, 216, 0.1);
-  border-radius: 6px;
-  background: rgba(244, 236, 216, 0.06);
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.settings-status-details {
-  min-width: min(26rem, 100%);
-}
-
-.settings-status-details summary {
-  width: max-content;
-  margin-left: auto;
-  border: 1px solid rgba(244, 236, 216, 0.14);
-  border-radius: 6px;
-  background: rgba(244, 236, 216, 0.06);
-  color: var(--ink);
-  cursor: pointer;
-  padding: 0.45rem 0.62rem;
-}
-
-.settings-status-details .settings-detail-list {
-  margin-top: 0.65rem;
-}
-
-.settings-status-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin: 0;
-}
-
-.settings-status-grid div {
-  min-width: 0;
-  padding: 0.55rem;
-  border: 1px solid rgba(244, 236, 216, 0.08);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.16);
-}
-
-.settings-status-grid dt,
 .settings-detail-list dt {
   color: var(--muted);
   font-size: 0.72rem;
 }
 
-.settings-status-grid dd,
 .settings-detail-list dd {
   margin: 0.2rem 0 0;
   overflow-wrap: anywhere;
@@ -3205,8 +3139,6 @@ dd {
   .intelligence-grid,
   .provenance-grid,
   .settings-grid,
-  .settings-status-header,
-  .settings-status-grid,
   .settings-dirty-bar,
   .settings-workbench-body,
   .settings-section-grid,
