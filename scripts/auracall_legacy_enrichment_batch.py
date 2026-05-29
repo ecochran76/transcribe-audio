@@ -31,6 +31,7 @@ from transcript_store import (  # noqa: E402
     store_dir,
 )
 from transcribe_common import TranscriptionError, extract_response_detail  # noqa: E402
+from auracall_choices import read_choices_readiness  # noqa: E402
 
 DEFAULT_MODEL = "agent:pro-extended-chatgpt-soylei-transcripts"
 DEFAULT_DISPATCH_MODEL = "gpt-5.2-pro"
@@ -130,6 +131,11 @@ def resolve_api_key(args: argparse.Namespace, env: dict[str, str]) -> str:
     return value
 
 
+def resolve_optional_api_key(args: argparse.Namespace, env: dict[str, str]) -> str | None:
+    value = args.api_key or env.get("OPENAI_API_KEY") or env.get("AURACALL_API_KEY")
+    return value or None
+
+
 def resolve_dispatch_team(args: argparse.Namespace, env: dict[str, str]) -> str | None:
     value = args.dispatch_team or env.get("AURACALL_DISPATCH_TEAM")
     if not value:
@@ -140,6 +146,9 @@ def resolve_dispatch_team(args: argparse.Namespace, env: dict[str, str]) -> str 
 
 def resolve_model(args: argparse.Namespace, env: dict[str, str], dispatch_team: str | None = None) -> str:
     if not dispatch_team:
+        agent_id = (env.get("AURACALL_AGENT_ID") or "").strip()
+        if not args.model and agent_id:
+            return f"agent:{agent_id}"
         return args.model or env.get("AURACALL_MODEL") or DEFAULT_MODEL
 
     if args.model:
@@ -327,6 +336,15 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
     env = runtime_env(args)
     dispatch_team = resolve_dispatch_team(args, env)
     model = resolve_model(args, env, dispatch_team)
+    base_url = resolve_base_url(args, env)
+    batch_url = resolve_batch_url(args, env)
+    choices_readiness = read_choices_readiness(
+        env=env,
+        base_url=base_url,
+        api_key=resolve_optional_api_key(args, env),
+        model=model,
+        dispatch_team=dispatch_team,
+    )
     queue = legacy_enrichment_queue(
         root=args.store_dir,
         limit=args.limit,
@@ -343,6 +361,7 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
             "createdAt": utc_now_iso(),
             "model": model,
             "dispatchTeam": dispatch_team,
+            "auracallReadinessOk": choices_readiness.get("ok"),
             "storeDir": queue["store_dir"],
             "selectedCount": queue["selected_count"],
             "duplicateCount": queue["duplicate_count"],
@@ -364,10 +383,11 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
         "created_at": utc_now_iso(),
         "model": model,
         "dispatch_team": dispatch_team,
+        "auracall_readiness": choices_readiness,
         "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
         "store": bool(args.store),
-        "batch_url": resolve_batch_url(args, env),
-        "response_base_url": resolve_base_url(args, env),
+        "batch_url": batch_url,
+        "response_base_url": base_url,
         "queue": queue,
         "request_count": len(requests_payload),
         "batch_payload": batch_payload if force_dry_run or getattr(args, "dry_run", False) else None,
@@ -383,6 +403,8 @@ def enqueue(args: argparse.Namespace, *, force_dry_run: bool = False) -> int:
                 "request_count": len(requests_payload),
                 "batch_id": (manifest["batch"] or {}).get("id"),
                 "dispatch_team": dispatch_team,
+                "auracall_readiness_ok": choices_readiness.get("ok"),
+                "auracall_readiness_warnings": choices_readiness.get("warnings") or [],
                 "dry_run": bool(force_dry_run or getattr(args, "dry_run", False)),
             },
             indent=2,

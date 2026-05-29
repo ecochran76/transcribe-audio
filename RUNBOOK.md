@@ -2,6 +2,34 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 213 | 2026-05-29
+
+Summary: Added AuraCall agent-choice readiness to first-pass summary prep.
+
+Changes:
+
+- Added a redacted AuraCall choices reader for
+  `GET /v1/config/agent-choices`.
+- First-pass summary prepare/enqueue now prefers `AURACALL_AGENT_ID` for
+  single-agent runs, preserves `AURACALL_DISPATCH_TEAM` dispatch-pool routing,
+  and writes `auracall_readiness` into manifests.
+- `/api/intelligence/config` now exposes the same redacted readiness for the
+  review console without exposing API secrets.
+- Updated `README.md` and `ROADMAP.md` with the stable-agent and readiness
+  contract.
+- Live scoped AuraCall choices readback now sees
+  `transcribe-audio-chatgpt-pro-pool` with three ready members after the
+  AuraCall runtime was rebuilt/restarted and the registry team was restored.
+- Live provider submit/materialize was not run because
+  `transcript_store.py first-pass-summary-queue --format compact-json --limit 5`
+  returned zero queued first-pass items.
+
+Validation:
+
+- `.venv/bin/python -m py_compile auracall_choices.py scripts/auracall_legacy_enrichment_batch.py transcript_api.py tests/test_transcript_store.py tests/test_transcript_api.py`
+- `.venv/bin/python -m pytest tests/test_transcript_store.py::test_auracall_first_pass_prepare_writes_manifest tests/test_transcript_store.py::test_auracall_first_pass_prepare_can_use_dispatch_team tests/test_transcript_store.py::test_auracall_first_pass_prepare_prefers_stable_agent_id tests/test_transcript_store.py::test_auracall_choices_readiness_validates_dispatch_team_members -q`
+- `.venv/bin/python -m pytest tests/test_transcript_api.py::test_intelligence_config_endpoint_returns_task_routing tests/test_transcript_api.py::test_intelligence_config_preview_and_apply_endpoints tests/test_transcript_api.py::test_selected_first_pass_summary_prepare_is_conversation_scoped tests/test_transcript_api.py::test_first_pass_summary_submit_and_status_use_prepared_manifest -q`
+
 ## Turn 212 | 2026-05-26
 
 Summary: Tidied planning-contract workspace state.

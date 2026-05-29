@@ -547,9 +547,11 @@ python transcript_store.py first-pass-summary-queue --format commands --provider
 The queue de-dupes same-hash or same-title rows by default so batch preparation does not waste provider calls. Use `--no-dedupe` only when you are auditing duplicate rows.
 
 For AuraCall-backed burst processing, use the project-bound `Transcripts`
-client env. When `AURACALL_DISPATCH_TEAM` is present, the batch script submits a
-single AuraCall response batch with top-level dispatch-pool routing and AuraCall
-assigns each child request to the next available tenant agent:
+client env. Single-agent runs may set `AURACALL_AGENT_ID=<agent_id>` to produce
+the stable `agent:<agent_id>` model without copying browser/runtime details
+into this repo. When `AURACALL_DISPATCH_TEAM` is present, the batch script
+submits a single AuraCall response batch with top-level dispatch-pool routing
+and AuraCall assigns each child request to the next available tenant agent:
 
 ```bash
 python scripts/auracall_legacy_enrichment_batch.py \
@@ -571,6 +573,12 @@ python scripts/check_readout_quality.py \
 ```
 
 The `prepare` command writes a dry-run manifest and never submits provider work. The `enqueue` command submits all selected readout requests to AuraCall in one response batch. AuraCall owns browser concurrency and interaction rate limits; this repo keeps the transcript payloads complete and later materializes completed responses into `*.readout.json` and `*.readout.md`.
+Prepare/enqueue manifests include redacted `auracall_readiness` readback from
+AuraCall `GET /v1/config/agent-choices`: selected agent/team ids, ready browser
+bindings, dispatch-pool members, project binding summary, counts, and API
+route links. The readiness block records only whether an API key is configured;
+it does not store or return the secret. `GET /api/intelligence/config` exposes
+the same redacted readiness for the review console.
 Run `check_readout_quality.py` after materialization and before scaling batch size; it verifies readout JSON shape, paired Markdown artifacts, source-artifact links, and core routing/memory fields without reading raw transcript text into the report.
 The current dispatch-pool team is `transcribe-audio-chatgpt-pro-pool`, bound to
 the `Transcripts` project across the ChatGPT Pro runtime profiles. Project sync

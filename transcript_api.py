@@ -4135,6 +4135,55 @@ def intelligence_provider_registry(*, codex_bin: str = DEFAULT_CODEX_BIN) -> dic
     }
 
 
+def intelligence_config_with_auracall_readiness(*, env_file: Path) -> dict[str, Any]:
+    from scripts import auracall_legacy_enrichment_batch
+    from auracall_choices import read_choices_readiness
+
+    payload = intelligence_config.all_task_configs()
+    args = argparse.Namespace(env_file=env_file, base_url=None, api_key=None, model=None, dispatch_team=None)
+    env = auracall_legacy_enrichment_batch.runtime_env(args)
+    try:
+        dispatch_team = auracall_legacy_enrichment_batch.resolve_dispatch_team(args, env)
+        model = auracall_legacy_enrichment_batch.resolve_model(args, env, dispatch_team)
+        base_url = auracall_legacy_enrichment_batch.resolve_base_url(args, env)
+        payload["auracall_readiness"] = read_choices_readiness(
+            env=env,
+            base_url=base_url,
+            api_key=auracall_legacy_enrichment_batch.resolve_optional_api_key(args, env),
+            model=model,
+            dispatch_team=dispatch_team,
+        )
+    except (TranscriptionError, OSError, json.JSONDecodeError) as exc:
+        payload["auracall_readiness"] = {
+            "schema_version": "transcribe-audio.auracall-choices-readiness.v1",
+            "source": {
+                "choices_url": "",
+                "base_url_configured": False,
+                "api_key_configured": False,
+                "fetched": False,
+            },
+            "selected_model": "",
+            "selected_agent_id": None,
+            "dispatch_team": None,
+            "selected_agent": None,
+            "dispatch": None,
+            "counts": {
+                "agents": 0,
+                "teams": 0,
+                "bindings": 0,
+            },
+            "links": {
+                "agent_choices": "/v1/config/agent-choices",
+                "response_batches": "/v1/response-batches",
+                "response_batch_status": "/v1/response-batches/{batch_id}",
+            },
+            "ok": False,
+            "warnings": ["AuraCall runtime env is not ready for choices readback."],
+            "error": str(exc),
+        }
+    return payload
+
+
 def review_status(count: int, *, stale_count: int = 0, pending_count: int = 0) -> str:
     if count <= 0 and pending_count <= 0:
         return "clear"
@@ -4498,6 +4547,8 @@ def batch_action_response(
         "dry_run": bool(manifest.get("dry_run")),
         "batch_id": batch.get("id") if batch else None,
         "workflow": (batch_payload.get("metadata") or {}).get("workflow") if isinstance(batch_payload.get("metadata"), dict) else "",
+        "dispatch_team": manifest.get("dispatch_team"),
+        "auracall_readiness": manifest.get("auracall_readiness") if isinstance(manifest.get("auracall_readiness"), dict) else None,
         "artifact_file": output_contract.get("artifactFileName") if isinstance(output_contract, dict) else "",
         "batch_status": batch_status,
         "batch_counts": batch_status_counts(batch_status or {}),
@@ -4526,6 +4577,8 @@ def summarize_first_pass_batch_manifest(path: Path, payload: dict[str, Any]) -> 
         "dry_run": bool(payload.get("dry_run")),
         "batch_id": str(batch.get("id") or ""),
         "workflow": (batch_payload.get("metadata") or {}).get("workflow") if isinstance(batch_payload.get("metadata"), dict) else "",
+        "dispatch_team": payload.get("dispatch_team"),
+        "auracall_readiness": payload.get("auracall_readiness") if isinstance(payload.get("auracall_readiness"), dict) else None,
         "batch_counts": batch_status_counts(last_status),
         "materialized_count": len(materialized),
         "materialization_error_count": len(materialization_errors),
@@ -4622,11 +4675,21 @@ def prepare_selected_first_pass_summary(
     model: str = "",
 ) -> dict[str, Any]:
     from scripts import auracall_legacy_enrichment_batch
+    from auracall_choices import read_choices_readiness
 
     args = argparse.Namespace(env_file=env_file, base_url=None, api_key=None, model=model or None, dispatch_team=None)
     env = auracall_legacy_enrichment_batch.runtime_env(args)
     dispatch_team = auracall_legacy_enrichment_batch.resolve_dispatch_team(args, env)
     resolved_model = auracall_legacy_enrichment_batch.resolve_model(args, env, dispatch_team)
+    base_url = auracall_legacy_enrichment_batch.resolve_base_url(args, env)
+    batch_url = auracall_legacy_enrichment_batch.resolve_batch_url(args, env)
+    choices_readiness = read_choices_readiness(
+        env=env,
+        base_url=base_url,
+        api_key=auracall_legacy_enrichment_batch.resolve_optional_api_key(args, env),
+        model=resolved_model,
+        dispatch_team=dispatch_team,
+    )
     detail = get_conversation_detail(document_id, root=store_root, state_root=state_root)
     item = first_pass_summary_queue_item(detail, model=resolved_model, store_readouts=store)
     request_payload = auracall_legacy_enrichment_batch.create_request(item, resolved_model, dispatch_team)
@@ -4636,6 +4699,7 @@ def prepare_selected_first_pass_summary(
             "createdAt": auracall_legacy_enrichment_batch.utc_now_iso(),
             "model": resolved_model,
             "dispatchTeam": dispatch_team,
+            "auracallReadinessOk": choices_readiness.get("ok"),
             "storeDir": str(store_dir(store_root)),
             "selectedCount": 1,
             "duplicateCount": 0,
@@ -4659,10 +4723,11 @@ def prepare_selected_first_pass_summary(
         "created_at": auracall_legacy_enrichment_batch.utc_now_iso(),
         "model": resolved_model,
         "dispatch_team": dispatch_team,
+        "auracall_readiness": choices_readiness,
         "dry_run": True,
         "store": bool(store),
-        "batch_url": auracall_legacy_enrichment_batch.resolve_batch_url(args, env),
-        "response_base_url": auracall_legacy_enrichment_batch.resolve_base_url(args, env),
+        "batch_url": batch_url,
+        "response_base_url": base_url,
         "queue": {
             "store_dir": str(store_dir(store_root)),
             "pending_only": False,
@@ -5130,7 +5195,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                     return
             if parsed.path == "/api/intelligence/config":
-                self.write_json(intelligence_config.all_task_configs())
+                self.write_json(intelligence_config_with_auracall_readiness(env_file=self.server.batch_env_file))  # type: ignore[attr-defined]
                 return
             if parsed.path == "/api/automation/config":
                 self.write_json(automation_config.all_config(state_root=self.state_root))

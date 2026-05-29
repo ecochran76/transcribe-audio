@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import transcript_store
+from auracall_choices import build_readiness
 from scripts import auracall_legacy_enrichment_batch
 
 
@@ -659,6 +660,84 @@ def test_auracall_first_pass_prepare_can_use_dispatch_team(tmp_path: Path, capsy
         "team": "transcribe-audio-chatgpt-pro-pool",
     }
     assert '"dispatch_team": "transcribe-audio-chatgpt-pro-pool"' in stdout
+
+
+def test_auracall_first_pass_prepare_prefers_stable_agent_id(tmp_path: Path) -> None:
+    args = type("Args", (), {"model": None})()
+    assert auracall_legacy_enrichment_batch.resolve_model(
+        args,
+        {
+            "AURACALL_AGENT_ID": "transcripts-worker",
+            "AURACALL_MODEL": "agent:legacy-worker",
+        },
+    ) == "agent:transcripts-worker"
+
+
+def test_auracall_choices_readiness_validates_dispatch_team_members() -> None:
+    readiness = build_readiness(
+        env={},
+        base_url="http://127.0.0.1:18095/v1",
+        api_key="secret-value",
+        model="gpt-5.2-pro",
+        dispatch_team="transcribe-audio-chatgpt-pro-pool",
+        choices_payload={
+            "agents": [
+                {
+                    "id": "transcript-worker",
+                    "bindingKey": "binding:chatgpt:wsl-chrome-3:default",
+                    "runtimeProfileId": "wsl-chrome-3",
+                    "browserProfileId": "default",
+                    "projectBinding": {
+                        "mode": "fixed",
+                        "source": "agent",
+                        "label": "Transcripts",
+                    },
+                }
+            ],
+            "bindings": [
+                {
+                    "bindingKey": "binding:chatgpt:wsl-chrome-3:default",
+                    "service": "chatgpt",
+                    "runtimeProfileId": "wsl-chrome-3",
+                    "browserProfileId": "default",
+                    "ready": True,
+                }
+            ],
+            "teams": [
+                {
+                    "id": "transcribe-audio-chatgpt-pro-pool",
+                    "type": "dispatch-pool",
+                    "agentIds": ["transcript-worker"],
+                    "members": [
+                        {
+                            "agentId": "transcript-worker",
+                            "exists": True,
+                            "runtimeProfileId": "wsl-chrome-3",
+                            "browserProfileId": "default",
+                            "service": "chatgpt",
+                        }
+                    ],
+                }
+            ],
+            "validation": {
+                "agents": [
+                    {
+                        "agentId": "transcript-worker",
+                        "valid": True,
+                        "issues": [],
+                    }
+                ]
+            },
+        },
+    )
+
+    assert readiness["ok"] is True
+    assert readiness["source"]["api_key_configured"] is True
+    assert readiness["source"]["fetched"] is True
+    assert readiness["source"]["choices_url"] == "http://127.0.0.1:18095/v1/config/agent-choices"
+    assert readiness["dispatch"]["ready"] is True
+    assert readiness["dispatch"]["members"][0]["ready"] is True
+    assert "secret-value" not in json.dumps(readiness)
 
 
 def test_auracall_response_model_payload_reads_json_artifact(tmp_path: Path) -> None:
