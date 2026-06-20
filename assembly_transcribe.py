@@ -343,6 +343,13 @@ def upload_audio(session: requests.Session, audio_path: Path) -> str:
     return data["upload_url"]
 
 
+def resolve_speech_models(model: str) -> list[str]:
+    requested = [item.strip() for item in model.split(",") if item.strip()]
+    if not requested or requested == ["universal"]:
+        return ["universal-3-pro", "universal-2"]
+    return requested
+
+
 def request_transcription(
     session: requests.Session,
     audio_url: str,
@@ -354,7 +361,7 @@ def request_transcription(
 ) -> str:
     payload = {
         "audio_url": audio_url,
-        "speech_model": model,
+        "speech_models": resolve_speech_models(model),
         "speaker_labels": speaker_labels,
     }
     if language_detection:
