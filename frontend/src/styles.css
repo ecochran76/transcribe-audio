@@ -1341,10 +1341,31 @@ td small {
   margin-bottom: 0.7rem;
 }
 
+.settings-section-title.compact {
+  margin-bottom: 0.55rem;
+}
+
 .settings-section-title h2 {
   margin: 0;
   font-size: 1.05rem;
   letter-spacing: 0;
+}
+
+.settings-state-pill {
+  align-self: center;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 999px;
+  background: rgba(244, 236, 216, 0.06);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0.28rem 0.52rem;
+  white-space: nowrap;
+}
+
+.settings-state-pill.dirty {
+  border-color: rgba(215, 255, 115, 0.32);
+  color: var(--accent);
 }
 
 .settings-section-title button,
@@ -1355,6 +1376,36 @@ td small {
   background: rgba(244, 236, 216, 0.06);
   color: var(--ink);
   padding: 0.48rem 0.65rem;
+}
+
+.settings-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.settings-profile-actions select {
+  min-width: min(18rem, 100%);
+}
+
+.settings-profile-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings-profile-meta {
+  display: grid;
+  gap: 0.25rem;
+  margin: -0.25rem 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.settings-profile-meta code {
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .settings-discrete-details summary {
@@ -1397,6 +1448,53 @@ td small {
   padding: 0.5rem 0.6rem;
 }
 
+.settings-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.settings-overview-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+  padding: 0.75rem;
+}
+
+.settings-overview-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.settings-overview-card span {
+  display: block;
+  margin-top: 0.22rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.settings-overview-card button {
+  border: 1px solid rgba(215, 255, 115, 0.24);
+  border-radius: 6px;
+  background: rgba(215, 255, 115, 0.08);
+  color: var(--accent);
+  font-weight: 800;
+  padding: 0.46rem 0.62rem;
+}
+
+.settings-profile-strip {
+  padding-top: 0.75rem;
+}
+
 .settings-route-matrix {
   display: grid;
   border: 1px solid rgba(244, 236, 216, 0.08);
@@ -1432,6 +1530,33 @@ td small {
 .settings-route-row small {
   color: var(--muted);
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-agent-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.65fr);
+  gap: 0.75rem;
+  align-items: start;
+  margin-top: 0.8rem;
+  border: 1px solid rgba(196, 255, 90, 0.18);
+  border-radius: 6px;
+  background: rgba(196, 255, 90, 0.06);
+  padding: 0.75rem;
+}
+
+.settings-agent-summary strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.settings-agent-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin-top: 0.22rem;
   overflow-wrap: anywhere;
 }
 
@@ -3060,6 +3185,45 @@ dd {
   background: rgba(118, 223, 170, 0.08);
 }
 
+.candidate-list button.selected,
+.candidate-list button.selected:disabled {
+  border-color: rgba(118, 223, 170, 0.8);
+  background: rgba(118, 223, 170, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(118, 223, 170, 0.24);
+  opacity: 1;
+}
+
+.candidate-list button.readout-option {
+  border-style: dashed;
+}
+
+.assignment-option-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+.selection-check {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px rgba(118, 223, 170, 0.16);
+}
+
+.selection-check::before {
+  content: "";
+  width: 0.34rem;
+  height: 0.58rem;
+  border: solid #08110d;
+  border-width: 0 0.14rem 0.14rem 0;
+  transform: translateY(-0.06rem) rotate(45deg);
+}
+
 .candidate-list small {
   margin: 0;
 }
@@ -3227,6 +3391,8 @@ dd {
 
   .settings-section-title,
   .settings-two-column-form,
+  .settings-overview-grid,
+  .settings-overview-card,
   .settings-route-matrix-heading,
   .settings-route-row {
     grid-template-columns: 1fr;
@@ -3244,6 +3410,10 @@ dd {
     flex: 0 0 auto;
     min-width: 8rem;
     min-height: 44px;
+  }
+
+  .settings-agent-summary {
+    grid-template-columns: 1fr;
   }
 
   .conversation-rail {

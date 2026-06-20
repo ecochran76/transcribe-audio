@@ -2,6 +2,29 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 214 | 2026-05-30
+
+Summary: Added AuraCall agent selection to Intelligence settings.
+
+Changes:
+
+- Extended the redacted AuraCall choices payload with `agent_options` so the
+  review console can list runtime-advertised agents without exposing API
+  secrets.
+- Settings > Intelligence now renders an AuraCall agent selector instead of a
+  free-form model field when the profile is AuraCall-backed or already uses an
+  `agent:<id>` model.
+- The selected agent summary shows the runtime profile, browser profile,
+  project binding, binding key, readiness, validation state, and selected
+  `agent:<id>` model.
+- Updated P09 roadmap text for the agent-selector settings behavior.
+
+Validation:
+
+- `.venv/bin/python -m py_compile auracall_choices.py transcript_api.py tests/test_transcript_store.py tests/test_transcript_api.py`
+- `.venv/bin/python -m pytest tests/test_transcript_store.py::test_auracall_choices_readiness_validates_dispatch_team_members tests/test_transcript_api.py::test_intelligence_config_endpoint_returns_task_routing tests/test_transcript_api.py::test_intelligence_config_endpoint_exposes_auracall_agent_options -q`
+- `npm --prefix frontend run build`
+
 ## Turn 213 | 2026-05-29
 
 Summary: Added AuraCall agent-choice readiness to first-pass summary prep.

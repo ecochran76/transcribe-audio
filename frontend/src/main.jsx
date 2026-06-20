@@ -6,7 +6,6 @@ const NAV_ITEMS = [
   { id: "Library", label: "Library", enabled: true },
   { id: "Review Queue", label: "Review Queue", enabled: true },
   { id: "Provenance", label: "Provenance", enabled: true },
-  { id: "Intelligence", label: "Intelligence", enabled: true },
   { id: "Settings", label: "Settings", enabled: true }
 ];
 
@@ -69,11 +68,14 @@ const CONVERSATION_PAGE_SIZE = 100;
 
 function readInitialUrlState() {
   const params = new URLSearchParams(window.location.search);
-  const view = params.get("view");
+  const requestedView = params.get("view");
+  const requestedSection = params.get("section");
+  const view = requestedView === "Intelligence" ? "Settings" : requestedView;
   const kind = params.get("kind");
   const workflow = params.get("workflow");
   return {
     activeNav: NAV_ITEMS.some((item) => item.id === view && item.enabled) ? view : "Library",
+    activeSettingsSection: requestedView === "Intelligence" ? "intelligence" : requestedSection || "",
     kindFilter: LIBRARY_KIND_FILTERS.some((item) => item.id === kind) ? kind : "all",
     query: params.get("q") || "",
     selectedId: params.get("selected") || FALLBACK_LIBRARY[0].id,
@@ -140,6 +142,7 @@ const FALLBACK_INTELLIGENCE = {
   providers: {
     providers: [
       { id: "openai-compatible", label: "OpenAI-compatible API", status: "configured-by-env", capabilities: ["summarize", "extract"] },
+      { id: "auracall", label: "AuraCall", status: "configured-by-runtime-env", capabilities: ["summarize", "browser backed batch"] },
       { id: "codex-app-server", label: "Codex app-server", status: "ready", ready: true, capabilities: { persistent_sessions: true, branching: true } }
     ],
     default_supervisor: "codex-app-server"
@@ -338,8 +341,104 @@ function intelligenceDraftDirty(draft, selectedTaskConfig) {
 }
 
 function profileDraftDirty(draft, profileConfig) {
-  if (!profileConfig) return false;
+  if (!profileConfig) return Boolean(draft?.label || draft?.provider || draft?.model || draft?.description);
   return normalizeForCompare(profileUpdateFromDraft(draft)) !== normalizeForCompare(profileUpdateFromDraft(profileDraftFromConfig(profileConfig)));
+}
+
+function profileIdFromLabel(label, fallback = "new_profile") {
+  const value = String(label || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return value || fallback;
+}
+
+function uniqueProfileId(baseId, profiles) {
+  const existing = new Set(Object.keys(profiles || {}));
+  let candidate = profileIdFromLabel(baseId);
+  if (!existing.has(candidate)) return candidate;
+  let index = 2;
+  while (existing.has(`${candidate}_${index}`)) index += 1;
+  return `${candidate}_${index}`;
+}
+
+function defaultProfileDraft(provider = "openai-compatible") {
+  if (provider === "auracall") {
+    return {
+      label: "AuraCall readout",
+      description: "Browser-backed AuraCall agent profile for transcript readouts.",
+      provider,
+      model: "",
+      base_url: "",
+      timeout: 300,
+      temperature: 0.1
+    };
+  }
+  if (provider === "codex-app-server") {
+    return {
+      label: "Codex app-server",
+      description: "Ledger-backed App Intelligence supervisor profile.",
+      provider,
+      model: "",
+      base_url: "",
+      timeout: 120,
+      temperature: 0
+    };
+  }
+  if (provider === "codex-exec") {
+    return {
+      label: "Codex exec",
+      description: "Local Codex CLI execution profile.",
+      provider,
+      model: "",
+      base_url: "",
+      timeout: 300,
+      temperature: 0
+    };
+  }
+  return {
+    label: "OpenAI readout",
+    description: "General transcript summarization and contextual readout profile.",
+    provider,
+    model: "gpt-4o-mini",
+    base_url: "",
+    timeout: 120,
+    temperature: 0.1
+  };
+}
+
+function agentIdFromModel(model) {
+  const value = String(model || "").trim();
+  return value.startsWith("agent:") ? value.slice("agent:".length).trim() : "";
+}
+
+function agentModelFromId(agentId) {
+  const value = String(agentId || "").trim();
+  return value ? `agent:${value}` : "";
+}
+
+function auracallAgentOptions(intelligence) {
+  return intelligence?.auracall_readiness?.agent_options || intelligence?.config?.auracall_readiness?.agent_options || [];
+}
+
+function shouldUseAuraCallAgentSelector(profileDraft, selectedProfileProvider, agentOptions) {
+  return (
+    profileDraft.provider === "auracall"
+    || agentIdFromModel(profileDraft.model)
+    || selectedProfileProvider?.id === "auracall"
+    || (agentOptions.length > 0 && String(profileDraft.base_url || "").includes("18095"))
+  );
+}
+
+function auraCallAgentDescription(agent) {
+  if (!agent) return "";
+  return agent.settings_description || [
+    agent.runtimeProfileId ? `runtime ${agent.runtimeProfileId}` : "",
+    agent.browserProfileId ? `browser ${agent.browserProfileId}` : "",
+    agent.projectBinding?.label ? `project ${agent.projectBinding.label}` : "",
+    agent.ready ? "ready" : "not ready"
+  ].filter(Boolean).join("; ");
 }
 
 function provenanceDraftDirty(draft, provenance) {
@@ -646,6 +745,21 @@ function contactIdSetHasCandidate(idSet, candidate) {
   return contactCandidateIds(candidate).some((id) => idSet.has(id));
 }
 
+function speakerAssignmentMatchesCandidate(speaker, candidate) {
+  const assignment = speaker?.assignment || {};
+  const candidateIds = contactCandidateIds(candidate);
+  const assignmentId = String(assignment.contact_id || "").trim();
+  const assignmentEmail = String(assignment.email || assignment.contact_email || "").trim().toLowerCase();
+  const assignmentLabel = String(assignment.contact_label || "").trim().toLowerCase();
+  const candidateEmail = String(candidate?.email || "").trim().toLowerCase();
+  const candidateLabel = String(candidate?.label || "").trim().toLowerCase();
+  return (
+    (assignmentId && candidateIds.includes(assignmentId))
+    || (assignmentEmail && candidateEmail && assignmentEmail === candidateEmail)
+    || (assignmentLabel && candidateLabel && assignmentLabel === candidateLabel)
+  );
+}
+
 function uniqueContactCandidates(candidates) {
   const result = [];
   const seen = new Set();
@@ -764,6 +878,7 @@ async function postJson(path, payload) {
 function App() {
   const [initialUrlState] = useState(readInitialUrlState);
   const [activeNav, setActiveNav] = useState(initialUrlState.activeNav);
+  const [activeSettingsSection, setActiveSettingsSection] = useState(initialUrlState.activeSettingsSection || "account");
   const [leftCollapsed, setLeftCollapsed] = useState(initialUrlState.activeNav === "Library");
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [leftPaneWidth, setLeftPaneWidth] = useState(300);
@@ -1011,8 +1126,18 @@ function App() {
   }, [selectedRunId]);
 
   useEffect(() => {
+    if (activeNav === "Intelligence") {
+      setActiveNav("Settings");
+      setActiveSettingsSection("intelligence");
+    }
+  }, [activeNav]);
+
+  useEffect(() => {
     const params = new URLSearchParams();
     if (activeNav !== "Library") params.set("view", activeNav);
+    if (activeNav === "Settings" && activeSettingsSection !== "account") {
+      params.set("section", activeSettingsSection);
+    }
     if (activeNav === "Library") {
       if (kindFilter !== "all") params.set("kind", kindFilter);
       if (query.trim()) params.set("q", query.trim());
@@ -1026,7 +1151,7 @@ function App() {
     const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState(null, "", nextUrl);
-  }, [activeNav, activeWorkflowView, conversationOpen, kindFilter, query, selectedId]);
+  }, [activeNav, activeSettingsSection, activeWorkflowView, conversationOpen, kindFilter, query, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1202,7 +1327,7 @@ function App() {
   const taskEntries = Object.entries(intelligence.config?.tasks || {});
   const profileEntries = intelligenceProfileEntries(intelligence.config);
   const selectedTaskConfig = intelligence.config?.tasks?.[selectedTask] || taskEntries[0]?.[1] || null;
-  const selectedProfileConfig = intelligence.config?.profiles?.[selectedProfile] || profileEntries[0]?.[1] || null;
+  const selectedProfileConfig = intelligence.config?.profiles?.[selectedProfile] || null;
   const selectedProvider = (intelligence.providers?.providers || []).find((provider) => provider.id === selectedTaskConfig?.provider);
   const selectedTaskFingerprint = selectedTaskConfig ? JSON.stringify(selectedTaskConfig) : "";
   const selectedProfileFingerprint = selectedProfileConfig ? JSON.stringify(selectedProfileConfig) : "";
@@ -1341,9 +1466,10 @@ function App() {
   useEffect(() => {
     if (!profileEntries.length) return;
     if (!profileEntries.some(([profileId]) => profileId === selectedProfile)) {
+      if (profileDraftDirty(profileDraft, null)) return;
       setSelectedProfile(profileEntries[0][0]);
     }
-  }, [JSON.stringify(profileEntries.map(([profileId]) => profileId)), selectedProfile]);
+  }, [JSON.stringify(profileEntries.map(([profileId]) => profileId)), selectedProfile, profileDraft]);
 
   useEffect(() => {
     if (!selectedProfileConfig) return;
@@ -1516,6 +1642,23 @@ function App() {
     return profileUpdateFromDraft(profileDraft);
   }
 
+  function createProfileDraft(provider = "openai-compatible") {
+    const draft = defaultProfileDraft(provider);
+    const profileId = uniqueProfileId(draft.label, intelligence.config?.profiles || {});
+    setSelectedProfile(profileId);
+    setProfileDraft(draft);
+    setConfigAction({ status: "idle", message: `Drafting new profile ${draft.label}. Preview and apply to save it.`, preview: null });
+  }
+
+  function duplicateProfileDraft() {
+    const base = profileDraftFromConfig(selectedProfileConfig || profileDraft);
+    const label = `${base.label || selectedProfile || "Profile"} copy`;
+    const profileId = uniqueProfileId(label, intelligence.config?.profiles || {});
+    setSelectedProfile(profileId);
+    setProfileDraft({ ...base, label });
+    setConfigAction({ status: "idle", message: `Drafting duplicate profile ${label}. Preview and apply to save it.`, preview: null });
+  }
+
   async function previewConfigUpdate() {
     setConfigAction({ status: "running", message: "Previewing intelligence routing update...", preview: null });
     try {
@@ -1570,6 +1713,32 @@ function App() {
       });
     } catch (error) {
       setConfigAction((current) => ({ ...current, status: "error", message: `Apply failed: ${error.message}` }));
+    }
+  }
+
+  async function deleteSelectedProfile() {
+    if (!selectedProfile) return;
+    const approved = window.confirm(`Delete intelligence profile ${selectedProfile}?`);
+    if (!approved) return;
+    setConfigAction({ status: "running", message: `Deleting profile ${selectedProfile}...`, preview: null });
+    try {
+      const payload = await postJson("/api/intelligence/config/apply", {
+        profile_id: selectedProfile,
+        delete_profile: true,
+        approval_token: "APPLY_INTELLIGENCE_CONFIG_UPDATE"
+      });
+      const configPayload = await fetchJson("/api/intelligence/config");
+      setIntelligence((current) => ({ ...current, config: configPayload }));
+      const nextProfile = Object.keys(configPayload.profiles || {})[0] || "";
+      setSelectedProfile(nextProfile);
+      if (nextProfile) setProfileDraft(profileDraftFromConfig(configPayload.profiles[nextProfile]));
+      setConfigAction({
+        status: "applied",
+        message: `Deleted profile ${selectedProfile}.`,
+        preview: payload
+      });
+    } catch (error) {
+      setConfigAction({ status: "error", message: `Delete failed: ${error.message}`, preview: null });
     }
   }
 
@@ -1941,8 +2110,11 @@ function App() {
     }
   }
 
-  function openAppView(view) {
+  function openAppView(view, options = {}) {
     setActiveNav(view);
+    if (view === "Settings" && options.section) {
+      setActiveSettingsSection(options.section);
+    }
     setAccountMenuOpen(false);
   }
 
@@ -1989,12 +2161,12 @@ function App() {
                 <strong>Account</strong>
                 <small>{health.store_dir || "runtime unavailable"}</small>
               </div>
-              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Settings</button>
-              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Account management</button>
+              <button role="menuitem" onClick={() => openAppView("Settings", { section: "account" })} type="button">Settings</button>
+              <button role="menuitem" onClick={() => openAppView("Settings", { section: "account" })} type="button">Account management</button>
               <button role="menuitem" onClick={() => openAppView("Provenance")} type="button">Integrations / provenance</button>
-              <button role="menuitem" onClick={() => openAppView("Intelligence")} type="button">Intelligence</button>
-              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Automation</button>
-              <button role="menuitem" onClick={() => openAppView("Settings")} type="button">Runtime status</button>
+              <button role="menuitem" onClick={() => openAppView("Settings", { section: "intelligence" })} type="button">Intelligence</button>
+              <button role="menuitem" onClick={() => openAppView("Settings", { section: "automation" })} type="button">Automation</button>
+              <button role="menuitem" onClick={() => openAppView("Settings", { section: "validation" })} type="button">Runtime status</button>
             </div>
           ) : null}
         </div>
@@ -2230,6 +2402,7 @@ function App() {
               automation={automation}
               automationAction={automationAction}
               automationDraft={automationDraft}
+              activeSettingsSection={activeSettingsSection}
               configAction={configAction}
               health={health}
               intelligence={intelligence}
@@ -2244,6 +2417,7 @@ function App() {
               selectedProfileConfig={selectedProfileConfig}
               setAutomationAction={setAutomationAction}
               setConfigAction={setConfigAction}
+              setActiveSettingsSection={setActiveSettingsSection}
               setProfileDraft={setProfileDraft}
               setProvenanceAction={setProvenanceAction}
               setProvenanceDraft={setProvenanceDraft}
@@ -2254,7 +2428,10 @@ function App() {
               onApplyIntelligence={applyConfigUpdate}
               onApplyAutomation={applyAutomationUpdate}
               onApplyProvenance={applyProvenanceUpdate}
-              onOpenIntelligence={() => openAppView("Intelligence")}
+              onCreateProfile={createProfileDraft}
+              onDeleteProfile={deleteSelectedProfile}
+              onDuplicateProfile={duplicateProfileDraft}
+              onOpenIntelligence={() => openAppView("Settings", { section: "intelligence" })}
               onOpenProvenance={() => openAppView("Provenance")}
               onPreviewIntelligence={previewConfigUpdate}
               onPreviewAutomation={previewAutomationUpdate}
@@ -2829,6 +3006,7 @@ function IntelligencePanel({
 }
 
 function SettingsPanel({
+  activeSettingsSection,
   automation,
   automationAction,
   automationDraft,
@@ -2845,6 +3023,7 @@ function SettingsPanel({
   selectedTask,
   selectedTaskConfig,
   setAutomationAction,
+  setActiveSettingsSection,
   setConfigAction,
   setProfileDraft,
   setProvenanceAction,
@@ -2856,6 +3035,9 @@ function SettingsPanel({
   onApplyIntelligence,
   onApplyAutomation,
   onApplyProvenance,
+  onCreateProfile,
+  onDeleteProfile,
+  onDuplicateProfile,
   onOpenIntelligence,
   onOpenProvenance,
   onPreviewIntelligence,
@@ -2864,12 +3046,14 @@ function SettingsPanel({
   onRefreshProvenance,
   setAutomationDraft
 }) {
-  const [activeSection, setActiveSection] = useState("account");
+  const [activeSection, setActiveSection] = useState(activeSettingsSection || "account");
   const stages = automationStageEntries(automation);
   const modeChoices = automation?.mode_choices || ["manual", "one_click", "automatic"];
   const intelligenceConfig = intelligence?.config || {};
   const taskEntries = Object.entries(intelligenceConfig?.tasks || {});
   const profileEntries = intelligenceProfileEntries(intelligenceConfig);
+  const profileMap = intelligenceConfig.profiles || {};
+  const defaultProfileIds = new Set(intelligenceConfig.default_profile_ids || []);
   const providerList = intelligence?.providers?.providers || [];
   const sources = provenanceSourceEntries(provenance);
   const provenanceCounts = provenanceSourceCounts(provenance);
@@ -2887,15 +3071,36 @@ function SettingsPanel({
     provenanceDirty ? "Provenance" : ""
   ].filter(Boolean);
   const selectedProfileProvider = providerList.find((provider) => provider.id === profileDraft.provider) || null;
+  const auraCallReadiness = intelligence?.auracall_readiness || intelligence?.config?.auracall_readiness || {};
+  const auraCallAgents = auracallAgentOptions(intelligence);
+  const selectedAuraCallAgentId = agentIdFromModel(profileDraft.model);
+  const selectedAuraCallAgent = auraCallAgents.find((agent) => agent.id === selectedAuraCallAgentId) || null;
+  const auraCallAgentChoices = selectedAuraCallAgentId && !selectedAuraCallAgent
+    ? [
+        {
+          id: selectedAuraCallAgentId,
+          label: selectedAuraCallAgentId,
+          ready: false,
+          settings_description: "Configured agent; the AuraCall choices API did not return current settings for it."
+        },
+        ...auraCallAgents
+      ]
+    : auraCallAgents;
+  const selectedAuraCallAgentDetail = selectedAuraCallAgent || auraCallAgentChoices.find((agent) => agent.id === selectedAuraCallAgentId) || null;
+  const showAuraCallAgentSelector = shouldUseAuraCallAgentSelector(profileDraft, selectedProfileProvider, auraCallAgents);
+  const isNewProfile = Boolean(selectedProfile && !profileMap[selectedProfile]);
+  const selectedProfileInUse = taskEntries.some(([, task]) => task.profile === selectedProfile);
+  const canDeleteProfile = Boolean(selectedProfile && !isNewProfile && !defaultProfileIds.has(selectedProfile) && !selectedProfileInUse);
+  const showBaseUrlField = ["openai-compatible", "auracall"].includes(profileDraft.provider);
+  const showTemperatureField = ["openai-compatible", "auracall"].includes(profileDraft.provider);
+  const showModelField = !showAuraCallAgentSelector && profileDraft.provider !== "codex-app-server";
+  const providerProfileNote = {
+    "openai-compatible": "OpenAI-compatible API profiles use model, optional base URL, timeout, and temperature.",
+    auracall: "AuraCall profiles select a runtime-advertised agent when available, with API transport read from runtime settings.",
+    "codex-exec": "Codex exec profiles dispatch local CLI work; model and base URL are usually left to the Codex runtime.",
+    "codex-app-server": "Codex app-server profiles use the ledger-backed local supervisor; provider defaults usually own model selection."
+  }[profileDraft.provider] || "Provider-specific settings appear when the provider exposes configurable fields.";
   const activeProfileName = automationDraft.profile || provenanceDraft.activeProfile || "default";
-  const sectionItems = [
-    { id: "account", label: "Account", meta: activeProfileName },
-    { id: "intelligence", label: "Intelligence", meta: `${profileEntries.length} profiles` },
-    { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
-    { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
-    { id: "safety", label: "Safety", meta: dirtySections.length ? `${dirtySections.length} staged` : "clear" },
-    { id: "validation", label: "Validation", meta: latestValidation?.status || provenanceStatus }
-  ];
   const settingsState = dirtySections.length
     ? `${dirtySections.length} staged`
     : configAction.preview || automationAction.preview || provenanceAction.preview
@@ -2903,6 +3108,14 @@ function SettingsPanel({
       : automation.exists || provenance.exists
         ? "saved"
         : "defaults";
+  const sectionItems = [
+    { id: "account", label: "Overview", meta: settingsState },
+    { id: "intelligence", label: "Intelligence", meta: `${profileEntries.length} profiles` },
+    { id: "automation", label: "Automation", meta: `${enabledCount} enabled` },
+    { id: "provenance", label: "Provenance", meta: `${enabledSourceCount} sources` },
+    { id: "safety", label: "Safety", meta: dirtySections.length ? `${dirtySections.length} staged` : "clear" },
+    { id: "validation", label: "Validation", meta: latestValidation?.status || provenanceStatus }
+  ];
   const updateStage = (stageId, changes) => {
     setAutomationAction({ status: "idle", message: "", preview: null });
     setAutomationDraft((current) => ({
@@ -2916,6 +3129,15 @@ function SettingsPanel({
       }
     }));
   };
+  const selectSection = (sectionId) => {
+    setActiveSection(sectionId);
+    setActiveSettingsSection?.(sectionId);
+  };
+  useEffect(() => {
+    if (activeSettingsSection && activeSettingsSection !== activeSection) {
+      setActiveSection(activeSettingsSection);
+    }
+  }, [activeSettingsSection]);
   const updateTaskDraft = (changes) => {
     setConfigAction({ status: "idle", message: "", preview: null });
     setTaskDraft((draft) => ({ ...draft, ...changes }));
@@ -2955,14 +3177,6 @@ function SettingsPanel({
   );
   return (
     <div className="settings-workbench">
-      <div className="settings-status-row" aria-label="Settings status">
-        <span>Profile <strong>{activeProfileName}</strong></span>
-        <span>Profiles <strong>{profileEntries.length}</strong></span>
-        <span>Automation <strong>{enabledCount} enabled</strong></span>
-        <span>Sources <strong>{enabledSourceCount}</strong></span>
-        <span>State <strong>{settingsState}</strong></span>
-      </div>
-
       {showDraftBar && (
         <section className={dirtySections.length ? "settings-dirty-bar dirty" : "settings-dirty-bar"} aria-label="Staged config changes">
           <div>
@@ -2988,7 +3202,7 @@ function SettingsPanel({
               aria-pressed={activeSection === item.id}
               className={activeSection === item.id ? "active" : ""}
               key={item.id}
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => selectSection(item.id)}
               type="button"
             >
               <span>{item.label}</span>
@@ -3003,9 +3217,55 @@ function SettingsPanel({
               <section className="settings-compact-section">
                 <div className="settings-section-title">
                   <div>
-                    <p className="eyebrow">Account</p>
-                    <h2>{automationDraft.profile || "default"}</h2>
+                    <p className="eyebrow">Settings</p>
+                    <h2>Configuration overview</h2>
                   </div>
+                  <span className={dirtySections.length ? "settings-state-pill dirty" : "settings-state-pill"}>{settingsState}</span>
+                </div>
+
+                <div className="settings-overview-grid">
+                  <article className="settings-overview-card">
+                    <div>
+                      <p className="eyebrow">Intelligence</p>
+                      <h3>{profileEntries.length} profiles</h3>
+                      <span>{taskEntries.length} task routes · {selectedProfile || "default"} selected</span>
+                    </div>
+                    <button onClick={() => selectSection("intelligence")} type="button">Configure</button>
+                  </article>
+                  <article className="settings-overview-card">
+                    <div>
+                      <p className="eyebrow">Automation</p>
+                      <h3>{enabledCount} / {stages.length} enabled</h3>
+                      <span>{automation.exists ? "saved" : "defaults"} · {activeProfileName}</span>
+                    </div>
+                    <button onClick={() => selectSection("automation")} type="button">Configure</button>
+                  </article>
+                  <article className="settings-overview-card">
+                    <div>
+                      <p className="eyebrow">Provenance</p>
+                      <h3>{enabledSourceCount} / {sources.length} sources</h3>
+                      <span>{provenanceStatus}</span>
+                    </div>
+                    <button onClick={() => selectSection("provenance")} type="button">Configure</button>
+                  </article>
+                  <article className="settings-overview-card">
+                    <div>
+                      <p className="eyebrow">Validation</p>
+                      <h3>{latestValidation?.status || provenanceStatus}</h3>
+                      <span>{latestValidation ? "latest evidence available" : "no browser evidence"}</span>
+                    </div>
+                    <button onClick={() => selectSection("validation")} type="button">Open</button>
+                  </article>
+                </div>
+              </section>
+
+              <section className="settings-compact-section settings-profile-strip">
+                <div className="settings-section-title compact">
+                  <div>
+                    <p className="eyebrow">Profiles</p>
+                    <h2>{activeProfileName}</h2>
+                  </div>
+                  <button onClick={() => selectSection("safety")} type="button">Safety</button>
                 </div>
                 <div className="settings-two-column-form">
                   <label>
@@ -3020,17 +3280,17 @@ function SettingsPanel({
                     <input value={provenanceDraft.activeProfile || "default"} onChange={(event) => updateProvenanceDraft({ activeProfile: event.target.value })} />
                   </label>
                 </div>
-                <dl className="settings-detail-list">
-                  <dt>Automation state</dt>
+              </section>
+              <details className="settings-discrete-details">
+                <summary>Runtime paths and facts</summary>
+                <dl className="settings-detail-list compact">
+                  <dt>Automation config</dt>
                   <dd>{automation.exists ? "saved" : "defaults"}</dd>
                   <dt>Provenance doctor</dt>
                   <dd>{provenanceStatus}</dd>
                   <dt>Task routes</dt>
                   <dd>{taskEntries.length}</dd>
                 </dl>
-              </section>
-              <details className="settings-discrete-details">
-                <summary>Runtime roots</summary>
                 <div className="settings-path-list compact">
                   <code>{health.store_dir || "store unavailable"}</code>
                   <code>{intelligenceConfig?.config_path || "intelligence config defaults"}</code>
@@ -3049,11 +3309,34 @@ function SettingsPanel({
                     <p className="eyebrow">Profiles</p>
                     <h2>{profileDraft.label || selectedProfile}</h2>
                   </div>
-                  <select value={selectedProfile} onChange={(event) => setSelectedProfile(event.target.value)}>
-                    {profileEntries.map(([profileId, profile]) => (
-                      <option key={profileId} value={profileId}>{profile.label || profileId}</option>
-                    ))}
-                  </select>
+                  <div className="settings-profile-actions">
+                    <select value={selectedProfile} onChange={(event) => setSelectedProfile(event.target.value)}>
+                      {isNewProfile ? <option value={selectedProfile}>{profileDraft.label || selectedProfile} (new)</option> : null}
+                      {profileEntries.map(([profileId, profile]) => (
+                        <option key={profileId} value={profileId}>{profile.label || profileId}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => onCreateProfile("openai-compatible")} type="button">New</button>
+                    <button onClick={onDuplicateProfile} type="button">Duplicate</button>
+                    <button
+                      disabled={!canDeleteProfile}
+                      onClick={onDeleteProfile}
+                      title={
+                        defaultProfileIds.has(selectedProfile)
+                          ? "Default profiles are protected."
+                          : selectedProfileInUse
+                            ? "Profiles assigned to components cannot be deleted."
+                            : "Delete this custom profile."
+                      }
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                <div className="settings-profile-meta">
+                  <span>ID: <code>{selectedProfile}</code>{isNewProfile ? " · new, not saved" : ""}</span>
+                  <span>{providerProfileNote}</span>
                 </div>
                 <div className="settings-two-column-form">
                   <label>
@@ -3062,33 +3345,86 @@ function SettingsPanel({
                   </label>
                   <label>
                     <span>Provider</span>
-                    <select value={profileDraft.provider} onChange={(event) => updateProfileDraft({ provider: event.target.value })}>
-                      {[...new Set([profileDraft.provider, ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
+                    <select
+                      value={profileDraft.provider}
+                      onChange={(event) => {
+                        const provider = event.target.value;
+                        const defaults = defaultProfileDraft(provider);
+                        updateProfileDraft({
+                          provider,
+                          model: defaults.model,
+                          base_url: defaults.base_url,
+                          timeout: defaults.timeout,
+                          temperature: defaults.temperature
+                        });
+                      }}
+                    >
+                      {[...new Set([profileDraft.provider, "openai-compatible", "auracall", "codex-exec", "codex-app-server", ...providerList.map((provider) => provider.id)])].filter(Boolean).map((providerId) => (
                         <option key={providerId} value={providerId}>{providerId}</option>
                       ))}
                     </select>
                   </label>
-                  <label>
-                    <span>Model</span>
-                    <input value={profileDraft.model} onChange={(event) => updateProfileDraft({ model: event.target.value })} placeholder="provider default" />
-                  </label>
-                  <label>
-                    <span>Base URL</span>
-                    <input value={profileDraft.base_url} onChange={(event) => updateProfileDraft({ base_url: event.target.value })} placeholder="env/provider default" />
-                  </label>
+                  {showAuraCallAgentSelector ? (
+                    <label>
+                      <span>AuraCall agent</span>
+                      <select
+                        value={selectedAuraCallAgentId}
+                        onChange={(event) => updateProfileDraft({ model: agentModelFromId(event.target.value) })}
+                        disabled={!auraCallAgentChoices.length}
+                      >
+                        <option value="">{auraCallAgentChoices.length ? "Select agent" : "No agents returned"}</option>
+                        {auraCallAgentChoices.map((agent) => (
+                          <option key={agent.id} value={agent.id}>
+                            {agent.label || agent.id}{agent.ready ? "" : " (not ready)"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : showModelField ? (
+                    <label>
+                      <span>Model</span>
+                      <input value={profileDraft.model} onChange={(event) => updateProfileDraft({ model: event.target.value })} placeholder="provider default" />
+                    </label>
+                  ) : null}
+                  {showBaseUrlField ? (
+                    <label>
+                      <span>Base URL</span>
+                      <input value={profileDraft.base_url} onChange={(event) => updateProfileDraft({ base_url: event.target.value })} placeholder="env/provider default" />
+                    </label>
+                  ) : null}
                   <label>
                     <span>Timeout</span>
                     <input type="number" value={profileDraft.timeout} onChange={(event) => updateProfileDraft({ timeout: event.target.value })} />
                   </label>
-                  <label>
-                    <span>Temperature</span>
-                    <input type="number" step="0.1" value={profileDraft.temperature} onChange={(event) => updateProfileDraft({ temperature: event.target.value })} />
-                  </label>
+                  {showTemperatureField ? (
+                    <label>
+                      <span>Temperature</span>
+                      <input type="number" step="0.1" value={profileDraft.temperature} onChange={(event) => updateProfileDraft({ temperature: event.target.value })} />
+                    </label>
+                  ) : null}
                   <label className="wide-field">
                     <span>Description</span>
                     <input value={profileDraft.description} onChange={(event) => updateProfileDraft({ description: event.target.value })} />
                   </label>
                 </div>
+                {showAuraCallAgentSelector && (
+                  <div className="settings-agent-summary">
+                    <div>
+                      <strong>{selectedAuraCallAgentDetail?.label || selectedAuraCallAgentId || "No AuraCall agent selected"}</strong>
+                      <span>{selectedAuraCallAgentDetail ? auraCallAgentDescription(selectedAuraCallAgentDetail) : "Select one of the runtime-advertised agents for this profile."}</span>
+                    </div>
+                    <dl className="settings-detail-list compact">
+                      <dt>Choices API</dt>
+                      <dd>{auraCallReadiness.source?.fetched ? "available" : "unavailable"}</dd>
+                      <dt>Agents</dt>
+                      <dd>{auraCallReadiness.counts?.agents ?? auraCallAgents.length}</dd>
+                      <dt>Dispatch team</dt>
+                      <dd>{auraCallReadiness.dispatch_team || "none"}</dd>
+                      <dt>Selected model</dt>
+                      <dd>{profileDraft.model || "none"}</dd>
+                    </dl>
+                  </div>
+                )}
               </section>
 
               <section className="settings-compact-section">
@@ -3097,7 +3433,7 @@ function SettingsPanel({
                     <p className="eyebrow">Component profile selections</p>
                     <h2>{statusLabel(selectedTask || "task")}</h2>
                   </div>
-                  <button onClick={onOpenIntelligence} type="button">Open full Intelligence</button>
+                  <button onClick={() => selectSection("validation")} type="button">Validation</button>
                 </div>
                 <div className="settings-route-matrix">
                   <div className="settings-route-matrix-heading">
@@ -4640,6 +4976,7 @@ function ConversationWorkflowModal({
   const [identityReview, setIdentityReview] = useState(conversationDetail?.identity_review || null);
   const [firstPassAction, setFirstPassAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerReviewAction, setSpeakerReviewAction] = useState({ status: "idle", message: "", payload: null });
+  const [speakerLocalAssignments, setSpeakerLocalAssignments] = useState({});
   const [speakerManualLabels, setSpeakerManualLabels] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
   const [contextContactAction, setContextContactAction] = useState({ status: "idle", message: "", payload: null });
@@ -4678,6 +5015,22 @@ function ConversationWorkflowModal({
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
+  const stagedSpeakerCount = Object.keys(speakerLocalAssignments || {}).length;
+  const speakersForDisplay = useMemo(
+    () => (activeIdentityReview.speakers || []).map((speaker) => {
+      const staged = speakerLocalAssignments[speaker.speaker_label];
+      if (!staged) return speaker;
+      return {
+        ...speaker,
+        status: staged.status,
+        assignment: staged.assignment,
+        review_required: false,
+        staged: true
+      };
+    }),
+    [activeIdentityReview.speakers, speakerLocalAssignments]
+  );
+  const speakerPendingCount = speakersForDisplay.filter((speaker) => speaker.review_required).length;
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
   const firstPassBusy = ["running", "submitting", "checking"].includes(firstPassAction.status);
@@ -4752,6 +5105,7 @@ function ConversationWorkflowModal({
   const finalPreviewBlocked = finalPreview.status === "blocked_identity_or_context_review" || Boolean(finalPreview.identity_context_warnings?.length);
   useEffect(() => {
     setIdentityReview(conversationDetail?.identity_review || null);
+    setSpeakerLocalAssignments({});
     setSpeakerManualLabels({});
     setFirstPassAction({ status: "idle", message: "", payload: null });
     setSpeakerReviewAction({ status: "idle", message: "", payload: null });
@@ -4985,26 +5339,67 @@ function ConversationWorkflowModal({
     }
   }
 
-  async function reviewSpeaker(speaker, action, candidate = {}) {
-    setSpeakerReviewAction({ status: "running", message: `${action === "confirm" ? "Confirming" : "Deferring"} ${speaker.speaker_label}...`, payload: null });
-    try {
-      const payload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/identity-review`, {
+  function stageSpeakerReview(speaker, action, candidate = {}) {
+    const speakerLabel = speaker.speaker_label;
+    const contactId = contactCandidateId(candidate);
+    const contactLabel = candidate.label || candidate.email || speakerLabel;
+    const email = candidate.email || "";
+    setSpeakerLocalAssignments((current) => ({
+      ...current,
+      [speakerLabel]: {
         action,
-        speaker_label: speaker.speaker_label,
-        contact_id: candidate.contact_id || "",
-        contact_label: candidate.label || speaker.speaker_label,
-        email: candidate.email || "",
-        reviewer: "operator",
-        note: action === "confirm" ? "Confirmed in the conversation workspace." : "Deferred from the conversation workspace."
-      });
-      setIdentityReview(payload.identity_review);
+        speaker_label: speakerLabel,
+        contact_id: contactId,
+        contact_label: contactLabel,
+        email,
+        status: action === "confirm" ? "confirmed" : action === "llm_readout" ? "llm_readout" : "deferred",
+        assignment: action === "confirm"
+          ? {
+              contact_id: contactId,
+              contact_label: contactLabel,
+              email
+            }
+          : null
+      }
+    }));
+    setSpeakerReviewAction({
+      status: "staged",
+      message: `${speakerLabel} staged. Save speaker choices when finished.`,
+      payload: null
+    });
+  }
+
+  async function saveSpeakerReviews() {
+    const stagedAssignments = Object.values(speakerLocalAssignments || {});
+    if (!stagedAssignments.length) return;
+    setSpeakerReviewAction({ status: "running", message: `Saving ${stagedAssignments.length} speaker choice(s)...`, payload: null });
+    try {
+      let latestPayload = null;
+      for (const staged of stagedAssignments) {
+        const note = staged.action === "confirm"
+          ? "Confirmed in the conversation workspace."
+          : staged.action === "llm_readout"
+            ? "LLM should assign this speaker during the final readout using selected context contacts."
+            : "Deferred from the conversation workspace.";
+        latestPayload = await postJson(`/api/conversations/${encodeURIComponent(item.id)}/identity-review`, {
+          action: staged.action,
+          speaker_label: staged.speaker_label,
+          contact_id: staged.contact_id || "",
+          contact_label: staged.contact_label || staged.speaker_label,
+          email: staged.email || "",
+          reviewer: "operator",
+          note
+        });
+      }
+      if (latestPayload?.identity_review) setIdentityReview(latestPayload.identity_review);
+      setSpeakerLocalAssignments({});
       setSpeakerReviewAction({
-        status: payload.status || "recorded",
-        message: action === "confirm" ? "Speaker assignment recorded locally." : "Speaker identity deferred into the Review Queue.",
-        payload
+        status: latestPayload?.status || "saved",
+        message: `${stagedAssignments.length} speaker choice(s) saved.`,
+        payload: latestPayload
       });
     } catch (error) {
-      setSpeakerReviewAction({ status: "error", message: `Speaker review failed: ${error.message}`, payload: null });
+      setSpeakerReviewAction({ status: "error", message: `Speaker review save failed: ${error.message}`, payload: null });
     }
   }
 
@@ -5799,50 +6194,97 @@ function ConversationWorkflowModal({
                 <div className="workflow-view-heading">
                   <div>
                     <span>Speakers and contacts</span>
-                    <h3>{activeIdentityReview.pending_count || 0} pending assignments</h3>
+                    <h3>{speakerPendingCount} pending assignments</h3>
+                  </div>
+                  <div className="workflow-action-row">
+                    <small>{selectedContextContacts.length} selected contacts available · {stagedSpeakerCount} staged</small>
+                    <button
+                      disabled={!stagedSpeakerCount || speakerReviewAction.status === "running"}
+                      onClick={saveSpeakerReviews}
+                      type="button"
+                    >
+                      Save speaker choices
+                    </button>
+                    {stagedSpeakerCount ? (
+                      <button
+                        disabled={speakerReviewAction.status === "running"}
+                        onClick={() => {
+                          setSpeakerLocalAssignments({});
+                          setSpeakerReviewAction({ status: "idle", message: "Staged speaker choices discarded.", payload: null });
+                        }}
+                        type="button"
+                      >
+                        Discard
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-                {activeIdentityReview.speakers?.length ? (
+                {speakersForDisplay.length ? (
                   <div className="identity-list">
-                    {identityBundle.calendar_attendees?.length ? (
-                      <article className="identity-evidence-card">
-                        <strong>Calendar evidence</strong>
-                        <small>
-                          {identityBundle.calendar_attendees.slice(0, 6).map((attendee) => attendee.label || attendee.email).join(" · ")}
-                        </small>
-                      </article>
-                    ) : null}
-                    {activeIdentityReview.speakers.map((speaker) => (
+                    {speakersForDisplay.map((speaker) => (
                       <article key={speaker.speaker_label}>
                         <strong>{speaker.speaker_label}</strong>
                         <small>
                           {speaker.assignment?.contact_label
-                            ? `${statusLabel(speaker.status)} as ${speaker.assignment.contact_label}`
-                            : statusLabel(speaker.status || "pending")}
+                            ? `${speaker.staged ? "staged " : ""}${statusLabel(speaker.status)} as ${speaker.assignment.contact_label}`
+                            : `${speaker.staged ? "staged " : ""}${statusLabel(speaker.status || "pending")}`}
                         </small>
-                        {speaker.candidates?.length ? (
+                        {selectedContextContacts.length ? (
                           <div className="candidate-list">
-                            {speaker.candidates.slice(0, 4).map((candidate) => (
-                              <button
-                                disabled={speaker.status === "confirmed" || speakerReviewAction.status === "running"}
-                                key={`${speaker.speaker_label}-${candidate.contact_id}-${candidate.label}`}
-                                onClick={() => reviewSpeaker(speaker, "confirm", candidate)}
-                                type="button"
-                              >
-                                <span>{candidate.label}</span>
-                                <small>
-                                  {candidate.source_type || candidate.source} · {candidate.source_profile || "local"} · {candidate.confidence}
-                                </small>
-                              </button>
-                            ))}
+                            {selectedContextContacts.map((candidate) => {
+                              const selected = speaker.status === "confirmed" && speakerAssignmentMatchesCandidate(speaker, candidate);
+                              return (
+                                <button
+                                  className={selected ? "speaker-assignment-option selected" : "speaker-assignment-option"}
+                                  disabled={speakerReviewAction.status === "running"}
+                                  key={`${speaker.speaker_label}-${contactCandidateId(candidate)}`}
+                                  onClick={() => stageSpeakerReview(speaker, "confirm", candidate)}
+                                  type="button"
+                                >
+                                  <span className="assignment-option-main">
+                                    <span>{candidate.label}</span>
+                                    {selected ? <span className="selection-check" aria-label="Selected" /> : null}
+                                  </span>
+                                  <small>
+                                    {candidate.email || candidate.source_type || candidate.source || "selected contact"}
+                                  </small>
+                                </button>
+                              );
+                            })}
+                            <button
+                              className={speaker.status === "llm_readout" ? "speaker-assignment-option selected readout-option" : "speaker-assignment-option readout-option"}
+                              disabled={speakerReviewAction.status === "running"}
+                              onClick={() => stageSpeakerReview(speaker, "llm_readout")}
+                              type="button"
+                            >
+                              <span className="assignment-option-main">
+                                <span>Assign at readout</span>
+                                {speaker.status === "llm_readout" ? <span className="selection-check" aria-label="Selected" /> : null}
+                              </span>
+                              <small>Let the final readout LLM choose from selected contacts.</small>
+                            </button>
                           </div>
                         ) : (
-                          <p className="muted">No contact candidates are available yet.</p>
+                          <div className="candidate-list">
+                            <p className="muted">Select contacts in the Context workbench before matching speakers.</p>
+                            <button
+                              className={speaker.status === "llm_readout" ? "speaker-assignment-option selected readout-option" : "speaker-assignment-option readout-option"}
+                              disabled={speakerReviewAction.status === "running"}
+                              onClick={() => stageSpeakerReview(speaker, "llm_readout")}
+                              type="button"
+                            >
+                              <span className="assignment-option-main">
+                                <span>Assign at readout</span>
+                                {speaker.status === "llm_readout" ? <span className="selection-check" aria-label="Selected" /> : null}
+                              </span>
+                              <small>Let the final readout LLM choose after context is assembled.</small>
+                            </button>
+                          </div>
                         )}
                         <div className="manual-contact-row">
                           <input
                             aria-label={`Manual contact for ${speaker.speaker_label}`}
-                            disabled={speaker.status === "confirmed" || speakerReviewAction.status === "running"}
+                            disabled={speakerReviewAction.status === "running"}
                             onChange={(event) => setSpeakerManualLabels((current) => ({
                               ...current,
                               [speaker.speaker_label]: event.target.value
@@ -5853,14 +6295,13 @@ function ConversationWorkflowModal({
                           />
                           <button
                             disabled={
-                              speaker.status === "confirmed" ||
                               speakerReviewAction.status === "running" ||
                               !String(speakerManualLabels[speaker.speaker_label] || "").trim()
                             }
                             onClick={() => {
                               const value = String(speakerManualLabels[speaker.speaker_label] || "").trim();
                               const email = value.includes("@") ? value : "";
-                              reviewSpeaker(speaker, "confirm", { label: value, email });
+                              stageSpeakerReview(speaker, "confirm", { label: value, email });
                             }}
                             type="button"
                           >
@@ -5868,11 +6309,12 @@ function ConversationWorkflowModal({
                           </button>
                         </div>
                         <button
-                          disabled={speaker.status === "deferred" || speakerReviewAction.status === "running"}
-                          onClick={() => reviewSpeaker(speaker, "defer")}
+                          disabled={speakerReviewAction.status === "running"}
+                          onClick={() => stageSpeakerReview(speaker, "defer")}
+                          title="Create a Review Queue item so an operator can resolve this speaker later."
                           type="button"
                         >
-                          Defer to queue
+                          Needs manual review
                         </button>
                       </article>
                     ))}
