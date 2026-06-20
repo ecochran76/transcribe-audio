@@ -59,6 +59,8 @@ def test_identity_bundle_uses_configured_contact_provenance(tmp_path: Path, monk
         ]
 
     def fake_odollo(transcript, readout, *, config):
+        assert transcript["event"]["participants"] == []
+        assert "alice@example.com" in readout["participants"]
         return [
             ProvenanceSource(
                 source_type="odollo_contact",

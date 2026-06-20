@@ -735,6 +735,11 @@ def test_auracall_choices_readiness_validates_dispatch_team_members() -> None:
     assert readiness["source"]["api_key_configured"] is True
     assert readiness["source"]["fetched"] is True
     assert readiness["source"]["choices_url"] == "http://127.0.0.1:18095/v1/config/agent-choices"
+    assert readiness["agent_options"][0]["id"] == "transcript-worker"
+    assert readiness["agent_options"][0]["model"] == "agent:transcript-worker"
+    assert readiness["agent_options"][0]["ready"] is True
+    assert "runtime wsl-chrome-3" in readiness["agent_options"][0]["settings_description"]
+    assert "project Transcripts" in readiness["agent_options"][0]["settings_description"]
     assert readiness["dispatch"]["ready"] is True
     assert readiness["dispatch"]["members"][0]["ready"] is True
     assert "secret-value" not in json.dumps(readiness)

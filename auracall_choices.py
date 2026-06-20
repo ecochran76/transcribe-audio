@@ -81,6 +81,7 @@ def build_readiness(
             "projectBinding": _redacted_project_binding(_object(agent, "projectBinding")) if agent else None,
         }
 
+    agent_options = _agent_options(agents, bindings, validations)
     dispatch_summary = None
     if dispatch_team:
         dispatch_summary = {
@@ -110,6 +111,7 @@ def build_readiness(
         "selected_agent_id": selected_agent_id,
         "dispatch_team": dispatch_team,
         "selected_agent": selected_agent,
+        "agent_options": agent_options,
         "dispatch": dispatch_summary,
         "counts": {
             "agents": len(agents),
@@ -204,6 +206,82 @@ def _team_member_summaries(team: dict[str, Any] | None, bindings: list[dict[str,
             }
         )
     return summaries
+
+
+def _agent_options(
+    agents: list[dict[str, Any]],
+    bindings: list[dict[str, Any]],
+    validations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    for agent in agents:
+        agent_id = _string_or_none(agent.get("id") or agent.get("agentId"))
+        if not agent_id:
+            continue
+        binding = _find_by_key(bindings, "bindingKey", str(agent.get("bindingKey") or ""))
+        validation = _find_by_key(validations, "agentId", agent_id)
+        valid = None if validation is None else bool(validation.get("valid"))
+        ready = bool(binding and binding.get("ready") and valid is not False)
+        runtime_profile = _string_or_none(agent.get("runtimeProfileId"))
+        browser_profile = _string_or_none(agent.get("browserProfileId"))
+        binding_key = _string_or_none(agent.get("bindingKey"))
+        project_binding = _redacted_project_binding(_object(agent, "projectBinding"))
+        label = (
+            _string_or_none(agent.get("label"))
+            or _string_or_none(agent.get("name"))
+            or _string_or_none(agent.get("displayName"))
+            or agent_id
+        )
+        options.append(
+            {
+                "id": agent_id,
+                "model": f"agent:{agent_id}",
+                "label": label,
+                "ready": ready,
+                "valid": valid,
+                "runtimeProfileId": runtime_profile,
+                "browserProfileId": browser_profile,
+                "bindingKey": binding_key,
+                "service": _string_or_none(agent.get("service") or agent.get("defaultService")),
+                "projectBinding": project_binding,
+                "settings_description": _agent_settings_description(
+                    runtime_profile=runtime_profile,
+                    browser_profile=browser_profile,
+                    binding_key=binding_key,
+                    project_binding=project_binding,
+                    ready=ready,
+                    valid=valid,
+                ),
+            }
+        )
+    return sorted(options, key=lambda item: (not bool(item.get("ready")), str(item.get("label") or item.get("id"))))
+
+
+def _agent_settings_description(
+    *,
+    runtime_profile: str | None,
+    browser_profile: str | None,
+    binding_key: str | None,
+    project_binding: dict[str, Any],
+    ready: bool,
+    valid: bool | None,
+) -> str:
+    parts: list[str] = []
+    if runtime_profile:
+        parts.append(f"runtime {runtime_profile}")
+    if browser_profile:
+        parts.append(f"browser {browser_profile}")
+    project_label = project_binding.get("label") or project_binding.get("id") or project_binding.get("providerProjectId")
+    if project_label:
+        parts.append(f"project {project_label}")
+    if binding_key:
+        parts.append(f"binding {binding_key}")
+    parts.append("ready" if ready else "not ready")
+    if valid is False:
+        parts.append("validation failed")
+    elif valid is True:
+        parts.append("validated")
+    return "; ".join(parts)
 
 
 def _member_binding(member: dict[str, Any], bindings: list[dict[str, Any]]) -> dict[str, Any] | None:

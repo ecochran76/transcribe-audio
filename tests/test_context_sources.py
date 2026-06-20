@@ -108,6 +108,17 @@ def test_collect_gws_provenance_converts_calendar_and_drive(monkeypatch) -> None
     assert commands[1][:4] == ["gws", "drive", "files", "list"]
 
 
+def test_gws_env_adds_user_install_paths(monkeypatch) -> None:
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    env = context_sources.gws_env(GwsProvenanceConfig(enabled=True))
+
+    parts = env["PATH"].split(":")
+    assert str(Path.home() / ".cargo/bin") in parts[:2]
+    assert str(Path.home() / ".local/bin") in parts[:2]
+    assert "/usr/bin" in parts
+
+
 def test_collect_gws_contact_provenance_converts_people_surfaces(monkeypatch) -> None:
     commands = []
 

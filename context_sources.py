@@ -106,6 +106,12 @@ class OdolloProvenanceConfig:
 
 def gws_env(config: GwsProvenanceConfig) -> dict[str, str]:
     env = os.environ.copy()
+    path_parts = [
+        str(Path.home() / ".cargo/bin"),
+        str(Path.home() / ".local/bin"),
+        env.get("PATH", ""),
+    ]
+    env["PATH"] = os.pathsep.join(part for part in path_parts if part)
     if config.config_dir:
         env["GOOGLE_WORKSPACE_CLI_CONFIG_DIR"] = str(config.config_dir.expanduser())
     return env

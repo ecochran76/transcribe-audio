@@ -204,6 +204,72 @@ def test_profile_only_preview_and_apply_do_not_require_task(tmp_path: Path) -> N
     assert resolved.model == "gpt-extended-pro"
 
 
+def test_delete_custom_profile_requires_no_task_reference(tmp_path: Path) -> None:
+    path = tmp_path / "intelligence.config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "profiles": {
+                    "custom_readout": {
+                        "label": "Custom readout",
+                        "provider": "openai-compatible",
+                        "model": "gpt-custom",
+                    }
+                },
+                "task_profiles": {"first_pass_summary": "custom_readout"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        intelligence_config.preview_config_update(
+            profile_id="custom_readout",
+            delete_profile=True,
+            path=path,
+        )
+    except ValueError as exc:
+        assert "assigned to" in str(exc)
+    else:
+        raise AssertionError("profile deletion must fail while tasks reference it")
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["task_profiles"] = {}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    preview = intelligence_config.preview_config_update(
+        profile_id="custom_readout",
+        delete_profile=True,
+        path=path,
+    )
+    assert preview["delete_profile"] is True
+    assert "custom_readout" not in preview["after"]["profiles"]
+    assert path.exists()
+
+    applied = intelligence_config.apply_config_update(
+        profile_id="custom_readout",
+        delete_profile=True,
+        approval_token=intelligence_config.APPLY_APPROVAL_TOKEN,
+        path=path,
+    )
+    assert applied["applied"] is True
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert "custom_readout" not in stored["profiles"]
+
+
+def test_delete_default_profile_is_rejected(tmp_path: Path) -> None:
+    try:
+        intelligence_config.preview_config_update(
+            profile_id="openai_readout",
+            delete_profile=True,
+            path=tmp_path / "intelligence.config.json",
+        )
+    except ValueError as exc:
+        assert "Default intelligence profiles cannot be deleted" in str(exc)
+    else:
+        raise AssertionError("default profile deletion must fail")
+
+
 def test_apply_config_update_requires_token_and_writes(tmp_path: Path) -> None:
     path = tmp_path / "intelligence.config.json"
 

@@ -324,6 +324,7 @@ def preview_config_update(
     update: Optional[dict[str, Any]] = None,
     profile_id: str = "",
     profile_update: Optional[dict[str, Any]] = None,
+    delete_profile: bool = False,
     path: Optional[Path] = None,
 ) -> dict[str, Any]:
     target = config_path(path)
@@ -333,7 +334,29 @@ def preview_config_update(
     rollback: dict[str, Any] = {}
     normalized_update: dict[str, Any] = {}
     normalized_profile_update: dict[str, Any] = {}
-    if profile_id or profile_update:
+    if delete_profile:
+        if not profile_id:
+            raise ValueError("Missing required profile id.")
+        if profile_id in DEFAULT_PROFILES:
+            raise ValueError("Default intelligence profiles cannot be deleted.")
+        if profile_id not in before.get("profiles", {}):
+            raise ValueError(f"Unknown intelligence profile: {profile_id}")
+        referenced_tasks = [
+            task_id
+            for task_id, assigned_profile in after.get("task_profiles", {}).items()
+            if assigned_profile == profile_id
+        ]
+        if referenced_tasks:
+            raise ValueError(f"Cannot delete profile {profile_id}; it is assigned to: {', '.join(sorted(referenced_tasks))}")
+        profiles = after.setdefault("profiles", {})
+        profiles.pop(profile_id, None)
+        rollback["profile"] = {
+            "profile_id": profile_id,
+            "previous_profile_config": copy.deepcopy(before.get("profiles", {}).get(profile_id, {})),
+            "delete_profile": False,
+            "restore_deleted_profile": True,
+        }
+    elif profile_id or profile_update:
         normalized_profile_update = _validate_profile_update(profile_id, profile_update or {})
         profiles = after.setdefault("profiles", {})
         current_profile = profiles.get(profile_id) if isinstance(profiles.get(profile_id), dict) else {}
@@ -381,6 +404,7 @@ def preview_config_update(
         "profile_id": profile_id,
         "update": normalized_update,
         "profile_update": normalized_profile_update,
+        "delete_profile": delete_profile,
         "before": before,
         "after": after,
         "resolved_before": resolve_task_config(task, path=target).to_dict() if task else None,
@@ -397,6 +421,7 @@ def apply_config_update(
     update: Optional[dict[str, Any]] = None,
     profile_id: str = "",
     profile_update: Optional[dict[str, Any]] = None,
+    delete_profile: bool = False,
     approval_token: str,
     path: Optional[Path] = None,
 ) -> dict[str, Any]:
@@ -407,6 +432,7 @@ def apply_config_update(
         update=update or {},
         profile_id=profile_id,
         profile_update=profile_update or {},
+        delete_profile=delete_profile,
         path=path,
     )
     target = Path(preview["config_path"])
@@ -511,6 +537,7 @@ def all_task_configs(*, path: Optional[Path] = None) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "config_path": str(config_path(path)),
         "profiles": base["profiles"],
+        "default_profile_ids": sorted(DEFAULT_PROFILES),
         "task_profiles": base["task_profiles"],
         "tasks": {task: resolve_task_config(task, path=path).to_dict() for task in TASK_IDS},
     }

@@ -1744,7 +1744,10 @@ def get_conversation_detail(
         init_db(con)
         selected_row = con.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
         if selected_row is None:
+            selected_row = con.execute("SELECT * FROM documents WHERE source_path = ?", (document_id,)).fetchone()
+        if selected_row is None:
             raise TranscriptStoreError(f"No document found with id {document_id}")
+        selected_document_id = str(selected_row["id"])
         rows = con.execute(
             """
             SELECT * FROM documents
@@ -1761,7 +1764,7 @@ def get_conversation_detail(
     transcript_row = latest_document(transcripts) if transcripts else None
     readout_row = latest_document(readouts) if readouts else None
     contextual_row = latest_document(contextual_readouts) if contextual_readouts else None
-    selected_detail = get_document(document_id, root=root)
+    selected_detail = get_document(selected_document_id, root=root)
     transcript_detail = get_document(transcript_row["id"], root=root) if transcript_row else None
     readout_detail = get_document(readout_row["id"], root=root) if readout_row else None
     contextual_detail = get_document(contextual_row["id"], root=root) if contextual_row else None
@@ -1967,8 +1970,8 @@ def record_speaker_identity_review(
     reviewer: str = "operator",
     note: str = "",
 ) -> dict[str, Any]:
-    if action not in {"confirm", "defer"}:
-        raise ValueError("Speaker identity action must be confirm or defer.")
+    if action not in {"confirm", "defer", "llm_readout"}:
+        raise ValueError("Speaker identity action must be confirm, defer, or llm_readout.")
     if not speaker_label.strip():
         raise ValueError("Missing required speaker_label.")
     detail = get_conversation_detail(document_id, root=root, state_root=state_root)
@@ -1985,6 +1988,9 @@ def record_speaker_identity_review(
         resolved_contact_id = contact_id.strip() or stable_id("contact", resolved_contact_label.lower(), email.lower())
         status = "confirmed"
         evidence.append({"source": "operator_review", "note": note})
+    elif action == "llm_readout":
+        status = "llm_readout"
+        evidence.append({"source": "operator_readout_delegation", "note": note})
     else:
         evidence.append({"source": "operator_defer", "note": note})
     with connect(root) as con:
@@ -5594,6 +5600,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
                         profile_id=str(body.get("profile_id") or ""),
                         profile_update=body.get("profile_update") if isinstance(body.get("profile_update"), dict) else {},
+                        delete_profile=bool(body.get("delete_profile", False)),
                     )
                 )
                 return
@@ -5605,6 +5612,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         update=body.get("update") if isinstance(body.get("update"), dict) else {},
                         profile_id=str(body.get("profile_id") or ""),
                         profile_update=body.get("profile_update") if isinstance(body.get("profile_update"), dict) else {},
+                        delete_profile=bool(body.get("delete_profile", False)),
                         approval_token=str(body.get("approval_token") or ""),
                     ),
                     status=HTTPStatus.ACCEPTED,

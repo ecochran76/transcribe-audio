@@ -42,6 +42,32 @@ class FakeAuraCallHandler(BaseHTTPRequestHandler):
         )
 
     def do_GET(self) -> None:
+        if self.path.endswith("/config/agent-choices"):
+            self.write_json(
+                {
+                    "agents": [
+                        {
+                            "id": "transcripts-worker",
+                            "label": "Transcripts worker",
+                            "bindingKey": "binding:chatgpt:wsl-chrome-3:default",
+                            "runtimeProfileId": "wsl-chrome-3",
+                            "browserProfileId": "default",
+                            "projectBinding": {"mode": "fixed", "label": "Transcripts"},
+                        }
+                    ],
+                    "bindings": [
+                        {
+                            "bindingKey": "binding:chatgpt:wsl-chrome-3:default",
+                            "ready": True,
+                            "runtimeProfileId": "wsl-chrome-3",
+                            "browserProfileId": "default",
+                        }
+                    ],
+                    "teams": [],
+                    "validation": {"agents": [{"agentId": "transcripts-worker", "valid": True}]},
+                }
+            )
+            return
         if self.path.endswith("/response-batches/batch_test"):
             self.write_json(
                 {
@@ -613,6 +639,56 @@ def test_context_contact_search_refresh_caches_configured_source_results(tmp_pat
     assert selected["context_workbench"]["contact_selection"]["selected_candidates"][0]["label"] == "Chris Example"
 
 
+def test_context_contact_search_accepts_conversation_source_path(tmp_path: Path, monkeypatch) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    state_root.mkdir()
+    transcript_path = write_transcript_artifact(tmp_path)
+    add_calendar_attendee_context(transcript_path)
+
+    def fake_collect(query_terms, *, transcript, state_root):
+        if query_terms != ["hagberg"]:
+            return [], [], []
+        return (
+            [
+                ProvenanceSource(
+                    source_type="gws_contact",
+                    source_id="people/hagberg",
+                    label="Erik C. Hagberg",
+                    snippet="Erik C. Hagberg; erik.hagberg@example.com",
+                    metadata={"profile": "work", "email": "erik.hagberg@example.com"},
+                )
+            ],
+            [{"source": "gws", "profile": "work", "read_only": True}],
+            [],
+        )
+
+    monkeypatch.setattr(participant_identity, "collect_configured_contact_sources", fake_collect)
+    transcript = transcript_store.ingest_artifact(
+        transcript_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+
+    refreshed = transcript_api.search_context_contacts(
+        transcript.source_path,
+        root=store_root,
+        state_root=state_root,
+        query="hagberg",
+        mode="refresh",
+    )
+    cached = transcript_api.search_context_contacts(
+        transcript.source_path,
+        root=store_root,
+        state_root=state_root,
+        query="hagberg",
+    )
+
+    assert refreshed["items"][0]["label"] == "Erik C. Hagberg"
+    assert cached["items"][0]["email"] == "erik.hagberg@example.com"
+
+
 def test_context_contact_affinity_refresh_ranks_recent_frequent_contacts(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"
@@ -1032,14 +1108,30 @@ def test_speaker_identity_review_records_contact_and_defer_queue(tmp_path: Path)
         action="defer",
         reviewer="api-test",
     )
+    readout_delegated = transcript_api.record_speaker_identity_review(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+        speaker_label="Speaker C",
+        action="llm_readout",
+        reviewer="api-test",
+    )
     queue = transcript_api.review_queue_summary(state_root=state_root, store_root=store_root, limit=20)
 
     assert confirmed["status"] == "confirmed"
     assert confirmed["identity_review"]["confirmed_count"] == 1
     assert deferred["status"] == "deferred"
+    assert readout_delegated["status"] == "llm_readout"
     speaker_bucket = next(bucket for bucket in queue["buckets"] if bucket["id"] == "speaker_ids")
     assert speaker_bucket["count"] == 1
     assert any(item["type"] == "speaker_identity_review" and item["workflow_stage"] == "speakers" for item in queue["items"])
+    with transcript_api.connect(store_root) as con:
+        row = con.execute(
+            "SELECT status, evidence_json FROM speaker_assignments WHERE speaker_label = ?",
+            ("Speaker C",),
+        ).fetchone()
+    assert row["status"] == "llm_readout"
+    assert json.loads(row["evidence_json"])[0]["source"] == "operator_readout_delegation"
 
 
 def test_context_and_final_preview_actions_write_local_review_records(tmp_path: Path) -> None:
@@ -1999,6 +2091,55 @@ def test_intelligence_config_endpoint_returns_task_routing(tmp_path: Path) -> No
     assert payload["tasks"]["first_pass_summary"]["provider"] == "openai-compatible"
     assert payload["tasks"]["first_pass_summary"]["profile"] == "openai_readout"
     assert payload["tasks"]["app_supervisor"]["provider"] == "codex-app-server"
+
+
+def test_intelligence_config_endpoint_exposes_auracall_agent_options(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TRANSCRIPTS_INTELLIGENCE_CONFIG", raising=False)
+    FakeAuraCallHandler.requests = []
+    provider = ThreadingHTTPServer(("127.0.0.1", 0), FakeAuraCallHandler)
+    provider_thread = threading.Thread(target=provider.serve_forever, daemon=True)
+    provider_thread.start()
+    host, provider_port = provider.server_address
+    env_file = tmp_path / "auracall.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                f"OPENAI_BASE_URL=http://{host}:{provider_port}/v1",
+                "OPENAI_API_KEY=test-key",
+                "AURACALL_AGENT_ID=transcripts-worker",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store",
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        batch_env_file=env_file,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        api_host, port = server.server_address
+        payload = json.loads(urlopen(f"http://{api_host}:{port}/api/intelligence/config", timeout=5).read())
+    finally:
+        server.shutdown()
+        server.server_close()
+        provider.shutdown()
+        provider.server_close()
+
+    readiness = payload["auracall_readiness"]
+    assert readiness["source"]["fetched"] is True
+    assert readiness["selected_model"] == "agent:transcripts-worker"
+    assert readiness["agent_options"][0]["id"] == "transcripts-worker"
+    assert readiness["agent_options"][0]["model"] == "agent:transcripts-worker"
+    assert readiness["agent_options"][0]["ready"] is True
+    assert "project Transcripts" in readiness["agent_options"][0]["settings_description"]
+    assert "test-key" not in json.dumps(readiness)
 
 
 def test_intelligence_config_preview_and_apply_endpoints(tmp_path: Path, monkeypatch) -> None:

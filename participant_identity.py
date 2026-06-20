@@ -472,7 +472,15 @@ def collect_configured_contact_sources(
         )
         profiles.append({"source": "odollo", "profile": label, "models": ["res.partner"], "read_only": True})
         try:
-            sources.extend(collect_odollo_provenance(transcript, {"participants": query_terms}, config=odollo))
+            event = transcript.get("event") if isinstance(transcript.get("event"), dict) else {}
+            query_transcript = {
+                "event": {
+                    "summary": event.get("summary") or "",
+                    "participants": [],
+                    "attendees": [],
+                }
+            }
+            sources.extend(collect_odollo_provenance(query_transcript, {"participants": query_terms}, config=odollo))
         except Exception as exc:
             warnings.append(f"Odollo contact provenance failed for profile {label}: {exc}")
 
@@ -917,7 +925,7 @@ def build_participant_identity_bundle(
         assignment = assignment_decision(assignments.get(label))
         status = assignment.get("status") if assignment else "pending"
         speaker_candidates = all_candidates[:8]
-        review_required = status not in {"confirmed", "deferred"}
+        review_required = status not in {"confirmed", "deferred", "llm_readout"}
         if review_required:
             unresolved.append(
                 {
