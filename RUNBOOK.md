@@ -2,6 +2,38 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 215 | 2026-07-18
+
+Summary: Migrate the transcripts service Codex readiness path to the stable
+user-scoped standalone command.
+
+Changes:
+
+- The manual service authority is `~/.local/bin/codex`, which resolves through
+  the standalone Codex installer rather than an NVM version tree.
+- Update only
+  `~/.config/systemd/user/transcripts.service.d/10-codex-bin.conf`; preserve
+  the rest of the service environment and unit contract.
+- Validate readiness with `codex --version`, `codex app-server --help`,
+  `codex app-server generate-json-schema --help`, and
+  `codex app-server generate-ts --help`. These probes do not start a model turn
+  or send transcript/private input.
+- Rollback restores the protected pre-migration drop-in, runs one user daemon
+  reload, and restarts `transcripts.service`.
+
+Validation:
+
+- `systemd-analyze --user verify` passed before daemon reload.
+- `transcripts.service` restarted from PID 1070 to PID 98440 and remained
+  active with `NRestarts=0`.
+- `GET /api/health` returned `status: ok`.
+- `GET /api/intelligence/providers` reported the Codex app-server ready on
+  `/home/ecochran76/.local/bin/codex` at `codex-cli 0.144.5`; version,
+  app-server help, JSON-schema help, and TypeScript-generation help checks all
+  returned success without a model turn or private payload.
+- The workstation Node checker fell from 43 to 42 findings, with versioned NVM
+  references falling from 30 to 29 and zero incomplete coverage.
+
 ## Turn 214 | 2026-05-30
 
 Summary: Added AuraCall agent selection to Intelligence settings.
