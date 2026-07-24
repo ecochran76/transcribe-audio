@@ -55,7 +55,8 @@ def write_config(path: Path) -> None:
                         "enabled": True,
                         "label": "Work gws",
                         "config_dir": "~/.config/gws-work",
-                        "capabilities": ["calendar", "people"],
+                        "capabilities": ["calendar", "people", "gmail"],
+                        "gmail": {"page_size": 2},
                         "people": {"surfaces": ["contacts", "other_contacts"], "limit": 4, "query_limit": 6},
                         "read_only": True,
                     },
@@ -67,6 +68,7 @@ def write_config(path: Path) -> None:
                         "repo_root": "~/workspace.local/odollo",
                         "config_path": "~/.odollo/odollo.yml",
                         "command": ["odollo"],
+                        "models": ["res.partner", "crm.lead", "mail.message"],
                         "limits": {"contacts": 3},
                         "read_only": True,
                     },
@@ -159,9 +161,85 @@ def test_context_source_configs_resolve_adapter_configs(tmp_path: Path) -> None:
 
     assert config["gws"][0].profile_label == "Work gws"
     assert config["gws"][0].include_drive_search is False
+    assert config["gws"][0].include_gmail_search is True
+    assert config["gws"][0].gmail_page_size == 2
     assert config["gws"][0].include_people_contacts is True
     assert config["odollo"][0].profiles == ("soylei-prod",)
     assert config["odollo"][0].include_contacts is True
+    assert config["odollo"][0].include_leads is True
+    assert config["odollo"][0].include_log_notes is True
+
+
+def test_speaker_preprocessing_excludes_sources_without_source_context(tmp_path: Path) -> None:
+    path = tmp_path / "provenance.config.json"
+    write_config(path)
+
+    config = provenance_config.speaker_preprocessing_source_configs_from_provenance(path=path)
+
+    assert config["gws"] == []
+    assert config["odollo"] == []
+    assert config["source_contexts"] == []
+    assert config["warnings"] == [
+        "Speaker preprocessing excluded source gws-work: missing Source Context.",
+        "Speaker preprocessing excluded source odollo-soylei: missing Source Context.",
+    ]
+    assert provenance_config.validate_config(provenance_config.read_config(path))["valid"] is True
+
+
+def test_speaker_preprocessing_returns_bounded_semantic_source_context(tmp_path: Path) -> None:
+    path = tmp_path / "provenance.config.json"
+    write_config(path)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["sources"]["gws-work"]["source_context"] = {
+        "owner": {"type": "person", "id": "operator", "label": "Local operator"},
+        "relationship_scope": "personal",
+        "account_label": "Personal workspace",
+        "evidence_capabilities": ["gmail", "people"],
+        "authoritative_identifiers": ["email"],
+    }
+    raw["sources"]["odollo-soylei"]["source_context"] = {
+        "owner": {"type": "organization", "id": "org-soylei", "label": "SoyLei"},
+        "relationship_scope": "company",
+        "account_label": "SoyLei production",
+        "evidence_capabilities": ["contacts", "leads", "log_notes"],
+        "authoritative_identifiers": [],
+    }
+    path.write_text(json.dumps(raw), encoding="utf-8")
+
+    config = provenance_config.speaker_preprocessing_source_configs_from_provenance(path=path)
+
+    assert len(config["gws"]) == 1
+    assert len(config["odollo"]) == 1
+    assert config["warnings"] == []
+    assert config["source_contexts"] == [
+        {"source_id": "gws-work", **raw["sources"]["gws-work"]["source_context"]},
+        {"source_id": "odollo-soylei", **raw["sources"]["odollo-soylei"]["source_context"]},
+    ]
+    assert "config_dir" not in json.dumps(config["source_contexts"])
+    assert "command" not in json.dumps(config["source_contexts"])
+
+
+def test_speaker_preprocessing_excludes_incomplete_source_context(tmp_path: Path) -> None:
+    path = tmp_path / "provenance.config.json"
+    write_config(path)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["sources"]["gws-work"]["source_context"] = {
+        "owner": {"type": "person", "id": "operator", "label": "Local operator"},
+        "relationship_scope": "",
+        "account_label": "Personal workspace",
+        "evidence_capabilities": ["gmail"],
+        "authoritative_identifiers": ["email"],
+    }
+    path.write_text(json.dumps(raw), encoding="utf-8")
+
+    config = provenance_config.speaker_preprocessing_source_configs_from_provenance(path=path)
+
+    assert config["gws"] == []
+    assert config["source_contexts"] == []
+    assert config["warnings"][0] == (
+        "Speaker preprocessing excluded source gws-work: "
+        "invalid Source Context (relationship_scope is required)."
+    )
 
 
 def test_preview_and_apply_update_redact_sensitive_values(tmp_path: Path) -> None:

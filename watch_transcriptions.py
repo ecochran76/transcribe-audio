@@ -110,6 +110,8 @@ class ProcessedRecord:
     stderr: Optional[str] = None
     failure_kind: Optional[str] = None
     failure_reason: Optional[str] = None
+    warning_kind: Optional[str] = None
+    warning_reason: Optional[str] = None
 
 
 @dataclass
@@ -586,23 +588,19 @@ def check_watcher_readiness(jobs: list[WatchJob]) -> list[ReadinessIssue]:
             )
         )
 
-    for job in jobs:
-        if not job.watch_dir.exists():
+    watch_dir_problems = [watch_dir_problem(job.watch_dir) for job in jobs]
+    has_available_watch_dir = any(problem is None for problem in watch_dir_problems)
+
+    for job, watch_dir_problem_detail in zip(jobs, watch_dir_problems):
+        if watch_dir_problem_detail is not None:
+            code, message, detail = watch_dir_problem_detail
             issues.append(
                 ReadinessIssue(
-                    severity="error",
-                    code="missing_watch_dir",
-                    message=f"Watch directory does not exist: {job.watch_dir}",
+                    severity="warning" if has_available_watch_dir else "error",
+                    code=code,
+                    message=message,
                     job=job.name,
-                )
-            )
-        elif not job.watch_dir.is_dir():
-            issues.append(
-                ReadinessIssue(
-                    severity="error",
-                    code="watch_dir_not_directory",
-                    message=f"Watch path is not a directory: {job.watch_dir}",
-                    job=job.name,
+                    detail=detail,
                 )
             )
 
@@ -640,6 +638,21 @@ def check_watcher_readiness(jobs: list[WatchJob]) -> list[ReadinessIssue]:
                 )
             )
     return issues
+
+
+def watch_dir_problem(watch_dir: Path) -> Optional[tuple[str, str, str]]:
+    try:
+        if not watch_dir.exists():
+            return "missing_watch_dir", f"Watch directory does not exist: {watch_dir}", ""
+        if not watch_dir.is_dir():
+            return "watch_dir_not_directory", f"Watch path is not a directory: {watch_dir}", ""
+    except OSError as exc:
+        return (
+            "unavailable_watch_dir",
+            f"Watch directory is temporarily unavailable: {watch_dir}",
+            str(exc),
+        )
+    return None
 
 
 def readiness_has_errors(issues: list[ReadinessIssue]) -> bool:
@@ -739,6 +752,8 @@ def load_state(state_path: Path, jobs: list[WatchJob]) -> dict[str, JobState]:
                         stderr=str(value.get("stderr")) if value.get("stderr") is not None else None,
                         failure_kind=str(value.get("failure_kind")) if value.get("failure_kind") else None,
                         failure_reason=str(value.get("failure_reason")) if value.get("failure_reason") else None,
+                        warning_kind=str(value.get("warning_kind")) if value.get("warning_kind") else None,
+                        warning_reason=str(value.get("warning_reason")) if value.get("warning_reason") else None,
                     )
                 except Exception:
                     continue
@@ -788,6 +803,8 @@ def save_state(state_path: Path, state: dict[str, JobState]) -> None:
                     "stderr": record.stderr,
                     "failure_kind": record.failure_kind,
                     "failure_reason": record.failure_reason,
+                    "warning_kind": record.warning_kind,
+                    "warning_reason": record.warning_reason,
                 }
                 for key, record in job_state.processed.items()
             },
@@ -832,6 +849,9 @@ def iter_candidates(job: WatchJob) -> list[Path]:
     candidates: list[Path] = []
     for path in iterator:
         if not path.is_file():
+            continue
+        relative_parts = path.relative_to(job.watch_dir).parts
+        if any(part.casefold() == ".stversions" for part in relative_parts):
             continue
         if path.suffix.lower() not in AUDIO_VIDEO_EXTENSIONS:
             continue
@@ -888,6 +908,18 @@ def classify_backend_failure(results: list[CommandResult]) -> tuple[str, str]:
     if "config" in lowered:
         return "config_failed", detail
     return "backend_failed", detail
+
+
+def classify_success_warning(result: CommandResult) -> tuple[Optional[str], Optional[str]]:
+    for line in result.stderr.splitlines():
+        detail = line.strip()
+        lowered = detail.lower()
+        if "calendar" in lowered and (
+            "continuing without calendar metadata" in lowered
+            or "skipping event lookup" in lowered
+        ):
+            return "calendar_metadata_failed", shorten(detail, limit=500)
+    return None, None
 
 
 def update_candidate_blocked(
@@ -1168,6 +1200,7 @@ def process_file(job: WatchJob, media_path: Path, now: float, job_state: JobStat
 
     if success_result is not None:
         fallback_used = len(results) > 1 and success_result.backend != job.backends[0]
+        warning_kind, warning_reason = classify_success_warning(success_result)
         artifact_paths = extract_artifact_paths(success_result.stdout)
         readout_paths = run_readouts(job, artifact_paths)
         store_paths = ingest_store_artifacts(job, [*artifact_paths, *readout_paths])
@@ -1187,6 +1220,8 @@ def process_file(job: WatchJob, media_path: Path, now: float, job_state: JobStat
             store_paths=store_paths,
             next_retry_after=None,
             stderr=None,
+            warning_kind=warning_kind,
+            warning_reason=warning_reason,
         )
         notify_success(job, media_path, success_result, fallback_used=fallback_used)
     else:
@@ -1227,7 +1262,28 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
     live_keys: set[str] = set()
     stats = ScanStats()
 
-    for media_path in iter_candidates(job):
+    watch_dir_problem_detail = watch_dir_problem(job.watch_dir)
+    if watch_dir_problem_detail is not None:
+        blocked_kind, message, detail = watch_dir_problem_detail
+        stats.record_blocked(blocked_kind)
+        if verbose:
+            detail_text = f" ({detail})" if detail else ""
+            print(f"[{job.name}] {message}{detail_text}", file=sys.stderr, flush=True)
+        return False, stats
+
+    try:
+        candidates = iter_candidates(job)
+    except OSError as exc:
+        stats.record_blocked("unavailable_watch_dir")
+        if verbose:
+            print(
+                f"[{job.name}] Watch directory became unavailable during scan: {job.watch_dir} ({exc})",
+                file=sys.stderr,
+                flush=True,
+            )
+        return False, stats
+
+    for media_path in candidates:
         key = file_key(media_path)
         live_keys.add(key)
         try:

@@ -990,6 +990,109 @@ def test_selected_first_pass_summary_prepare_is_conversation_scoped(tmp_path: Pa
     assert status["status"] == "prepared"
 
 
+def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    monkeypatch.setattr(
+        transcript_api.provenance_config,
+        "speaker_preprocessing_source_configs_from_provenance",
+        lambda **kwargs: {
+            "gws": [],
+            "odollo": [],
+            "source_contexts": [],
+            "warnings": ["No eligible Source Context in test."],
+        },
+    )
+    monkeypatch.setattr(
+        transcript_api.speaker_identity_preprocess,
+        "collect_configured_identity_evidence",
+        lambda **kwargs: {
+            "person_records": [],
+            "provenance_sources": [],
+            "source_contexts": [],
+            "warnings": ["No bounded source results in test."],
+        },
+    )
+
+    discovery = transcript_api.prepare_selected_speaker_clue_discovery(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+    )
+    evaluation = transcript_api.prepare_selected_speaker_identity_evaluation(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+
+    assert discovery["phase"] == "clue_discovery"
+    assert discovery["will_send_prompt"] is False
+    assert discovery["source_warnings"] == ["No eligible Source Context in test."]
+    assert evaluation["phase"] == "identity_evaluation"
+    assert evaluation["will_send_prompt"] is False
+    assert evaluation["source_warnings"] == ["No bounded source results in test."]
+
+    captured = transcript_api.persist_selected_speaker_identity_evaluation(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        identity_evaluation_run_id=evaluation["run_id"],
+        clue_discovery_run_id=discovery["run_id"],
+        readout={
+            "schema_version": "transcribe-audio.speaker-identity-evaluation-readout.v1",
+            "evaluation_id": evaluation["packet"]["evaluation_id"],
+            "calendar_association": {"status": "ambiguous", "factors": []},
+            "person_links": [],
+            "speaker_assignments": [
+                {
+                    "speaker_labels": ["Speaker A"],
+                    "status": "unresolved",
+                    "person_id": "",
+                    "factors": [],
+                    "utterance_assignments": [],
+                    "review_flags": ["insufficient_evidence"],
+                }
+            ],
+            "warnings": [],
+        },
+    )
+    state = transcript_api.selected_speaker_preprocessing_state(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+    )
+    proposal = state["current_evaluation"]["proposals"][0]
+    decision = transcript_api.review_selected_speaker_proposal(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        evaluation_id=state["current_evaluation_id"],
+        proposal_id=proposal["proposal_id"],
+        action="defer",
+        reviewer="test-operator",
+        note="Spurious or insufficiently supported recording.",
+    )
+
+    assert captured["status"] == "awaiting_review"
+    assert state["status"] == "awaiting_review"
+    assert decision["record"]["review_decisions"][0]["action"] == "defer"
+
+
 def test_selected_first_pass_summary_run_endpoint_prepares_and_submits(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"

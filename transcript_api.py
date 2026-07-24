@@ -25,9 +25,13 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import intelligence_config
 import automation_config
+import app_intelligence_ledger
 import codex_app_server_client
+import conversation_processing
 import participant_identity
 import provenance_config
+import speaker_identity_preprocess
+import speaker_preprocessing_workflow
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
     apply_validated_structured_decision as apply_app_intelligence_structured_decision,
@@ -1815,6 +1819,275 @@ def get_conversation_detail(
     return {
         **detail_payload,
     }
+
+
+def _selected_transcript_artifact(
+    document_id: str,
+    *,
+    root: Optional[Path],
+    state_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    document = detail.get("transcript_document") or detail.get("selected_document") or {}
+    payload = document.get("json_payload") if isinstance(document.get("json_payload"), dict) else {}
+    source_path = Path(str(document.get("source_path") or "")).expanduser()
+    if not source_path.exists() or not source_path.name.endswith(".transcript.json"):
+        raise ValueError("Selected conversation does not have an accessible transcript artifact.")
+    return detail, payload, source_path
+
+
+def prepare_selected_speaker_clue_discovery(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Prepare the selected conversation's first reviewed App Intelligence phase."""
+    detail, _transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    configs = provenance_config.speaker_preprocessing_source_configs_from_provenance(
+        state_root=state_root,
+    )
+    prepared = speaker_preprocessing_workflow.prepare_clue_discovery(
+        transcript_path,
+        document_id=str(
+            (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
+            or document_id
+        ),
+        state_root=state_root,
+        source_contexts=configs.get("source_contexts") or [],
+    )
+    return {
+        **prepared,
+        "source_warnings": configs.get("warnings") or [],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def prepare_selected_speaker_identity_evaluation(
+    document_id: str,
+    *,
+    state_root: Path,
+    discovery_readout: Optional[dict[str, Any]] = None,
+    clue_discovery_run_id: str = "",
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Validate discovery, retrieve bounded evidence, and prepare phase two."""
+    detail, transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    source_document_id = str(
+        (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
+        or document_id
+    )
+    if discovery_readout is None:
+        if not clue_discovery_run_id:
+            raise ValueError(
+                "Identity Evaluation requires discovery_readout or clue_discovery_run_id."
+            )
+        clue_run = get_app_intelligence_run(
+            state_root=state_root,
+            run_id=clue_discovery_run_id,
+            event_limit=0,
+        )["run"]
+        if str(clue_run.get("document_id") or "") != source_document_id:
+            raise ValueError("Clue Discovery run belongs to a different conversation.")
+        discovery_readout = speaker_preprocessing_workflow.captured_run_json(
+            state_root=state_root,
+            run_id=clue_discovery_run_id,
+        )
+    identity_review = detail.get("identity_review") if isinstance(detail.get("identity_review"), dict) else {}
+    identity_bundle = (
+        identity_review.get("identity_bundle")
+        if isinstance(identity_review.get("identity_bundle"), dict)
+        else {}
+    )
+    evidence = speaker_identity_preprocess.collect_configured_identity_evidence(
+        transcript=transcript,
+        identity_bundle=identity_bundle,
+        discovery_readout=discovery_readout,
+        state_root=state_root,
+    )
+    prepared = speaker_preprocessing_workflow.prepare_identity_evaluation(
+        transcript_path,
+        document_id=source_document_id,
+        state_root=state_root,
+        discovery_readout=discovery_readout,
+        person_records=evidence.get("person_records") or [],
+        provenance_sources=evidence.get("provenance_sources") or [],
+        source_contexts=evidence.get("source_contexts") or [],
+    )
+    return {
+        **prepared,
+        "source_warnings": evidence.get("warnings") or [],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
+def selected_speaker_preprocessing_state(
+    document_id: str,
+    *,
+    state_root: Path,
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Return persisted speaker-preprocessing state for one conversation."""
+    _detail, _transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    sidecar_path = conversation_processing.processing_sidecar_path(transcript_path)
+    if not sidecar_path.exists():
+        return {
+            "schema_version": conversation_processing.SCHEMA_VERSION,
+            "status": "not_started",
+            "current_evaluation_id": "",
+            "evaluations": [],
+            "review_decisions": [],
+            "will_execute_external_action": False,
+        }
+    record = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    current_id = str(record.get("current_evaluation_id") or "")
+    current = next(
+        (
+            item
+            for item in record.get("evaluations", [])
+            if isinstance(item, dict) and item.get("evaluation_id") == current_id
+        ),
+        None,
+    )
+    return {
+        **record,
+        "status": "awaiting_review" if current else "not_started",
+        "current_evaluation": current,
+        "will_execute_external_action": False,
+    }
+
+
+def persist_selected_speaker_identity_evaluation(
+    document_id: str,
+    *,
+    state_root: Path,
+    identity_evaluation_run_id: str,
+    readout: Optional[dict[str, Any]] = None,
+    clue_discovery_run_id: str = "",
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Persist validated output against the host-owned phase-two input artifact."""
+    if readout is None:
+        readout = speaker_preprocessing_workflow.captured_run_json(
+            state_root=state_root,
+            run_id=identity_evaluation_run_id,
+        )
+    detail, _transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    source_document_id = str(
+        (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
+        or document_id
+    )
+    run = get_app_intelligence_run(
+        state_root=state_root,
+        run_id=identity_evaluation_run_id,
+        event_limit=0,
+    )["run"]
+    if str(run.get("document_id") or "") != source_document_id:
+        raise ValueError("Identity evaluation run belongs to a different conversation.")
+    packet_path = (
+        app_intelligence_ledger.run_dir(state_root, identity_evaluation_run_id)
+        / "artifacts"
+        / "speaker-preprocessing"
+        / "identity_evaluation.input.json"
+    )
+    if not packet_path.exists():
+        raise ValueError("Identity evaluation run does not contain a prepared input packet.")
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    record = speaker_preprocessing_workflow.persist_identity_evaluation(
+        transcript_path,
+        packet=packet,
+        readout=readout,
+        run_references={
+            "clue_discovery_run_id": clue_discovery_run_id,
+            "identity_evaluation_run_id": identity_evaluation_run_id,
+        },
+    )
+    return {
+        "status": "awaiting_review",
+        "record": record,
+        "will_apply_assignments": False,
+        "will_perform_external_write": False,
+    }
+
+
+def review_selected_speaker_proposal(
+    document_id: str,
+    *,
+    state_root: Path,
+    evaluation_id: str,
+    proposal_id: str,
+    action: str,
+    reviewer: str,
+    method: str = "individual",
+    note: str = "",
+    supersedes_decision_id: str = "",
+    reviewer_asserted_identity: Optional[dict[str, Any]] = None,
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Append one attributable confirmation, rejection, or deferral."""
+    _detail, _transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    record = conversation_processing.append_review_decision(
+        transcript_path,
+        evaluation_id=evaluation_id,
+        proposal_id=proposal_id,
+        action=action,
+        reviewer=reviewer,
+        method=method,
+        note=note,
+        supersedes_decision_id=supersedes_decision_id,
+        reviewer_asserted_identity=reviewer_asserted_identity,
+    )
+    return {
+        "status": "recorded",
+        "record": record,
+        "will_perform_external_write": False,
+        "will_rewrite_diarization": False,
+    }
+
+
+def confirm_selected_ready_speaker_proposals(
+    document_id: str,
+    *,
+    state_root: Path,
+    evaluation_id: str,
+    reviewer: str,
+    note: str = "",
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Confirm only proposals that satisfy the current ready rubric gate."""
+    _detail, _transcript, transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+    )
+    return speaker_preprocessing_workflow.confirm_ready_proposals(
+        transcript_path,
+        evaluation_id=evaluation_id,
+        reviewer=reviewer,
+        note=note,
+    )
 
 
 def warm_participant_identity_cache(
@@ -5073,6 +5346,15 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["identity_review"]
                     )
                     return
+                if len(parts) == 4 and parts[3] == "speaker-preprocessing":
+                    self.write_json(
+                        selected_speaker_preprocessing_state(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                        )
+                    )
+                    return
                 if len(parts) == 4 and parts[3] == "first-pass-summary":
                     self.write_json(
                         get_conversation_detail(parts[2], root=self.store_root, state_root=self.state_root)["first_pass_summary"]
@@ -5342,6 +5624,95 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             contact_label=str(body.get("contact_label") or ""),
                             contact_id=str(body.get("contact_id") or ""),
                             email=str(body.get("email") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            note=str(body.get("note") or ""),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "prepare-discovery":
+                    self.read_json_body()
+                    self.write_json(
+                        prepare_selected_speaker_clue_discovery(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "prepare-evaluation":
+                    body = self.read_json_body()
+                    discovery_readout = body.get("discovery_readout")
+                    self.write_json(
+                        prepare_selected_speaker_identity_evaluation(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            discovery_readout=(
+                                discovery_readout
+                                if isinstance(discovery_readout, dict)
+                                else None
+                            ),
+                            clue_discovery_run_id=str(
+                                body.get("clue_discovery_run_id") or ""
+                            ),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "capture-evaluation":
+                    body = self.read_json_body()
+                    readout = body.get("readout")
+                    self.write_json(
+                        persist_selected_speaker_identity_evaluation(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            identity_evaluation_run_id=str(
+                                body.get("identity_evaluation_run_id") or ""
+                            ),
+                            clue_discovery_run_id=str(
+                                body.get("clue_discovery_run_id") or ""
+                            ),
+                            readout=readout if isinstance(readout, dict) else None,
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "decisions":
+                    body = self.read_json_body()
+                    self.write_json(
+                        review_selected_speaker_proposal(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            evaluation_id=str(body.get("evaluation_id") or ""),
+                            proposal_id=str(body.get("proposal_id") or ""),
+                            action=str(body.get("action") or ""),
+                            reviewer=str(body.get("reviewer") or "operator"),
+                            method=str(body.get("method") or "individual"),
+                            note=str(body.get("note") or ""),
+                            supersedes_decision_id=str(
+                                body.get("supersedes_decision_id") or ""
+                            ),
+                            reviewer_asserted_identity=(
+                                body.get("reviewer_asserted_identity")
+                                if isinstance(body.get("reviewer_asserted_identity"), dict)
+                                else None
+                            ),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "confirm-ready":
+                    body = self.read_json_body()
+                    self.write_json(
+                        confirm_selected_ready_speaker_proposals(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            evaluation_id=str(body.get("evaluation_id") or ""),
                             reviewer=str(body.get("reviewer") or "operator"),
                             note=str(body.get("note") or ""),
                         ),

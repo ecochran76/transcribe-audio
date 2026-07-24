@@ -2388,11 +2388,27 @@ def process_transcription_outputs(
             except TranscriptionError as exc:
                 print(f"Warning: failed to embed subtitles ({exc})", file=sys.stderr)
 
+    shared_recording_id = ""
+    for artifact_path, _artifact in pending_artifacts:
+        if not artifact_path.exists():
+            continue
+        try:
+            existing_payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+            existing_recording_id = str(existing_payload.get("recording_id") or "").strip()
+            if existing_recording_id:
+                shared_recording_id = existing_recording_id
+                break
+        except (OSError, json.JSONDecodeError):
+            continue
+    if not shared_recording_id and pending_artifacts:
+        shared_recording_id = pending_artifacts[0][1].recording_id
+
     for artifact_path, artifact in pending_artifacts:
+        artifact.recording_id = shared_recording_id
         if embedded_media_path is not None:
             artifact.output_paths["embedded_media"] = str(embedded_media_path)
         print(f"Writing transcript artifact to {artifact_path}...", flush=True)
-        artifact.write(artifact_path)
+        artifact.write(artifact_path, preserve_existing_recording_id=False)
         if os.getenv("TRANSCRIPTS_STORE", "").strip().lower() in {"1", "true", "yes"}:
             try:
                 ingest_artifact(

@@ -81,6 +81,16 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Refresh event.matching_calendars even when existing calendar overlap metadata is present.",
     )
+    parser.add_argument(
+        "--path-prefix-remap",
+        action="append",
+        default=[],
+        metavar="OLD=NEW",
+        help=(
+            "Rebase artifact media/output path fields before planning a repair. "
+            "Repeat for multiple path migrations. Transcript content is not changed."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -96,6 +106,46 @@ def load_artifact(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise TranscriptionError(f"{path} is not a JSON object.")
     return payload
+
+
+def parse_path_prefix_remaps(values: list[str]) -> list[tuple[str, str]]:
+    remaps: list[tuple[str, str]] = []
+    for value in values:
+        old, separator, new = value.partition("=")
+        old = old.rstrip("/")
+        new = new.rstrip("/")
+        if not separator or not old or not new:
+            raise TranscriptionError(
+                f"Invalid --path-prefix-remap {value!r}; expected OLD=NEW with non-empty paths."
+            )
+        remaps.append((old, new))
+    return remaps
+
+
+def remap_artifact_paths(
+    artifact: dict[str, Any],
+    remaps: list[tuple[str, str]],
+) -> dict[str, Any]:
+    def remap_value(value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        for old, new in remaps:
+            if value == old:
+                return new
+            if value.startswith(f"{old}/"):
+                return f"{new}{value[len(old):]}"
+        return value
+
+    remapped = dict(artifact)
+    for field in ("source_media_path", "working_media_path"):
+        remapped[field] = remap_value(remapped.get(field))
+    output_paths = remapped.get("output_paths")
+    if isinstance(output_paths, dict):
+        remapped["output_paths"] = {
+            key: remap_value(value)
+            for key, value in output_paths.items()
+        }
+    return remapped
 
 
 def normalize_existing_event_info(event_info: dict[str, Any]) -> dict[str, Any]:
@@ -279,6 +329,7 @@ def apply_plan(plan: dict[str, Any]) -> None:
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
     try:
+        path_prefix_remaps = parse_path_prefix_remaps(args.path_prefix_remap)
         provider_configs_for_lookup = provenance_config.configured_provider_configs_or_fallback(
             args,
             provider_configs(args.calendar_providers or "gog,gws"),
@@ -292,7 +343,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         )
         plans = []
         for artifact_path in candidate_artifacts(args.artifact_glob, args.since_days):
-            artifact = load_artifact(artifact_path)
+            artifact = remap_artifact_paths(load_artifact(artifact_path), path_prefix_remaps)
             plan = build_repair_plan(
                 artifact_path,
                 artifact,

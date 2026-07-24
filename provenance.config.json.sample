@@ -78,6 +78,21 @@
       "drive": {
         "page_size": 5
       },
+      "gmail": {
+        "page_size": 5,
+        "content_scope": "metadata_and_snippet_only"
+      },
+      "source_context": {
+        "owner": {
+          "type": "person",
+          "id": "local-operator",
+          "label": "Local operator"
+        },
+        "relationship_scope": "personal",
+        "account_label": "Personal Google Workspace",
+        "evidence_capabilities": ["calendar", "drive", "people", "gmail"],
+        "authoritative_identifiers": ["email"]
+      },
       "calendar": {
         "include_accessible_calendars": true
       },
@@ -105,13 +120,24 @@
       "repo_root": "~/workspace.local/odollo",
       "config_path": "~/.odollo/odollo.yml",
       "command": ["~/.local/bin/odollo"],
-      "models": ["res.partner", "mail.message"],
+      "models": ["res.partner", "crm.lead", "mail.message"],
       "secret_refs": {
         "api_key": "env:ODOO_TENANT_A_API_KEY"
       },
       "limits": {
         "contacts": 5,
         "log_notes": 5
+      },
+      "source_context": {
+        "owner": {
+          "type": "organization",
+          "id": "tenant-a-organization",
+          "label": "Tenant A organization"
+        },
+        "relationship_scope": "company",
+        "account_label": "Odoo tenant A",
+        "evidence_capabilities": ["contacts", "leads", "log_notes"],
+        "authoritative_identifiers": []
       },
       "read_only": true
     },
@@ -123,13 +149,24 @@
       "repo_root": "~/workspace.local/odollo",
       "config_path": "~/.odollo/odollo.yml",
       "command": ["~/.local/bin/odollo"],
-      "models": ["res.partner", "mail.message"],
+      "models": ["res.partner", "crm.lead", "mail.message"],
       "secret_refs": {
         "api_key": "env:ODOO_TENANT_B_API_KEY"
       },
       "limits": {
         "contacts": 5,
         "log_notes": 5
+      },
+      "source_context": {
+        "owner": {
+          "type": "organization",
+          "id": "tenant-b-organization",
+          "label": "Tenant B organization"
+        },
+        "relationship_scope": "company",
+        "account_label": "Odoo tenant B",
+        "evidence_capabilities": ["contacts", "leads", "log_notes"],
+        "authoritative_identifiers": []
       },
       "read_only": true
     },

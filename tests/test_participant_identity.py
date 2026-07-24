@@ -214,7 +214,12 @@ def test_identity_query_terms_excludes_anonymous_speaker_labels() -> None:
                 "label": "Eric Cochran",
                 "name": "Eric Cochran",
                 "email": "ecochran76@gmail.com",
-            }
+            },
+            {
+                "label": "Alice Example",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+            },
         ],
         readout_participants=[],
         speaker_labels=["A", "B", "Speaker C", "SPEAKER_00", "Actual Customer"],
@@ -227,6 +232,7 @@ def test_identity_query_terms_excludes_anonymous_speaker_labels() -> None:
     assert "B" not in terms
     assert "Speaker C" not in terms
     assert "SPEAKER_00" not in terms
+    assert terms[:2] == ["ecochran76@gmail.com", "alice@example.com"]
 
 
 def test_ranked_contact_candidates_preserves_source_profile_representation() -> None:

@@ -5,7 +5,9 @@ Minimal JSON-RPC client for the local Codex app-server proxy.
 from __future__ import annotations
 
 import json
+import queue
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -39,6 +41,24 @@ class CodexAppServerClient:
         self.next_id = 1
         self.events: list[dict[str, Any]] = []
         self.stderr = ""
+        self._stdout_eof = object()
+        self._stdout_lines: queue.Queue[object] = queue.Queue()
+        self._stdout_thread = threading.Thread(
+            target=self._read_stdout,
+            name="codex-app-server-stdout",
+            daemon=True,
+        )
+        self._stdout_thread.start()
+
+    def _read_stdout(self) -> None:
+        if self.process.stdout is None:
+            self._stdout_lines.put(self._stdout_eof)
+            return
+        try:
+            for line in self.process.stdout:
+                self._stdout_lines.put(line)
+        finally:
+            self._stdout_lines.put(self._stdout_eof)
 
     def close(self) -> None:
         if self.process.poll() is None:
@@ -54,18 +74,21 @@ class CodexAppServerClient:
         request_id = self.next_id
         self.next_id += 1
         message = {
-            "jsonrpc": "2.0",
             "id": request_id,
             "method": method,
             "params": params or {},
         }
-        self.process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
-        self.process.stdin.flush()
+        self._write_message(message)
         deadline = time.monotonic() + self.timeout_seconds
         while time.monotonic() < deadline:
-            line = self.process.stdout.readline()
-            if not line:
+            remaining = max(0.0, deadline - time.monotonic())
+            try:
+                item = self._stdout_lines.get(timeout=remaining)
+            except queue.Empty:
                 break
+            if item is self._stdout_eof:
+                break
+            line = str(item)
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError:
@@ -79,6 +102,42 @@ class CodexAppServerClient:
                 self.events.append(payload)
         self._capture_stderr()
         raise CodexAppServerError(f"Timed out waiting for {method} response: {self.stderr[:500]}")
+
+    def notify(self, method: str, params: Optional[dict[str, Any]] = None) -> None:
+        self._write_message({"method": method, "params": params or {}})
+
+    def wait_for_turn_completion(self, turn_id: str) -> dict[str, Any]:
+        deadline = time.monotonic() + self.timeout_seconds
+        while time.monotonic() < deadline:
+            remaining = max(0.0, deadline - time.monotonic())
+            try:
+                item = self._stdout_lines.get(timeout=remaining)
+            except queue.Empty:
+                break
+            if item is self._stdout_eof:
+                break
+            try:
+                payload = json.loads(str(item))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("method"):
+                continue
+            self.events.append(payload)
+            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+            turn = params.get("turn") if isinstance(params.get("turn"), dict) else {}
+            event_turn_id = turn.get("id") or turn.get("turnId")
+            if payload.get("method") == "turn/completed" and event_turn_id == turn_id:
+                return payload
+        self._capture_stderr()
+        raise CodexAppServerError(
+            f"Timed out waiting for turn/completed notification: {self.stderr[:500]}"
+        )
+
+    def _write_message(self, message: dict[str, Any]) -> None:
+        if self.process.stdin is None:
+            raise CodexAppServerError("Codex app-server process stdin is unavailable.")
+        self.process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
+        self.process.stdin.flush()
 
     def _capture_stderr(self) -> None:
         if self.process.stderr is None:
@@ -120,7 +179,7 @@ def start_model_turn(
     existing_thread_id: str = "",
     timeout_seconds: float = 30,
 ) -> dict[str, Any]:
-    client = CodexAppServerClient(codex_bin=codex_bin, use_proxy=True, timeout_seconds=timeout_seconds)
+    client = CodexAppServerClient(codex_bin=codex_bin, use_proxy=False, timeout_seconds=timeout_seconds)
     try:
         client.request(
             "initialize",
@@ -133,9 +192,10 @@ def start_model_turn(
                 "capabilities": {"experimentalApi": True},
             },
         )
+        client.notify("initialized")
         if existing_thread_id:
             thread_id = existing_thread_id
-            thread_response: dict[str, Any] = {"thread": {"id": thread_id}, "resumed": False}
+            thread_response = client.request("thread/resume", {"threadId": thread_id})
         else:
             thread_params: dict[str, Any] = {
                 "cwd": str(cwd),
@@ -162,12 +222,33 @@ def start_model_turn(
             turn_params["model"] = model
         turn_response = client.request("turn/start", turn_params)
         turn_id = extract_turn_id(turn_response)
+        completion_event = client.wait_for_turn_completion(turn_id)
+        turns = client.request(
+            "thread/turns/list",
+            {
+                "threadId": thread_id,
+                "itemsView": "full",
+                "limit": 25,
+                "sortDirection": "desc",
+            },
+        )
+        completed_turn = find_turn(turns, turn_id)
+        items = (
+            completed_turn.get("items")
+            if isinstance(completed_turn.get("items"), list)
+            else []
+        )
         return {
             "ok": True,
             "thread_id": thread_id,
             "turn_id": turn_id,
+            "completed": True,
+            "completion_event": completion_event,
+            "output_text": extract_output_text(items),
             "thread_start_response": thread_response,
             "turn_start_response": turn_response,
+            "turns_list_response": turns,
+            "items_list_response": {"data": items},
             "events": client.events,
         }
     finally:
@@ -181,7 +262,7 @@ def inspect_model_turn(
     turn_id: str,
     timeout_seconds: float = 30,
 ) -> dict[str, Any]:
-    client = CodexAppServerClient(codex_bin=codex_bin, use_proxy=True, timeout_seconds=timeout_seconds)
+    client = CodexAppServerClient(codex_bin=codex_bin, use_proxy=False, timeout_seconds=timeout_seconds)
     try:
         client.request(
             "initialize",
@@ -194,27 +275,21 @@ def inspect_model_turn(
                 "capabilities": {"experimentalApi": True},
             },
         )
+        client.notify("initialized")
+        client.request("thread/resume", {"threadId": thread_id})
         thread_read = client.request("thread/read", {"threadId": thread_id, "includeTurns": False})
         turns = client.request(
             "thread/turns/list",
             {
                 "threadId": thread_id,
-                "itemsView": "summary",
+                "itemsView": "full",
                 "limit": 25,
                 "sortDirection": "desc",
             },
         )
-        items = client.request(
-            "thread/turns/items/list",
-            {
-                "threadId": thread_id,
-                "turnId": turn_id,
-                "limit": 200,
-                "sortDirection": "asc",
-            },
-        )
         turn = find_turn(turns, turn_id)
-        output_text = extract_output_text(items.get("data") if isinstance(items.get("data"), list) else [])
+        items = turn.get("items") if isinstance(turn.get("items"), list) else []
+        output_text = extract_output_text(items)
         status = str(turn.get("status") or "") if isinstance(turn, dict) else ""
         return {
             "ok": True,
@@ -225,7 +300,7 @@ def inspect_model_turn(
             "output_text": output_text,
             "thread_read_response": thread_read,
             "turns_list_response": turns,
-            "items_list_response": items,
+            "items_list_response": {"data": items},
             "events": client.events,
         }
     finally:
@@ -242,7 +317,13 @@ def find_turn(turns_response: dict[str, Any], turn_id: str) -> dict[str, Any]:
 
 def extract_output_text(items: list[Any]) -> str:
     chunks: list[str] = []
-    for item in items:
+    agent_items = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and str(item.get("type") or "") in {"agentMessage", "assistantMessage"}
+    ]
+    for item in agent_items or items:
         if isinstance(item, dict):
             collect_text_fields(item, chunks)
     return "\n".join(chunk for chunk in chunks if chunk.strip()).strip()

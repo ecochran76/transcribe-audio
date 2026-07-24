@@ -568,3 +568,103 @@ def test_route_transcript_records_excluded_low_quality_sources(monkeypatch, tmp_
     assert payload["provenance_pack"]["excluded_sources"][0]["source_id"] == "odoo-contact-99"
     assert payload["provenance_pack"]["quality_profile"]["profile_id"] == SOURCE_QUALITY_PROFILE_ID
     assert payload["warnings"] == ["Excluded 1 provenance source(s) below quality threshold 2."]
+
+
+def test_collect_gws_mail_sources_uses_attendee_email_and_metadata_only(monkeypatch) -> None:
+    calls = []
+
+    def fake_run(command, *, config):
+        calls.append(command)
+        if command[2:5] == ["users", "messages", "list"]:
+            return {"messages": [{"id": "message-1", "threadId": "thread-1"}]}
+        return {
+            "id": "message-1",
+            "threadId": "thread-1",
+            "internalDate": "1710000000000",
+            "snippet": "Alice sent the revised proposal.",
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Alice Example <alice@example.com>"},
+                    {"name": "To", "value": "Bob Buyer <bob@example.com>"},
+                    {"name": "Subject", "value": "Revised proposal"},
+                ]
+            },
+        }
+
+    monkeypatch.setattr(context_sources, "run_gws_json", fake_run)
+    config = context_sources.GwsProvenanceConfig(
+        enabled=True,
+        profile_label="work",
+        include_calendar_details=False,
+        include_drive_search=False,
+        include_gmail_search=True,
+        gmail_page_size=2,
+    )
+
+    sources = context_sources.collect_gws_mail_sources(
+        {
+            "event": {
+                "attendees": [
+                    {"displayName": "Alice Example", "email": "alice@example.com"},
+                    {"displayName": "Bob Buyer", "email": "bob@example.com"},
+                ]
+            }
+        },
+        {},
+        config=config,
+    )
+
+    assert len(sources) == 1
+    assert sources[0].source_type == "gws_mail_message"
+    assert sources[0].source_id == "message-1"
+    assert sources[0].label == "Revised proposal"
+    assert sources[0].snippet == "Alice sent the revised proposal."
+    assert sources[0].metadata["profile"] == "work"
+    assert sources[0].metadata["matched_emails"] == ["alice@example.com", "bob@example.com"]
+    assert "alice@example.com" in calls[0][-1]
+    get_params = json.loads(calls[1][-1])
+    assert get_params["format"] == "metadata"
+    assert get_params["metadataHeaders"] == ["From", "To", "Subject", "Date"]
+
+
+def test_collect_odollo_provenance_includes_crm_lead_identity_candidates(monkeypatch) -> None:
+    def fake_run(command, *, text, capture_output, timeout, check, cwd):
+        assert "crm.lead" in command
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                [
+                    {
+                        "id": 17,
+                        "name": "Example proposal",
+                        "contact_name": "Alice Example",
+                        "email_from": "alice@example.com",
+                        "partner_id": [9, "Example Co"],
+                    }
+                ]
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(context_sources.subprocess, "run", fake_run)
+
+    sources = collect_odollo_provenance(
+        {"event": {"attendees": [{"email": "alice@example.com"}]}},
+        {},
+        config=OdolloProvenanceConfig(
+            enabled=True,
+            profiles=("soylei-prod",),
+            command=("odollo",),
+            include_contacts=False,
+            include_leads=True,
+            include_log_notes=False,
+        ),
+    )
+
+    assert len(sources) == 1
+    assert sources[0].source_type == "odollo_lead"
+    assert sources[0].label == "Alice Example | Example proposal | Example Co"
+    assert sources[0].metadata["model"] == "crm.lead"
+    assert sources[0].metadata["email"] == "alice@example.com"
+    assert "odoo://soylei-prod/crm.lead/17" == sources[0].uri

@@ -492,8 +492,10 @@ def prepare_model_turn_packet(
         raise ValueError(f"Model-turn preflight requires approval_token={MODEL_TURN_PREFLIGHT_TOKEN}.")
     shown = response_for_run(state_root=state_root, run_id=run_id, event_limit=1)
     run = shown["run"]
-    if run.get("phase") != "session_started":
-        raise ValueError("Model-turn preflight requires a session_started ledger.")
+    if run.get("phase") not in {"prepared", "session_started"}:
+        raise ValueError(
+            "Model-turn preflight requires a prepared or session_started ledger."
+        )
     policy = run.get("policy") if isinstance(run.get("policy"), dict) else {}
     allowed_actions = policy.get("allowed_actions") if isinstance(policy.get("allowed_actions"), list) else []
     if "prepare_prompt" not in allowed_actions:

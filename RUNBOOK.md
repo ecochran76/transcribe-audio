@@ -2,6 +2,246 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 220 | 2026-07-24
+
+Summary: Closed Plan 0025 with a two-pass, provenance-aware speaker identity
+workflow and reviewed dogfood across three real conversations.
+
+Implemented:
+
+- Added durable conversation/recording identities and append-only
+  `.processing.json` sidecars with immutable evaluations, current-evaluation
+  pointers, attributable confirm/reject/defer decisions, reviewer assertions,
+  and supersession history.
+- Added required Source Context validation for personal GWS and
+  organization-owned Odollo sources, attendee-email-first retrieval, bounded
+  evidence snapshots, cross-source Person Candidate grouping, and explicit
+  evidence-independence keys.
+- Replaced the prototype with Clue Discovery, host retrieval, and Identity
+  Evaluation phases under reviewed App Intelligence ledgers and prompt packets.
+- Added separate calendar-association, person-link, and speaker-identity
+  rubrics. The host derives numeric `0..100` scores plus Low, Medium, High, and
+  Very High labels from cited categorical factors.
+- Added selected-conversation API and React Speakers controls for both phases,
+  captured evaluation persistence, evidence/warning inspection, individual
+  review decisions, and safe confirmation of ready proposals only.
+- Updated the App Server client for the installed 0.145 protocol and direct
+  stdio lifecycle, including the current handshake, completion streaming,
+  full turn-item reads, thread resume, assistant-only output extraction, and
+  real timeout enforcement.
+
+Dogfood:
+
+- Calendar-associated case: calendar association `80 / High`; candidate and
+  unlisted speaker proposals remained pending because review flags were
+  present; a cross-source person grouping proposal was preserved separately.
+- Split-diarization case: seven proposals represented cross-label B+E
+  grouping, mixed-label exclusions, unresolved candidates, unlisted attendees,
+  and a `100 / Very High` calendar match without rewriting diarization.
+- Spurious/unresolved case: Speaker B persisted as `0 / Low` and unresolved;
+  Speaker A's `100 / Very High` evidence score did not bypass mixed-speaker
+  review flags.
+
+Validation:
+
+- Full backend suite: `295 passed`.
+- Production frontend build passed.
+- Live runs resolved through `codex-app-server / gpt-5.6-sol`; provider
+  retrieval was read-only and no speaker assignment or external mutation was
+  applied.
+
+Next:
+
+- Use the reviewed speaker identities as inputs to a separately planned
+  full-conversation contextual interpretation pass.
+
+## Turn 219 | 2026-07-24
+
+Summary: Completed the Plan 0025 speaker-preprocessing design grill and
+reconciled the resulting domain model into repo authority.
+
+Decisions:
+
+- Split App Intelligence preprocessing into host-governed Clue Discovery and
+  Identity Evaluation phases, with bounded provenance retrieval between them.
+- Separate Calendar Association Confidence, Person Link Assessment, and
+  Speaker Identity Confidence under task-specific versioned evidence rubrics.
+  App Intelligence returns cited factor judgments; the host validates them and
+  derives evidence-strength scores and human-readable bands.
+- Group duplicate cross-source people through confidence-bearing inference
+  while preserving Source Records, Source Context, source affinities, and
+  evidence-independence boundaries.
+- Represent unlisted people, split-speaker groups, mixed-speaker findings, and
+  utterance-level identity proposals without rewriting diarization.
+- Keep lightweight human confirmation mandatory for speaker assignments while
+  supporting safe bulk confirmation of ready proposals and structured
+  calibration outcomes from corrections.
+- Store immutable evaluation history in one conversation-owned JSON sidecar
+  for now, with durable conversation and recording identities designed for
+  later migration to central user-scoped database storage.
+
+Documentation:
+
+- Added `CONTEXT.md` as the conversation-intelligence ubiquitous-language
+  glossary.
+- Added ADR 0001 for durable opaque conversation identities.
+- Revised Plan 0025 and the P09 roadmap focus to reflect the two-phase design
+  and distinguish it from the implemented v1 single-packet prototype.
+
+Next:
+
+- Implement the bounded Plan 0025 successor contracts from Clue Discovery
+  through reviewed Identity Evaluation, beginning with durable IDs, Source
+  Context validation, and sidecar schema tests.
+
+## Turn 218 | 2026-07-21
+
+Summary: Opened Plan 0025 for App Intelligence speaker preprocessing.
+
+Current evidence:
+
+- Participant identity already extracts calendar attendees and queries Google
+  People plus Odollo contacts, but every anonymous speaker receives the same
+  candidate pool and there is no transcript-clue LLM pass.
+- General provenance has Calendar/Drive and Odollo log-note adapters, while the
+  identity path does not yet include Gmail, Odollo leads, or log-note evidence.
+- Codex app-server readiness is healthy on local Codex CLI 0.144.6. The live
+  workstation Codex model is `gpt-5.6-sol`; the repo's Codex supervisor profile
+  previously left its model unspecified.
+
+Direction:
+
+- Keep provenance acquisition deterministic and host-owned.
+- Prioritize exact calendar attendee emails for reverse lookup.
+- Give App Intelligence a bounded transcript/evidence packet and require cited
+  speaker proposals under a strict schema.
+- Require human review before any speaker assignment and defer the broader
+  contextual conversation pass.
+
+Validation started:
+
+- Added a red default-routing test, reproduced the empty Codex model, then
+  pinned speaker disambiguation and the app supervisor to `gpt-5.6-sol`; the
+  focused test now passes.
+- Added TDD coverage for speaker-specific clue packets, attendee-email-first
+  candidate ordering, strict model-reference validation, JSON-only prompt
+  rendering, configured provenance collection, and Odollo lead promotion.
+- Added metadata/snippet-only Gmail evidence collection through the inspected
+  `gws gmail users messages list/get` contracts and read-only `crm.lead`
+  provenance through configured Odollo profiles.
+- Shared provenance config now maps GWS Gmail limits and Odollo lead model
+  selection into the source adapters.
+- Focused backend validation passed: `44 passed`; the full backend suite passed
+  with `267 passed`; touched modules/tests compile, `git diff --check` passes,
+  and live config resolution reports
+  `speaker_disambiguation -> codex-app-server / gpt-5.6-sol` with a required
+  ledger and low-confidence review.
+- Applied a reviewed user-scoped provenance update that enables `crm.lead`
+  between `res.partner` and `mail.message` for both existing Odollo tenant
+  sources. Redacted readback confirms contacts, leads, and log notes are all
+  enabled for both profiles.
+- Restarted `transcripts.service`; it is active with `NRestarts=0`, and the live
+  `/api/intelligence/config` readback reports `gpt-5.6-sol` for both speaker
+  disambiguation and the App Intelligence supervisor.
+
+Next:
+
+- Add the conversation/API action that prepares this packet as a reviewed App
+  Intelligence run/prompt artifact, then dogfood it on calendar-associated
+  transcripts before enabling any automation.
+
+## Turn 217 | 2026-07-20
+
+Summary: Closed Plan 0024 after cutting Voice Recordings over to the restored
+D: Syncthing root and completing the real backlog.
+
+Changes:
+
+- Updated `syncthing-voice-recordings` from the degraded `/mnt/e` root to
+  `/mnt/d/SyncThing/Voice Recordings`.
+- Reconciled 89 moved recordings through existing successful watcher records
+  without retranscribing them.
+- Processed five genuinely new valid recordings through transcription,
+  calendar matching, transcript-store ingestion, and participant identity
+  warming.
+- Added `--path-prefix-remap OLD=NEW` to calendar repair so directory moves
+  rebase only artifact media/output path fields, never transcript content.
+- Applied the previously pending calendar repair against the restored
+  authoritative artifact and reconciled the transcript store to one canonical
+  row.
+- Excluded Syncthing `.stversions` paths from recursive intake after the only
+  remaining candidate proved to be an incomplete historical version rather
+  than live backlog.
+
+Validation:
+
+- The pre-cutover watcher doctor reproduced one `unavailable_watch_dir`
+  warning for `/mnt/e`; the post-cutover doctor returned `status: ok` with no
+  issues.
+- The path-remap and `.stversions` regressions failed before their fixes and
+  passed afterward.
+- `.venv/bin/python -m pytest tests/test_transcript_artifacts.py -q` passed:
+  `32 passed`.
+- `.venv/bin/python -m py_compile watch_transcriptions.py
+  repair_calendar_metadata.py tests/test_transcript_artifacts.py` passed.
+- The repair dry run reported one matched artifact and zero without an event;
+  apply/readback confirmed D: media/output paths and event metadata.
+- Final live heartbeat reported `candidates=0 attempted=0 successes=0
+  failures=0 blocked=none`; `transcribe-watch.service` was active with
+  `NRestarts=0`.
+- `git diff --check` passed.
+
+## Turn 216 | 2026-07-20
+
+Summary: Closed Plan 0023 after recovering the live watcher from a stale
+optional watch mount and preserving the confirmed calendar repair safely.
+
+Current evidence:
+
+- Windows currently has no `E:` filesystem drive, while WSL retains a stale
+  `/mnt/e` drvfs mount whose Voice Recordings path raises `OSError: No such
+  device`.
+- `transcribe-watch.service` was in an `ExecStartPre` auto-restart loop because
+  readiness checks treated the one unavailable Voice Recordings root as a
+  global service failure before the three healthy watcher jobs could run.
+- Three recent stored artifacts have `event: null`. Current primary-calendar
+  replay gives one a strong overlapping event; the other two have no
+  overlapping timed Google Calendar event. Exact private repair evidence is
+  retained only in user-scoped runtime state.
+
+Changes:
+
+- Added a red regression test for one unavailable root among healthy jobs.
+- Made unavailable-root readiness and scans job-local while preserving a fatal
+  result when every configured watch root is unavailable.
+- Successful transcriptions that continue after calendar lookup failures now
+  persist `warning_kind=calendar_metadata_failed` and a bounded
+  `warning_reason` across watcher state save/load.
+- Updated README readiness/recovery guidance and the P06 roadmap state.
+- Recorded the exact confirmed repair as a user-scoped pending repair because
+  its authoritative drive remains absent; no store-only rewrite was attempted.
+
+Validation:
+
+- The deterministic unavailable-root regression failed with the production
+  `OSError: No such device` before the fix and passed afterward.
+- `.venv/bin/python -m pytest tests/test_transcript_artifacts.py -q` passed:
+  `30 passed`.
+- `.venv/bin/python -m py_compile watch_transcriptions.py
+  tests/test_transcript_artifacts.py` passed.
+- `git diff --check` passed.
+- `watch_transcriptions.py --check --check-json` returned `status: ok` with one
+  `unavailable_watch_dir` warning.
+- `transcribe-watch.service` is active with `NRestarts=0`; its live heartbeat
+  reports `candidates=0 attempted=0 successes=0 failures=0
+  blocked=unavailable_watch_dir=1`.
+
+Residual:
+
+- Windows still has no `E:` filesystem drive. The confirmed metadata repair
+  remains gated on restoring the authoritative Voice Recordings files, running
+  a fresh dry-run, and reconciling the transcript store after apply.
+
 ## Turn 215 | 2026-07-18
 
 Summary: Migrate the transcripts service Codex readiness path to the stable

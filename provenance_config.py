@@ -196,6 +196,125 @@ def source_capabilities(source: dict[str, Any]) -> set[str]:
     return {str(item) for item in values if str(item)}
 
 
+def _context_source_configs_for_ids(
+    raw: dict[str, Any],
+    source_ids: Iterable[str],
+) -> dict[str, Any]:
+    from context_sources import GwsProvenanceConfig, OdolloProvenanceConfig
+
+    gws_configs: list[GwsProvenanceConfig] = []
+    odollo_configs: list[OdolloProvenanceConfig] = []
+    msgcli_configs: list[dict[str, Any]] = []
+    for source_id in source_ids:
+        source = enabled_source(raw, source_id)
+        if not source:
+            continue
+        kind = str(source.get("kind") or "")
+        capabilities = source_capabilities(source)
+        if kind == SOURCE_KIND_GWS:
+            people = source.get("people") if isinstance(source.get("people"), dict) else {}
+            gmail = source.get("gmail") if isinstance(source.get("gmail"), dict) else {}
+            surfaces = set(people.get("surfaces") if isinstance(people.get("surfaces"), list) else [])
+            gws_configs.append(
+                GwsProvenanceConfig(
+                    enabled=True,
+                    profile_label=str(source.get("label") or source_id),
+                    config_dir=Path(str(source["config_dir"])).expanduser() if source.get("config_dir") else None,
+                    drive_page_size=int((source.get("drive") or {}).get("page_size") or 5)
+                    if isinstance(source.get("drive"), dict)
+                    else 5,
+                    people_page_size=int(people.get("limit") or 5),
+                    people_query_limit=int(people.get("query_limit") or 8),
+                    timeout=float(source.get("timeout") or 30.0),
+                    include_calendar_details="calendar" in capabilities,
+                    include_drive_search="drive" in capabilities,
+                    include_gmail_search="gmail" in capabilities,
+                    gmail_page_size=int(gmail.get("page_size") or 5),
+                    include_people_contacts="contacts" in surfaces or "people" in capabilities,
+                    include_other_contacts="other_contacts" in surfaces,
+                    include_directory_people="directory" in surfaces,
+                )
+            )
+        elif kind == SOURCE_KIND_ODOLLO:
+            limits = source.get("limits") if isinstance(source.get("limits"), dict) else {}
+            command = source.get("command") if isinstance(source.get("command"), list) else []
+            default_odollo = OdolloProvenanceConfig()
+            odollo_configs.append(
+                OdolloProvenanceConfig(
+                    enabled=True,
+                    profiles=(str(source.get("tenant_profile") or source.get("profile") or source_id),),
+                    command=tuple(str(item) for item in command) or default_odollo.command,
+                    repo_root=Path(str(source["repo_root"])).expanduser()
+                    if source.get("repo_root")
+                    else default_odollo.repo_root,
+                    config_path=Path(str(source["config_path"])).expanduser()
+                    if source.get("config_path")
+                    else default_odollo.config_path,
+                    timeout=float(source.get("timeout") or 30.0),
+                    limit=int(limits.get("contacts") or limits.get("log_notes") or source.get("limit") or 5),
+                    include_contacts="res.partner" in source.get("models", ["res.partner"])
+                    if isinstance(source.get("models", ["res.partner"]), list)
+                    else True,
+                    include_leads="crm.lead" in source.get("models", []),
+                    include_log_notes="mail.message" in source.get("models", []),
+                )
+            )
+        elif kind == SOURCE_KIND_MSGCLI:
+            msgcli_configs.append(redacted_config({"sources": {source_id: source}})["sources"][source_id])
+    return {
+        "gws": gws_configs,
+        "odollo": odollo_configs,
+        "msgcli": msgcli_configs,
+        "warnings": [],
+    }
+
+
+def _validated_source_context(value: Any) -> tuple[dict[str, Any], list[str]]:
+    if not isinstance(value, dict):
+        return {}, ["Source Context is required"]
+    errors: list[str] = []
+    owner = value.get("owner") if isinstance(value.get("owner"), dict) else {}
+    owner_type = str(owner.get("type") or "")
+    if owner_type not in {"person", "organization"}:
+        errors.append("owner.type must be person or organization")
+    for field_name in ("id", "label"):
+        if not str(owner.get(field_name) or "").strip():
+            errors.append(f"owner.{field_name} is required")
+    relationship_scope = str(value.get("relationship_scope") or "").strip()
+    if not relationship_scope:
+        errors.append("relationship_scope is required")
+    account_label = str(value.get("account_label") or "").strip()
+    if not account_label:
+        errors.append("account_label is required")
+    evidence_capabilities = unique_strings(
+        value.get("evidence_capabilities")
+        if isinstance(value.get("evidence_capabilities"), list)
+        else []
+    )
+    if not evidence_capabilities:
+        errors.append("evidence_capabilities must not be empty")
+    authoritative_identifiers = unique_strings(
+        value.get("authoritative_identifiers")
+        if isinstance(value.get("authoritative_identifiers"), list)
+        else []
+    )
+    if not isinstance(value.get("authoritative_identifiers"), list):
+        errors.append("authoritative_identifiers must be a list")
+    if errors:
+        return {}, errors
+    return {
+        "owner": {
+            "type": owner_type,
+            "id": str(owner["id"]).strip(),
+            "label": str(owner["label"]).strip(),
+        },
+        "relationship_scope": relationship_scope,
+        "account_label": account_label,
+        "evidence_capabilities": evidence_capabilities,
+        "authoritative_identifiers": authoritative_identifiers,
+    }, []
+
+
 def validate_config(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ValueError("Provenance config must be a JSON object.")
@@ -482,66 +601,57 @@ def context_source_configs_from_provenance(
     if workflow.get("enabled", True) is False:
         return {"gws": [], "odollo": [], "msgcli": [], "warnings": []}
 
-    from context_sources import GwsProvenanceConfig, OdolloProvenanceConfig
+    return _context_source_configs_for_ids(
+        raw,
+        workflow_source_ids(raw, "context_workbench", profile_name),
+    )
 
-    gws_configs: list[GwsProvenanceConfig] = []
-    odollo_configs: list[OdolloProvenanceConfig] = []
-    msgcli_configs: list[dict[str, Any]] = []
+
+def speaker_preprocessing_source_configs_from_provenance(
+    *,
+    path: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+    profile: Optional[str] = None,
+) -> dict[str, Any]:
+    """Resolve only sources with explicit semantic Source Context."""
+    raw = read_config(path, state_root=state_root)
+    if not raw:
+        return {"gws": [], "odollo": [], "msgcli": [], "source_contexts": [], "warnings": []}
+    validate_config(raw)
+    profile_name = active_profile_name(raw, profile)
+    workflow = workflow_payload(raw, "context_workbench", profile_name)
+    if workflow.get("enabled", True) is False:
+        return {"gws": [], "odollo": [], "msgcli": [], "source_contexts": [], "warnings": []}
+
+    eligible_ids: list[str] = []
+    source_contexts: list[dict[str, Any]] = []
+    warnings: list[str] = []
     for source_id in workflow_source_ids(raw, "context_workbench", profile_name):
         source = enabled_source(raw, source_id)
         if not source:
             continue
         kind = str(source.get("kind") or "")
-        capabilities = source_capabilities(source)
-        if kind == SOURCE_KIND_GWS:
-            people = source.get("people") if isinstance(source.get("people"), dict) else {}
-            surfaces = set(people.get("surfaces") if isinstance(people.get("surfaces"), list) else [])
-            gws_configs.append(
-                GwsProvenanceConfig(
-                    enabled=True,
-                    profile_label=str(source.get("label") or source_id),
-                    config_dir=Path(str(source["config_dir"])).expanduser() if source.get("config_dir") else None,
-                    drive_page_size=int((source.get("drive") or {}).get("page_size") or 5)
-                    if isinstance(source.get("drive"), dict)
-                    else 5,
-                    people_page_size=int(people.get("limit") or 5),
-                    people_query_limit=int(people.get("query_limit") or 8),
-                    timeout=float(source.get("timeout") or 30.0),
-                    include_calendar_details="calendar" in capabilities,
-                    include_drive_search="drive" in capabilities,
-                    include_people_contacts="contacts" in surfaces or "people" in capabilities,
-                    include_other_contacts="other_contacts" in surfaces,
-                    include_directory_people="directory" in surfaces,
-                )
+        if kind not in {SOURCE_KIND_GWS, SOURCE_KIND_ODOLLO}:
+            continue
+        source_context_value = source.get("source_context")
+        if not isinstance(source_context_value, dict):
+            warnings.append(f"Speaker preprocessing excluded source {source_id}: missing Source Context.")
+            continue
+        source_context, context_errors = _validated_source_context(source_context_value)
+        if context_errors:
+            warnings.append(
+                f"Speaker preprocessing excluded source {source_id}: "
+                f"invalid Source Context ({'; '.join(context_errors)})."
             )
-        elif kind == SOURCE_KIND_ODOLLO:
-            limits = source.get("limits") if isinstance(source.get("limits"), dict) else {}
-            command = source.get("command") if isinstance(source.get("command"), list) else []
-            default_odollo = OdolloProvenanceConfig()
-            odollo_configs.append(
-                OdolloProvenanceConfig(
-                    enabled=True,
-                    profiles=(str(source.get("tenant_profile") or source.get("profile") or source_id),),
-                    command=tuple(str(item) for item in command) or default_odollo.command,
-                    repo_root=Path(str(source["repo_root"])).expanduser() if source.get("repo_root") else default_odollo.repo_root,
-                    config_path=Path(str(source["config_path"])).expanduser()
-                    if source.get("config_path")
-                    else default_odollo.config_path,
-                    timeout=float(source.get("timeout") or 30.0),
-                    limit=int(limits.get("contacts") or limits.get("log_notes") or source.get("limit") or 5),
-                    include_contacts="res.partner" in source.get("models", ["res.partner"])
-                    if isinstance(source.get("models", ["res.partner"]), list)
-                    else True,
-                    include_log_notes="mail.message" in source.get("models", []),
-                )
-            )
-        elif kind == SOURCE_KIND_MSGCLI:
-            msgcli_configs.append(redacted_config({"sources": {source_id: source}})["sources"][source_id])
+            continue
+        eligible_ids.append(source_id)
+        source_contexts.append({"source_id": source_id, **source_context})
+
+    configs = _context_source_configs_for_ids(raw, eligible_ids)
     return {
-        "gws": gws_configs,
-        "odollo": odollo_configs,
-        "msgcli": msgcli_configs,
-        "warnings": [],
+        **configs,
+        "source_contexts": source_contexts,
+        "warnings": warnings,
     }
 
 

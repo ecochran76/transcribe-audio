@@ -238,10 +238,13 @@ def identity_query_terms(
     speaker_labels: list[str],
 ) -> list[str]:
     values: list[str] = []
-    for person in [*calendar_attendees, *readout_participants]:
+    people = [*calendar_attendees, *readout_participants]
+    for person in people:
         email = normalize_email(person.get("email"))
         if email:
             values.append(email)
+    for person in people:
+        email = normalize_email(person.get("email"))
         for value in [person.get("name", ""), person.get("label", "")]:
             text = normalize_string(value)
             if not text or text == email or is_anonymous_speaker_label(text):

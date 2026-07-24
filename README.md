@@ -173,6 +173,16 @@ python assembly_transcribe.py meeting.m4a --use-calendar --provenance-profile de
 python repair_calendar_metadata.py --artifact-glob "meeting Transcript.transcript.json" --provenance-profile default --refresh-matching-calendars --apply
 ```
 
+When an authoritative recording directory moves, repair dry runs can rebase
+only artifact media/output path fields before calendar planning; transcript
+content is never rewritten by the remap:
+
+```bash
+python repair_calendar_metadata.py \
+  --artifact-glob "/new/root/* Transcript.transcript.json" \
+  --path-prefix-remap "/old/root=/new/root"
+```
+
 ### Clean historical calendar filenames
 
 If older calendar-mode runs created duplicated date/title prefixes, use
@@ -609,6 +619,35 @@ The API exposes `/api/library`, `/api/conversations`, `/api/review-queue`, `/api
 
 The M1/M2/P09 conversation workspace also exposes local-only review-loop actions. `GET /api/conversations/<id>/first-pass-summary`, `/identity-review`, `/context-workbench`, and `/final-preview` return selected-summary state, speaker/contact review state, provenance context, participant identity state, and deposition/memory preview summaries for the selected conversation. `POST /api/conversations/<id>/first-pass-summary/prepare` writes a one-request dry-run manifest scoped to the conversation source transcript and includes the participant identity bundle for the readout provider; `/submit` still requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, `/run` prepares and submits that selected initial-summary request in one reviewed call using the same token, and `/status` can materialize completed readouts back into the store. `POST /api/conversations/<id>/identity-review` records confirm/defer decisions in the user-scoped SQLite contact/speaker tables and queues deferred speaker work under `~/.local/state/transcribe-audio/review-queue/`. `POST /api/conversations/<id>/context-workbench/preview` and `/queue` write local context-run manifests with the participant identity bundle and any reviewed contact selections; the queue path requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers. Contact workbench selection is local-first: `POST /api/conversations/<id>/context-workbench/contact-selection-batch` persists staged select/exclude/clear/manual actions in one batch, `GET /context-workbench/contact-search` is cache-only by default, `POST /context-workbench/contact-refresh/preview` and `/contact-refresh` explicitly refresh configured read-only sources into user-scoped cache/job records, `/contact-affinity` and `/contact-affinity/refresh` expose cached relationship recency/frequency ranking facts, and `/contact-merge-batch` records reviewed merge/split decisions. These endpoints accept `actor_type=operator` or `actor_type=app_intelligence` where decisions are supported and perform no provider, CRM, memory, or external write unless an explicit read-only refresh is requested. `POST /api/conversations/<id>/final-preview/queue` requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`, creates a no-write deposition/memory preview only when identity/context warnings are resolved, and queues it for human review without Drive, Odoo, Graphiti, or filesystem apply.
 
+### Speaker identity preprocessing
+
+The Speakers workspace provides a reviewed two-pass App Intelligence flow.
+`POST /api/conversations/<id>/speaker-preprocessing/prepare-discovery` prepares
+a transcript-only Clue Discovery packet. After its model turn is captured,
+`prepare-evaluation` validates those clues, performs bounded host-owned
+GWS/Odollo retrieval, groups duplicate person records, and prepares Identity
+Evaluation. `capture-evaluation` strictly validates the captured model output
+and writes an immutable evaluation to the transcript-adjacent
+`.processing.json` sidecar. `GET /speaker-preprocessing` returns the current
+evaluation and review state; `/decisions` records attributable
+confirm/reject/defer actions; `/confirm-ready` confirms only proposals with
+host-derived scores of at least 85 and no review flags.
+
+Calendar association, cross-source person links, and speaker identity are
+scored independently under named rubrics. Each score includes a numeric
+`0..100` value and a plain-English band: Low, Medium, High, or Very High. The
+score is evidence strength, not probability. High scores never override mixed
+speaker, conflicting, unlisted, or other review flags. The workflow preserves
+original diarization labels and can represent multiple labels for one person
+or selected utterances belonging to different people.
+
+Eligible provenance sources must declare Source Context: owning person or
+organization, relationship scope, account/tenant label, evidence
+capabilities, and authoritative identifiers. Invalid declarations are excluded
+from speaker preprocessing with a visible warning and do not disable the
+source elsewhere. Model turns resolve through Codex App Server and default to
+`gpt-5.6-sol` unless a user-scoped route override is configured.
+
 Speaker deanonymization uses deterministic evidence before LLM reasoning. Calendar `event.participants` and `event.matching_calendars` attendees are normalized as matching evidence, while contact records come from configured user-scoped provenance sources and reviewed local contacts. The primary runtime config now lives at `~/.local/state/transcribe-audio/provenance.config.json`; `participant_identity.py` falls back to the older `contact-provenance.config.json` only when the shared config is missing. The legacy fallback shape is:
 
 ```json
@@ -640,6 +679,10 @@ Speaker deanonymization uses deterministic evidence before LLM reasoning. Calend
 ```
 
 The `gws` adapter uses read-only People API surfaces exposed by `gws people`: grouped contacts, Other Contacts, and optional directory people when `directory` is added to `surfaces`. The Odollo adapter uses read-only `res.partner` contact lookups against configured tenant profiles. Identity bundles expose compact candidate labels, emails, source types, profile labels, evidence, warnings, and operator decisions; raw contact exports, credentials, and tenant config stay in user-scoped runtime paths.
+
+Plan 0025 adds the post-transcription speaker-clue preprocessing foundation in `speaker_identity_preprocess.py`. It builds a bounded `transcribe-audio.speaker-clue-packet.v1` with separate utterance clues for each anonymous speaker, orders exact calendar-attendee email matches first, and gathers configured read-only Calendar, Drive, Gmail, Google People, Odollo contact, `crm.lead`, and log-note provenance. Gmail collection uses message metadata plus a bounded API snippet only; it does not fetch or retain full message bodies. Odollo leads can become review candidates, while log notes remain cited evidence. The packet renders a JSON-only App Intelligence prompt for the `speaker_disambiguation` task, and `transcribe-audio.speaker-identity-readout.v1` validation rejects speaker, contact, utterance, or source references that were not prepared by the host. Every result remains human-review-only and the later full-conversation contextual pass is explicitly outside this stage.
+
+The built-in `codex_supervisor` profile and `speaker_disambiguation` task now default to `codex-app-server` with `gpt-5.6-sol`, matching the current workstation Codex runtime. User-scoped intelligence profile overrides still take precedence.
 
 When `transcript_api.py` runs under `transcripts.service`, Odollo contact provenance inherits only the service environment, not the interactive shell. Put required Odoo API-key variables in a user-scoped environment file such as `~/.local/state/transcribe-audio/odollo.env` with mode `0600`, and load it from a systemd drop-in:
 
@@ -701,7 +744,7 @@ python watch_transcriptions.py --run-once --verbose
 python watch_transcriptions.py --verbose
 ```
 
-The watcher stores its memory in `.openclaw/watch_transcriptions_state.json` so it can avoid reprocessing the same finished file every time it scans. Candidate entries include `blocked_kind`, `blocked_reason`, and `blocked_since` when a file is waiting on minimum age, stability, media readiness, missing tools, or retry backoff. Heartbeats summarize those reasons as `blocked=kind=count` so a service can be active without hiding why work is queued.
+The watcher stores its memory in `.openclaw/watch_transcriptions_state.json` so it can avoid reprocessing the same finished file every time it scans. Candidate entries include `blocked_kind`, `blocked_reason`, and `blocked_since` when a file is waiting on minimum age, stability, media readiness, missing tools, or retry backoff. Successful records also retain `warning_kind` and `warning_reason` when transcription succeeds after calendar metadata lookup fails. Heartbeats summarize blocked reasons as `blocked=kind=count` so a service can be active without hiding why work is queued. If one configured watch directory is temporarily unavailable while another remains usable, readiness reports that job as a warning and the service continues; readiness remains fatal when every watch directory is unavailable.
 
 ### Recommended config for the current Downloads workflow
 
@@ -753,7 +796,7 @@ systemctl --user status transcribe-watch.service --no-pager
 journalctl --user -u transcribe-watch.service -n 80 --no-pager
 ```
 
-If the service is active but files are not moving, check the latest heartbeat for `blocked=`. `missing_tool` usually means the systemd `PATH` cannot find `ffprobe` or another configured command. `retry_backoff` points to the last backend failure and retry time in the watcher state. `minimum_age`, `settling`, and `incomplete_media` usually mean a recording is still syncing or has not become readable media yet.
+If the service is active but files are not moving, check the latest heartbeat for `blocked=`. `missing_tool` usually means the systemd `PATH` cannot find `ffprobe` or another configured command. `retry_backoff` points to the last backend failure and retry time in the watcher state. `minimum_age`, `settling`, and `incomplete_media` usually mean a recording is still syncing or has not become readable media yet. `unavailable_watch_dir` means one job's configured root is temporarily inaccessible; other healthy jobs continue running.
 
 If you prefer cron or another scheduler, `--run-once` also works for a periodic scan model, but a long-running user service is cleaner and catches files sooner.
 

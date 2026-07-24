@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from uuid import UUID, uuid4
 
-ARTIFACT_SCHEMA_VERSION = 1
+ARTIFACT_SCHEMA_VERSION = 2
 
 
 def json_ready(value: Any) -> Any:
@@ -23,6 +24,16 @@ def json_ready(value: Any) -> Any:
     return value
 
 
+def _valid_opaque_id(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(UUID(text))
+    except ValueError:
+        return ""
+
+
 @dataclass
 class TranscriptArtifact:
     source_media_path: str
@@ -34,6 +45,8 @@ class TranscriptArtifact:
     transcript_window_start_seconds: float
     transcript_window_end_seconds: float
     utterance_count: int
+    conversation_id: str = field(default_factory=lambda: str(uuid4()))
+    recording_id: str = field(default_factory=lambda: str(uuid4()))
     transcript_text: str = ""
     utterances: list[dict[str, Any]] = field(default_factory=list)
     output_paths: dict[str, str] = field(default_factory=dict)
@@ -45,6 +58,8 @@ class TranscriptArtifact:
         return json_ready(
             {
                 "schema_version": self.schema_version,
+                "conversation_id": self.conversation_id,
+                "recording_id": self.recording_id,
                 "source_media_path": self.source_media_path,
                 "working_media_path": self.working_media_path,
                 "backend": self.backend,
@@ -62,8 +77,17 @@ class TranscriptArtifact:
             }
         )
 
-    def write(self, path: Path) -> None:
+    def write(self, path: Path, *, preserve_existing_recording_id: bool = True) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                existing = {}
+            if isinstance(existing, dict):
+                self.conversation_id = _valid_opaque_id(existing.get("conversation_id")) or self.conversation_id
+                if preserve_existing_recording_id:
+                    self.recording_id = _valid_opaque_id(existing.get("recording_id")) or self.recording_id
         with path.open("w", encoding="utf-8") as handle:
             json.dump(self.to_dict(), handle, indent=2, sort_keys=True, ensure_ascii=False)
             handle.write("\n")

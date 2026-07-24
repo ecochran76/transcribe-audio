@@ -330,6 +330,32 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert shown_after_review["events"][-1]["event_type"] == "human_review_decision_recorded"
 
 
+def test_prepare_model_turn_packet_can_precede_session_start(tmp_path: Path) -> None:
+    app_intelligence_ledger.create_run(
+        state_root=tmp_path,
+        workflow="speaker_preprocessing",
+        purpose="Prepare reviewed clue discovery.",
+        document_id="doc_123",
+        run_id="speaker-packet-run",
+    )
+
+    prepared = app_intelligence_ledger.prepare_model_turn_packet(
+        state_root=tmp_path,
+        run_id="speaker-packet-run",
+        task="speaker_clue_discovery",
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+        document={"id": "doc_123", "title": "Proposal review"},
+        prompt_text="Find identity clues.",
+        approval_token=app_intelligence_ledger.MODEL_TURN_PREFLIGHT_TOKEN,
+    )
+
+    assert prepared["will_send_prompt"] is False
+    assert prepared["run"]["phase"] == "prepared"
+    assert prepared["packet"]["future_required_approval_token_for_send"] == (
+        app_intelligence_ledger.MODEL_TURN_SEND_TOKEN
+    )
+
+
 def test_structured_decision_validation_rejects_non_decision_output(tmp_path: Path) -> None:
     app_intelligence_ledger.create_run(
         state_root=tmp_path,

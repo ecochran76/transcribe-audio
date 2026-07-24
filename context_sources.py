@@ -14,8 +14,15 @@ from routing_artifacts import ProvenanceSource, normalize_string, stable_id, uni
 from transcribe_common import TranscriptionError
 
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
+EMAIL_PATTERN = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.IGNORECASE)
 QUALITY_CALENDAR_SOURCE_TYPES = {"calendar_event", "gws_calendar_overlap", "gws_calendar_event_detail"}
-QUALITY_CONTACT_SOURCE_TYPES = {"gws_contact", "gws_other_contact", "gws_directory_person", "odollo_contact"}
+QUALITY_CONTACT_SOURCE_TYPES = {
+    "gws_contact",
+    "gws_other_contact",
+    "gws_directory_person",
+    "odollo_contact",
+    "odollo_lead",
+}
 QUALITY_STOP_TERMS = {
     "about",
     "and",
@@ -51,6 +58,7 @@ SOURCE_QUALITY_SOURCE_TYPE_MIN_SCORES = {
     "gws_drive_file": 2,
     "gws_docs_file": 2,
     "odollo_contact": 2,
+    "odollo_lead": 2,
     "odollo_log_note": 2,
     "graphiti_fact": 2,
     "graphiti_node": 2,
@@ -70,6 +78,8 @@ class GwsProvenanceConfig:
     timeout: float = 30.0
     include_calendar_details: bool = True
     include_drive_search: bool = True
+    include_gmail_search: bool = False
+    gmail_page_size: int = 5
     include_people_contacts: bool = False
     include_other_contacts: bool = False
     include_directory_people: bool = False
@@ -101,6 +111,7 @@ class OdolloProvenanceConfig:
     timeout: float = 30.0
     limit: int = 5
     include_contacts: bool = True
+    include_leads: bool = False
     include_log_notes: bool = True
 
 
@@ -682,6 +693,14 @@ def odollo_contact_domain(terms: list[str]) -> list[Any]:
     return odollo_or_domain(clauses)
 
 
+def odollo_lead_domain(terms: list[str]) -> list[Any]:
+    clauses: list[list[Any]] = []
+    for term in terms:
+        for field in ("name", "contact_name", "email_from", "partner_name"):
+            clauses.append([field, "ilike", term])
+    return odollo_or_domain(clauses)
+
+
 def odollo_log_note_domain(terms: list[str]) -> list[Any]:
     term_clauses: list[list[Any]] = []
     for term in terms:
@@ -795,6 +814,40 @@ def odollo_contact_sources(
     return sources
 
 
+def odollo_lead_sources(
+    rows: list[dict[str, Any]],
+    *,
+    profile: str,
+    terms: list[str],
+) -> list[ProvenanceSource]:
+    sources: list[ProvenanceSource] = []
+    for row in rows:
+        record_id = normalize_string(row.get("id"))
+        opportunity = normalize_string(row.get("name")) or "Odoo lead"
+        contact_name = normalize_string(row.get("contact_name"))
+        email = normalize_string(row.get("email_from"))
+        company = m2o_label(row.get("partner_id")) or normalize_string(row.get("partner_name"))
+        label = " | ".join(item for item in [contact_name, opportunity, company] if item)
+        sources.append(
+            ProvenanceSource(
+                source_type="odollo_lead",
+                source_id=stable_id("odollo_lead", profile, record_id or label),
+                label=label,
+                uri=f"odoo://{profile}/crm.lead/{record_id}" if record_id else "",
+                snippet="; ".join(item for item in [contact_name, email, opportunity, company] if item),
+                metadata={
+                    "profile": profile,
+                    "model": "crm.lead",
+                    "record_id": row.get("id"),
+                    "email": email,
+                    "company": company,
+                    "matched_terms": terms,
+                },
+            )
+        )
+    return sources
+
+
 def odollo_log_note_sources(
     rows: list[dict[str, Any]],
     *,
@@ -856,6 +909,15 @@ def collect_odollo_provenance(
                 config=config,
             )
             sources.extend(odollo_contact_sources(contact_rows, profile=profile_name, terms=terms))
+        if config.include_leads:
+            lead_rows = run_odollo_search(
+                profile=profile_name,
+                model="crm.lead",
+                domain=odollo_lead_domain(terms),
+                fields=["id", "name", "contact_name", "email_from", "partner_id", "partner_name"],
+                config=config,
+            )
+            sources.extend(odollo_lead_sources(lead_rows, profile=profile_name, terms=terms))
         if config.include_log_notes:
             note_rows = run_odollo_search(
                 profile=profile_name,
@@ -1083,6 +1145,126 @@ def collect_gws_drive_sources(
     return sources
 
 
+def transcript_attendee_emails(transcript: dict[str, Any]) -> list[str]:
+    event = transcript.get("event") if isinstance(transcript.get("event"), dict) else {}
+    values: list[Any] = []
+    for field in ("participants", "attendees", "attendee_emails"):
+        if isinstance(event.get(field), list):
+            values.extend(event[field])
+    matching = event.get("matching_calendars")
+    matching_items = matching if isinstance(matching, list) else []
+    for item in matching_items:
+        if not isinstance(item, dict):
+            continue
+        for field in ("participants", "attendees", "attendee_emails"):
+            if isinstance(item.get(field), list):
+                values.extend(item[field])
+    emails: list[str] = []
+    for value in values:
+        text = normalize_string(value.get("email") if isinstance(value, dict) else value)
+        match = EMAIL_PATTERN.search(text)
+        if match:
+            emails.append(match.group(0).lower())
+    return unique_strings(emails)
+
+
+def gmail_search_query(transcript: dict[str, Any], readout: dict[str, Any]) -> tuple[str, list[str]]:
+    emails = transcript_attendee_emails(transcript)
+    if emails:
+        return (emails[0] if len(emails) == 1 else "{" + " ".join(emails) + "}"), emails
+    terms = provenance_quality_terms(transcript, readout)[:4]
+    return " ".join(f'"{term}"' for term in terms), []
+
+
+def gmail_headers(payload: dict[str, Any]) -> dict[str, str]:
+    part = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+    headers = part.get("headers") if isinstance(part.get("headers"), list) else []
+    return {
+        normalize_string(item.get("name")).lower(): normalize_string(item.get("value"))
+        for item in headers
+        if isinstance(item, dict) and normalize_string(item.get("name"))
+    }
+
+
+def collect_gws_mail_sources(
+    transcript: dict[str, Any],
+    readout: dict[str, Any],
+    *,
+    config: GwsProvenanceConfig,
+) -> list[ProvenanceSource]:
+    query, attendee_emails = gmail_search_query(transcript, readout)
+    if not query:
+        return []
+    max_results = max(1, min(int(config.gmail_page_size), 50))
+    listed = run_gws_json(
+        [
+            "gws",
+            "gmail",
+            "users",
+            "messages",
+            "list",
+            "--params",
+            json.dumps(
+                {"userId": "me", "q": query, "maxResults": max_results},
+                separators=(",", ":"),
+            ),
+        ],
+        config=config,
+    )
+    messages = listed.get("messages") if isinstance(listed, dict) else []
+    sources: list[ProvenanceSource] = []
+    for listed_message in (messages or [])[:max_results]:
+        if not isinstance(listed_message, dict):
+            continue
+        message_id = normalize_string(listed_message.get("id"))
+        if not message_id:
+            continue
+        message = run_gws_json(
+            [
+                "gws",
+                "gmail",
+                "users",
+                "messages",
+                "get",
+                "--params",
+                json.dumps(
+                    {
+                        "userId": "me",
+                        "id": message_id,
+                        "format": "metadata",
+                        "metadataHeaders": ["From", "To", "Subject", "Date"],
+                    },
+                    separators=(",", ":"),
+                ),
+            ],
+            config=config,
+        )
+        if not isinstance(message, dict):
+            continue
+        headers = gmail_headers(message)
+        sources.append(
+            ProvenanceSource(
+                source_type="gws_mail_message",
+                source_id=message_id,
+                label=headers.get("subject") or "Gmail message",
+                uri=f"https://mail.google.com/mail/u/0/#all/{message_id}",
+                snippet=normalize_string(message.get("snippet"))[:600],
+                metadata={
+                    "profile": config.profile_label,
+                    "thread_id": message.get("threadId"),
+                    "internal_date": message.get("internalDate"),
+                    "from": headers.get("from", ""),
+                    "to": headers.get("to", ""),
+                    "date": headers.get("date", ""),
+                    "query": query,
+                    "matched_emails": attendee_emails,
+                    "content_scope": "metadata_and_snippet_only",
+                },
+            )
+        )
+    return sources
+
+
 def collect_gws_provenance(
     transcript: dict[str, Any],
     readout: dict[str, Any],
@@ -1096,6 +1278,8 @@ def collect_gws_provenance(
         sources.extend(collect_gws_calendar_sources(transcript, config=config))
     if config.include_drive_search:
         sources.extend(collect_gws_drive_sources(transcript, readout, config=config))
+    if config.include_gmail_search:
+        sources.extend(collect_gws_mail_sources(transcript, readout, config=config))
     if config.include_people_contacts or config.include_other_contacts or config.include_directory_people:
         sources.extend(collect_gws_contact_provenance(provenance_quality_terms(transcript, readout), config=config))
     return sources

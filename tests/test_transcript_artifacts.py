@@ -6,6 +6,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -28,6 +29,7 @@ from transcribe_common import (
 )
 from watch_transcriptions import (
     CandidateSnapshot,
+    CommandResult,
     JobState,
     ProcessedRecord,
     WatchJob,
@@ -36,13 +38,18 @@ from watch_transcriptions import (
     fingerprint_for,
     format_blocked_summary,
     ingest_store_artifacts,
+    iter_candidates,
     load_jobs,
     load_state,
     parse_args,
+    process_file,
+    readiness_has_errors,
     save_state,
     scan_job,
 )
 import watch_transcriptions
+import transcribe_common
+from repair_calendar_metadata import remap_artifact_paths
 
 
 def base_args(tmp_path: Path) -> argparse.Namespace:
@@ -58,6 +65,54 @@ def base_args(tmp_path: Path) -> argparse.Namespace:
         text_output=True,
         embed_subtitles=False,
     )
+
+
+def test_remap_artifact_paths_rebases_only_path_fields() -> None:
+    artifact = {
+        "source_media_path": "/mnt/e/SyncThing/Voice Recordings/My recording 91.m4a",
+        "working_media_path": "/mnt/e/SyncThing/Voice Recordings/My recording 91.m4a",
+        "output_paths": {
+            "artifact": "/mnt/e/SyncThing/Voice Recordings/My recording 91 Transcript.transcript.json",
+            "docx": "/mnt/e/SyncThing/Voice Recordings/My recording 91 Transcript.docx",
+        },
+        "transcript_text": "A spoken reference to /mnt/e must remain unchanged.",
+    }
+
+    remapped = remap_artifact_paths(
+        artifact,
+        [("/mnt/e/SyncThing/Voice Recordings", "/mnt/d/SyncThing/Voice Recordings")],
+    )
+
+    assert remapped["source_media_path"].startswith("/mnt/d/SyncThing/Voice Recordings/")
+    assert remapped["working_media_path"].startswith("/mnt/d/SyncThing/Voice Recordings/")
+    assert remapped["output_paths"]["artifact"].startswith("/mnt/d/SyncThing/Voice Recordings/")
+    assert remapped["output_paths"]["docx"].startswith("/mnt/d/SyncThing/Voice Recordings/")
+    assert remapped["transcript_text"] == artifact["transcript_text"]
+
+
+def test_iter_candidates_ignores_syncthing_stversions(tmp_path: Path) -> None:
+    current = tmp_path / "current.m4a"
+    versioned = tmp_path / ".stversions" / "current~20260720.m4a"
+    current.write_bytes(b"current")
+    versioned.parent.mkdir()
+    versioned.write_bytes(b"old partial copy")
+    job = WatchJob(
+        name="voice-recordings",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=True,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+
+    assert iter_candidates(job) == [current.resolve()]
 
 
 def test_process_transcription_outputs_writes_artifact_json(tmp_path: Path) -> None:
@@ -87,7 +142,10 @@ def test_process_transcription_outputs_writes_artifact_json(tmp_path: Path) -> N
     assert artifact_path.exists()
     payload = json.loads(artifact_path.read_text(encoding="utf-8"))
 
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
+    assert str(UUID(payload["conversation_id"])) == payload["conversation_id"]
+    assert str(UUID(payload["recording_id"])) == payload["recording_id"]
+    assert payload["conversation_id"] != payload["recording_id"]
     assert payload["source_media_path"] == str(audio_path)
     assert payload["working_media_path"] == str(audio_path)
     assert payload["backend"] == "test_backend"
@@ -100,6 +158,106 @@ def test_process_transcription_outputs_writes_artifact_json(tmp_path: Path) -> N
     assert payload["output_paths"]["artifact"] == str(artifact_path)
     assert payload["output_paths"]["docx"].endswith("meeting Transcript.docx")
     assert payload["output_paths"]["txt"].endswith("meeting Transcript.txt")
+
+
+def test_process_transcription_outputs_preserves_ids_when_regenerating_artifact(tmp_path: Path) -> None:
+    audio_path = tmp_path / "meeting.m4a"
+    audio_path.write_bytes(b"placeholder")
+    utterances = [{"speaker": "A", "start": 0, "end": 1000, "text": "First transcript."}]
+
+    assert process_transcription_outputs(
+        audio_path,
+        utterances,
+        1.0,
+        base_args(tmp_path),
+        None,
+        docx_title="Test Transcript",
+        backend_name="test_backend",
+    )
+    artifact_path = tmp_path / "meeting Transcript.transcript.json"
+    first = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    utterances[0]["text"] = "Corrected transcript."
+    assert process_transcription_outputs(
+        audio_path,
+        utterances,
+        1.0,
+        base_args(tmp_path),
+        None,
+        docx_title="Test Transcript",
+        backend_name="test_backend",
+    )
+    second = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    assert second["conversation_id"] == first["conversation_id"]
+    assert second["recording_id"] == first["recording_id"]
+    assert "Corrected transcript." in second["transcript_text"]
+
+
+def test_calendar_window_artifacts_share_one_recording_id(tmp_path: Path, monkeypatch) -> None:
+    audio_path = tmp_path / "meeting.m4a"
+    audio_path.write_bytes(b"placeholder")
+    start = datetime(2026, 7, 24, 9, 0).astimezone()
+    monkeypatch.setattr(transcribe_common, "get_file_modified_time", lambda path: start.replace(hour=11))
+    monkeypatch.setattr(
+        transcribe_common,
+        "find_matching_events",
+        lambda *args, **kwargs: (
+            [
+                {
+                    "event": {
+                        "id": "event-1",
+                        "summary": "First meeting",
+                        "start": {"dateTime": start.isoformat()},
+                        "end": {"dateTime": start.replace(hour=10).isoformat()},
+                    },
+                    "start": start,
+                    "end": start.replace(hour=10),
+                },
+                {
+                    "event": {
+                        "id": "event-2",
+                        "summary": "Second meeting",
+                        "start": {"dateTime": start.replace(hour=10).isoformat()},
+                        "end": {"dateTime": start.replace(hour=11).isoformat()},
+                    },
+                    "start": start.replace(hour=10),
+                    "end": start.replace(hour=11),
+                },
+            ],
+            None,
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        transcribe_common,
+        "rename_audio_with_event",
+        lambda path, *args, **kwargs: (path, False),
+    )
+    args = base_args(tmp_path)
+    args.use_calendar = True
+    utterances = [
+        {"speaker": "A", "start": 0, "end": 3_600_000, "text": "First."},
+        {"speaker": "B", "start": 3_600_000, "end": 7_200_000, "text": "Second."},
+    ]
+
+    assert process_transcription_outputs(
+        audio_path,
+        utterances,
+        7_200,
+        args,
+        object(),
+        docx_title="Test Transcript",
+        backend_name="test_backend",
+    )
+    artifacts = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(tmp_path.glob("*.transcript.json"))
+    ]
+
+    assert len(artifacts) == 2
+    assert len({item["recording_id"] for item in artifacts}) == 1
+    assert len({item["conversation_id"] for item in artifacts}) == 2
 
 
 def test_event_base_name_does_not_duplicate_existing_calendar_prefix() -> None:
@@ -501,6 +659,105 @@ def test_watcher_readiness_reports_missing_ffprobe(tmp_path: Path, monkeypatch) 
     issues = check_watcher_readiness([job])
 
     assert [issue.code for issue in issues if issue.severity == "error"] == ["missing_ffprobe"]
+
+
+def test_unavailable_watch_dir_is_job_local_when_another_job_is_ready(tmp_path: Path, monkeypatch) -> None:
+    ready_dir = tmp_path / "ready"
+    ready_dir.mkdir()
+    unavailable_dir = tmp_path / "unavailable"
+    real_exists = Path.exists
+
+    def exists_with_unavailable_mount(path: Path) -> bool:
+        if path == unavailable_dir:
+            raise OSError(19, "No such device", str(path))
+        return real_exists(path)
+
+    monkeypatch.setattr(Path, "exists", exists_with_unavailable_mount)
+    common = {
+        "glob": "*.m4a",
+        "backends": ["assembly"],
+        "recursive": False,
+        "settle_seconds": 0,
+        "min_age_seconds": 0,
+        "scan_interval": 30,
+        "failure_retry_seconds": 900,
+        "cli_args": {"assembly": []},
+        "notify_on_success": False,
+        "notify_on_failure": False,
+        "slack_channel": None,
+    }
+    ready_job = WatchJob(name="ready", watch_dir=ready_dir, **common)
+    unavailable_job = WatchJob(name="unavailable", watch_dir=unavailable_dir, **common)
+
+    issues = check_watcher_readiness([ready_job, unavailable_job])
+    unavailable_issues = [issue for issue in issues if issue.job == "unavailable"]
+
+    assert [(issue.code, issue.severity) for issue in unavailable_issues] == [
+        ("unavailable_watch_dir", "warning")
+    ]
+    assert readiness_has_errors(issues) is False
+
+    changed, stats = scan_job(unavailable_job, JobState(processed={}, candidates={}), verbose=False)
+
+    assert changed is False
+    assert stats.candidate_count == 0
+    assert stats.blocked_reasons == {"unavailable_watch_dir": 1}
+
+    all_unavailable_issues = check_watcher_readiness([unavailable_job])
+    assert [(issue.code, issue.severity) for issue in all_unavailable_issues] == [
+        ("unavailable_watch_dir", "error")
+    ]
+    assert readiness_has_errors(all_unavailable_issues) is True
+
+
+def test_successful_transcription_preserves_calendar_warning(tmp_path: Path, monkeypatch) -> None:
+    media_path = tmp_path / "meeting.m4a"
+    media_path.write_bytes(b"audio")
+    job = WatchJob(
+        name="downloads",
+        watch_dir=tmp_path,
+        glob="*.m4a",
+        backends=["assembly"],
+        recursive=False,
+        settle_seconds=0,
+        min_age_seconds=0,
+        scan_interval=30,
+        failure_retry_seconds=900,
+        cli_args={"assembly": []},
+        notify_on_success=False,
+        notify_on_failure=False,
+        slack_channel=None,
+    )
+    result = CommandResult(
+        backend="assembly",
+        command=["python", "assembly_transcribe.py", str(media_path)],
+        returncode=0,
+        stdout="TRANSCRIPT_ARTIFACT_JSON=/tmp/meeting.transcript.json\n",
+        stderr=(
+            "Warning: calendar lookup failed (all calendar providers failed); "
+            "continuing without calendar metadata.\n"
+        ),
+    )
+    monkeypatch.setattr(watch_transcriptions, "run_backend", lambda *_args: result)
+    monkeypatch.setattr(watch_transcriptions, "run_readouts", lambda *_args: [])
+    monkeypatch.setattr(watch_transcriptions, "ingest_store_artifacts", lambda *_args: [])
+    job_state = JobState(processed={}, candidates={})
+
+    process_file(job, media_path, time.time(), job_state)
+
+    processed = job_state.processed[str(media_path.resolve())]
+    assert processed.status == "success"
+    assert processed.warning_kind == "calendar_metadata_failed"
+    assert processed.warning_reason == (
+        "Warning: calendar lookup failed (all calendar providers failed); "
+        "continuing without calendar metadata."
+    )
+
+    state_path = tmp_path / "watcher-state.json"
+    save_state(state_path, {job.name: job_state})
+    reloaded = load_state(state_path, [job])[job.name].processed[str(media_path.resolve())]
+    assert reloaded.warning_kind == "calendar_metadata_failed"
+    assert reloaded.warning_reason == processed.warning_reason
 
 
 def test_blocked_summary_is_stable_for_heartbeat_logs() -> None:

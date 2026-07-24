@@ -18,6 +18,7 @@ DEFAULT_CONFIG_PATH = DEFAULT_STATE_DIR / "intelligence.config.json"
 ENV_CONFIG_PATH = "TRANSCRIPTS_INTELLIGENCE_CONFIG"
 SCHEMA_VERSION = "transcribe-audio.intelligence-config.v1"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+DEFAULT_CODEX_APP_MODEL = "gpt-5.6-sol"
 APPLY_APPROVAL_TOKEN = "APPLY_INTELLIGENCE_CONFIG_UPDATE"
 PROFILE_ROUTE_FIELDS = {"provider", "model", "base_url", "timeout", "temperature"}
 PROFILE_FIELDS = {"label", "description", *PROFILE_ROUTE_FIELDS}
@@ -81,7 +82,7 @@ DEFAULT_TASKS: dict[str, dict[str, Any]] = {
     },
     TASK_SPEAKER_DISAMBIGUATION: {
         "provider": "codex-app-server",
-        "model": "",
+        "model": DEFAULT_CODEX_APP_MODEL,
         "timeout": 120.0,
         "temperature": 0.0,
         "fallbacks": ["openai-compatible"],
@@ -108,7 +109,7 @@ DEFAULT_TASKS: dict[str, dict[str, Any]] = {
     },
     TASK_APP_SUPERVISOR: {
         "provider": "codex-app-server",
-        "model": "",
+        "model": DEFAULT_CODEX_APP_MODEL,
         "timeout": 120.0,
         "temperature": 0.0,
         "fallbacks": ["codex-exec"],
@@ -131,7 +132,7 @@ DEFAULT_PROFILES: dict[str, dict[str, Any]] = {
         "label": "Codex supervisor",
         "description": "Ledger-backed App Intelligence supervisor profile.",
         "provider": "codex-app-server",
-        "model": "",
+        "model": DEFAULT_CODEX_APP_MODEL,
         "base_url": "",
         "timeout": 120.0,
         "temperature": 0.0,

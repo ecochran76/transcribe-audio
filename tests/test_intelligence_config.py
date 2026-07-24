@@ -22,6 +22,22 @@ def test_resolve_task_config_uses_defaults_without_user_file(tmp_path: Path) -> 
     assert config.source == "defaults"
 
 
+def test_codex_app_server_defaults_to_current_workstation_model(tmp_path: Path) -> None:
+    speaker_config = intelligence_config.resolve_task_config(
+        intelligence_config.TASK_SPEAKER_DISAMBIGUATION,
+        path=tmp_path / "missing.json",
+    )
+    supervisor_config = intelligence_config.resolve_task_config(
+        intelligence_config.TASK_APP_SUPERVISOR,
+        path=tmp_path / "missing.json",
+    )
+
+    assert speaker_config.provider == "codex-app-server"
+    assert speaker_config.model == "gpt-5.6-sol"
+    assert supervisor_config.provider == "codex-app-server"
+    assert supervisor_config.model == "gpt-5.6-sol"
+
+
 def test_resolve_task_config_applies_file_env_and_cli_overrides(tmp_path: Path, monkeypatch) -> None:
     path = tmp_path / "intelligence.config.json"
     path.write_text(

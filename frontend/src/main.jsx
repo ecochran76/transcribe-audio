@@ -4976,6 +4976,8 @@ function ConversationWorkflowModal({
   const [identityReview, setIdentityReview] = useState(conversationDetail?.identity_review || null);
   const [firstPassAction, setFirstPassAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerReviewAction, setSpeakerReviewAction] = useState({ status: "idle", message: "", payload: null });
+  const [speakerPreprocessing, setSpeakerPreprocessing] = useState(null);
+  const [speakerPreprocessingAction, setSpeakerPreprocessingAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerLocalAssignments, setSpeakerLocalAssignments] = useState({});
   const [speakerManualLabels, setSpeakerManualLabels] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
@@ -5031,6 +5033,17 @@ function ConversationWorkflowModal({
     [activeIdentityReview.speakers, speakerLocalAssignments]
   );
   const speakerPendingCount = speakersForDisplay.filter((speaker) => speaker.review_required).length;
+  const currentSpeakerEvaluation = speakerPreprocessing?.current_evaluation || null;
+  const speakerIdentityProposals = currentSpeakerEvaluation?.proposals || [];
+  const latestSpeakerProposalDecisions = useMemo(() => {
+    const byProposal = {};
+    (speakerPreprocessing?.review_decisions || []).forEach((decision) => {
+      if (decision?.evaluation_id === currentSpeakerEvaluation?.evaluation_id && decision?.proposal_id) {
+        byProposal[decision.proposal_id] = decision;
+      }
+    });
+    return byProposal;
+  }, [speakerPreprocessing?.review_decisions, currentSpeakerEvaluation?.evaluation_id]);
   const firstPassSummaryState = firstPassAction.payload?.first_pass_summary || conversationDetail?.first_pass_summary || {};
   const selectedFirstPassManifest = firstPassAction.payload?.manifest || "";
   const firstPassBusy = ["running", "submitting", "checking"].includes(firstPassAction.status);
@@ -5109,6 +5122,8 @@ function ConversationWorkflowModal({
     setSpeakerManualLabels({});
     setFirstPassAction({ status: "idle", message: "", payload: null });
     setSpeakerReviewAction({ status: "idle", message: "", payload: null });
+    setSpeakerPreprocessing(null);
+    setSpeakerPreprocessingAction({ status: "idle", message: "", payload: null });
     setContextAction({ status: "idle", message: "", payload: null });
     setContextContactAction({ status: "idle", message: "", payload: null });
     setContextContactQuery("");
@@ -5121,6 +5136,26 @@ function ConversationWorkflowModal({
     setContextInstructionAction({ status: "idle", message: "", payload: null });
     setFinalPreviewAction({ status: "idle", message: "", payload: null });
   }, [conversationDetail?.conversation?.key, item.id]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSpeakerPreprocessing() {
+      if (activeWorkflowView !== "speakers") return;
+      setSpeakerPreprocessingAction((current) => ({ ...current, status: "loading", message: "Loading speaker preprocessing..." }));
+      try {
+        const state = await fetchJson(`/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing`);
+        if (cancelled) return;
+        setSpeakerPreprocessing(state);
+        setSpeakerPreprocessingAction({ status: "loaded", message: "", payload: state });
+      } catch (error) {
+        if (cancelled) return;
+        setSpeakerPreprocessingAction({ status: "error", message: `Speaker preprocessing failed: ${error.message}`, payload: null });
+      }
+    }
+    loadSpeakerPreprocessing();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkflowView, item.id]);
   useEffect(() => {
     const candidatesById = {};
     [
@@ -5400,6 +5435,111 @@ function ConversationWorkflowModal({
       });
     } catch (error) {
       setSpeakerReviewAction({ status: "error", message: `Speaker review save failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function prepareSpeakerClueDiscovery() {
+    setSpeakerPreprocessingAction({ status: "running", message: "Preparing reviewed Clue Discovery...", payload: null });
+    try {
+      const prepared = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing/prepare-discovery`,
+        {}
+      );
+      setSpeakerPreprocessingAction({
+        status: "prepared",
+        message: "Clue Discovery packet prepared in App Intelligence; no prompt was sent.",
+        payload: prepared
+      });
+    } catch (error) {
+      setSpeakerPreprocessingAction({ status: "error", message: `Clue Discovery prepare failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function prepareSpeakerIdentityEvaluation() {
+    const clueRunId = speakerPreprocessingAction.payload?.phase === "clue_discovery"
+      ? speakerPreprocessingAction.payload.run_id
+      : "";
+    if (!clueRunId) return;
+    setSpeakerPreprocessingAction({ status: "running", message: "Validating captured clues and retrieving bounded provenance...", payload: speakerPreprocessingAction.payload });
+    try {
+      const prepared = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing/prepare-evaluation`,
+        { clue_discovery_run_id: clueRunId }
+      );
+      setSpeakerPreprocessingAction({
+        status: "prepared",
+        message: "Identity Evaluation packet prepared from captured Clue Discovery; no prompt was sent.",
+        payload: { ...prepared, clue_discovery_run_id: clueRunId }
+      });
+    } catch (error) {
+      setSpeakerPreprocessingAction((current) => ({ ...current, status: "error", message: `Identity Evaluation prepare failed: ${error.message}` }));
+    }
+  }
+
+  async function captureSpeakerIdentityEvaluation() {
+    const evaluationRunId = speakerPreprocessingAction.payload?.phase === "identity_evaluation"
+      ? speakerPreprocessingAction.payload.run_id
+      : "";
+    if (!evaluationRunId) return;
+    setSpeakerPreprocessingAction((current) => ({ ...current, status: "running", message: "Validating and persisting captured Identity Evaluation..." }));
+    try {
+      const result = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing/capture-evaluation`,
+        {
+          identity_evaluation_run_id: evaluationRunId,
+          clue_discovery_run_id: speakerPreprocessingAction.payload?.clue_discovery_run_id || ""
+        }
+      );
+      const state = await fetchJson(`/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing`);
+      setSpeakerPreprocessing(state);
+      setSpeakerPreprocessingAction({ status: "recorded", message: "Identity Evaluation validated and stored for review.", payload: result });
+    } catch (error) {
+      setSpeakerPreprocessingAction((current) => ({ ...current, status: "error", message: `Identity Evaluation capture failed: ${error.message}` }));
+    }
+  }
+
+  async function recordSpeakerProposalDecision(proposal, action) {
+    if (!currentSpeakerEvaluation) return;
+    setSpeakerPreprocessingAction({ status: "running", message: `Recording ${action} decision...`, payload: null });
+    try {
+      const result = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing/decisions`,
+        {
+          evaluation_id: currentSpeakerEvaluation.evaluation_id,
+          proposal_id: proposal.proposal_id,
+          action,
+          reviewer: "operator",
+          method: "individual"
+        }
+      );
+      const state = await fetchJson(`/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing`);
+      setSpeakerPreprocessing(state);
+      setSpeakerPreprocessingAction({ status: "recorded", message: `Proposal ${action} recorded.`, payload: result });
+    } catch (error) {
+      setSpeakerPreprocessingAction({ status: "error", message: `Speaker decision failed: ${error.message}`, payload: null });
+    }
+  }
+
+  async function confirmReadySpeakerProposals() {
+    if (!currentSpeakerEvaluation) return;
+    setSpeakerPreprocessingAction({ status: "running", message: "Confirming ready proposals only...", payload: null });
+    try {
+      const result = await postJson(
+        `/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing/confirm-ready`,
+        {
+          evaluation_id: currentSpeakerEvaluation.evaluation_id,
+          reviewer: "operator"
+        }
+      );
+      const state = await fetchJson(`/api/conversations/${encodeURIComponent(item.id)}/speaker-preprocessing`);
+      setSpeakerPreprocessing(state);
+      setSpeakerPreprocessingAction({
+        status: "recorded",
+        message: `Confirmed ${result.confirmed_proposal_ids?.length || 0} ready proposal(s).`,
+        payload: result
+      });
+    } catch (error) {
+      setSpeakerPreprocessingAction({ status: "error", message: `Ready-confirm failed: ${error.message}`, payload: null });
     }
   }
 
@@ -6218,6 +6358,105 @@ function ConversationWorkflowModal({
                       </button>
                     ) : null}
                   </div>
+                </div>
+                <div className="workflow-action-panel speaker-preprocessing-panel">
+                  <div className="workflow-prep-card">
+                    <div>
+                      <span>App Intelligence preprocessing</span>
+                      <strong>{statusLabel(speakerPreprocessing?.status || "not started")}</strong>
+                      <p>Clue Discovery runs before host-owned provenance retrieval and Identity Evaluation. Prepared prompts remain unsent until reviewed through App Intelligence.</p>
+                    </div>
+                    <div className="workflow-action-row">
+                      <button
+                        className="primary-workflow-action"
+                        disabled={speakerPreprocessingAction.status === "running"}
+                        onClick={prepareSpeakerClueDiscovery}
+                        type="button"
+                      >
+                        Prepare Clue Discovery
+                      </button>
+                      <button
+                        disabled={!currentSpeakerEvaluation?.safe_bulk_confirm_ready || speakerPreprocessingAction.status === "running"}
+                        onClick={confirmReadySpeakerProposals}
+                        type="button"
+                      >
+                        Confirm ready only
+                      </button>
+                      <button
+                        disabled={speakerPreprocessingAction.payload?.phase !== "clue_discovery" || speakerPreprocessingAction.status === "running"}
+                        onClick={prepareSpeakerIdentityEvaluation}
+                        type="button"
+                      >
+                        Prepare Identity Evaluation
+                      </button>
+                      <button
+                        disabled={speakerPreprocessingAction.payload?.phase !== "identity_evaluation" || speakerPreprocessingAction.status === "running"}
+                        onClick={captureSpeakerIdentityEvaluation}
+                        type="button"
+                      >
+                        Capture scored proposals
+                      </button>
+                    </div>
+                    {speakerPreprocessingAction.payload?.run_id ? (
+                      <small>App Intelligence run: {speakerPreprocessingAction.payload.run_id} · prompt not sent</small>
+                    ) : null}
+                  </div>
+                  {currentSpeakerEvaluation?.warnings?.length ? (
+                    <div className="warning-list">
+                      {currentSpeakerEvaluation.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+                    </div>
+                  ) : null}
+                  {speakerIdentityProposals.length ? (
+                    <div className="identity-list preprocessing-proposals">
+                      {speakerIdentityProposals.map((proposal) => {
+                        const decision = latestSpeakerProposalDecisions[proposal.proposal_id];
+                        const label = proposal.person_id
+                          ? currentSpeakerEvaluation.people?.find((person) => person.person_id === proposal.person_id)?.display_name
+                          : proposal.suggested_person?.name || proposal.suggested_person?.email;
+                        return (
+                          <article key={proposal.proposal_id}>
+                            <strong>{(proposal.speaker_labels || []).join(" + ") || "Speaker proposal"}</strong>
+                            <small>
+                              {statusLabel(proposal.status)}{label ? ` · ${label}` : ""}
+                              {proposal.confidence ? ` · ${proposal.confidence.numeric} / 100 (${proposal.confidence.band_label || statusLabel(proposal.confidence.band)})` : ""}
+                            </small>
+                            {proposal.rationale ? <p>{proposal.rationale}</p> : null}
+                            {proposal.review_flags?.length ? (
+                              <div className="warning-list">
+                                {proposal.review_flags.map((flag) => <span key={`${proposal.proposal_id}-${flag}`}>{statusLabel(flag)}</span>)}
+                              </div>
+                            ) : null}
+                            {proposal.factors?.length ? (
+                              <details className="contact-evidence-details">
+                                <summary>Evidence factors</summary>
+                                <ul>
+                                  {proposal.factors.map((factor, index) => (
+                                    <li key={`${proposal.proposal_id}-${index}-${factor.factor}`}>
+                                      {statusLabel(factor.factor)} · {factor.direction} · {factor.strength}
+                                      <small>{(factor.evidence_ids || []).join(", ")}</small>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            ) : null}
+                            <div className="workflow-action-row">
+                              <button disabled={speakerPreprocessingAction.status === "running"} onClick={() => recordSpeakerProposalDecision(proposal, "confirm")} type="button">Confirm</button>
+                              <button disabled={speakerPreprocessingAction.status === "running"} onClick={() => recordSpeakerProposalDecision(proposal, "reject")} type="button">Reject</button>
+                              <button disabled={speakerPreprocessingAction.status === "running"} onClick={() => recordSpeakerProposalDecision(proposal, "defer")} type="button">Defer</button>
+                              {decision ? <small>{statusLabel(decision.action)} by {decision.reviewer}</small> : null}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="muted">No scored App Intelligence speaker proposals are persisted yet.</p>
+                  )}
+                  {speakerPreprocessingAction.message ? (
+                    <div className={`action-notice ${speakerPreprocessingAction.status}`}>
+                      <strong>{speakerPreprocessingAction.message}</strong>
+                    </div>
+                  ) : null}
                 </div>
                 {speakersForDisplay.length ? (
                   <div className="identity-list">

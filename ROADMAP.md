@@ -95,11 +95,13 @@ Definition of Done:
 
 State: CLOSED
 
-Current State: The watcher runs under systemd with heartbeat logging, no-progress restart behavior, startup readiness checks, and a `--check` doctor path. Readiness checks fail loudly for missing `ffprobe`, missing watch directories, missing backend scripts, and missing readout scripts before the service loop starts; `--check --check-json` exposes the same diagnostics for automation. Candidate state records `blocked_kind`, `blocked_reason`, and `blocked_since`, backend failures record `failure_kind` and `failure_reason`, and heartbeat logs summarize queued work as `blocked=kind=count` so active services explain minimum-age waits, settling, incomplete media, missing tools, media probe failures, and retry backoff.
+Current State: The watcher runs under systemd with heartbeat logging, no-progress restart behavior, startup readiness checks, and a `--check` doctor path. Readiness checks fail loudly for missing shared dependencies, configured backend scripts, configured readout scripts, or when every watch directory is unavailable. One temporarily unavailable watch root is job-local: readiness reports a warning, healthy jobs continue, and heartbeat logs include `blocked=unavailable_watch_dir=1`. `--check --check-json` exposes the same diagnostics for automation. Candidate state records `blocked_kind`, `blocked_reason`, and `blocked_since`, backend failures record `failure_kind` and `failure_reason`, successful runs that continue without calendar metadata record `warning_kind` and `warning_reason`, and heartbeat logs summarize blocked work as `blocked=kind=count`. The Voice Recordings job now uses `/mnt/d/SyncThing/Voice Recordings`; recursive scans exclude Syncthing's `.stversions` archive so incomplete historical versions do not create permanent false backlog.
 
 Plans:
 
 - `docs/dev/plans/0006-2026-05-04-service-reliability-observability.md`
+- `docs/dev/plans/0023-2026-07-20-watcher-mount-resilience-calendar-recovery.md`
+- `docs/dev/plans/0024-2026-07-20-voice-recordings-d-drive-cutover-catchup.md`
 
 Definition of Done:
 
@@ -183,6 +185,7 @@ Plans:
 - `docs/dev/plans/0020-2026-05-25-intelligence-profile-settings-redesign.md`
 - `docs/dev/plans/0021-2026-05-25-settings-screen-chrome-cleanup.md`
 - `docs/dev/plans/0022-2026-05-25-settings-layout-refactor.md`
+- `docs/dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md`
 
 Milestone Focus:
 
@@ -201,6 +204,14 @@ Milestone Focus:
   operator input can resolve missing identities, and the resulting
   participant/context bundle feeds high-powered readout providers before
   deposition work.
+- Closed Plan 0025 adds the missing post-transcription reasoning stage:
+  a ledger-backed Codex app-server clue-discovery pass produces host-validated
+  retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
+  evaluation pass, and host-owned rubrics derive auditable confidence.
+  Split/merged diarization findings, inferred cross-source person grouping,
+  durable conversation processing history, and lightweight-but-mandatory
+  identity confirmation are in scope; full-conversation interpretation remains
+  deferred.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
