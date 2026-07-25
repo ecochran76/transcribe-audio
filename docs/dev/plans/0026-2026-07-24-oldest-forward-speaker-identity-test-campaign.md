@@ -68,6 +68,15 @@ confirmed labels for one 2026 conversation and one deferred label for another.
 Calendar metadata and filenames provide useful ground-truth leads for older
 conversations, but Eric's review is still required before any case is scored.
 
+C1 is implemented on the campaign branch. The read-only preview deterministically
+enumerates the live corpus, records explicit dispositions and artifact
+availability for all 375 rows, forms 11 exact normalized-transcript duplicate
+clusters, and reserves 10 gold-review plus 10 blind-holdout candidates. Its
+live manifest starts the cursor at chronological rank 2 because rank 1 is an
+explicit incomplete case. C2 remains the active critical-path unit: the
+preview can see the copied artifacts, but selected-conversation preprocessing
+does not yet open and synchronize them.
+
 The first thirteen chronological transcript rows already expose useful
 campaign strata:
 

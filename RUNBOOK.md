@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 222 | 2026-07-24
+
+Summary: Implemented C1 of Plan 0026: a deterministic, read-only
+oldest-forward speaker identity campaign preview.
+
+Implemented:
+
+- Added `speaker_evaluation_campaign.py preview` with configurable batch size,
+  store/state/runtime roots, chronological ordering, stable cursoring, and
+  explicit per-row dispositions.
+- Added artifact availability reporting, incomplete-artifact quarantine,
+  exact normalized-transcript duplicate clustering, and candidate roles for
+  the first `K` gold-review and next `K` blind-holdout rows.
+- Recorded algorithm, model route, rubric, schema, and redacted
+  provenance-config fingerprints while keeping transcript text out of the
+  manifest.
+- Kept preview strictly read-only: it neither creates campaign state nor
+  executes App Intelligence or external writes.
+
+Live evidence:
+
+- Previewed 375 live transcript rows: 105 incomplete, 9 duplicate members, and
+  261 pending operator classification across 11 duplicate clusters.
+- Reserved 10 gold-review and 10 blind-holdout candidates.
+- Cursor begins at chronological rank 2,
+  document `654972c990225cc7b4f8`; rank 1 remains counted as incomplete.
+- The first 13 legacy-path rows selected their copied `stored` artifacts in
+  the preview, while later accessible rows continued to select `source`.
+- Resolved App Intelligence to `codex-app-server` with model `gpt-5.6-sol`.
+
+Next:
+
+- Implement C2's store-bounded, hash-verified original/stored artifact
+  resolver and synchronize durable transcript identities across artifact and
+  store state.
+
 ## Turn 221 | 2026-07-24
 
 Summary: Opened Plan 0026 for a chronological, oldest-forward speaker identity

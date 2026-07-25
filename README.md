@@ -473,6 +473,25 @@ python transcript_store.py context "<document-id-from-search>" --chunk-index 5
 
 The store lives under `~/.transcripts`: `transcripts.sqlite3` holds metadata, text, FTS indexes, document vectors, and chunk vectors, while copied JSON artifacts live under `~/.transcripts/artifacts/`. Search combines SQLite FTS5 lexical results with local Ollama embeddings by default (`ollama/nomic-embed-text`), chunks long documents before embedding, and returns a `best_chunk` snippet/score for precise segment hits. Transcript chunks also carry character offsets, utterance time ranges, speaker lists, and utterance counts when the source artifact has structured utterances. Use `search --context` to open the top hit directly, or `context` with a search result `id` and `best_chunk.chunk_index` to print nearby transcript chunks plus a media seek hint when the artifact records `working_media_path` or `source_media_path`. `context --format compact-json` and `search --context --context-format compact-json` emit pure single-line JSON for `jq` and other machine consumers. `openai-compatible` embeddings are also supported with `OPENAI_API_KEY` and optional `OPENAI_BASE_URL`; `debug-hash` is reserved for tests and offline debugging, not production semantic search.
 
+Preview the oldest-forward speaker identity evaluation corpus without writing
+campaign state or executing App Intelligence:
+
+```bash
+python speaker_evaluation_campaign.py preview \
+  --store-root ~/.transcripts \
+  --runtime-root ~/.local/state/transcribe-audio/speaker-evaluation-campaigns \
+  --batch-size 10
+```
+
+The deterministic JSON manifest accounts for every transcript row, reports
+source-versus-stored artifact availability, identifies exact normalized-text
+duplicate clusters, and reserves the first `K` reviewable rows plus the next
+`K` blind holdout candidates. It records commit, model-route, rubric, schema,
+and redacted provenance-config fingerprints without emitting transcript text
+or creating the runtime directory. Candidate roles are not ground truth;
+operator-reviewed gold records remain private and are added only by the later
+review workflow.
+
 Use the compact packet recipe helper when you want the next downstream commands without manually copying paths:
 
 ```bash
