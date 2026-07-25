@@ -2,6 +2,54 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 221 | 2026-07-24
+
+Summary: Opened Plan 0026 for a chronological, oldest-forward speaker identity
+test campaign and grounded its first packet in the live transcript corpus.
+Canonical plan:
+`docs/dev/plans/0026-2026-07-24-oldest-forward-speaker-identity-test-campaign.md`.
+
+Current evidence:
+
+- The live store contains 375 transcripts from 2019 through 2026; 92 retain
+  legacy `/mnt/e/...` source paths.
+- Copied `stored_path` artifacts exist for the oldest rows, but the current
+  selected-conversation preprocessing endpoint rejects them when the original
+  `source_path` is unavailable. A read-only request for the second-oldest
+  substantial transcript returned HTTP 400 with
+  `Selected conversation does not have an accessible transcript artifact.`
+- Only three Plan 0025 processing sidecars exist, each with one evaluation and
+  no review decision. The older assignment store has two confirmed labels for
+  one 2026 conversation and one deferred label for another, so calendar data
+  alone cannot be treated as historical ground truth.
+- The first thirteen chronological rows include two one-utterance stubs,
+  likely repeated imports, multi-party interviews, a canceled-event match,
+  generic calendar associations, owner-address aliases, and cases where
+  diarized-label count exceeds attendee count.
+
+Plan:
+
+- Use a configurable operational batch size, initially `K=10`, with the next
+  `K` eligible known conversations reserved as a blind chronological holdout.
+- Require Eric-reviewed private ground truth and keep it outside model prompts,
+  retrieval queries, Git, and ordinary processing sidecars.
+- Account for every chronological row with an explicit disposition rather than
+  silently excluding duplicates, incomplete recordings, spurious audio, or
+  unknown cases.
+- Measure calendar association, speaker identity, person grouping,
+  split/mixed diarization, evidence independence, retrieval yield,
+  latency/cost, and reviewer workload separately.
+- Refine one failure hypothesis at a time, replay preserved evidence to isolate
+  algorithm changes, and accept changes only after accumulated-gold regression
+  comparison.
+
+First executable unit:
+
+- Add a deterministic corpus enumerator and dry-run campaign manifest, then
+  implement a store-bounded fallback from unavailable original transcript
+  paths to verified copied artifacts before asking Eric to freeze the first
+  gold batch.
+
 ## Turn 220 | 2026-07-24
 
 Summary: Closed Plan 0025 with a two-pass, provenance-aware speaker identity

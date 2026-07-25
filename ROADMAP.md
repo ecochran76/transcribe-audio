@@ -186,6 +186,7 @@ Plans:
 - `docs/dev/plans/0021-2026-05-25-settings-screen-chrome-cleanup.md`
 - `docs/dev/plans/0022-2026-05-25-settings-layout-refactor.md`
 - `docs/dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md`
+- `docs/dev/plans/0026-2026-07-24-oldest-forward-speaker-identity-test-campaign.md`
 
 Milestone Focus:
 
@@ -212,6 +213,13 @@ Milestone Focus:
   durable conversation processing history, and lightweight-but-mandatory
   identity confirmation are in scope; full-conversation interpretation remains
   deferred.
+- Open Plan 0026 turns that workflow into an oldest-forward calibration
+  campaign. It freezes private operator-reviewed ground truth separately from
+  blind model predictions, advances in chronological batches, preserves an
+  untouched next-batch holdout, measures calendar/identity/diarization/evidence
+  outcomes separately, and accepts only hypothesis-specific refinements that
+  pass the accumulated gold regression set. Its first gate is safe fallback
+  from unavailable historical source paths to verified transcript-store copies.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
