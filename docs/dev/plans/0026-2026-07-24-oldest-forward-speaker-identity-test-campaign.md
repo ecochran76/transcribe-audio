@@ -73,9 +73,16 @@ enumerates the live corpus, records explicit dispositions and artifact
 availability for all 375 rows, forms 11 exact normalized-transcript duplicate
 clusters, and reserves 10 gold-review plus 10 blind-holdout candidates. Its
 live manifest starts the cursor at chronological rank 2 because rank 1 is an
-explicit incomplete case. C2 remains the active critical-path unit: the
-preview can see the copied artifacts, but selected-conversation preprocessing
-does not yet open and synchronize them.
+explicit incomplete case.
+
+C2 is now implemented and live. Selected-conversation preprocessing resolves
+the source artifact first, then accepts only the exact DB-recorded copied
+artifact beneath the transcript store whose SHA-256 matches the indexed hash.
+Durable-ID backfill synchronizes the selected artifact, copied artifact,
+SQLite JSON/hash state, and preserved original source-path provenance. The
+second-oldest substantial transcript now opens read-only and prepares Clue
+Discovery from its stored copy without sending a prompt or performing an
+external write. C3 private gold review is the active unit.
 
 The first thirteen chronological transcript rows already expose useful
 campaign strata:

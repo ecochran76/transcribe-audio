@@ -1093,6 +1093,57 @@ def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
     assert decision["record"]["review_decisions"][0]["action"] == "defer"
 
 
+def test_selected_speaker_preprocessing_prepares_verified_stored_fallback_and_syncs_ids(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    source_path = write_transcript_artifact(tmp_path)
+    transcript = transcript_store.ingest_artifact(
+        source_path,
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    source_path.unlink()
+    monkeypatch.setattr(
+        transcript_api.provenance_config,
+        "speaker_preprocessing_source_configs_from_provenance",
+        lambda **kwargs: {
+            "gws": [],
+            "odollo": [],
+            "source_contexts": [],
+            "warnings": [],
+        },
+    )
+
+    discovery = transcript_api.prepare_selected_speaker_clue_discovery(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+    )
+
+    stored_path = Path(transcript.stored_path)
+    stored_payload = json.loads(stored_path.read_text(encoding="utf-8"))
+    stored_document = transcript_api.get_document(transcript.id, root=store_root)
+    assert discovery["phase"] == "clue_discovery"
+    assert discovery["transcript_artifact"]["location"] == "stored"
+    assert stored_payload["conversation_id"]
+    assert stored_payload["recording_id"]
+    assert (
+        stored_document["json_payload"]["conversation_id"]
+        == stored_payload["conversation_id"]
+    )
+    assert (
+        stored_document["json_payload"]["recording_id"]
+        == stored_payload["recording_id"]
+    )
+    assert stored_document["artifact_sha256"] == transcript_store.sha256_file(
+        stored_path
+    )
+
+
 def test_selected_first_pass_summary_run_endpoint_prepares_and_submits(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"

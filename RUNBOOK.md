@@ -2,6 +2,45 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 223 | 2026-07-24
+
+Summary: Implemented and deployed C2 of Plan 0026: safe archived-transcript
+fallback with synchronized durable identities.
+
+Implemented:
+
+- Added a source-first transcript resolver with a stored-copy fallback that
+  requires the exact DB-recorded path, confinement beneath the transcript
+  store's `artifacts/` tree, the transcript suffix, and a matching SHA-256.
+- Kept read-only speaker state inspection non-mutating.
+- Made preparation and reviewed speaker write flows lazily add durable
+  conversation/recording IDs and atomically synchronize artifact JSON, copied
+  artifact, SQLite JSON/hash metadata, and the preserved original source path.
+- Added the selected artifact location and hashes to preparation responses.
+- Added regressions for stored fallback, tampered copies, path escape, source
+  synchronization, and the selected-conversation preprocessing path.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_transcript_artifact_access.py
+  tests/test_transcript_api.py tests/test_transcript_store.py` passed with 88
+  tests.
+- Python compilation and `git diff --check` passed.
+- Restarted `transcripts.service`; it is active and `/api/health` returns OK.
+- Read-only speaker state for document `654972c990225cc7b4f8` now returns
+  `not_started` rather than the prior inaccessible-artifact HTTP 400.
+- Clue Discovery preparation selected the verified `stored` artifact and
+  created local run `20260725T010342Z-speaker-preprocessing-cd691372` with
+  `will_send_prompt=false` and no external write.
+- SQLite retains the historical `/mnt/e/...` source path while its JSON
+  payload has durable conversation/recording IDs and its artifact hash matches
+  the synchronized copied file.
+
+Next:
+
+- Implement C3's private gold-record schema and operator review surface, then
+  classify seed rows and freeze the first `K=10` eligible gold cases.
+
 ## Turn 222 | 2026-07-24
 
 Summary: Implemented C1 of Plan 0026: a deterministic, read-only

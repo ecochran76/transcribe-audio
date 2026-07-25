@@ -652,6 +652,15 @@ evaluation and review state; `/decisions` records attributable
 confirm/reject/defer actions; `/confirm-ready` confirms only proposals with
 host-derived scores of at least 85 and no review flags.
 
+Speaker preprocessing resolves the indexed original transcript first. If that
+path is unavailable, it accepts only the exact DB-recorded copied artifact
+under `~/.transcripts/artifacts/` whose SHA-256 matches the indexed hash.
+Store escapes and modified copies fail closed. Read-only state inspection does
+not mutate artifacts; preparation and reviewed write flows may lazily add
+durable conversation/recording IDs, then synchronize the copied artifact,
+SQLite JSON payload, hash, and original provenance path as one local update.
+Prepare responses report whether `source` or `stored` was selected.
+
 Calendar association, cross-source person links, and speaker identity are
 scored independently under named rubrics. Each score includes a numeric
 `0..100` value and a plain-English band: Low, Medium, High, or Very High. The

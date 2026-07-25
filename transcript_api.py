@@ -32,6 +32,7 @@ import participant_identity
 import provenance_config
 import speaker_identity_preprocess
 import speaker_preprocessing_workflow
+import transcript_artifact_access
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
     apply_validated_structured_decision as apply_app_intelligence_structured_decision,
@@ -114,6 +115,7 @@ def document_summary(row: sqlite3.Row) -> dict[str, Any]:
         "title": row["title"],
         "source_path": row["source_path"],
         "stored_path": row["stored_path"],
+        "artifact_sha256": row["artifact_sha256"],
         "generated_at": row["generated_at"],
         "updated_at": row["updated_at"],
         "embedding_provider": row["embedding_provider"],
@@ -1826,14 +1828,25 @@ def _selected_transcript_artifact(
     *,
     root: Optional[Path],
     state_root: Path,
+    ensure_identity: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any], Path]:
     detail = get_conversation_detail(document_id, root=root, state_root=state_root)
     document = detail.get("transcript_document") or detail.get("selected_document") or {}
-    payload = document.get("json_payload") if isinstance(document.get("json_payload"), dict) else {}
-    source_path = Path(str(document.get("source_path") or "")).expanduser()
-    if not source_path.exists() or not source_path.name.endswith(".transcript.json"):
-        raise ValueError("Selected conversation does not have an accessible transcript artifact.")
-    return detail, payload, source_path
+    if ensure_identity:
+        payload, resolved = (
+            transcript_artifact_access.ensure_resolved_transcript_identity(
+                document,
+                store_root=root,
+            )
+        )
+    else:
+        resolved = transcript_artifact_access.resolve_transcript_artifact(
+            document,
+            store_root=root,
+        )
+        payload = transcript_artifact_access.read_resolved_transcript(resolved)
+    detail["transcript_artifact"] = resolved.to_dict()
+    return detail, payload, resolved.path
 
 
 def prepare_selected_speaker_clue_discovery(
@@ -1847,6 +1860,7 @@ def prepare_selected_speaker_clue_discovery(
         document_id,
         root=store_root,
         state_root=state_root,
+        ensure_identity=True,
     )
     configs = provenance_config.speaker_preprocessing_source_configs_from_provenance(
         state_root=state_root,
@@ -1862,6 +1876,7 @@ def prepare_selected_speaker_clue_discovery(
     )
     return {
         **prepared,
+        "transcript_artifact": detail["transcript_artifact"],
         "source_warnings": configs.get("warnings") or [],
         "will_execute_external_action": False,
         "will_perform_external_write": False,
@@ -1881,6 +1896,7 @@ def prepare_selected_speaker_identity_evaluation(
         document_id,
         root=store_root,
         state_root=state_root,
+        ensure_identity=True,
     )
     source_document_id = str(
         (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
@@ -1925,6 +1941,7 @@ def prepare_selected_speaker_identity_evaluation(
     )
     return {
         **prepared,
+        "transcript_artifact": detail["transcript_artifact"],
         "source_warnings": evidence.get("warnings") or [],
         "will_execute_external_action": False,
         "will_perform_external_write": False,
@@ -1990,6 +2007,7 @@ def persist_selected_speaker_identity_evaluation(
         document_id,
         root=store_root,
         state_root=state_root,
+        ensure_identity=True,
     )
     source_document_id = str(
         (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
@@ -2047,6 +2065,7 @@ def review_selected_speaker_proposal(
         document_id,
         root=store_root,
         state_root=state_root,
+        ensure_identity=True,
     )
     record = conversation_processing.append_review_decision(
         transcript_path,
@@ -2081,6 +2100,7 @@ def confirm_selected_ready_speaker_proposals(
         document_id,
         root=store_root,
         state_root=state_root,
+        ensure_identity=True,
     )
     return speaker_preprocessing_workflow.confirm_ready_proposals(
         transcript_path,

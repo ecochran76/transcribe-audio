@@ -763,6 +763,100 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def synchronize_document_artifact(
+    document_id: str,
+    *,
+    artifact_path: Path,
+    location: str,
+    root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Synchronize an identity-only transcript mutation without changing provenance."""
+    if location not in {"source", "stored"}:
+        raise TranscriptStoreError("Artifact location must be source or stored.")
+    store_root = store_dir(root).resolve()
+    try:
+        resolved_path = artifact_path.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise TranscriptStoreError(
+            f"Transcript artifact is not accessible: {artifact_path}"
+        ) from exc
+    with connect(store_root) as con:
+        init_db(con)
+        row = con.execute(
+            "SELECT * FROM documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+        if row is None:
+            raise TranscriptStoreError(f"No document found with id {document_id}")
+        if str(row["kind"]) != "transcript":
+            raise TranscriptStoreError(
+                "Only transcript artifacts support durable identity synchronization."
+            )
+        expected_path = Path(str(row[f"{location}_path"])).expanduser()
+        try:
+            expected_resolved = expected_path.resolve(strict=True)
+        except OSError as exc:
+            raise TranscriptStoreError(
+                f"Recorded {location} artifact is not accessible: {expected_path}"
+            ) from exc
+        if resolved_path != expected_resolved:
+            raise TranscriptStoreError(
+                f"Selected artifact does not match the recorded {location} path."
+            )
+
+        stored_path = Path(str(row["stored_path"])).expanduser()
+        artifacts_root = store_root / "artifacts"
+        try:
+            stored_resolved = stored_path.resolve(strict=True)
+            stored_resolved.relative_to(artifacts_root)
+        except (OSError, ValueError) as exc:
+            raise TranscriptStoreError(
+                "Recorded stored transcript path is outside the transcript store."
+            ) from exc
+
+        payload = load_json(resolved_path)
+        if artifact_kind(resolved_path, payload) != "transcript":
+            raise TranscriptStoreError(
+                "Durable identity synchronization requires a transcript artifact."
+            )
+        text_content = artifact_text("transcript", payload)
+        if text_content != str(row["text_content"]):
+            raise TranscriptStoreError(
+                "Transcript content changed; use full artifact ingestion instead."
+            )
+        if location == "source":
+            shutil.copy2(resolved_path, stored_resolved)
+        artifact_hash = sha256_file(resolved_path)
+        metadata = metadata_for_artifact("transcript", payload)
+        previous_metadata = parse_object_json(row["metadata_json"])
+        if isinstance(previous_metadata.get("media_blob"), dict):
+            metadata["media_blob"] = previous_metadata["media_blob"]
+        now = utcish_now()
+        con.execute(
+            """
+            UPDATE documents
+            SET artifact_sha256 = ?, json_payload = ?, metadata_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                artifact_hash,
+                json_dumps(payload),
+                json_dumps(metadata),
+                now,
+                document_id,
+            ),
+        )
+        con.commit()
+    return {
+        "document_id": document_id,
+        "artifact_path": str(resolved_path),
+        "location": location,
+        "artifact_sha256": artifact_hash,
+        "source_path": str(row["source_path"]),
+        "stored_path": str(stored_resolved),
+    }
+
+
 @dataclass
 class IngestResult:
     id: str
