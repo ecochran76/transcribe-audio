@@ -32,6 +32,7 @@ import participant_identity
 import provenance_config
 import speaker_identity_preprocess
 import speaker_preprocessing_workflow
+import speaker_evaluation_campaign
 import transcript_artifact_access
 from app_intelligence_ledger import (
     append_codex_event as append_app_intelligence_codex_event,
@@ -5359,6 +5360,36 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path.startswith("/api/speaker-evaluation-campaigns/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 3:
+                    self.write_json(
+                        speaker_evaluation_campaign.campaign_status(
+                            parts[2],
+                            runtime_root=(
+                                self.state_root
+                                / "speaker-evaluation-campaigns"
+                            ),
+                        )
+                    )
+                    return
+                if (
+                    len(parts) == 6
+                    and parts[3] == "cases"
+                    and parts[5] == "review-packet"
+                ):
+                    self.write_json(
+                        speaker_evaluation_campaign.review_case_packet(
+                            parts[2],
+                            parts[4],
+                            store_root=self.store_root,
+                            runtime_root=(
+                                self.state_root
+                                / "speaker-evaluation-campaigns"
+                            ),
+                        )
+                    )
+                    return
             if parsed.path.startswith("/api/conversations/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 4 and parts[3] == "identity-review":
@@ -5630,6 +5661,70 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/speaker-evaluation-campaigns/apply":
+                body = self.read_json_body()
+                self.write_json(
+                    speaker_evaluation_campaign.apply_campaign(
+                        store_root=self.store_root,
+                        runtime_root=(
+                            self.state_root / "speaker-evaluation-campaigns"
+                        ),
+                        state_root=self.state_root,
+                        batch_size=int(body.get("batch_size") or 10),
+                        approval_token=str(body.get("approval_token") or ""),
+                    ),
+                    status=HTTPStatus.CREATED,
+                )
+                return
+            if parsed.path.startswith("/api/speaker-evaluation-campaigns/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if (
+                    len(parts) == 6
+                    and parts[3] == "cases"
+                    and parts[5] == "gold"
+                ):
+                    body = self.read_json_body()
+                    review = (
+                        body.get("review")
+                        if isinstance(body.get("review"), dict)
+                        else {}
+                    )
+                    self.write_json(
+                        speaker_evaluation_campaign.record_gold_review(
+                            parts[2],
+                            parts[4],
+                            review,
+                            store_root=self.store_root,
+                            runtime_root=(
+                                self.state_root
+                                / "speaker-evaluation-campaigns"
+                            ),
+                            approval_token=str(
+                                body.get("approval_token") or ""
+                            ),
+                            supersedes_gold_id=str(
+                                body.get("supersedes_gold_id") or ""
+                            ),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+                if len(parts) == 4 and parts[3] == "freeze":
+                    body = self.read_json_body()
+                    self.write_json(
+                        speaker_evaluation_campaign.freeze_gold_batch(
+                            parts[2],
+                            runtime_root=(
+                                self.state_root
+                                / "speaker-evaluation-campaigns"
+                            ),
+                            approval_token=str(
+                                body.get("approval_token") or ""
+                            ),
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
             if parsed.path.startswith("/api/conversations/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 4 and parts[3] == "identity-review":

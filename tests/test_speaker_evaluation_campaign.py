@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 
+import pytest
+
 import transcript_store
-from speaker_evaluation_campaign import main, preview_campaign
+from speaker_evaluation_campaign import (
+    apply_campaign,
+    freeze_gold_batch,
+    main,
+    preview_campaign,
+    record_gold_review,
+    review_case_packet,
+)
 
 
 def write_transcript(
@@ -246,3 +256,158 @@ def test_preview_records_reproducibility_fingerprints_and_live_model_route(
         "speaker_identity": "speaker-identity.v1",
     }
     assert len(first["provenance_config_fingerprint"]) == 64
+
+
+def test_apply_campaign_requires_approval_and_writes_private_manifest(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    artifact = write_transcript(
+        tmp_path / "conversation.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "Opening. " * 20},
+            {"speaker": "B", "start": 1, "end": 2, "text": "Response. " * 20},
+        ],
+    )
+    transcript_store.ingest_artifact(artifact, root=store_root)
+
+    with pytest.raises(ValueError, match="approval token"):
+        apply_campaign(
+            store_root=store_root,
+            runtime_root=runtime_root,
+            batch_size=1,
+            approval_token="wrong",
+        )
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+
+    manifest_path = Path(applied["manifest_path"])
+    assert manifest_path.exists()
+    assert stat.S_IMODE(manifest_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(manifest_path.parent.stat().st_mode) == 0o700
+    assert applied["will_execute_app_intelligence"] is False
+    assert applied["will_perform_external_write"] is False
+
+
+def test_review_packet_is_private_clue_surface_without_gold(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    artifact = write_transcript(
+        tmp_path / "conversation.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "My name is Alice. " * 20},
+            {"speaker": "B", "start": 1, "end": 2, "text": "Hello Alice. " * 20},
+        ],
+    )
+    result = transcript_store.ingest_artifact(artifact, root=store_root)
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+
+    packet = review_case_packet(
+        applied["campaign_id"],
+        result.id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+    )
+
+    assert packet["document_id"] == result.id
+    assert packet["speaker_labels"] == ["A", "B"]
+    assert packet["utterances"][0]["text"].startswith("My name is Alice")
+    assert packet["will_read_gold_records"] is False
+    assert "speaker_outcomes" not in packet
+    assert "people" not in packet
+    assert packet["will_execute_app_intelligence"] is False
+
+
+def test_gold_review_is_append_only_and_freezes_complete_batch(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    artifact = write_transcript(
+        tmp_path / "conversation.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "Opening. " * 20},
+            {"speaker": "B", "start": 1, "end": 2, "text": "Response. " * 20},
+        ],
+    )
+    result = transcript_store.ingest_artifact(artifact, root=store_root)
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+    review = {
+        "disposition": "eligible_known",
+        "calendar_association": "correct",
+        "people": [
+            {
+                "person_ground_truth_id": "person-alice",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+            }
+        ],
+        "speaker_outcomes": [
+            {
+                "speaker_label": "A",
+                "outcome": "person",
+                "person_ground_truth_id": "person-alice",
+            },
+            {
+                "speaker_label": "B",
+                "outcome": "unknown_to_reviewer",
+                "person_ground_truth_id": "",
+            },
+        ],
+        "same_person_label_groups": [],
+        "reviewer": "Eric Cochran",
+        "review_method": "transcript_and_calendar",
+        "notes": "",
+    }
+
+    first = record_gold_review(
+        applied["campaign_id"],
+        result.id,
+        review,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    second = record_gold_review(
+        applied["campaign_id"],
+        result.id,
+        {**review, "notes": "Corrected note."},
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+        supersedes_gold_id=first["gold_id"],
+    )
+    frozen = freeze_gold_batch(
+        applied["campaign_id"],
+        runtime_root=runtime_root,
+        approval_token="FREEZE_SPEAKER_EVALUATION_GOLD_BATCH",
+    )
+
+    assert first["gold_id"] != second["gold_id"]
+    assert Path(first["gold_path"]).exists()
+    assert Path(second["gold_path"]).exists()
+    assert second["supersedes_gold_id"] == first["gold_id"]
+    assert frozen["status"] == "gold_batch_frozen"
+    assert frozen["gold_case_count"] == 1
+    assert frozen["gold_ids"] == [second["gold_id"]]
+    assert Path(frozen["freeze_path"]).exists()

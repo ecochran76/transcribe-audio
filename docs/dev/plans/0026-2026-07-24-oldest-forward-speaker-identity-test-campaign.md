@@ -84,6 +84,13 @@ second-oldest substantial transcript now opens read-only and prepares Clue
 Discovery from its stored copy without sending a prompt or performing an
 external write. C3 private gold review is the active unit.
 
+C3's private state and operator API are implemented on the campaign branch.
+Manifest apply is approval-gated and uses private runtime permissions; review
+packets read transcript/calendar clues without loading gold; validated gold
+records are append-only with explicit supersession; and freeze refuses to
+proceed until `K` current `eligible_known` cases exist. The active operator
+step is to review the chronological seed cases with Eric and freeze batch 1.
+
 The first thirteen chronological transcript rows already expose useful
 campaign strata:
 

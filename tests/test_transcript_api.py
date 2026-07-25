@@ -1144,6 +1144,72 @@ def test_selected_speaker_preprocessing_prepares_verified_stored_fallback_and_sy
     )
 
 
+def test_speaker_evaluation_campaign_api_applies_and_opens_private_review_packet(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=state_root,
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        request = Request(
+            f"http://{host}:{port}/api/speaker-evaluation-campaigns/apply",
+            data=json.dumps(
+                {
+                    "batch_size": 1,
+                    "approval_token": (
+                        "APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST"
+                    ),
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        applied_response = urlopen(request, timeout=5)
+        applied = json.loads(applied_response.read())
+        status = json.loads(
+            urlopen(
+                f"http://{host}:{port}/api/speaker-evaluation-campaigns/"
+                f"{quote(applied['campaign_id'])}",
+                timeout=5,
+            ).read()
+        )
+        packet = json.loads(
+            urlopen(
+                f"http://{host}:{port}/api/speaker-evaluation-campaigns/"
+                f"{quote(applied['campaign_id'])}/cases/{quote(transcript.id)}/"
+                "review-packet",
+                timeout=5,
+            ).read()
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert applied_response.status == 201
+    assert status["reviewed_case_count"] == 0
+    assert status["eligible_known_count"] == 0
+    assert packet["document_id"] == transcript.id
+    assert packet["will_read_gold_records"] is False
+    assert packet["will_execute_app_intelligence"] is False
+
+
 def test_selected_first_pass_summary_run_endpoint_prepares_and_submits(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     state_root = tmp_path / "state"

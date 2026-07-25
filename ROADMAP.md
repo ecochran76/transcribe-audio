@@ -221,8 +221,9 @@ Milestone Focus:
   pass the accumulated gold regression set. Its first two gates are complete:
   the deterministic preview accounts for all rows and unavailable historical
   source paths now fall back to hash-verified transcript-store copies with
-  synchronized durable IDs. The active gate is private operator-reviewed gold
-  classification for the initial chronological batch.
+  synchronized durable IDs. Its private, append-only gold schema and local
+  operator API are implemented; the active gate is Eric's gold classification
+  and freeze of the initial chronological batch.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

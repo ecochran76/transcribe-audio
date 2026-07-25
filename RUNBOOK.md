@@ -2,6 +2,39 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 224 | 2026-07-24
+
+Summary: Implemented the private C3 campaign/gold review infrastructure for
+Plan 0026; chronological operator review remains active.
+
+Implemented:
+
+- Added approval-gated campaign manifest apply with private `0700` directory
+  and `0600` JSON permissions.
+- Added private case-review packets that expose bounded transcript/calendar
+  clues while explicitly never reading gold records or running App
+  Intelligence.
+- Added validated append-only gold records for dispositions, reviewed calendar
+  association, people, per-label outcomes, same-person label groups, reviewer
+  attribution, notes, and explicit supersession.
+- Added campaign status without gold content and a batch freeze that requires
+  exactly `K` current eligible-known records and reserves the next
+  chronological holdout candidates.
+- Added local API apply/status/review-packet/gold/freeze routes.
+
+Validation:
+
+- Targeted campaign/API tests pass for approval gates, private modes, review
+  separation, tamper-safe archived fallback, append-only corrections, batch
+  freeze, and the HTTP operator surface.
+- No test or API path sends a prompt, runs App Intelligence, assigns a speaker,
+  or performs an external write.
+
+Next:
+
+- Apply the live `K=10` campaign manifest from a clean commit, review the
+  oldest seed cases with Eric, and freeze batch 1 before any blind baseline.
+
 ## Turn 223 | 2026-07-24
 
 Summary: Implemented and deployed C2 of Plan 0026: safe archived-transcript

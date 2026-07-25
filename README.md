@@ -492,6 +492,28 @@ or creating the runtime directory. Candidate roles are not ground truth;
 operator-reviewed gold records remain private and are added only by the later
 review workflow.
 
+Apply the reviewed manifest through the local API with
+`APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST`. Applied campaign directories and
+files are private (`0700`/`0600`) under
+`~/.local/state/transcribe-audio/speaker-evaluation-campaigns/`. The campaign
+API provides status and private case-review packets without reading gold:
+
+```text
+POST /api/speaker-evaluation-campaigns/apply
+GET  /api/speaker-evaluation-campaigns/<campaign_id>
+GET  /api/speaker-evaluation-campaigns/<campaign_id>/cases/<document_id>/review-packet
+POST /api/speaker-evaluation-campaigns/<campaign_id>/cases/<document_id>/gold
+POST /api/speaker-evaluation-campaigns/<campaign_id>/freeze
+```
+
+Gold writes require `RECORD_SPEAKER_EVALUATION_GOLD`, validate calendar,
+speaker, mixed/non-person/unknown, cross-label grouping, person-reference, and
+reviewer fields, and append corrections with an explicit superseded gold ID.
+They never alter a prior record. Freezing requires
+`FREEZE_SPEAKER_EVALUATION_GOLD_BATCH` and exactly `K` current
+`eligible_known` cases. Gold and freeze records explicitly declare prediction
+visibility as excluded; later baseline prompts must not read these paths.
+
 Use the compact packet recipe helper when you want the next downstream commands without manually copying paths:
 
 ```bash
