@@ -9,11 +9,14 @@ import pytest
 import transcript_store
 from speaker_evaluation_campaign import (
     apply_campaign,
+    capture_blind_prediction,
     freeze_gold_batch,
     main,
     preview_campaign,
     record_gold_review,
+    reveal_blind_baseline_comparison,
     review_case_packet,
+    start_blind_baseline,
 )
 
 
@@ -411,3 +414,228 @@ def test_gold_review_is_append_only_and_freezes_complete_batch(
     assert frozen["gold_case_count"] == 1
     assert frozen["gold_ids"] == [second["gold_id"]]
     assert Path(frozen["freeze_path"]).exists()
+
+
+def test_blind_baseline_starts_from_freeze_without_exposing_gold(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    artifact = write_transcript(
+        tmp_path / "conversation.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "Opening. " * 20},
+            {"speaker": "B", "start": 1, "end": 2, "text": "Response. " * 20},
+        ],
+    )
+    result = transcript_store.ingest_artifact(artifact, root=store_root)
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+    review = {
+        "disposition": "eligible_known",
+        "calendar_association": "correct",
+        "people": [
+            {
+                "person_ground_truth_id": "person-alice",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+            }
+        ],
+        "speaker_outcomes": [
+            {
+                "speaker_label": "A",
+                "outcome": "person",
+                "person_ground_truth_id": "person-alice",
+            },
+            {
+                "speaker_label": "B",
+                "outcome": "unknown_to_reviewer",
+                "person_ground_truth_id": "",
+            },
+        ],
+        "same_person_label_groups": [],
+        "reviewer": "Eric Cochran",
+        "review_method": "transcript_and_calendar",
+        "notes": "",
+    }
+    gold = record_gold_review(
+        applied["campaign_id"],
+        result.id,
+        review,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    frozen = freeze_gold_batch(
+        applied["campaign_id"],
+        runtime_root=runtime_root,
+        approval_token="FREEZE_SPEAKER_EVALUATION_GOLD_BATCH",
+    )
+
+    baseline = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+    )
+
+    serialized = json.dumps(baseline, sort_keys=True)
+    assert baseline["status"] == "awaiting_predictions"
+    assert baseline["document_ids"] == [result.id]
+    assert baseline["prediction_visibility"] == "blind"
+    assert baseline["will_read_gold_records"] is False
+    assert baseline["captured_prediction_count"] == 0
+    assert gold["gold_id"] not in serialized
+    assert "Alice Example" not in serialized
+    assert stat.S_IMODE(Path(baseline["baseline_path"]).stat().st_mode) == 0o600
+
+
+def test_blind_prediction_capture_completes_batch_without_revealing_gold(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    artifact = write_transcript(
+        tmp_path / "conversation.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "Opening. " * 20},
+            {"speaker": "B", "start": 1, "end": 2, "text": "Response. " * 20},
+        ],
+    )
+    result = transcript_store.ingest_artifact(artifact, root=store_root)
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+    review = {
+        "disposition": "eligible_known",
+        "calendar_association": "correct",
+        "people": [
+            {
+                "person_ground_truth_id": "person-alice",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+            }
+        ],
+        "speaker_outcomes": [
+            {
+                "speaker_label": "A",
+                "outcome": "person",
+                "person_ground_truth_id": "person-alice",
+            },
+            {
+                "speaker_label": "B",
+                "outcome": "unknown_to_reviewer",
+                "person_ground_truth_id": "",
+            },
+        ],
+        "same_person_label_groups": [],
+        "reviewer": "Eric Cochran",
+        "review_method": "transcript_and_calendar",
+        "notes": "",
+    }
+    gold = record_gold_review(
+        applied["campaign_id"],
+        result.id,
+        review,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    frozen = freeze_gold_batch(
+        applied["campaign_id"],
+        runtime_root=runtime_root,
+        approval_token="FREEZE_SPEAKER_EVALUATION_GOLD_BATCH",
+    )
+    baseline = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+    )
+
+    captured = capture_blind_prediction(
+        applied["campaign_id"],
+        baseline_id=baseline["baseline_id"],
+        document_id=result.id,
+        artifact_sha256=baseline["cases"][0]["artifact_sha256"],
+        prediction={
+            "evaluation_id": "evaluation-1",
+            "calendar_association": {
+                "status": "matched",
+                "confidence": {"numeric": 90, "band": "very_high"},
+            },
+            "people": [
+                {
+                    "person_id": "candidate-alice",
+                    "label": "Alice Example",
+                    "email": "alice@example.com",
+                }
+            ],
+            "proposals": [
+                {
+                    "speaker_labels": ["A"],
+                    "status": "candidate_match",
+                    "person_id": "candidate-alice",
+                    "confidence": {"numeric": 90, "band": "very_high"},
+                }
+            ],
+        },
+        run_references={
+            "clue_discovery_run_id": "run-discovery",
+            "identity_evaluation_run_id": "run-evaluation",
+        },
+        runtime_root=runtime_root,
+        approval_token="CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION",
+    )
+
+    serialized = json.dumps(captured, sort_keys=True)
+    assert captured["status"] == "predictions_complete"
+    assert captured["captured_prediction_count"] == 1
+    assert captured["will_read_gold_records"] is False
+    assert gold["gold_id"] not in serialized
+    assert Path(captured["prediction_path"]).exists()
+    assert stat.S_IMODE(Path(captured["prediction_path"]).stat().st_mode) == 0o600
+    with pytest.raises(ValueError, match="already has a captured prediction"):
+        capture_blind_prediction(
+            applied["campaign_id"],
+            baseline_id=baseline["baseline_id"],
+            document_id=result.id,
+            artifact_sha256=baseline["cases"][0]["artifact_sha256"],
+            prediction={"evaluation_id": "evaluation-2"},
+            runtime_root=runtime_root,
+            approval_token="CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION",
+        )
+
+    comparison = reveal_blind_baseline_comparison(
+        applied["campaign_id"],
+        baseline_id=baseline["baseline_id"],
+        runtime_root=runtime_root,
+        approval_token="REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON",
+    )
+
+    assert comparison["status"] == "comparison_complete"
+    assert comparison["predictions_captured_before_gold_reveal"] is True
+    assert comparison["metrics"]["calendar_association"] == {
+        "cases": 1,
+        "exact": 1,
+        "high_or_very_high_wrong": 0,
+    }
+    assert comparison["metrics"]["speaker_identity"] == {
+        "known_person_labels": 1,
+        "top_proposal_correct": 1,
+        "correct_person_present": 1,
+        "high_or_very_high_wrong": 0,
+    }
+    assert comparison["cases"][0]["gold_revealed_at"] >= captured[
+        "predictions_completed_at"
+    ]
+    assert Path(comparison["comparison_path"]).exists()

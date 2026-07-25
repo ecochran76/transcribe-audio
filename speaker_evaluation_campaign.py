@@ -13,6 +13,7 @@ import tempfile
 import unicodedata
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from itertools import combinations
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
@@ -38,9 +39,19 @@ GOLD_SCHEMA_VERSION = "transcribe-audio.speaker-evaluation-gold.v1"
 GOLD_FREEZE_SCHEMA_VERSION = (
     "transcribe-audio.speaker-evaluation-gold-freeze.v1"
 )
+BLIND_BASELINE_SCHEMA_VERSION = (
+    "transcribe-audio.speaker-evaluation-blind-baseline.v1"
+)
 APPLY_CAMPAIGN_TOKEN = "APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST"
 RECORD_GOLD_TOKEN = "RECORD_SPEAKER_EVALUATION_GOLD"
 FREEZE_GOLD_TOKEN = "FREEZE_SPEAKER_EVALUATION_GOLD_BATCH"
+START_BLIND_BASELINE_TOKEN = "START_SPEAKER_EVALUATION_BLIND_BASELINE"
+CAPTURE_BLIND_PREDICTION_TOKEN = (
+    "CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION"
+)
+REVEAL_GOLD_COMPARISON_TOKEN = (
+    "REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON"
+)
 GOLD_DISPOSITIONS = {
     "eligible_known",
     "eligible_unknown",
@@ -618,6 +629,653 @@ def freeze_gold_batch(
     freeze_path = campaign_dir / "freezes" / f"{freeze_id}.json"
     _write_private_json(freeze_path, freeze)
     return {**freeze, "freeze_path": str(freeze_path)}
+
+
+def start_blind_baseline(
+    campaign_id: str,
+    *,
+    freeze_id: str,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Start one private prediction run without opening any gold record."""
+    if approval_token != START_BLIND_BASELINE_TOKEN:
+        raise ValueError(
+            "Blind baseline start requires approval token "
+            f"{START_BLIND_BASELINE_TOKEN}."
+        )
+    if not re.fullmatch(r"[0-9a-f-]{36}", freeze_id):
+        raise ValueError("Gold freeze ID is invalid.")
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    manifest = _campaign_manifest(selected_runtime_root, campaign_id)
+    freeze_path = campaign_dir / "freezes" / f"{freeze_id}.json"
+    if not freeze_path.is_file():
+        raise ValueError(f"Gold freeze does not exist: {freeze_id}")
+    freeze = _read_json(freeze_path)
+    if (
+        freeze.get("schema_version") != GOLD_FREEZE_SCHEMA_VERSION
+        or freeze.get("campaign_id") != campaign_id
+        or freeze.get("manifest_id") != manifest.get("manifest_id")
+    ):
+        raise ValueError("Gold freeze does not belong to this campaign manifest.")
+    document_ids = [
+        str(document_id)
+        for document_id in freeze.get("document_ids") or []
+        if str(document_id)
+    ]
+    if len(document_ids) != int(freeze.get("gold_case_count") or 0):
+        raise ValueError("Gold freeze document count is inconsistent.")
+    cases = []
+    for document_id in document_ids:
+        item = _manifest_item(manifest, document_id)
+        cases.append(
+            {
+                "document_id": document_id,
+                "chronological_rank": int(item["chronological_rank"]),
+                "artifact_sha256": str(item["artifact_sha256"]),
+                "duplicate_cluster_id": str(
+                    item.get("duplicate_cluster_id") or ""
+                ),
+                "status": "awaiting_prediction",
+            }
+        )
+    baseline_id = f"baseline-{uuid4()}"
+    baseline_path = campaign_dir / "baselines" / baseline_id / "baseline.json"
+    baseline = {
+        "schema_version": BLIND_BASELINE_SCHEMA_VERSION,
+        "baseline_id": baseline_id,
+        "campaign_id": campaign_id,
+        "manifest_id": manifest["manifest_id"],
+        "freeze_id": freeze_id,
+        "status": "awaiting_predictions",
+        "started_at": _utc_now(),
+        "document_ids": document_ids,
+        "cases": cases,
+        "captured_prediction_count": 0,
+        "batch_size": len(document_ids),
+        "algorithm": manifest.get("algorithm") or {},
+        "model_route": manifest.get("model_route") or {},
+        "rubric_versions": manifest.get("rubric_versions") or {},
+        "provenance_config_fingerprint": str(
+            manifest.get("provenance_config_fingerprint") or ""
+        ),
+        "prediction_visibility": "blind",
+        "will_read_gold_records": False,
+        "gold_content_included": False,
+        "will_perform_external_write": False,
+    }
+    _write_private_json(baseline_path, baseline)
+    return {**baseline, "baseline_path": str(baseline_path)}
+
+
+def _blind_baseline_path(
+    runtime_root: Path,
+    campaign_id: str,
+    baseline_id: str,
+) -> Path:
+    if not re.fullmatch(
+        r"baseline-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+        r"[0-9a-f]{4}-[0-9a-f]{12}",
+        baseline_id,
+    ):
+        raise ValueError("Blind baseline ID is invalid.")
+    return (
+        _campaign_dir(runtime_root, campaign_id)
+        / "baselines"
+        / baseline_id
+        / "baseline.json"
+    )
+
+
+def blind_baseline_status(
+    campaign_id: str,
+    *,
+    baseline_id: str,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Return prediction progress without reading freeze or gold artifacts."""
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    baseline_path = _blind_baseline_path(
+        selected_runtime_root,
+        campaign_id,
+        baseline_id,
+    )
+    if not baseline_path.is_file():
+        raise ValueError(f"Blind baseline does not exist: {baseline_id}")
+    baseline = _read_json(baseline_path)
+    if baseline.get("schema_version") != BLIND_BASELINE_SCHEMA_VERSION:
+        raise ValueError("Blind baseline schema is invalid.")
+    return {
+        **baseline,
+        "baseline_path": str(baseline_path),
+        "will_read_gold_records": False,
+        "gold_content_included": False,
+    }
+
+
+def capture_blind_prediction(
+    campaign_id: str,
+    *,
+    baseline_id: str,
+    document_id: str,
+    artifact_sha256: str,
+    prediction: dict[str, Any],
+    run_references: Optional[dict[str, Any]] = None,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Capture one immutable prediction before any gold comparison is allowed."""
+    if approval_token != CAPTURE_BLIND_PREDICTION_TOKEN:
+        raise ValueError(
+            "Blind prediction capture requires approval token "
+            f"{CAPTURE_BLIND_PREDICTION_TOKEN}."
+        )
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    baseline_path = _blind_baseline_path(
+        selected_runtime_root,
+        campaign_id,
+        baseline_id,
+    )
+    if not baseline_path.is_file():
+        raise ValueError(f"Blind baseline does not exist: {baseline_id}")
+    baseline = _read_json(baseline_path)
+    if baseline.get("schema_version") != BLIND_BASELINE_SCHEMA_VERSION:
+        raise ValueError("Blind baseline schema is invalid.")
+    cases = [
+        dict(item)
+        for item in baseline.get("cases") or []
+        if isinstance(item, dict)
+    ]
+    case = next(
+        (
+            item
+            for item in cases
+            if str(item.get("document_id") or "") == document_id
+        ),
+        None,
+    )
+    if case is None:
+        raise ValueError("Document is not part of this blind baseline.")
+    if case.get("status") == "prediction_captured":
+        raise ValueError("Document already has a captured prediction.")
+    if str(case.get("artifact_sha256") or "") != artifact_sha256:
+        raise ValueError("Prediction artifact hash does not match the baseline.")
+    evaluation_id = str(prediction.get("evaluation_id") or "").strip()
+    if not evaluation_id:
+        raise ValueError("Blind prediction requires an evaluation_id.")
+    prediction_id = f"prediction-{uuid4()}"
+    captured_at = _utc_now()
+    prediction_record = {
+        "schema_version": (
+            "transcribe-audio.speaker-evaluation-blind-prediction.v1"
+        ),
+        "prediction_id": prediction_id,
+        "baseline_id": baseline_id,
+        "campaign_id": campaign_id,
+        "document_id": document_id,
+        "artifact_sha256": artifact_sha256,
+        "prediction": prediction,
+        "run_references": dict(run_references or {}),
+        "captured_at": captured_at,
+        "prediction_visibility": "blind",
+        "will_read_gold_records": False,
+        "gold_content_included": False,
+        "will_perform_external_write": False,
+    }
+    prediction_path = (
+        baseline_path.parent
+        / "predictions"
+        / document_id
+        / f"{prediction_id}.json"
+    )
+    _write_private_json(prediction_path, prediction_record)
+    case.update(
+        {
+            "status": "prediction_captured",
+            "prediction_id": prediction_id,
+            "prediction_path": str(prediction_path),
+            "captured_at": captured_at,
+        }
+    )
+    captured_count = sum(
+        1 for item in cases if item.get("status") == "prediction_captured"
+    )
+    status = (
+        "predictions_complete"
+        if captured_count == int(baseline.get("batch_size") or 0)
+        else "awaiting_predictions"
+    )
+    updated = {
+        **baseline,
+        "status": status,
+        "cases": cases,
+        "captured_prediction_count": captured_count,
+        "predictions_completed_at": captured_at
+        if status == "predictions_complete"
+        else "",
+    }
+    _write_private_json(baseline_path, updated)
+    return {
+        **updated,
+        "baseline_path": str(baseline_path),
+        "prediction_id": prediction_id,
+        "prediction_path": str(prediction_path),
+    }
+
+
+def _normalized_identity_text(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    return " ".join(re.sub(r"[^a-z0-9@.+-]+", " ", text).split())
+
+
+def _prediction_person_index(prediction: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(person.get("person_id") or ""): person
+        for person in prediction.get("people") or []
+        if isinstance(person, dict) and str(person.get("person_id") or "")
+    }
+
+
+def _prediction_identity_values(person: dict[str, Any]) -> set[str]:
+    values = {
+        _normalized_identity_text(
+            person.get("display_name")
+            or person.get("label")
+            or person.get("name")
+        )
+    }
+    emails = person.get("emails") if isinstance(person.get("emails"), list) else []
+    values.update(_normalized_identity_text(value) for value in emails)
+    values.add(_normalized_identity_text(person.get("email")))
+    for source in person.get("source_records") or []:
+        if isinstance(source, dict):
+            values.add(_normalized_identity_text(source.get("label")))
+            values.add(_normalized_identity_text(source.get("email")))
+    return {value for value in values if value}
+
+
+def _gold_identity_values(person: dict[str, Any]) -> set[str]:
+    values = {
+        _normalized_identity_text(person.get("name")),
+        _normalized_identity_text(person.get("email")),
+        _normalized_identity_text(person.get("alternate_email")),
+    }
+    return {value for value in values if value}
+
+
+def _proposal_matches_gold_person(
+    proposal: dict[str, Any],
+    *,
+    people_by_id: dict[str, dict[str, Any]],
+    gold_person: dict[str, Any],
+) -> bool:
+    candidate_values: set[str] = set()
+    person_id = str(proposal.get("person_id") or "")
+    if person_id in people_by_id:
+        candidate_values.update(
+            _prediction_identity_values(people_by_id[person_id])
+        )
+    suggested = (
+        proposal.get("suggested_person")
+        if isinstance(proposal.get("suggested_person"), dict)
+        else {}
+    )
+    candidate_values.update(_prediction_identity_values(suggested))
+    return bool(candidate_values & _gold_identity_values(gold_person))
+
+
+def reveal_blind_baseline_comparison(
+    campaign_id: str,
+    *,
+    baseline_id: str,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Reveal frozen gold only after every blind prediction is immutable."""
+    if approval_token != REVEAL_GOLD_COMPARISON_TOKEN:
+        raise ValueError(
+            "Gold comparison reveal requires approval token "
+            f"{REVEAL_GOLD_COMPARISON_TOKEN}."
+        )
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    baseline_path = _blind_baseline_path(
+        selected_runtime_root,
+        campaign_id,
+        baseline_id,
+    )
+    if not baseline_path.is_file():
+        raise ValueError(f"Blind baseline does not exist: {baseline_id}")
+    baseline = _read_json(baseline_path)
+    if baseline.get("status") != "predictions_complete":
+        raise ValueError(
+            "Gold comparison requires every blind prediction to be captured."
+        )
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    freeze_id = str(baseline.get("freeze_id") or "")
+    freeze = _read_json(campaign_dir / "freezes" / f"{freeze_id}.json")
+    document_ids = [str(value) for value in freeze.get("document_ids") or []]
+    gold_ids = [str(value) for value in freeze.get("gold_ids") or []]
+    if len(document_ids) != len(gold_ids):
+        raise ValueError("Gold freeze identity mapping is inconsistent.")
+    gold_id_by_document = dict(zip(document_ids, gold_ids))
+    revealed_at = _utc_now()
+    calendar_metrics = Counter(
+        {"cases": 0, "exact": 0, "high_or_very_high_wrong": 0}
+    )
+    speaker_metrics = Counter(
+        {
+            "known_person_labels": 0,
+            "top_proposal_correct": 0,
+            "correct_person_present": 0,
+            "high_or_very_high_wrong": 0,
+        }
+    )
+    mixed_total = 0
+    mixed_flagged = 0
+    validation_metrics = Counter(
+        {
+            "predictions": 0,
+            "completed": 0,
+            "model_output_rejected": 0,
+        }
+    )
+    grouping_true_positive = 0
+    grouping_false_positive = 0
+    grouping_false_negative = 0
+    cases = []
+    calendar_expected_status = {
+        "correct": "matched",
+        "partial": "ambiguous",
+        "wrong": "unmatched",
+        "none": "unmatched",
+        "uncertain": "ambiguous",
+    }
+    for baseline_case in baseline.get("cases") or []:
+        if not isinstance(baseline_case, dict):
+            continue
+        document_id = str(baseline_case.get("document_id") or "")
+        prediction_path = Path(
+            str(baseline_case.get("prediction_path") or "")
+        )
+        prediction_record = _read_json(prediction_path)
+        prediction = (
+            prediction_record.get("prediction")
+            if isinstance(prediction_record.get("prediction"), dict)
+            else {}
+        )
+        validation_metrics["predictions"] += 1
+        if prediction.get("status") == "model_output_rejected":
+            validation_metrics["model_output_rejected"] += 1
+            failure_stage = str(prediction.get("failure_stage") or "unknown")
+            validation_metrics[f"stage_{failure_stage}"] += 1
+        else:
+            validation_metrics["completed"] += 1
+        gold_id = gold_id_by_document.get(document_id, "")
+        gold_path = campaign_dir / "gold" / document_id / f"{gold_id}.json"
+        gold = _read_json(gold_path)
+        if (
+            gold.get("schema_version") != GOLD_SCHEMA_VERSION
+            or str(gold.get("artifact_sha256") or "")
+            != str(baseline_case.get("artifact_sha256") or "")
+        ):
+            raise ValueError("Frozen gold does not match the blind case artifact.")
+        calendar_prediction = (
+            prediction.get("calendar_association")
+            if isinstance(prediction.get("calendar_association"), dict)
+            else {}
+        )
+        predicted_calendar_status = str(
+            calendar_prediction.get("status") or ""
+        )
+        expected_calendar_status = calendar_expected_status.get(
+            str(gold.get("calendar_association") or ""),
+            "ambiguous",
+        )
+        calendar_exact = predicted_calendar_status == expected_calendar_status
+        calendar_band = str(
+            (
+                calendar_prediction.get("confidence")
+                if isinstance(calendar_prediction.get("confidence"), dict)
+                else {}
+            ).get("band")
+            or ""
+        )
+        calendar_metrics["cases"] += 1
+        calendar_metrics["exact"] += int(calendar_exact)
+        calendar_metrics["high_or_very_high_wrong"] += int(
+            not calendar_exact and calendar_band in {"high", "very_high"}
+        )
+
+        people_by_id = _prediction_person_index(prediction)
+        proposals = [
+            proposal
+            for proposal in (
+                prediction.get("proposals")
+                or prediction.get("speaker_assignments")
+                or []
+            )
+            if isinstance(proposal, dict)
+        ]
+        gold_people = {
+            str(person.get("person_ground_truth_id") or ""): person
+            for person in gold.get("people") or []
+            if isinstance(person, dict)
+        }
+        gold_group_pairs = {
+            tuple(sorted(pair))
+            for group in gold.get("same_person_label_groups") or []
+            if isinstance(group, list)
+            for pair in combinations(
+                [str(label) for label in group if str(label)],
+                2,
+            )
+        }
+        proposed_labels_by_person: dict[str, set[str]] = defaultdict(set)
+        for proposal in proposals:
+            if proposal.get("status") != "candidate_match":
+                continue
+            person_id = str(proposal.get("person_id") or "")
+            if not person_id:
+                continue
+            proposed_labels_by_person[person_id].update(
+                str(label)
+                for label in proposal.get("speaker_labels") or []
+                if str(label)
+            )
+        predicted_group_pairs = {
+            tuple(sorted(pair))
+            for labels in proposed_labels_by_person.values()
+            for pair in combinations(sorted(labels), 2)
+        }
+        grouping_true_positive += len(gold_group_pairs & predicted_group_pairs)
+        grouping_false_positive += len(
+            predicted_group_pairs - gold_group_pairs
+        )
+        grouping_false_negative += len(
+            gold_group_pairs - predicted_group_pairs
+        )
+        label_results = []
+        for outcome in gold.get("speaker_outcomes") or []:
+            if not isinstance(outcome, dict):
+                continue
+            label = str(outcome.get("speaker_label") or "")
+            label_proposals = [
+                proposal
+                for proposal in proposals
+                if label
+                in [
+                    str(value)
+                    for value in proposal.get("speaker_labels") or []
+                ]
+            ]
+            if outcome.get("outcome") == "mixed":
+                mixed_total += 1
+                flagged = any(
+                    "possible_mixed_speaker"
+                    in [str(flag) for flag in proposal.get("review_flags") or []]
+                    or len(
+                        {
+                            str(item.get("person_id") or "")
+                            for item in proposal.get("utterance_assignments") or []
+                            if isinstance(item, dict)
+                            and str(item.get("person_id") or "")
+                        }
+                    )
+                    > 1
+                    for proposal in label_proposals
+                )
+                mixed_flagged += int(flagged)
+                label_results.append(
+                    {
+                        "speaker_label": label,
+                        "gold_outcome": "mixed",
+                        "mixed_flagged": flagged,
+                    }
+                )
+                continue
+            if outcome.get("outcome") != "person":
+                continue
+            gold_person = gold_people.get(
+                str(outcome.get("person_ground_truth_id") or ""),
+                {},
+            )
+            matches = [
+                _proposal_matches_gold_person(
+                    proposal,
+                    people_by_id=people_by_id,
+                    gold_person=gold_person,
+                )
+                for proposal in label_proposals
+            ]
+            top_correct = bool(matches and matches[0])
+            present = any(matches)
+            top_confidence = (
+                label_proposals[0].get("confidence")
+                if label_proposals
+                and isinstance(label_proposals[0].get("confidence"), dict)
+                else {}
+            )
+            top_band = str(top_confidence.get("band") or "")
+            speaker_metrics["known_person_labels"] += 1
+            speaker_metrics["top_proposal_correct"] += int(top_correct)
+            speaker_metrics["correct_person_present"] += int(present)
+            speaker_metrics["high_or_very_high_wrong"] += int(
+                not top_correct and top_band in {"high", "very_high"}
+            )
+            label_results.append(
+                {
+                    "speaker_label": label,
+                    "gold_outcome": "person",
+                    "top_proposal_correct": top_correct,
+                    "correct_person_present": present,
+                    "top_confidence_band": top_band,
+                }
+            )
+        failure_classes = []
+        prediction_failure_class = str(
+            prediction.get("failure_class") or ""
+        )
+        if prediction_failure_class:
+            failure_classes.append(prediction_failure_class)
+        if not calendar_exact:
+            failure_classes.append("calendar_generic_or_canceled")
+        if any(
+            result.get("gold_outcome") == "person"
+            and not result.get("correct_person_present")
+            for result in label_results
+        ):
+            failure_classes.append("candidate_generation")
+        if any(
+            result.get("gold_outcome") == "mixed"
+            and not result.get("mixed_flagged")
+            for result in label_results
+        ):
+            failure_classes.append("mixed_label_detection")
+        cases.append(
+            {
+                "document_id": document_id,
+                "chronological_rank": baseline_case.get("chronological_rank"),
+                "prediction_id": prediction_record.get("prediction_id"),
+                "gold_id": gold_id,
+                "prediction_captured_at": prediction_record.get("captured_at"),
+                "gold_revealed_at": revealed_at,
+                "calendar": {
+                    "reviewed": gold.get("calendar_association"),
+                    "expected_prediction_status": expected_calendar_status,
+                    "predicted_status": predicted_calendar_status,
+                    "confidence": calendar_prediction.get("confidence") or {},
+                    "exact": calendar_exact,
+                },
+                "speaker_labels": label_results,
+                "failure_classes": failure_classes,
+            }
+        )
+    comparison = {
+        "schema_version": (
+            "transcribe-audio.speaker-evaluation-baseline-comparison.v1"
+        ),
+        "comparison_id": f"comparison-{uuid4()}",
+        "baseline_id": baseline_id,
+        "campaign_id": campaign_id,
+        "freeze_id": freeze_id,
+        "status": "comparison_complete",
+        "gold_revealed_at": revealed_at,
+        "predictions_captured_before_gold_reveal": all(
+            str(case.get("prediction_captured_at") or "") <= revealed_at
+            for case in cases
+        ),
+        "metrics": {
+            "calendar_association": dict(calendar_metrics),
+            "speaker_identity": dict(speaker_metrics),
+            "diarization": {
+                "reviewed_mixed_labels": mixed_total,
+                "mixed_labels_flagged": mixed_flagged,
+                "same_person_pair_true_positive": grouping_true_positive,
+                "same_person_pair_false_positive": grouping_false_positive,
+                "same_person_pair_false_negative": grouping_false_negative,
+                "same_person_pair_precision": (
+                    grouping_true_positive
+                    / (grouping_true_positive + grouping_false_positive)
+                    if grouping_true_positive + grouping_false_positive
+                    else 0.0
+                ),
+                "same_person_pair_recall": (
+                    grouping_true_positive
+                    / (grouping_true_positive + grouping_false_negative)
+                    if grouping_true_positive + grouping_false_negative
+                    else 0.0
+                ),
+            },
+            "validation": dict(validation_metrics),
+        },
+        "cases": cases,
+        "prediction_visibility": "revealed_after_complete_batch",
+        "will_perform_external_write": False,
+    }
+    comparison_path = baseline_path.parent / "comparison.json"
+    if comparison_path.exists():
+        raise ValueError("Blind baseline comparison already exists.")
+    _write_private_json(comparison_path, comparison)
+    _write_private_json(
+        baseline_path,
+        {
+            **baseline,
+            "status": "comparison_complete",
+            "gold_revealed_at": revealed_at,
+            "comparison_id": comparison["comparison_id"],
+            "comparison_path": str(comparison_path),
+        },
+    )
+    return {**comparison, "comparison_path": str(comparison_path)}
 
 
 def preview_campaign(
