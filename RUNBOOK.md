@@ -2,6 +2,59 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 225 | 2026-07-25
+
+Summary: Completed Plan 0026 C3-C6 through the first immutable chronological
+holdout, rejected the first refinement, and paused corpus expansion at a
+bounded systemic repair gate.
+
+Implemented:
+
+- Reviewed and privately froze the first ten eligible chronological gold
+  cases, preserving transcript, participant, and correction details outside
+  Git.
+- Added the serial blind baseline executor, immutable per-case prediction
+  capture, post-completion gold reveal, aggregate comparison metrics, failure
+  taxonomy, and explicit refinement-decision receipts.
+- Tested one prompt-locality refinement against the complete frozen batch,
+  rejected it because its target failure count did not improve and
+  High/Very High wrong proposals increased, then reverted the prompt change.
+- Isolated the reserved ten-document holdout, captured all predictions before
+  operator review, required post-prediction gold for reveal, and excluded one
+  reviewed duplicate from quality denominators.
+- Opened planned Plan 0027 for one host-mediated invalid-reference corrective
+  turn without fuzzy remapping or validation weakening.
+
+Holdout evidence:
+
+- 10/10 predictions were captured before gold reveal; 9 cases were scorable
+  after excluding one duplicate.
+- Host validation completed for 2/10 predictions and rejected 8/10: four at
+  Clue Discovery reference validation and four at Identity Evaluation
+  reference validation.
+- Calendar association was exact for 2/9 scorable cases with zero High/Very
+  High wrong calendar matches.
+- Speaker identity was top-correct for 5/23 known labels and present anywhere
+  for 6/23; three wrong top proposals carried High/Very High confidence.
+- Neither reviewed mixed label was detected.
+
+Validation:
+
+- Focused campaign, speaker preprocessing, and identity tests pass with 34
+  tests.
+- Holdout predictions record commit `377d955`; the duplicate-safe scorer is
+  commit `40ce913`.
+- Comparison receipt:
+  `comparison-b8c1198d-c5ff-4bd9-9bd1-c36376afd37f`.
+- No speaker assignment, external contact mutation, CRM write, deposition, or
+  memory write occurred.
+
+Next:
+
+- Execute Plan 0027 once against the accumulated regression and frozen
+  holdout. Resume Plan 0026 C7 only if that bounded repair materially improves
+  validation yield without weakening gates or regressing identity metrics.
+
 ## Turn 224 | 2026-07-24
 
 Summary: Implemented the private C3 campaign/gold review infrastructure for

@@ -187,6 +187,7 @@ Plans:
 - `docs/dev/plans/0022-2026-05-25-settings-layout-refactor.md`
 - `docs/dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md`
 - `docs/dev/plans/0026-2026-07-24-oldest-forward-speaker-identity-test-campaign.md`
+- `docs/dev/plans/0027-2026-07-25-speaker-output-reference-repair.md`
 
 Milestone Focus:
 
@@ -218,12 +219,18 @@ Milestone Focus:
   blind model predictions, advances in chronological batches, preserves an
   untouched next-batch holdout, measures calendar/identity/diarization/evidence
   outcomes separately, and accepts only hypothesis-specific refinements that
-  pass the accumulated gold regression set. Its first two gates are complete:
-  the deterministic preview accounts for all rows and unavailable historical
-  source paths now fall back to hash-verified transcript-store copies with
-  synchronized durable IDs. Its private, append-only gold schema and local
-  operator API are implemented; the active gate is Eric's gold classification
-  and freeze of the initial chronological batch.
+  pass the accumulated gold regression set. C1-C6 are complete, including the
+  first reviewed gold batch, immutable baseline, explicitly rejected/reverted
+  refinement, and once-scored chronological holdout. The holdout passed host
+  validation for only 2/10 predictions and retained three High/Very High wrong
+  speaker proposals, so C7 is paused at chronological rank 24 rather than
+  spending another review batch. Planned Plan 0027 is the bounded repair gate
+  for invalid model evidence references; Plan 0026 resumes only after that
+  hypothesis is accepted or rejected.
+- Planned Plan 0027 preserves rejected App Intelligence output and permits at
+  most one host-mediated corrective turn containing the invalid fields and
+  exact prepared-reference allowlists. It does not weaken validation, remap
+  invented IDs, retrieve new evidence, or broaden identity reasoning.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

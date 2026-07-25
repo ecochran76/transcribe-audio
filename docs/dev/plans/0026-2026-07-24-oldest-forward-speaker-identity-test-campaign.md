@@ -91,6 +91,25 @@ records are append-only with explicit supersession; and freeze refuses to
 proceed until `K` current `eligible_known` cases exist. The active operator
 step is to review the chronological seed cases with Eric and freeze batch 1.
 
+C3 through C6 are now complete. The first `K=10` gold batch was reviewed and
+frozen, the blind baseline was captured, and one prompt-locality refinement
+was tested, rejected for no target improvement plus a High/Very High error
+regression, and reverted. The untouched ten-document holdout then captured
+every prediction before review; one duplicate recording was excluded from
+quality denominators. On the nine scorable cases, calendar association was
+exact for 2/9, speaker identity was top-correct for 5/23 known labels with the
+correct person present for 6/23, no reviewed mixed labels were detected, and
+three wrong speaker proposals carried High/Very High confidence. Only 2/10
+model outputs passed host validation; four failed Clue Discovery reference
+validation and four failed Identity Evaluation reference validation.
+
+The campaign is intentionally paused before C7 at chronological rank 24.
+Advancing another review batch would not be useful while 80% of holdout model
+outputs are rejected. Plan 0027 is the bounded successor for a single
+host-mediated invalid-reference corrective turn. Plan 0026 remains OPEN with
+its private gold, baseline, refinement, holdout, comparison receipts, and next
+chronological cursor preserved.
+
 The first thirteen chronological transcript rows already expose useful
 campaign strata:
 
