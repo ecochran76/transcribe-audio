@@ -1176,10 +1176,7 @@ def build_clue_discovery_prompt(packet: dict[str, Any]) -> str:
     return (
         "Find identity-relevant clues and bounded retrieval terms in the prepared transcript excerpts. "
         "Do not identify the speakers in this pass. Do not request or retrieve external data. "
-        "Copy utterance_ids exactly from the packet. Never invent sequential utterance_ids. "
-        "A speaker_clue and mixed_speaker_hint may cite only utterance_ids nested under that same "
-        "speaker_label. Conversation clues and speaker-group hints may cite any prepared utterance_id. "
-        "Return JSON only matching this output shape: "
+        "Cite only prepared utterance_ids and return JSON only matching this output shape: "
         f"{json.dumps(output_schema, sort_keys=True, ensure_ascii=False)}\n\n"
         "Prepared clue discovery packet:\n"
         f"{json.dumps(packet, sort_keys=True, ensure_ascii=False)}"
