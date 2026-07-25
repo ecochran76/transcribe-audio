@@ -511,6 +511,118 @@ def test_blind_baseline_starts_from_freeze_without_exposing_gold(
     assert refinement["evidence_mode"] == "fresh_retrieval_comparison"
 
 
+def test_holdout_uses_reserved_documents_and_reveals_only_post_prediction_gold(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    first_artifact = write_transcript(
+        tmp_path / "first.transcript.json",
+        recording_start="2024-01-01T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "First opening. " * 20},
+        ],
+    )
+    holdout_artifact = write_transcript(
+        tmp_path / "holdout.transcript.json",
+        recording_start="2024-01-02T10:00:00Z",
+        utterances=[
+            {"speaker": "A", "start": 0, "end": 1, "text": "Holdout opening. " * 20},
+            {"speaker": "A", "start": 1, "end": 2, "text": "Holdout response. " * 20},
+        ],
+    )
+    first = transcript_store.ingest_artifact(first_artifact, root=store_root)
+    holdout = transcript_store.ingest_artifact(holdout_artifact, root=store_root)
+    applied = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+    review = {
+        "disposition": "eligible_known",
+        "calendar_association": "correct",
+        "people": [
+            {
+                "person_ground_truth_id": "person-alice",
+                "name": "Alice Example",
+                "email": "alice@example.com",
+            }
+        ],
+        "speaker_outcomes": [
+            {
+                "speaker_label": "A",
+                "outcome": "person",
+                "person_ground_truth_id": "person-alice",
+            }
+        ],
+        "same_person_label_groups": [],
+        "reviewer": "Eric Cochran",
+        "review_method": "transcript_and_calendar",
+        "notes": "",
+    }
+    record_gold_review(
+        applied["campaign_id"],
+        first.id,
+        review,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    frozen = freeze_gold_batch(
+        applied["campaign_id"],
+        runtime_root=runtime_root,
+        approval_token="FREEZE_SPEAKER_EVALUATION_GOLD_BATCH",
+    )
+
+    baseline = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+        run_kind="holdout",
+    )
+
+    assert baseline["document_ids"] == [holdout.id]
+    assert baseline["gold_content_included"] is False
+    captured = capture_blind_prediction(
+        applied["campaign_id"],
+        baseline_id=baseline["baseline_id"],
+        document_id=holdout.id,
+        artifact_sha256=baseline["cases"][0]["artifact_sha256"],
+        prediction={"evaluation_id": "holdout-evaluation"},
+        runtime_root=runtime_root,
+        approval_token="CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION",
+    )
+    with pytest.raises(ValueError, match="reviewed after predictions completed"):
+        reveal_blind_baseline_comparison(
+            applied["campaign_id"],
+            baseline_id=baseline["baseline_id"],
+            runtime_root=runtime_root,
+            approval_token="REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON",
+        )
+
+    gold = record_gold_review(
+        applied["campaign_id"],
+        holdout.id,
+        review,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    comparison = reveal_blind_baseline_comparison(
+        applied["campaign_id"],
+        baseline_id=baseline["baseline_id"],
+        runtime_root=runtime_root,
+        approval_token="REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON",
+    )
+
+    assert comparison["status"] == "comparison_complete"
+    assert comparison["cases"][0]["gold_id"] == gold["gold_id"]
+    assert comparison["cases"][0]["prediction_captured_at"] <= gold["reviewed_at"]
+    assert captured["predictions_completed_at"] <= gold["reviewed_at"]
+
+
 def test_blind_prediction_capture_completes_batch_without_revealing_gold(
     tmp_path: Path,
 ) -> None:

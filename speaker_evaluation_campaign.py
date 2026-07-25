@@ -678,12 +678,20 @@ def start_blind_baseline(
         or freeze.get("manifest_id") != manifest.get("manifest_id")
     ):
         raise ValueError("Gold freeze does not belong to this campaign manifest.")
+    document_id_key = (
+        "blind_holdout_document_ids" if run_kind == "holdout" else "document_ids"
+    )
     document_ids = [
         str(document_id)
-        for document_id in freeze.get("document_ids") or []
+        for document_id in freeze.get(document_id_key) or []
         if str(document_id)
     ]
-    if len(document_ids) != int(freeze.get("gold_case_count") or 0):
+    expected_count = (
+        len(freeze.get("blind_holdout_document_ids") or [])
+        if run_kind == "holdout"
+        else int(freeze.get("gold_case_count") or 0)
+    )
+    if not document_ids or len(document_ids) != expected_count:
         raise ValueError("Gold freeze document count is inconsistent.")
     cases = []
     for document_id in document_ids:
@@ -987,11 +995,33 @@ def reveal_blind_baseline_comparison(
     campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
     freeze_id = str(baseline.get("freeze_id") or "")
     freeze = _read_json(campaign_dir / "freezes" / f"{freeze_id}.json")
-    document_ids = [str(value) for value in freeze.get("document_ids") or []]
-    gold_ids = [str(value) for value in freeze.get("gold_ids") or []]
-    if len(document_ids) != len(gold_ids):
-        raise ValueError("Gold freeze identity mapping is inconsistent.")
-    gold_id_by_document = dict(zip(document_ids, gold_ids))
+    if baseline.get("run_kind") == "holdout":
+        _index_path, gold_index = _gold_index(campaign_dir)
+        latest_by_document = {
+            str(record.get("document_id") or ""): record
+            for record in gold_index.get("records") or []
+            if isinstance(record, dict)
+        }
+        completed_at = str(baseline.get("predictions_completed_at") or "")
+        gold_id_by_document = {}
+        for document_id in baseline.get("document_ids") or []:
+            record = latest_by_document.get(str(document_id))
+            if (
+                not record
+                or str(record.get("reviewed_at") or "") < completed_at
+            ):
+                raise ValueError(
+                    "Every holdout case must be reviewed after predictions completed."
+                )
+            gold_id_by_document[str(document_id)] = str(
+                record.get("gold_id") or ""
+            )
+    else:
+        document_ids = [str(value) for value in freeze.get("document_ids") or []]
+        gold_ids = [str(value) for value in freeze.get("gold_ids") or []]
+        if len(document_ids) != len(gold_ids):
+            raise ValueError("Gold freeze identity mapping is inconsistent.")
+        gold_id_by_document = dict(zip(document_ids, gold_ids))
     revealed_at = _utc_now()
     calendar_metrics = Counter(
         {"cases": 0, "exact": 0, "high_or_very_high_wrong": 0}
