@@ -494,6 +494,21 @@ def test_blind_baseline_starts_from_freeze_without_exposing_gold(
     assert "Alice Example" not in serialized
     assert stat.S_IMODE(Path(baseline["baseline_path"]).stat().st_mode) == 0o600
 
+    refinement = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+        run_kind="refinement",
+        parent_baseline_id=baseline["baseline_id"],
+        hypothesis="speaker-specific citation locality",
+        evidence_mode="fresh_retrieval_comparison",
+    )
+    assert refinement["run_kind"] == "refinement"
+    assert refinement["parent_baseline_id"] == baseline["baseline_id"]
+    assert refinement["hypothesis"] == "speaker-specific citation locality"
+    assert refinement["evidence_mode"] == "fresh_retrieval_comparison"
+
 
 def test_blind_prediction_capture_completes_batch_without_revealing_gold(
     tmp_path: Path,

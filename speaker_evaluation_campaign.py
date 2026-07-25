@@ -637,6 +637,10 @@ def start_blind_baseline(
     freeze_id: str,
     runtime_root: Optional[Path] = None,
     approval_token: str,
+    run_kind: str = "baseline",
+    parent_baseline_id: str = "",
+    hypothesis: str = "",
+    evidence_mode: str = "fresh_retrieval",
 ) -> dict[str, Any]:
     """Start one private prediction run without opening any gold record."""
     if approval_token != START_BLIND_BASELINE_TOKEN:
@@ -646,6 +650,16 @@ def start_blind_baseline(
         )
     if not re.fullmatch(r"[0-9a-f-]{36}", freeze_id):
         raise ValueError("Gold freeze ID is invalid.")
+    if run_kind not in {"baseline", "refinement", "holdout"}:
+        raise ValueError("Blind run kind is invalid.")
+    if evidence_mode not in {
+        "fresh_retrieval",
+        "fresh_retrieval_comparison",
+        "preserved_evidence_replay",
+    }:
+        raise ValueError("Blind run evidence mode is invalid.")
+    if run_kind == "refinement" and not parent_baseline_id:
+        raise ValueError("Refinement runs require parent_baseline_id.")
     selected_runtime_root = (
         runtime_root or DEFAULT_CAMPAIGN_ROOT
     ).expanduser()
@@ -691,12 +705,20 @@ def start_blind_baseline(
         "manifest_id": manifest["manifest_id"],
         "freeze_id": freeze_id,
         "status": "awaiting_predictions",
+        "run_kind": run_kind,
+        "parent_baseline_id": parent_baseline_id,
+        "hypothesis": hypothesis,
+        "evidence_mode": evidence_mode,
         "started_at": _utc_now(),
         "document_ids": document_ids,
         "cases": cases,
         "captured_prediction_count": 0,
         "batch_size": len(document_ids),
-        "algorithm": manifest.get("algorithm") or {},
+        "algorithm": (
+            manifest.get("algorithm") or {}
+            if run_kind == "baseline"
+            else _repository_state()
+        ),
         "model_route": manifest.get("model_route") or {},
         "rubric_versions": manifest.get("rubric_versions") or {},
         "provenance_config_fingerprint": str(
