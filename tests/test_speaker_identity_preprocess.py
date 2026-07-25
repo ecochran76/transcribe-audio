@@ -382,6 +382,11 @@ def test_two_phase_prompts_keep_discovery_separate_from_identity_evaluation() ->
     )
 
     assert "Do not identify the speakers in this pass" in discovery_prompt
+    assert (
+        "speaker_clue and mixed_speaker_hint may cite only utterance_ids "
+        "nested under that same speaker_label"
+    ) in discovery_prompt
+    assert "Never invent sequential utterance_ids" in discovery_prompt
     assert "transcribe-audio.speaker-clue-discovery-readout.v1" in discovery_prompt
     assert json.dumps(discovery_packet, sort_keys=True, ensure_ascii=False) in discovery_prompt
 
