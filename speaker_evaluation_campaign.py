@@ -52,6 +52,9 @@ CAPTURE_BLIND_PREDICTION_TOKEN = (
 REVEAL_GOLD_COMPARISON_TOKEN = (
     "REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON"
 )
+RECORD_REFINEMENT_DECISION_TOKEN = (
+    "RECORD_SPEAKER_EVALUATION_REFINEMENT_DECISION"
+)
 GOLD_DISPOSITIONS = {
     "eligible_known",
     "eligible_unknown",
@@ -1298,6 +1301,120 @@ def reveal_blind_baseline_comparison(
         },
     )
     return {**comparison, "comparison_path": str(comparison_path)}
+
+
+def record_refinement_decision(
+    campaign_id: str,
+    *,
+    baseline_id: str,
+    decision: str,
+    target_failure_class: str,
+    rationale: str,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Record one immutable accept/reject decision for a completed refinement."""
+    if approval_token != RECORD_REFINEMENT_DECISION_TOKEN:
+        raise ValueError(
+            "Refinement decision requires approval token "
+            f"{RECORD_REFINEMENT_DECISION_TOKEN}."
+        )
+    if decision not in {"accepted", "rejected"}:
+        raise ValueError("Refinement decision must be accepted or rejected.")
+    if not target_failure_class.strip() or not rationale.strip():
+        raise ValueError(
+            "Refinement decision requires a target failure class and rationale."
+        )
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    baseline_path = _blind_baseline_path(
+        selected_runtime_root,
+        campaign_id,
+        baseline_id,
+    )
+    baseline = _read_json(baseline_path)
+    if (
+        baseline.get("run_kind") != "refinement"
+        or baseline.get("status") != "comparison_complete"
+    ):
+        raise ValueError(
+            "Refinement decision requires a completed refinement comparison."
+        )
+    parent_baseline_id = str(baseline.get("parent_baseline_id") or "")
+    parent_path = _blind_baseline_path(
+        selected_runtime_root,
+        campaign_id,
+        parent_baseline_id,
+    )
+    parent = _read_json(parent_path)
+    if parent.get("status") not in {
+        "comparison_complete",
+        "refinement_accepted",
+        "refinement_rejected",
+    }:
+        raise ValueError("Parent baseline comparison is not complete.")
+    comparison_path = Path(str(baseline.get("comparison_path") or ""))
+    parent_comparison_path = Path(str(parent.get("comparison_path") or ""))
+    comparison = _read_json(comparison_path)
+    parent_comparison = _read_json(parent_comparison_path)
+
+    def metric(payload: dict[str, Any], section: str, name: str) -> int:
+        metrics = payload.get("metrics")
+        selected = metrics.get(section) if isinstance(metrics, dict) else {}
+        value = selected.get(name) if isinstance(selected, dict) else 0
+        return int(value or 0)
+
+    selected_metrics = (
+        ("validation", "model_output_rejected"),
+        ("validation", "stage_clue_discovery_validation"),
+        ("validation", "stage_identity_evaluation_validation"),
+        ("calendar_association", "exact"),
+        ("calendar_association", "high_or_very_high_wrong"),
+        ("speaker_identity", "top_proposal_correct"),
+        ("speaker_identity", "correct_person_present"),
+        ("speaker_identity", "high_or_very_high_wrong"),
+    )
+    metric_deltas = {
+        f"{section}.{name}": (
+            metric(comparison, section, name)
+            - metric(parent_comparison, section, name)
+        )
+        for section, name in selected_metrics
+    }
+    decided_at = _utc_now()
+    record = {
+        "schema_version": (
+            "transcribe-audio.speaker-evaluation-refinement-decision.v1"
+        ),
+        "decision_id": f"refinement-decision-{uuid4()}",
+        "campaign_id": campaign_id,
+        "baseline_id": baseline_id,
+        "parent_baseline_id": parent_baseline_id,
+        "decision": decision,
+        "target_failure_class": target_failure_class.strip(),
+        "hypothesis": str(baseline.get("hypothesis") or ""),
+        "evidence_mode": str(baseline.get("evidence_mode") or ""),
+        "rationale": rationale.strip(),
+        "metric_deltas": metric_deltas,
+        "decided_at": decided_at,
+        "will_apply_assignments": False,
+        "will_perform_external_write": False,
+    }
+    decision_path = baseline_path.parent / "refinement-decision.json"
+    if decision_path.exists():
+        raise ValueError("Refinement decision already exists.")
+    _write_private_json(decision_path, record)
+    _write_private_json(
+        baseline_path,
+        {
+            **baseline,
+            "status": f"refinement_{decision}",
+            "refinement_decision_id": record["decision_id"],
+            "refinement_decision_path": str(decision_path),
+        },
+    )
+    return {**record, "decision_path": str(decision_path)}
 
 
 def preview_campaign(

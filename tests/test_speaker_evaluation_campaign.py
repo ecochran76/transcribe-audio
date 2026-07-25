@@ -14,6 +14,7 @@ from speaker_evaluation_campaign import (
     main,
     preview_campaign,
     record_gold_review,
+    record_refinement_decision,
     reveal_blind_baseline_comparison,
     review_case_packet,
     start_blind_baseline,
@@ -654,3 +655,49 @@ def test_blind_prediction_capture_completes_batch_without_revealing_gold(
         "predictions_completed_at"
     ]
     assert Path(comparison["comparison_path"]).exists()
+
+    refinement = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+        run_kind="refinement",
+        parent_baseline_id=baseline["baseline_id"],
+        hypothesis="clarify citation locality",
+        evidence_mode="fresh_retrieval_comparison",
+    )
+    capture_blind_prediction(
+        applied["campaign_id"],
+        baseline_id=refinement["baseline_id"],
+        document_id=result.id,
+        artifact_sha256=refinement["cases"][0]["artifact_sha256"],
+        prediction={
+            "evaluation_id": "evaluation-refinement",
+            "calendar_association": {
+                "status": "matched",
+                "confidence": {"numeric": 90, "band": "very_high"},
+            },
+            "people": [],
+            "proposals": [],
+        },
+        runtime_root=runtime_root,
+        approval_token="CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION",
+    )
+    reveal_blind_baseline_comparison(
+        applied["campaign_id"],
+        baseline_id=refinement["baseline_id"],
+        runtime_root=runtime_root,
+        approval_token="REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON",
+    )
+    decision = record_refinement_decision(
+        applied["campaign_id"],
+        baseline_id=refinement["baseline_id"],
+        decision="rejected",
+        target_failure_class="transcript_clue_discovery",
+        rationale="Target failures were unchanged and a regression appeared.",
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_REFINEMENT_DECISION",
+    )
+    assert decision["decision"] == "rejected"
+    assert decision["parent_baseline_id"] == baseline["baseline_id"]
+    assert Path(decision["decision_path"]).exists()
