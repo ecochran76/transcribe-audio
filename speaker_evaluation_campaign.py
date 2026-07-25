@@ -1083,6 +1083,22 @@ def reveal_blind_baseline_comparison(
             != str(baseline_case.get("artifact_sha256") or "")
         ):
             raise ValueError("Frozen gold does not match the blind case artifact.")
+        if gold.get("disposition") != "eligible_known":
+            cases.append(
+                {
+                    "document_id": document_id,
+                    "chronological_rank": baseline_case.get("chronological_rank"),
+                    "prediction_id": prediction_record.get("prediction_id"),
+                    "gold_id": gold_id,
+                    "gold_disposition": gold.get("disposition"),
+                    "prediction_captured_at": prediction_record.get("captured_at"),
+                    "gold_revealed_at": revealed_at,
+                    "evaluation_excluded": True,
+                    "exclusion_reason": "non_scorable_gold_disposition",
+                    "failure_classes": [],
+                }
+            )
+            continue
         calendar_prediction = (
             prediction.get("calendar_association")
             if isinstance(prediction.get("calendar_association"), dict)

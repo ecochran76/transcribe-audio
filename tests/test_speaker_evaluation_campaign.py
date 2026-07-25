@@ -605,7 +605,12 @@ def test_holdout_uses_reserved_documents_and_reveals_only_post_prediction_gold(
     gold = record_gold_review(
         applied["campaign_id"],
         holdout.id,
-        review,
+        {
+            **review,
+            "disposition": "duplicate_member",
+            "people": [],
+            "speaker_outcomes": [],
+        },
         store_root=store_root,
         runtime_root=runtime_root,
         approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
@@ -619,6 +624,8 @@ def test_holdout_uses_reserved_documents_and_reveals_only_post_prediction_gold(
 
     assert comparison["status"] == "comparison_complete"
     assert comparison["cases"][0]["gold_id"] == gold["gold_id"]
+    assert comparison["cases"][0]["evaluation_excluded"] is True
+    assert comparison["metrics"]["calendar_association"]["cases"] == 0
     assert comparison["cases"][0]["prediction_captured_at"] <= gold["reviewed_at"]
     assert captured["predictions_completed_at"] <= gold["reviewed_at"]
 
