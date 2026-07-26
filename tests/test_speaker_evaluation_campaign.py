@@ -629,6 +629,37 @@ def test_holdout_uses_reserved_documents_and_reveals_only_post_prediction_gold(
     assert comparison["cases"][0]["prediction_captured_at"] <= gold["reviewed_at"]
     assert captured["predictions_completed_at"] <= gold["reviewed_at"]
 
+    replay = start_blind_baseline(
+        applied["campaign_id"],
+        freeze_id=frozen["freeze_id"],
+        runtime_root=runtime_root,
+        approval_token="START_SPEAKER_EVALUATION_BLIND_BASELINE",
+        run_kind="holdout",
+        hypothesis="reference repair on reviewed holdout",
+        evidence_mode="fresh_retrieval_comparison",
+    )
+    capture_blind_prediction(
+        applied["campaign_id"],
+        baseline_id=replay["baseline_id"],
+        document_id=holdout.id,
+        artifact_sha256=replay["cases"][0]["artifact_sha256"],
+        prediction={"evaluation_id": "holdout-replay-evaluation"},
+        runtime_root=runtime_root,
+        approval_token="CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION",
+    )
+    replay_comparison = reveal_blind_baseline_comparison(
+        applied["campaign_id"],
+        baseline_id=replay["baseline_id"],
+        runtime_root=runtime_root,
+        approval_token="REVEAL_SPEAKER_EVALUATION_GOLD_COMPARISON",
+        allow_reviewed_holdout_replay=True,
+    )
+
+    assert replay_comparison["status"] == "comparison_complete"
+    assert replay_comparison["comparison_mode"] == "reviewed_holdout_replay"
+    assert replay_comparison["prior_holdout_baseline_id"] == baseline["baseline_id"]
+    assert replay_comparison["predictions_captured_before_gold_reveal"] is False
+
 
 def test_blind_prediction_capture_completes_batch_without_revealing_gold(
     tmp_path: Path,

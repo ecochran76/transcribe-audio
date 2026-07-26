@@ -970,6 +970,7 @@ def reveal_blind_baseline_comparison(
     baseline_id: str,
     runtime_root: Optional[Path] = None,
     approval_token: str,
+    allow_reviewed_holdout_replay: bool = False,
 ) -> dict[str, Any]:
     """Reveal frozen gold only after every blind prediction is immutable."""
     if approval_token != REVEAL_GOLD_COMPARISON_TOKEN:
@@ -995,6 +996,8 @@ def reveal_blind_baseline_comparison(
     campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
     freeze_id = str(baseline.get("freeze_id") or "")
     freeze = _read_json(campaign_dir / "freezes" / f"{freeze_id}.json")
+    comparison_mode = "blind_reveal"
+    prior_holdout_baseline_id = ""
     if baseline.get("run_kind") == "holdout":
         _index_path, gold_index = _gold_index(campaign_dir)
         latest_by_document = {
@@ -1004,11 +1007,49 @@ def reveal_blind_baseline_comparison(
         }
         completed_at = str(baseline.get("predictions_completed_at") or "")
         gold_id_by_document = {}
+        if allow_reviewed_holdout_replay:
+            if baseline.get("evidence_mode") not in {
+                "fresh_retrieval_comparison",
+                "preserved_evidence_replay",
+            }:
+                raise ValueError(
+                    "Reviewed holdout replay requires an explicit comparison evidence mode."
+                )
+            current_documents = {
+                str(value) for value in baseline.get("document_ids") or []
+            }
+            prior_candidates = []
+            for prior_path in sorted((campaign_dir / "baselines").glob("*/baseline.json")):
+                prior = _read_json(prior_path)
+                if (
+                    prior.get("baseline_id") != baseline_id
+                    and prior.get("run_kind") == "holdout"
+                    and prior.get("status") == "comparison_complete"
+                    and {
+                        str(value)
+                        for value in prior.get("document_ids") or []
+                    }
+                    == current_documents
+                    and (prior_path.parent / "comparison.json").is_file()
+                ):
+                    prior_candidates.append(prior)
+            if not prior_candidates:
+                raise ValueError(
+                    "Reviewed holdout replay requires a prior completed comparison "
+                    "for the exact holdout cohort."
+                )
+            prior_holdout_baseline_id = str(
+                prior_candidates[-1].get("baseline_id") or ""
+            )
+            comparison_mode = "reviewed_holdout_replay"
         for document_id in baseline.get("document_ids") or []:
             record = latest_by_document.get(str(document_id))
             if (
                 not record
-                or str(record.get("reviewed_at") or "") < completed_at
+                or (
+                    not allow_reviewed_holdout_replay
+                    and str(record.get("reviewed_at") or "") < completed_at
+                )
             ):
                 raise ValueError(
                     "Every holdout case must be reviewed after predictions completed."
@@ -1300,9 +1341,14 @@ def reveal_blind_baseline_comparison(
         "freeze_id": freeze_id,
         "status": "comparison_complete",
         "gold_revealed_at": revealed_at,
-        "predictions_captured_before_gold_reveal": all(
-            str(case.get("prediction_captured_at") or "") <= revealed_at
-            for case in cases
+        "comparison_mode": comparison_mode,
+        "prior_holdout_baseline_id": prior_holdout_baseline_id,
+        "predictions_captured_before_gold_reveal": (
+            comparison_mode == "blind_reveal"
+            and all(
+                str(case.get("prediction_captured_at") or "") <= revealed_at
+                for case in cases
+            )
         ),
         "metrics": {
             "calendar_association": dict(calendar_metrics),

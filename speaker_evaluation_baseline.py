@@ -331,19 +331,30 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Reveal frozen gold and write comparison after all predictions exist.",
     )
+    parser.add_argument(
+        "--reveal-reviewed-holdout-replay",
+        action="store_true",
+        help=(
+            "Compare a completed rerun of an already-reviewed holdout only when "
+            "an exact prior holdout comparison exists."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = parse_args(argv)
     try:
-        if args.reveal:
+        if args.reveal or args.reveal_reviewed_holdout_replay:
             result = speaker_evaluation_campaign.reveal_blind_baseline_comparison(
                 args.campaign_id,
                 baseline_id=args.baseline_id,
                 runtime_root=args.runtime_root,
                 approval_token=(
                     speaker_evaluation_campaign.REVEAL_GOLD_COMPARISON_TOKEN
+                ),
+                allow_reviewed_holdout_replay=(
+                    args.reveal_reviewed_holdout_replay
                 ),
             )
         else:
