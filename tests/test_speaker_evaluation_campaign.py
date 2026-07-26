@@ -890,7 +890,7 @@ def test_confidence_calibration_replay_writes_redacted_private_receipt(
             {
                 "baseline_id": baseline_id,
                 "campaign_id": campaign_id,
-                "status": "comparison_complete",
+                "status": "refinement_rejected",
                 "cases": [
                     {
                         "document_id": "doc-1",

@@ -1451,7 +1451,12 @@ def replay_speaker_confidence_calibration(
         baseline = _read_json(baseline_path)
         comparison = _read_json(comparison_path)
         if (
-            baseline.get("status") != "comparison_complete"
+            baseline.get("status")
+            not in {
+                "comparison_complete",
+                "refinement_accepted",
+                "refinement_rejected",
+            }
             or comparison.get("status") != "comparison_complete"
             or comparison.get("baseline_id") != baseline_id
         ):
