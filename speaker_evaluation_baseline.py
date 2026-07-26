@@ -67,7 +67,7 @@ class LocalSpeakerCaseRunner:
             raise ValueError(f"Local transcript API returned a non-object for {path}.")
         return result
 
-    def _execute_prepared(self, prepared: dict[str, Any]) -> None:
+    def _execute_prepared(self, prepared: dict[str, Any]) -> dict[str, Any]:
         run_id = str(prepared.get("run_id") or "")
         prompt_packet = (
             prepared.get("prompt_packet")
@@ -108,6 +108,34 @@ class LocalSpeakerCaseRunner:
         )
         if not status.get("completed"):
             raise ValueError(f"App Intelligence turn did not complete for {run_id}.")
+        return status
+
+    @staticmethod
+    def _captured_json(status: dict[str, Any]) -> dict[str, Any]:
+        return app_intelligence_ledger.extract_json_object(
+            str(status.get("output_text") or "")
+        )
+
+    def _execute_reference_repair(
+        self,
+        document_id: str,
+        *,
+        phase: str,
+        original: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        repair = self._post(
+            (
+                f"/api/conversations/{document_id}/speaker-preprocessing/"
+                "prepare-reference-repair"
+            ),
+            {
+                "phase": phase,
+                "original_run_id": original["run_id"],
+                "route": original.get("route") or {},
+            },
+        )
+        status = self._execute_prepared(repair)
+        return repair, self._captured_json(status)
 
     def __call__(self, document_id: str) -> dict[str, Any]:
         discovery = self._post(
@@ -115,20 +143,43 @@ class LocalSpeakerCaseRunner:
             {},
         )
         self._execute_prepared(discovery)
+        clue_run_references = {
+            "clue_discovery_run_id": discovery["run_id"],
+        }
         try:
             evaluation = self._post(
                 f"/api/conversations/{document_id}/speaker-preprocessing/prepare-evaluation",
                 {"clue_discovery_run_id": discovery["run_id"]},
             )
-        except ValueError as exc:
-            raise CasePredictionFailure(
-                "clue_discovery_validation",
-                str(exc),
-                run_references={"clue_discovery_run_id": discovery["run_id"]},
-            ) from exc
+        except ValueError as original_exc:
+            try:
+                repair, corrected_readout = self._execute_reference_repair(
+                    document_id,
+                    phase="clue_discovery",
+                    original=discovery,
+                )
+                clue_run_references["clue_discovery_repair_run_id"] = repair[
+                    "run_id"
+                ]
+                evaluation = self._post(
+                    (
+                        f"/api/conversations/{document_id}/speaker-preprocessing/"
+                        "prepare-evaluation"
+                    ),
+                    {
+                        "clue_discovery_run_id": discovery["run_id"],
+                        "discovery_readout": corrected_readout,
+                    },
+                )
+            except ValueError as repair_exc:
+                raise CasePredictionFailure(
+                    "clue_discovery_validation",
+                    str(repair_exc),
+                    run_references=clue_run_references,
+                ) from original_exc
         self._execute_prepared(evaluation)
         run_references = {
-            "clue_discovery_run_id": discovery["run_id"],
+            **clue_run_references,
             "identity_evaluation_run_id": evaluation["run_id"],
         }
         try:
@@ -136,12 +187,29 @@ class LocalSpeakerCaseRunner:
                 f"/api/conversations/{document_id}/speaker-preprocessing/capture-evaluation",
                 run_references,
             )
-        except ValueError as exc:
-            raise CasePredictionFailure(
-                "identity_evaluation_validation",
-                str(exc),
-                run_references=run_references,
-            ) from exc
+        except ValueError as original_exc:
+            try:
+                repair, corrected_readout = self._execute_reference_repair(
+                    document_id,
+                    phase="identity_evaluation",
+                    original=evaluation,
+                )
+                run_references["identity_evaluation_repair_run_id"] = repair[
+                    "run_id"
+                ]
+                persisted = self._post(
+                    (
+                        f"/api/conversations/{document_id}/speaker-preprocessing/"
+                        "capture-evaluation"
+                    ),
+                    {**run_references, "readout": corrected_readout},
+                )
+            except ValueError as repair_exc:
+                raise CasePredictionFailure(
+                    "identity_evaluation_validation",
+                    str(repair_exc),
+                    run_references=run_references,
+                ) from original_exc
         record = (
             persisted.get("record")
             if isinstance(persisted.get("record"), dict)

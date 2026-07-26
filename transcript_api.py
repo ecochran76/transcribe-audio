@@ -1949,6 +1949,74 @@ def prepare_selected_speaker_identity_evaluation(
     }
 
 
+def prepare_selected_speaker_reference_repair(
+    document_id: str,
+    *,
+    state_root: Path,
+    phase: str,
+    original_run_id: str,
+    route: Optional[dict[str, Any]] = None,
+    store_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Prepare one reference-only correction from an immutable rejected run."""
+    if phase not in {"clue_discovery", "identity_evaluation"}:
+        raise ValueError(f"Unsupported speaker reference-repair phase: {phase}.")
+    detail, transcript, _transcript_path = _selected_transcript_artifact(
+        document_id,
+        root=store_root,
+        state_root=state_root,
+        ensure_identity=True,
+    )
+    source_document_id = str(
+        (detail.get("transcript_document") or detail.get("selected_document") or {}).get(
+            "id"
+        )
+        or document_id
+    )
+    run = get_app_intelligence_run(
+        state_root=state_root,
+        run_id=original_run_id,
+        event_limit=0,
+    )["run"]
+    if str(run.get("document_id") or "") != source_document_id:
+        raise ValueError("Reference-repair run belongs to a different conversation.")
+    packet_path = (
+        app_intelligence_ledger.run_dir(state_root, original_run_id)
+        / "artifacts"
+        / "speaker-preprocessing"
+        / f"{phase}.input.json"
+    )
+    if not packet_path.exists():
+        raise ValueError(
+            f"Original {phase.replace('_', ' ')} run lacks its prepared input packet."
+        )
+    original_packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    rejected_readout = speaker_preprocessing_workflow.captured_run_json(
+        state_root=state_root,
+        run_id=original_run_id,
+    )
+    prepared = speaker_preprocessing_workflow.prepare_reference_repair(
+        phase=phase,
+        document_id=source_document_id,
+        document_title=str(
+            transcript.get("transcript_title")
+            or (original_packet.get("conversation") or {}).get("title")
+            or document_id
+        ),
+        state_root=state_root,
+        original_run_id=original_run_id,
+        original_packet=original_packet,
+        rejected_readout=rejected_readout,
+        route=route,
+    )
+    return {
+        **prepared,
+        "transcript_artifact": detail["transcript_artifact"],
+        "will_execute_external_action": False,
+        "will_perform_external_write": False,
+    }
+
+
 def selected_speaker_preprocessing_state(
     document_id: str,
     *,
@@ -1996,6 +2064,8 @@ def persist_selected_speaker_identity_evaluation(
     identity_evaluation_run_id: str,
     readout: Optional[dict[str, Any]] = None,
     clue_discovery_run_id: str = "",
+    clue_discovery_repair_run_id: str = "",
+    identity_evaluation_repair_run_id: str = "",
     store_root: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Persist validated output against the host-owned phase-two input artifact."""
@@ -2036,7 +2106,11 @@ def persist_selected_speaker_identity_evaluation(
         readout=readout,
         run_references={
             "clue_discovery_run_id": clue_discovery_run_id,
+            "clue_discovery_repair_run_id": clue_discovery_repair_run_id,
             "identity_evaluation_run_id": identity_evaluation_run_id,
+            "identity_evaluation_repair_run_id": (
+                identity_evaluation_repair_run_id
+            ),
         },
     )
     return {
@@ -5776,6 +5850,23 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         status=HTTPStatus.CREATED,
                     )
                     return
+                if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "prepare-reference-repair":
+                    body = self.read_json_body()
+                    route = body.get("route")
+                    self.write_json(
+                        prepare_selected_speaker_reference_repair(
+                            parts[2],
+                            state_root=self.state_root,
+                            store_root=self.store_root,
+                            phase=str(body.get("phase") or ""),
+                            original_run_id=str(
+                                body.get("original_run_id") or ""
+                            ),
+                            route=route if isinstance(route, dict) else None,
+                        ),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
                 if len(parts) == 5 and parts[3] == "speaker-preprocessing" and parts[4] == "capture-evaluation":
                     body = self.read_json_body()
                     readout = body.get("readout")
@@ -5789,6 +5880,12 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             ),
                             clue_discovery_run_id=str(
                                 body.get("clue_discovery_run_id") or ""
+                            ),
+                            clue_discovery_repair_run_id=str(
+                                body.get("clue_discovery_repair_run_id") or ""
+                            ),
+                            identity_evaluation_repair_run_id=str(
+                                body.get("identity_evaluation_repair_run_id") or ""
                             ),
                             readout=readout if isinstance(readout, dict) else None,
                         ),

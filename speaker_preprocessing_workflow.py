@@ -20,7 +20,12 @@ from speaker_identity_preprocess import (
     build_clue_discovery_prompt,
     build_identity_evaluation_packet,
     build_identity_evaluation_prompt,
+    validate_clue_discovery_readout,
     validate_and_score_identity_evaluation,
+)
+
+REFERENCE_REPAIR_PACKET_SCHEMA_VERSION = (
+    "transcribe-audio.speaker-reference-repair-packet.v1"
 )
 
 
@@ -184,6 +189,361 @@ def prepare_identity_evaluation(
         input_packet=packet,
     )
     return {**result, "packet": packet}
+
+
+def _normalized_ids(values: Any) -> set[str]:
+    if not isinstance(values, list):
+        return set()
+    return {
+        str(value).strip()
+        for value in values
+        if value is not None and str(value).strip()
+    }
+
+
+def _clue_discovery_reference_issues(
+    packet: dict[str, Any],
+    readout: dict[str, Any],
+) -> list[dict[str, Any]]:
+    prepared_by_speaker = {
+        str(item.get("speaker_label") or "").strip(): sorted(
+            _normalized_ids(
+                [
+                    clue.get("utterance_id")
+                    for clue in item.get("utterance_clues", [])
+                    if isinstance(clue, dict)
+                ]
+            )
+        )
+        for item in packet.get("speakers", [])
+        if isinstance(item, dict)
+    }
+    all_prepared = sorted(
+        {
+            clue_id
+            for clue_ids in prepared_by_speaker.values()
+            for clue_id in clue_ids
+        }
+    )
+    issues: list[dict[str, Any]] = []
+    speaker_clues = readout.get("speaker_clues")
+    for index, result in enumerate(
+        speaker_clues if isinstance(speaker_clues, list) else []
+    ):
+        if not isinstance(result, dict):
+            continue
+        label = str(result.get("speaker_label") or "").strip()
+        allowed = prepared_by_speaker.get(label, [])
+        invalid = sorted(_normalized_ids(result.get("transcript_clue_ids")) - set(allowed))
+        if invalid:
+            issues.append(
+                {
+                    "path": f"speaker_clues[{index}].transcript_clue_ids",
+                    "invalid_ids": invalid,
+                    "allowed_ids": allowed,
+                }
+            )
+    conversation_clues = readout.get("conversation_clues")
+    for index, result in enumerate(
+        conversation_clues if isinstance(conversation_clues, list) else []
+    ):
+        if not isinstance(result, dict):
+            continue
+        invalid = sorted(
+            _normalized_ids(result.get("transcript_clue_ids")) - set(all_prepared)
+        )
+        if invalid:
+            issues.append(
+                {
+                    "path": f"conversation_clues[{index}].transcript_clue_ids",
+                    "invalid_ids": invalid,
+                    "allowed_ids": all_prepared,
+                }
+            )
+    for collection_name in ("speaker_group_hints", "mixed_speaker_hints"):
+        collection = readout.get(collection_name)
+        for index, result in enumerate(
+            collection if isinstance(collection, list) else []
+        ):
+            if not isinstance(result, dict):
+                continue
+            label = str(result.get("speaker_label") or "").strip()
+            allowed = (
+                prepared_by_speaker.get(label, [])
+                if collection_name == "mixed_speaker_hints"
+                else all_prepared
+            )
+            invalid = sorted(
+                _normalized_ids(result.get("transcript_clue_ids")) - set(allowed)
+            )
+            if invalid:
+                issues.append(
+                    {
+                        "path": (
+                            f"{collection_name}[{index}].transcript_clue_ids"
+                        ),
+                        "invalid_ids": invalid,
+                        "allowed_ids": allowed,
+                    }
+                )
+    return issues
+
+
+def _identity_reference_allowlists(packet: dict[str, Any]) -> dict[str, list[str]]:
+    utterance_ids = sorted(
+        {
+            str(clue.get("utterance_id") or "").strip()
+            for speaker in packet.get("speakers", [])
+            if isinstance(speaker, dict)
+            for clue in speaker.get("utterance_clues", [])
+            if isinstance(clue, dict) and str(clue.get("utterance_id") or "").strip()
+        }
+    )
+    provenance_source_ids = {
+        str(source.get("source_id") or "").strip()
+        for source in packet.get("provenance_sources", [])
+        if isinstance(source, dict) and str(source.get("source_id") or "").strip()
+    }
+    provenance_source_ids.update(
+        str(context.get("source_id") or "").strip()
+        for context in packet.get("source_contexts", [])
+        if isinstance(context, dict) and str(context.get("source_id") or "").strip()
+    )
+    person_ids: set[str] = set()
+    evidence_ids = set(utterance_ids)
+    conversation = (
+        packet.get("conversation")
+        if isinstance(packet.get("conversation"), dict)
+        else {}
+    )
+    evidence_ids.update(
+        _normalized_ids(conversation.get("recording_ids"))
+    )
+    conversation_id = str(conversation.get("conversation_id") or "").strip()
+    if conversation_id:
+        evidence_ids.add(conversation_id)
+    calendar = (
+        packet.get("calendar_context")
+        if isinstance(packet.get("calendar_context"), dict)
+        else {}
+    )
+    event_id = str(calendar.get("event_id") or "").strip()
+    if event_id:
+        evidence_ids.add(event_id)
+    evidence_ids.update(
+        str(attendee.get("id") or "").strip()
+        for attendee in calendar.get("attendees", [])
+        if isinstance(attendee, dict) and str(attendee.get("id") or "").strip()
+    )
+    evidence_ids.update(provenance_source_ids)
+    for person in packet.get("people", []):
+        if not isinstance(person, dict):
+            continue
+        person_id = str(person.get("person_id") or "").strip()
+        if person_id:
+            person_ids.add(person_id)
+            evidence_ids.add(person_id)
+        evidence_ids.update(_normalized_ids(person.get("emails")))
+        for record in person.get("source_records", []):
+            if not isinstance(record, dict):
+                continue
+            record_id = str(record.get("record_id") or "").strip()
+            source_id = str(record.get("source_id") or "").strip()
+            if record_id:
+                evidence_ids.add(record_id)
+            if source_id:
+                provenance_source_ids.add(source_id)
+    evidence_ids.update(provenance_source_ids)
+    return {
+        "evidence_ids": sorted(evidence_ids),
+        "utterance_ids": utterance_ids,
+        "provenance_source_ids": sorted(provenance_source_ids),
+        "person_ids": sorted(person_ids),
+    }
+
+
+def _append_invalid_reference_issue(
+    issues: list[dict[str, Any]],
+    *,
+    path: str,
+    values: Any,
+    allowed_ids: list[str],
+    scalar: bool = False,
+) -> None:
+    if scalar:
+        normalized = str(values or "").strip()
+        invalid = [] if normalized in set(allowed_ids) else [normalized or "<empty>"]
+    else:
+        invalid = sorted(_normalized_ids(values) - set(allowed_ids))
+    if invalid:
+        issues.append(
+            {
+                "path": path,
+                "invalid_ids": invalid,
+                "allowed_ids": allowed_ids,
+            }
+        )
+
+
+def _identity_evaluation_reference_issues(
+    packet: dict[str, Any],
+    readout: dict[str, Any],
+) -> list[dict[str, Any]]:
+    allowed = _identity_reference_allowlists(packet)
+    issues: list[dict[str, Any]] = []
+
+    calendar = readout.get("calendar_association")
+    if isinstance(calendar, dict):
+        factors = calendar.get("factors")
+        for factor_index, factor in enumerate(
+            factors if isinstance(factors, list) else []
+        ):
+            if isinstance(factor, dict):
+                _append_invalid_reference_issue(
+                    issues,
+                    path=(
+                        "calendar_association.factors"
+                        f"[{factor_index}].evidence_ids"
+                    ),
+                    values=factor.get("evidence_ids"),
+                    allowed_ids=allowed["evidence_ids"],
+                )
+    person_links = readout.get("person_links")
+    for link_index, link in enumerate(
+        person_links if isinstance(person_links, list) else []
+    ):
+        if not isinstance(link, dict):
+            continue
+        factors = link.get("factors")
+        for factor_index, factor in enumerate(
+            factors if isinstance(factors, list) else []
+        ):
+            if isinstance(factor, dict):
+                _append_invalid_reference_issue(
+                    issues,
+                    path=(
+                        f"person_links[{link_index}].factors"
+                        f"[{factor_index}].evidence_ids"
+                    ),
+                    values=factor.get("evidence_ids"),
+                    allowed_ids=allowed["evidence_ids"],
+                )
+    assignments = readout.get("speaker_assignments")
+    for assignment_index, assignment in enumerate(
+        assignments if isinstance(assignments, list) else []
+    ):
+        if not isinstance(assignment, dict):
+            continue
+        base_path = f"speaker_assignments[{assignment_index}]"
+        _append_invalid_reference_issue(
+            issues,
+            path=f"{base_path}.transcript_clue_ids",
+            values=assignment.get("transcript_clue_ids"),
+            allowed_ids=allowed["utterance_ids"],
+        )
+        _append_invalid_reference_issue(
+            issues,
+            path=f"{base_path}.provenance_source_ids",
+            values=assignment.get("provenance_source_ids"),
+            allowed_ids=allowed["provenance_source_ids"],
+        )
+        factors = assignment.get("factors")
+        for factor_index, factor in enumerate(
+            factors if isinstance(factors, list) else []
+        ):
+            if isinstance(factor, dict):
+                _append_invalid_reference_issue(
+                    issues,
+                    path=f"{base_path}.factors[{factor_index}].evidence_ids",
+                    values=factor.get("evidence_ids"),
+                    allowed_ids=allowed["evidence_ids"],
+                )
+        utterances = assignment.get("utterance_assignments")
+        for utterance_index, utterance in enumerate(
+            utterances if isinstance(utterances, list) else []
+        ):
+            if isinstance(utterance, dict):
+                _append_invalid_reference_issue(
+                    issues,
+                    path=(
+                        f"{base_path}.utterance_assignments"
+                        f"[{utterance_index}].utterance_id"
+                    ),
+                    values=utterance.get("utterance_id"),
+                    allowed_ids=allowed["utterance_ids"],
+                    scalar=True,
+                )
+    return issues
+
+
+def prepare_reference_repair(
+    *,
+    phase: str,
+    document_id: str,
+    document_title: str,
+    state_root: Path,
+    original_run_id: str,
+    original_packet: dict[str, Any],
+    rejected_readout: dict[str, Any],
+    route: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Prepare one unsent corrective turn for invalid prepared-reference IDs."""
+    if phase not in {"clue_discovery", "identity_evaluation"}:
+        raise ValueError(f"Unsupported speaker reference-repair phase: {phase}.")
+    try:
+        if phase == "clue_discovery":
+            validate_clue_discovery_readout(original_packet, rejected_readout)
+        else:
+            validate_and_score_identity_evaluation(
+                original_packet,
+                rejected_readout,
+            )
+    except ValueError:
+        issues = (
+            _clue_discovery_reference_issues(original_packet, rejected_readout)
+            if phase == "clue_discovery"
+            else _identity_evaluation_reference_issues(
+                original_packet,
+                rejected_readout,
+            )
+        )
+        if not issues:
+            raise
+    else:
+        raise ValueError("Valid model output does not require reference repair.")
+    repair_packet = {
+        "schema_version": REFERENCE_REPAIR_PACKET_SCHEMA_VERSION,
+        "task": f"speaker_{phase}_reference_repair",
+        "phase": phase,
+        "original_run_id": original_run_id,
+        "invalid_reference_fields": issues,
+        "rejected_readout": rejected_readout,
+        "policy": {
+            "reference_only_repair": True,
+            "perform_no_retrieval": True,
+            "use_only_allowed_ids": True,
+            "return_complete_corrected_readout": True,
+        },
+    }
+    prompt_text = (
+        "Correct only the invalid prepared-reference fields in the rejected JSON. "
+        "Use only the exact allowed_ids listed for each invalid field. Do not add "
+        "new evidence, retrieve information, change substantive conclusions, or "
+        "refer to any transcript or provenance content not already represented in "
+        "the rejected JSON. Return the complete corrected JSON object only.\n\n"
+        f"Reference repair packet:\n"
+        f"{json.dumps(repair_packet, sort_keys=True, ensure_ascii=False)}"
+    )
+    result = _prepare_run(
+        phase=f"{phase}_reference_repair",
+        document_id=document_id,
+        document_title=document_title,
+        state_root=state_root,
+        route=_route(route),
+        prompt_text=prompt_text,
+        input_packet=repair_packet,
+    )
+    return {**result, "repair_packet": repair_packet}
 
 
 def persist_identity_evaluation(

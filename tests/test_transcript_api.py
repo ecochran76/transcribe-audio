@@ -1093,6 +1093,72 @@ def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
     assert decision["record"]["review_decisions"][0]["action"] == "defer"
 
 
+def test_selected_speaker_reference_repair_uses_original_ledger_packet(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    monkeypatch.setattr(
+        transcript_api.provenance_config,
+        "speaker_preprocessing_source_configs_from_provenance",
+        lambda **kwargs: {
+            "gws": [],
+            "odollo": [],
+            "source_contexts": [],
+            "warnings": [],
+        },
+    )
+    discovery = transcript_api.prepare_selected_speaker_clue_discovery(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+    )
+    rejected_readout = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [
+            {
+                "speaker_label": "Speaker A",
+                "transcript_clue_ids": ["utterance-99"],
+                "observations": [],
+                "person_hints": [],
+                "retrieval_terms": [],
+            }
+        ],
+        "conversation_clues": [],
+        "warnings": [],
+    }
+    monkeypatch.setattr(
+        transcript_api.speaker_preprocessing_workflow,
+        "captured_run_json",
+        lambda **kwargs: rejected_readout,
+    )
+    original_packet_path = Path(discovery["input_packet_path"])
+    original_packet_bytes = original_packet_path.read_bytes()
+
+    repair = transcript_api.prepare_selected_speaker_reference_repair(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        phase="clue_discovery",
+        original_run_id=discovery["run_id"],
+        route=discovery["route"],
+    )
+
+    assert repair["phase"] == "clue_discovery_reference_repair"
+    assert repair["repair_packet"]["original_run_id"] == discovery["run_id"]
+    assert repair["repair_packet"]["rejected_readout"] == rejected_readout
+    assert original_packet_path.read_bytes() == original_packet_bytes
+    assert Path(repair["input_packet_path"]) != original_packet_path
+    assert repair["will_perform_external_write"] is False
+
+
 def test_selected_speaker_preprocessing_prepares_verified_stored_fallback_and_syncs_ids(
     tmp_path: Path,
     monkeypatch,

@@ -1,6 +1,6 @@
 # Plan 0027 | Speaker Output Reference Repair
 
-State: PLANNED
+State: OPEN
 
 Lane: P09
 
@@ -43,6 +43,19 @@ An earlier one-shot prompt clarification did not reduce Clue Discovery
 validation failures and increased High/Very High wrong identity proposals; it
 was explicitly rejected and reverted. This successor therefore tests a
 host-mediated corrective turn rather than another broad prompt rewrite.
+
+The bounded repair implementation is now complete in the working tree. Each
+phase first enters the unchanged validator. A reference-only failure may
+prepare one separate App Intelligence run whose packet preserves the rejected
+JSON, identifies each invalid reference field, and lists the exact prepared
+IDs allowed for that field. The campaign runner retries the failed phase once
+with the corrected JSON and records both original and repair run IDs. A second
+invalid result remains an explicit model-output rejection.
+
+Synthetic workflow, API, ledger, and runner coverage passes for invented
+transcript-clue IDs, provenance-source IDs, utterance IDs, repeated invalid
+repair output, valid first-pass bypass, and immutable original input
+artifacts. Live immutable regression and holdout comparisons remain pending.
 
 ## Acceptance Criteria
 

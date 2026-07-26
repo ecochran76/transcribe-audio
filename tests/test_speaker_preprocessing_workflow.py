@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import speaker_preprocessing_workflow
 
 
@@ -91,6 +93,247 @@ def test_prepare_identity_evaluation_requires_validated_discovery_first(tmp_path
     assert prepared["will_send_prompt"] is False
     assert prepared["packet"]["task"] == "speaker_identity_evaluation"
     assert prepared["packet"]["discovery_readout"] == discovery
+
+
+def test_prepare_reference_repair_names_invalid_clue_ids_and_exact_allowlist(
+    tmp_path: Path,
+) -> None:
+    transcript_path = _transcript(tmp_path / "meeting Transcript.transcript.json")
+    discovery = speaker_preprocessing_workflow.prepare_clue_discovery(
+        transcript_path,
+        document_id="doc-1",
+        state_root=tmp_path / "state",
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+    )
+    rejected_readout = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [
+            {
+                "speaker_label": "Speaker A",
+                "transcript_clue_ids": ["utterance-99"],
+                "observations": ["The speaker names an email."],
+                "person_hints": [],
+                "retrieval_terms": ["alice@example.com"],
+            }
+        ],
+        "conversation_clues": [],
+        "warnings": [],
+    }
+
+    repair = speaker_preprocessing_workflow.prepare_reference_repair(
+        phase="clue_discovery",
+        document_id="doc-1",
+        document_title="Proposal review",
+        state_root=tmp_path / "state",
+        original_run_id=discovery["run_id"],
+        original_packet=discovery["packet"],
+        rejected_readout=rejected_readout,
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+    )
+
+    assert repair["phase"] == "clue_discovery_reference_repair"
+    assert repair["repair_packet"]["invalid_reference_fields"] == [
+        {
+            "path": "speaker_clues[0].transcript_clue_ids",
+            "invalid_ids": ["utterance-99"],
+            "allowed_ids": ["utterance-1"],
+        }
+    ]
+    assert repair["repair_packet"]["rejected_readout"] == rejected_readout
+    assert repair["repair_packet"]["original_run_id"] == discovery["run_id"]
+    assert Path(repair["input_packet_path"]).exists()
+    assert repair["will_send_prompt"] is False
+
+
+def test_prepare_reference_repair_names_invalid_provenance_source_ids(
+    tmp_path: Path,
+) -> None:
+    transcript_path = _transcript(tmp_path / "meeting Transcript.transcript.json")
+    packet = speaker_preprocessing_workflow.build_identity_evaluation_packet(
+        transcript=json.loads(transcript_path.read_text(encoding="utf-8")),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+        person_records=[],
+        provenance_sources=[
+            {
+                "source_id": "mail-allowed",
+                "source_type": "gws_mail_message",
+                "label": "Allowed message",
+                "snippet": "Prepared evidence.",
+            }
+        ],
+    )
+    rejected_readout = {
+        "schema_version": "transcribe-audio.speaker-identity-evaluation-readout.v1",
+        "evaluation_id": packet["evaluation_id"],
+        "calendar_association": {
+            "status": "ambiguous",
+            "factors": [
+                {
+                    "factor": "event_title_topic_alignment",
+                    "direction": "support",
+                    "strength": "weak",
+                    "evidence_ids": ["utterance-1"],
+                }
+            ],
+        },
+        "person_links": [],
+        "speaker_assignments": [
+            {
+                "speaker_labels": ["Speaker A"],
+                "status": "unresolved",
+                "person_id": "",
+                "transcript_clue_ids": ["utterance-1"],
+                "provenance_source_ids": ["mail-invented"],
+                "factors": [
+                    {
+                        "factor": "topic_role_alignment",
+                        "direction": "support",
+                        "strength": "weak",
+                        "evidence_ids": ["utterance-1"],
+                    }
+                ],
+                "utterance_assignments": [],
+                "review_flags": [],
+            }
+        ],
+        "warnings": [],
+    }
+
+    repair = speaker_preprocessing_workflow.prepare_reference_repair(
+        phase="identity_evaluation",
+        document_id="doc-1",
+        document_title="Proposal review",
+        state_root=tmp_path / "state",
+        original_run_id="identity-run-1",
+        original_packet=packet,
+        rejected_readout=rejected_readout,
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+    )
+
+    assert repair["repair_packet"]["invalid_reference_fields"] == [
+        {
+            "path": "speaker_assignments[0].provenance_source_ids",
+            "invalid_ids": ["mail-invented"],
+            "allowed_ids": ["mail-allowed"],
+        }
+    ]
+
+
+def test_prepare_reference_repair_names_invalid_utterance_evidence_id(
+    tmp_path: Path,
+) -> None:
+    transcript_path = _transcript(tmp_path / "meeting Transcript.transcript.json")
+    packet = speaker_preprocessing_workflow.build_identity_evaluation_packet(
+        transcript=json.loads(transcript_path.read_text(encoding="utf-8")),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+    rejected_readout = {
+        "schema_version": "transcribe-audio.speaker-identity-evaluation-readout.v1",
+        "evaluation_id": packet["evaluation_id"],
+        "calendar_association": {
+            "status": "ambiguous",
+            "factors": [
+                {
+                    "factor": "event_title_topic_alignment",
+                    "direction": "support",
+                    "strength": "weak",
+                    "evidence_ids": ["utterance-1"],
+                }
+            ],
+        },
+        "person_links": [],
+        "speaker_assignments": [
+            {
+                "speaker_labels": ["Speaker A"],
+                "status": "unresolved",
+                "person_id": "",
+                "transcript_clue_ids": ["utterance-1"],
+                "provenance_source_ids": [],
+                "factors": [
+                    {
+                        "factor": "topic_role_alignment",
+                        "direction": "support",
+                        "strength": "weak",
+                        "evidence_ids": ["utterance-1"],
+                    }
+                ],
+                "utterance_assignments": [
+                    {"utterance_id": "utterance-99", "person_id": ""}
+                ],
+                "review_flags": [],
+            }
+        ],
+        "warnings": [],
+    }
+
+    repair = speaker_preprocessing_workflow.prepare_reference_repair(
+        phase="identity_evaluation",
+        document_id="doc-1",
+        document_title="Proposal review",
+        state_root=tmp_path / "state",
+        original_run_id="identity-run-1",
+        original_packet=packet,
+        rejected_readout=rejected_readout,
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+    )
+
+    assert repair["repair_packet"]["invalid_reference_fields"] == [
+        {
+            "path": (
+                "speaker_assignments[0].utterance_assignments[0].utterance_id"
+            ),
+            "invalid_ids": ["utterance-99"],
+            "allowed_ids": ["utterance-1"],
+        }
+    ]
+
+
+def test_prepare_reference_repair_rejects_valid_first_pass_output(
+    tmp_path: Path,
+) -> None:
+    transcript_path = _transcript(tmp_path / "meeting Transcript.transcript.json")
+    discovery = speaker_preprocessing_workflow.prepare_clue_discovery(
+        transcript_path,
+        document_id="doc-1",
+        state_root=tmp_path / "state",
+        route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+    )
+    valid_readout = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [
+            {
+                "speaker_label": "Speaker A",
+                "transcript_clue_ids": ["utterance-1"],
+                "observations": [],
+                "person_hints": [],
+                "retrieval_terms": [],
+            }
+        ],
+        "conversation_clues": [],
+        "warnings": [],
+    }
+
+    with pytest.raises(ValueError, match="does not require reference repair"):
+        speaker_preprocessing_workflow.prepare_reference_repair(
+            phase="clue_discovery",
+            document_id="doc-1",
+            document_title="Proposal review",
+            state_root=tmp_path / "state",
+            original_run_id=discovery["run_id"],
+            original_packet=discovery["packet"],
+            rejected_readout=valid_readout,
+            route={"provider": "codex-app-server", "model": "gpt-5.6-sol"},
+        )
 
 
 def test_persist_identity_evaluation_keeps_factors_scores_and_review_gate(

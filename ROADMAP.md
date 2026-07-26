@@ -224,13 +224,15 @@ Milestone Focus:
   refinement, and once-scored chronological holdout. The holdout passed host
   validation for only 2/10 predictions and retained three High/Very High wrong
   speaker proposals, so C7 is paused at chronological rank 24 rather than
-  spending another review batch. Planned Plan 0027 is the bounded repair gate
+  spending another review batch. Open Plan 0027 is the bounded repair gate
   for invalid model evidence references; Plan 0026 resumes only after that
   hypothesis is accepted or rejected.
-- Planned Plan 0027 preserves rejected App Intelligence output and permits at
+- Open Plan 0027 preserves rejected App Intelligence output and permits at
   most one host-mediated corrective turn containing the invalid fields and
   exact prepared-reference allowlists. It does not weaken validation, remap
-  invented IDs, retrieve new evidence, or broaden identity reasoning.
+  invented IDs, retrieve new evidence, or broaden identity reasoning. Its
+  implementation and synthetic validation are complete; immutable accumulated
+  regression and frozen-holdout comparisons are the remaining gate.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
