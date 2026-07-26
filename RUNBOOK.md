@@ -2,6 +2,48 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 226 | 2026-07-25
+
+Summary: Rejected Plan 0027 as a complete identity-quality repair, then
+implemented and accepted Plan 0028's host-owned confidence calibration.
+
+Implemented:
+
+- Ran Plan 0027's bounded invalid-reference correction over the original
+  regression cohort and the frozen reviewed holdout without weakening the
+  prepared-evidence validators.
+- Preserved the factor-derived evidence score as uncapped metadata and added a
+  deterministic Medium cap for unlisted, unresolved, conflicting, mixed, or
+  materially unverified speaker identities.
+- Added reason-coded calibration metadata, retained the Very High plus
+  no-review-flags safe-bulk gate, and added an immutable private replay receipt
+  that does not mutate sealed predictions.
+
+Outcome:
+
+- Reference repair improved validation from 2/10 to 7/10 on regression and
+  from 2/10 to 8/10 on reviewed holdout replay, but was rejected because
+  High/Very High wrong identity proposals rose to 8 and 4 respectively.
+- Calibration replay covered 53 reviewed person-label outcomes. Top-person
+  correctness remained 17/53; High/Very High wrong proposals fell from 12 to
+  0, while High/Very High correct proposals fell from 15 to 10 because five
+  correct but materially uncertain proposals were capped at Medium.
+- Source predictions, validation totals, and proposal ordering were unchanged.
+  Automatic confirmation remains disabled until a future unseen chronological
+  holdout validates the calibrated Very High band.
+
+Validation:
+
+- Focused identity, workflow, campaign, baseline, and API tests pass with 105
+  tests; the final full suite passes with 328 tests, including the
+  terminal-state replay compatibility coverage.
+- Calibration receipt:
+  `calibration-replay-f26f95c0-a451-451a-b561-954714085b68`.
+- Accepted replay algorithm commit:
+  `2d0ac75ceb8a07b4ea4574fe49e298eddf4466c8`.
+- No speaker assignment, external contact mutation, CRM write, deposition, or
+  memory write occurred.
+
 ## Turn 225 | 2026-07-25
 
 Summary: Completed Plan 0026 C3-C6 through the first immutable chronological

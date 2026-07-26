@@ -1,6 +1,6 @@
 # Plan 0028 | Speaker Confidence Calibration
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -44,6 +44,18 @@ diarization, unverified full identity, missing verified identifier, or
 first-name-only matching. The current `speaker-identity.v1` score sums
 supporting factor strength but does not limit confidence when those conditions
 are present.
+
+The host-owned `speaker-identity.v2` calibration is implemented and accepted.
+The immutable twenty-case replay covered 53 reviewed person-label outcomes:
+top-person correctness remained 17/53, while High/Very High wrong proposals
+fell from 12 to 0. High/Very High correct proposals fell from 15 to 10 because
+five correct but materially uncertain proposals were conservatively capped at
+Medium. Validation totals and source predictions were unchanged.
+
+The durable private receipt is
+`calibration-replay-f26f95c0-a451-451a-b561-954714085b68`, produced from clean
+commit `2d0ac75ceb8a07b4ea4574fe49e298eddf4466c8`. Automatic confirmation remains
+disabled pending a future unseen chronological holdout.
 
 ## Acceptance Criteria
 

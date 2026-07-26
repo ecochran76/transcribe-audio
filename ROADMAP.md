@@ -235,12 +235,15 @@ Milestone Focus:
   repair improved validation yield but was rejected for promotion after
   High/Very High wrong identity proposals increased in both comparison
   cohorts.
-- Open Plan 0028 is the successor confidence-calibration gate. Plan 0027's
+- Closed Plan 0028 is the successor confidence-calibration gate. Plan 0027's
   repair materially improved validation yield but exposed unsafe
-  High/Very High wrong identity proposals. Plan 0028 preserves those
-  predictions and adds a host-owned, reason-coded confidence cap for
+  High/Very High wrong identity proposals. Plan 0028 preserved those
+  predictions and added a host-owned, reason-coded confidence cap for
   unresolved, conflicting, mixed, or materially unverified identities before
-  automatic confirmation can be considered.
+  automatic confirmation can be considered. Its immutable replay preserved
+  17/53 top-person correctness while reducing High/Very High wrong proposals
+  from 12 to 0; a future unseen chronological holdout remains required before
+  automatic confirmation.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
