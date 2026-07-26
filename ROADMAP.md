@@ -188,6 +188,7 @@ Plans:
 - `docs/dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md`
 - `docs/dev/plans/0026-2026-07-24-oldest-forward-speaker-identity-test-campaign.md`
 - `docs/dev/plans/0027-2026-07-25-speaker-output-reference-repair.md`
+- `docs/dev/plans/0028-2026-07-25-speaker-confidence-calibration.md`
 
 Milestone Focus:
 
@@ -227,12 +228,19 @@ Milestone Focus:
   spending another review batch. Open Plan 0027 is the bounded repair gate
   for invalid model evidence references; Plan 0026 resumes only after that
   hypothesis is accepted or rejected.
-- Open Plan 0027 preserves rejected App Intelligence output and permits at
+- Closed Plan 0027 preserves rejected App Intelligence output and permits at
   most one host-mediated corrective turn containing the invalid fields and
   exact prepared-reference allowlists. It does not weaken validation, remap
   invented IDs, retrieve new evidence, or broaden identity reasoning. Its
-  implementation and synthetic validation are complete; immutable accumulated
-  regression and frozen-holdout comparisons are the remaining gate.
+  repair improved validation yield but was rejected for promotion after
+  High/Very High wrong identity proposals increased in both comparison
+  cohorts.
+- Open Plan 0028 is the successor confidence-calibration gate. Plan 0027's
+  repair materially improved validation yield but exposed unsafe
+  High/Very High wrong identity proposals. Plan 0028 preserves those
+  predictions and adds a host-owned, reason-coded confidence cap for
+  unresolved, conflicting, mixed, or materially unverified identities before
+  automatic confirmation can be considered.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

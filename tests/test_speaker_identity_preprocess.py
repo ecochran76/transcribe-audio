@@ -227,13 +227,101 @@ def test_score_evidence_factors_deduplicates_correlated_sources_and_adds_band() 
 
     score = speaker_identity_preprocess.score_evidence_factors("speaker_identity", factors)
 
-    assert score["rubric_version"] == "speaker-identity.v1"
+    assert score["rubric_version"] == "speaker-identity.v2"
     assert score["numeric"] == 100
     assert score["band"] == "very_high"
     assert score["counted_independence_keys"] == [
         "calendar:event-1",
         "transcript:utterance-1",
     ]
+
+
+def test_calibrate_speaker_identity_confidence_caps_material_identity_risk() -> None:
+    calibrated = speaker_identity_preprocess.calibrate_speaker_identity_confidence(
+        {
+            "status": "candidate_match",
+            "review_flags": ["human_confirmation_required", "first_name_only"],
+            "factors": [],
+        },
+        {
+            "rubric": "speaker_identity",
+            "rubric_version": "speaker-identity.v2",
+            "numeric": 100,
+            "band": "very_high",
+            "band_label": "Very High",
+        },
+    )
+
+    assert calibrated["numeric"] == 59
+    assert calibrated["band"] == "medium"
+    assert calibrated["band_label"] == "Medium"
+    assert calibrated["uncapped_numeric"] == 100
+    assert calibrated["uncapped_band"] == "very_high"
+    assert calibrated["calibration"] == {
+        "version": "speaker-confidence-calibration.v1",
+        "applied": True,
+        "cap_numeric": 59,
+        "reasons": ["material_flag:unsafe_first_name_only"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("assignment", "expected_reason"),
+    [
+        (
+            {"status": "unresolved", "review_flags": [], "factors": []},
+            "assignment_status:unresolved",
+        ),
+        (
+            {"status": "unlisted", "review_flags": [], "factors": []},
+            "unlisted_without_prepared_person",
+        ),
+        (
+            {
+                "status": "candidate_match",
+                "review_flags": [],
+                "factors": [
+                    {
+                        "factor": "speaker_mixing_or_contradiction",
+                        "direction": "contradict",
+                        "strength": "strong",
+                    }
+                ],
+            },
+            "strong_speaker_mixing_contradiction",
+        ),
+    ],
+)
+def test_calibrate_speaker_identity_confidence_caps_structural_risk(
+    assignment: dict,
+    expected_reason: str,
+) -> None:
+    calibrated = speaker_identity_preprocess.calibrate_speaker_identity_confidence(
+        assignment,
+        {"numeric": 85, "band": "very_high", "band_label": "Very High"},
+    )
+
+    assert calibrated["numeric"] == 59
+    assert expected_reason in calibrated["calibration"]["reasons"]
+
+
+def test_calibrate_speaker_identity_confidence_keeps_advisory_flag_score() -> None:
+    calibrated = speaker_identity_preprocess.calibrate_speaker_identity_confidence(
+        {
+            "status": "candidate_match",
+            "review_flags": [
+                "human_confirmation_required",
+                "spoken_name_variant",
+            ],
+            "factors": [],
+        },
+        {"numeric": 85, "band": "very_high", "band_label": "Very High"},
+    )
+
+    assert calibrated["numeric"] == 85
+    assert calibrated["band"] == "very_high"
+    assert calibrated["calibration"]["applied"] is False
+    assert calibrated["calibration"]["reasons"] == []
 
 
 def test_validate_identity_evaluation_supports_grouped_and_utterance_assignments() -> None:
@@ -338,6 +426,20 @@ def test_validate_identity_evaluation_supports_grouped_and_utterance_assignments
     assert validated["readout"]["calendar_association"]["confidence"]["numeric"] == 50
     assert validated["requires_human_confirmation"] is True
     assert validated["safe_bulk_confirm_ready"] is False
+
+    readout["speaker_assignments"][0]["review_flags"] = ["mixed_speaker_label"]
+    calibrated = speaker_identity_preprocess.validate_and_score_identity_evaluation(
+        packet,
+        readout,
+    )
+    calibrated_confidence = (
+        calibrated["readout"]["speaker_assignments"][0]["confidence"]
+    )
+    assert calibrated_confidence["numeric"] == 59
+    assert calibrated_confidence["uncapped_numeric"] == 70
+    assert calibrated_confidence["calibration"]["reasons"] == [
+        "material_flag:mixed_speaker_label"
+    ]
 
 
 def test_validate_identity_evaluation_rejects_invented_evidence() -> None:

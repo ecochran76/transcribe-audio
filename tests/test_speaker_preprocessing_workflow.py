@@ -413,7 +413,7 @@ def test_persist_identity_evaluation_keeps_factors_scores_and_review_gate(
     assert evaluation["proposals"][0]["proposal_id"]
     assert evaluation["review_state"]["pending_count"] == 1
     assert evaluation["safe_bulk_confirm_ready"] is True
-    assert evaluation["rubric_versions"]["speaker_identity"] == "speaker-identity.v1"
+    assert evaluation["rubric_versions"]["speaker_identity"] == "speaker-identity.v2"
 
     confirmed = speaker_preprocessing_workflow.confirm_ready_proposals(
         transcript_path,

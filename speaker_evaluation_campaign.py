@@ -32,7 +32,7 @@ DEFAULT_STATE_ROOT = Path("~/.local/state/transcribe-audio")
 RUBRIC_VERSIONS = {
     "calendar_association": "calendar-association.v1",
     "person_link": "person-link.v1",
-    "speaker_identity": "speaker-identity.v1",
+    "speaker_identity": "speaker-identity.v2",
 }
 DISPOSITION_RULE_VERSION = "oldest-forward-disposition.v1"
 GOLD_SCHEMA_VERSION = "transcribe-audio.speaker-evaluation-gold.v1"
@@ -54,6 +54,9 @@ REVEAL_GOLD_COMPARISON_TOKEN = (
 )
 RECORD_REFINEMENT_DECISION_TOKEN = (
     "RECORD_SPEAKER_EVALUATION_REFINEMENT_DECISION"
+)
+REPLAY_SPEAKER_CONFIDENCE_CALIBRATION_TOKEN = (
+    "REPLAY_SPEAKER_CONFIDENCE_CALIBRATION"
 )
 GOLD_DISPOSITIONS = {
     "eligible_known",
@@ -1393,6 +1396,219 @@ def reveal_blind_baseline_comparison(
         },
     )
     return {**comparison, "comparison_path": str(comparison_path)}
+
+
+def replay_speaker_confidence_calibration(
+    campaign_id: str,
+    *,
+    baseline_ids: list[str],
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Replay host confidence calibration without changing sealed predictions."""
+    if approval_token != REPLAY_SPEAKER_CONFIDENCE_CALIBRATION_TOKEN:
+        raise ValueError(
+            "Confidence calibration replay requires approval token "
+            f"{REPLAY_SPEAKER_CONFIDENCE_CALIBRATION_TOKEN}."
+        )
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    selected_baseline_ids = list(dict.fromkeys(str(value) for value in baseline_ids))
+    if not selected_baseline_ids:
+        raise ValueError("Confidence calibration replay requires baseline IDs.")
+
+    metrics = Counter(
+        {
+            "reviewed_person_labels": 0,
+            "top_proposal_correct": 0,
+            "before_high_or_very_high_correct": 0,
+            "before_high_or_very_high_wrong": 0,
+            "after_high_or_very_high_correct": 0,
+            "after_high_or_very_high_wrong": 0,
+            "calibrated_labels": 0,
+            "calibrated_correct_labels": 0,
+            "calibrated_wrong_labels": 0,
+        }
+    )
+    validation_metrics = Counter()
+    cohort_receipts = []
+    case_receipts = []
+    high_bands = {"high", "very_high"}
+
+    for baseline_id in selected_baseline_ids:
+        baseline_path = _blind_baseline_path(
+            selected_runtime_root,
+            campaign_id,
+            baseline_id,
+        )
+        comparison_path = baseline_path.parent / "comparison.json"
+        if not baseline_path.is_file() or not comparison_path.is_file():
+            raise ValueError(
+                f"Calibration replay requires a completed comparison: {baseline_id}."
+            )
+        baseline = _read_json(baseline_path)
+        comparison = _read_json(comparison_path)
+        if (
+            baseline.get("status") != "comparison_complete"
+            or comparison.get("status") != "comparison_complete"
+            or comparison.get("baseline_id") != baseline_id
+        ):
+            raise ValueError(
+                f"Calibration replay comparison is incomplete: {baseline_id}."
+            )
+        comparison_cases = {
+            str(case.get("document_id") or ""): case
+            for case in comparison.get("cases") or []
+            if isinstance(case, dict)
+        }
+        cohort_metrics = Counter()
+        for key, value in (
+            (comparison.get("metrics") or {}).get("validation") or {}
+        ).items():
+            validation_metrics[str(key)] += int(value or 0)
+
+        for baseline_case in baseline.get("cases") or []:
+            if not isinstance(baseline_case, dict):
+                continue
+            document_id = str(baseline_case.get("document_id") or "")
+            comparison_case = comparison_cases.get(document_id, {})
+            if comparison_case.get("evaluation_excluded"):
+                continue
+            prediction_record = _read_json(
+                Path(str(baseline_case.get("prediction_path") or ""))
+            )
+            prediction = (
+                prediction_record.get("prediction")
+                if isinstance(prediction_record.get("prediction"), dict)
+                else {}
+            )
+            proposals = [
+                proposal
+                for proposal in prediction.get("proposals") or []
+                if isinstance(proposal, dict)
+            ]
+            for label_result in comparison_case.get("speaker_labels") or []:
+                if (
+                    not isinstance(label_result, dict)
+                    or label_result.get("gold_outcome") != "person"
+                ):
+                    continue
+                label = str(label_result.get("speaker_label") or "")
+                label_proposals = [
+                    proposal
+                    for proposal in proposals
+                    if label
+                    in [
+                        str(value)
+                        for value in proposal.get("speaker_labels") or []
+                    ]
+                ]
+                top_proposal = label_proposals[0] if label_proposals else {}
+                before_band = str(
+                    label_result.get("top_confidence_band") or ""
+                )
+                calibrated = (
+                    speaker_identity_preprocess.calibrate_speaker_identity_confidence(
+                        top_proposal,
+                        (
+                            top_proposal.get("confidence")
+                            if isinstance(top_proposal.get("confidence"), dict)
+                            else {}
+                        ),
+                    )
+                )
+                after_band = str(calibrated.get("band") or "")
+                correct = bool(label_result.get("top_proposal_correct"))
+                applied = bool(
+                    (calibrated.get("calibration") or {}).get("applied")
+                )
+                metrics["reviewed_person_labels"] += 1
+                metrics["top_proposal_correct"] += int(correct)
+                metrics["before_high_or_very_high_correct"] += int(
+                    correct and before_band in high_bands
+                )
+                metrics["before_high_or_very_high_wrong"] += int(
+                    not correct and before_band in high_bands
+                )
+                metrics["after_high_or_very_high_correct"] += int(
+                    correct and after_band in high_bands
+                )
+                metrics["after_high_or_very_high_wrong"] += int(
+                    not correct and after_band in high_bands
+                )
+                metrics["calibrated_labels"] += int(applied)
+                metrics["calibrated_correct_labels"] += int(applied and correct)
+                metrics["calibrated_wrong_labels"] += int(
+                    applied and not correct
+                )
+                cohort_metrics["reviewed_person_labels"] += 1
+                cohort_metrics["top_proposal_correct"] += int(correct)
+                cohort_metrics["before_high_or_very_high_wrong"] += int(
+                    not correct and before_band in high_bands
+                )
+                cohort_metrics["after_high_or_very_high_wrong"] += int(
+                    not correct and after_band in high_bands
+                )
+                case_receipts.append(
+                    {
+                        "baseline_id": baseline_id,
+                        "document_id": document_id,
+                        "speaker_label": label,
+                        "top_proposal_correct": correct,
+                        "before_band": before_band,
+                        "after_band": after_band,
+                        "calibration_applied": applied,
+                        "calibration_reasons": (
+                            calibrated.get("calibration") or {}
+                        ).get("reasons")
+                        or [],
+                    }
+                )
+        cohort_receipts.append(
+            {
+                "baseline_id": baseline_id,
+                "comparison_id": comparison.get("comparison_id"),
+                "metrics": dict(cohort_metrics),
+            }
+        )
+
+    replay_id = f"calibration-replay-{uuid4()}"
+    receipt = {
+        "schema_version": (
+            "transcribe-audio.speaker-confidence-calibration-replay.v1"
+        ),
+        "replay_id": replay_id,
+        "campaign_id": campaign_id,
+        "baseline_ids": selected_baseline_ids,
+        "status": "complete",
+        "created_at": _utc_now(),
+        "algorithm": _repository_state(),
+        "calibration_version": (
+            speaker_identity_preprocess.SPEAKER_CONFIDENCE_CALIBRATION_VERSION
+        ),
+        "rubric_version": (
+            speaker_identity_preprocess.EVIDENCE_RUBRICS["speaker_identity"][
+                "version"
+            ]
+        ),
+        "metrics": {
+            **dict(metrics),
+            "validation": dict(validation_metrics),
+        },
+        "cohorts": cohort_receipts,
+        "cases": case_receipts,
+        "source_predictions_mutated": False,
+        "will_perform_external_write": False,
+    }
+    receipt_path = (
+        campaign_dir
+        / "calibration-replays"
+        / f"{replay_id}.json"
+    )
+    _write_private_json(receipt_path, receipt)
+    return {**receipt, "receipt_path": str(receipt_path)}
 
 
 def record_refinement_decision(

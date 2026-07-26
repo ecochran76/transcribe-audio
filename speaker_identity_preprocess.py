@@ -57,6 +57,24 @@ EVIDENCE_SCORE_CONTRACT = {
         "very_high": {"minimum": 85, "maximum": 100},
     },
 }
+SPEAKER_CONFIDENCE_CALIBRATION_VERSION = "speaker-confidence-calibration.v1"
+SPEAKER_CONFIDENCE_CAP_NUMERIC = 59
+MATERIAL_IDENTITY_FLAG_PATTERNS = {
+    "mixed_speaker_label": (
+        "mixed_speaker_label",
+        "mixed_diarization_label",
+    ),
+    "full_identity_unverified": ("full_identity_unverified",),
+    "missing_verified_identifier": ("missing_verified_identifier",),
+    "identity_not_linked_to_prepared_person": (
+        "identity_not_linked_to_prepared_person",
+    ),
+    "unsafe_first_name_only": (
+        "first_name_only",
+        "do_not_match_on_first_name_only",
+    ),
+    "person_not_in_prepared_people": ("person_not_in_prepared_people",),
+}
 EVIDENCE_RUBRICS = {
     "calendar_association": {
         "version": "calendar-association.v1",
@@ -81,7 +99,7 @@ EVIDENCE_RUBRICS = {
         "score_contract": EVIDENCE_SCORE_CONTRACT,
     },
     "speaker_identity": {
-        "version": "speaker-identity.v1",
+        "version": "speaker-identity.v2",
         "question": "Does this person correspond to this diarized speaker or speaker group?",
         "factors": [
             "direct_self_identification",
@@ -418,6 +436,92 @@ def score_evidence_factors(task: str, factors: Iterable[dict[str, Any]]) -> dict
     }
 
 
+def _normalized_review_flag(value: Any) -> str:
+    return "_".join(
+        normalize_string(value)
+        .lower()
+        .replace("-", "_")
+        .replace("/", "_")
+        .split()
+    )
+
+
+def calibrate_speaker_identity_confidence(
+    assignment: dict[str, Any],
+    confidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Cap actionable confidence when host-visible identity risk is material."""
+    reasons: list[str] = []
+    status = normalize_string(assignment.get("status")).lower()
+    if status in {"unresolved", "conflicting"}:
+        reasons.append(f"assignment_status:{status}")
+    elif status == "unlisted":
+        reasons.append("unlisted_without_prepared_person")
+
+    factors = assignment.get("factors")
+    for factor in factors if isinstance(factors, list) else []:
+        if not isinstance(factor, dict):
+            continue
+        if (
+            normalize_string(factor.get("factor")).lower()
+            == "speaker_mixing_or_contradiction"
+            and normalize_string(factor.get("direction")).lower() == "contradict"
+            and normalize_string(factor.get("strength")).lower()
+            in {"strong", "decisive"}
+        ):
+            reasons.append("strong_speaker_mixing_contradiction")
+            break
+
+    review_flags = assignment.get("review_flags")
+    normalized_flags: set[str] = set()
+    for value in review_flags if isinstance(review_flags, list) else []:
+        normalized = _normalized_review_flag(value)
+        if normalized:
+            normalized_flags.add(normalized)
+    for reason, patterns in MATERIAL_IDENTITY_FLAG_PATTERNS.items():
+        if any(
+            pattern in flag
+            for pattern in patterns
+            for flag in normalized_flags
+        ):
+            reasons.append(f"material_flag:{reason}")
+
+    result = dict(confidence)
+    uncapped_numeric = int(confidence.get("numeric") or 0)
+    uncapped_band = normalize_string(confidence.get("band"))
+    applied = bool(reasons) and uncapped_numeric > SPEAKER_CONFIDENCE_CAP_NUMERIC
+    numeric = (
+        min(uncapped_numeric, SPEAKER_CONFIDENCE_CAP_NUMERIC)
+        if applied
+        else uncapped_numeric
+    )
+    if numeric >= 85:
+        band = "very_high"
+    elif numeric >= 60:
+        band = "high"
+    elif numeric >= 25:
+        band = "medium"
+    else:
+        band = "low"
+    result.update(
+        {
+            "rubric_version": EVIDENCE_RUBRICS["speaker_identity"]["version"],
+            "numeric": numeric,
+            "band": band,
+            "band_label": band.replace("_", " ").title(),
+            "uncapped_numeric": uncapped_numeric,
+            "uncapped_band": uncapped_band,
+            "calibration": {
+                "version": SPEAKER_CONFIDENCE_CALIBRATION_VERSION,
+                "applied": applied,
+                "cap_numeric": SPEAKER_CONFIDENCE_CAP_NUMERIC,
+                "reasons": reasons,
+            },
+        }
+    )
+    return result
+
+
 def build_identity_evaluation_packet(
     *,
     transcript: dict[str, Any],
@@ -740,7 +844,10 @@ def validate_and_score_identity_evaluation(
             independence_keys=independence_keys,
         )
         assignment["factors"] = factors
-        assignment["confidence"] = score_evidence_factors("speaker_identity", factors)
+        assignment["confidence"] = calibrate_speaker_identity_confidence(
+            assignment,
+            score_evidence_factors("speaker_identity", factors),
+        )
         for utterance_assignment in assignment.get("utterance_assignments", []):
             if not isinstance(utterance_assignment, dict):
                 raise ValueError("Speaker assignment contains a non-object utterance assignment.")

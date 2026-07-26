@@ -13,6 +13,7 @@ from speaker_evaluation_campaign import (
     freeze_gold_batch,
     main,
     preview_campaign,
+    replay_speaker_confidence_calibration,
     record_gold_review,
     record_refinement_decision,
     reveal_blind_baseline_comparison,
@@ -257,7 +258,7 @@ def test_preview_records_reproducibility_fingerprints_and_live_model_route(
     assert first["rubric_versions"] == {
         "calendar_association": "calendar-association.v1",
         "person_link": "person-link.v1",
-        "speaker_identity": "speaker-identity.v1",
+        "speaker_identity": "speaker-identity.v2",
     }
     assert len(first["provenance_config_fingerprint"]) == 64
 
@@ -851,3 +852,99 @@ def test_blind_prediction_capture_completes_batch_without_revealing_gold(
     assert decision["decision"] == "rejected"
     assert decision["parent_baseline_id"] == baseline["baseline_id"]
     assert Path(decision["decision_path"]).exists()
+
+
+def test_confidence_calibration_replay_writes_redacted_private_receipt(
+    tmp_path: Path,
+) -> None:
+    runtime_root = tmp_path / "campaigns"
+    campaign_id = "campaign-" + ("a" * 20)
+    baseline_id = "baseline-00000000-0000-4000-8000-000000000001"
+    baseline_dir = runtime_root / campaign_id / "baselines" / baseline_id
+    prediction_path = baseline_dir / "predictions" / "doc-1" / "prediction.json"
+    prediction_path.parent.mkdir(parents=True)
+    prediction_path.write_text(
+        json.dumps(
+            {
+                "prediction": {
+                    "proposals": [
+                        {
+                            "speaker_labels": ["A"],
+                            "status": "conflicting",
+                            "review_flags": [],
+                            "factors": [],
+                            "confidence": {
+                                "numeric": 100,
+                                "band": "very_high",
+                                "band_label": "Very High",
+                            },
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (baseline_dir / "baseline.json").write_text(
+        json.dumps(
+            {
+                "baseline_id": baseline_id,
+                "campaign_id": campaign_id,
+                "status": "comparison_complete",
+                "cases": [
+                    {
+                        "document_id": "doc-1",
+                        "prediction_path": str(prediction_path),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (baseline_dir / "comparison.json").write_text(
+        json.dumps(
+            {
+                "baseline_id": baseline_id,
+                "campaign_id": campaign_id,
+                "status": "comparison_complete",
+                "metrics": {
+                    "validation": {
+                        "predictions": 1,
+                        "completed": 1,
+                        "model_output_rejected": 0,
+                    }
+                },
+                "cases": [
+                    {
+                        "document_id": "doc-1",
+                        "speaker_labels": [
+                            {
+                                "speaker_label": "A",
+                                "gold_outcome": "person",
+                                "top_proposal_correct": False,
+                                "top_confidence_band": "very_high",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    receipt = replay_speaker_confidence_calibration(
+        campaign_id,
+        baseline_ids=[baseline_id],
+        runtime_root=runtime_root,
+        approval_token="REPLAY_SPEAKER_CONFIDENCE_CALIBRATION",
+    )
+
+    assert receipt["metrics"]["before_high_or_very_high_wrong"] == 1
+    assert receipt["metrics"]["after_high_or_very_high_wrong"] == 0
+    assert receipt["metrics"]["top_proposal_correct"] == 0
+    assert receipt["cases"][0]["calibration_reasons"] == [
+        "assignment_status:conflicting"
+    ]
+    receipt_path = Path(receipt["receipt_path"])
+    assert stat.S_IMODE(receipt_path.stat().st_mode) == 0o600
+    assert "prediction" not in json.dumps(receipt["cases"])

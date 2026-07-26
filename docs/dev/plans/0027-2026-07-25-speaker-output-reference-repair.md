@@ -1,6 +1,6 @@
 # Plan 0027 | Speaker Output Reference Repair
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -55,7 +55,21 @@ invalid result remains an explicit model-output rejection.
 Synthetic workflow, API, ledger, and runner coverage passes for invented
 transcript-clue IDs, provenance-source IDs, utterance IDs, repeated invalid
 repair output, valid first-pass bypass, and immutable original input
-artifacts. Live immutable regression and holdout comparisons remain pending.
+artifacts. At that implementation checkpoint, live immutable regression and
+holdout comparisons remained pending.
+
+The live comparison is complete and the hypothesis is rejected for promotion.
+Regression validation improved from 2/10 to 7/10 and reviewed-holdout replay
+validation improved from 2/10 to 8/10. Calendar exactness improved from 2/10
+to 6/10 on regression and 2/9 to 6/9 on holdout; top-correct speaker labels
+improved from 3/30 to 6/30 and 5/23 to 11/23 respectively. However,
+High/Very High wrong speaker proposals regressed from 0 to 8 on regression and
+from 3 to 4 on holdout. The durable rejection is
+`refinement-decision-c7d168d1-56b4-405d-81bd-ffe1d45025cc`.
+
+The reference-repair machinery remains available as a bounded evaluation
+surface, but it is not accepted as sufficient identity-quality behavior.
+Plan 0028 owns the successor host-confidence calibration hypothesis.
 
 ## Acceptance Criteria
 
