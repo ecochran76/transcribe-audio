@@ -2,6 +2,50 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 229 | 2026-07-26
+
+Summary: Completed Plan 0029 C2 as a sidecar-authoritative, hash-bound shadow
+projection without migrating the live user store.
+
+Implemented:
+
+- Added `conversation_knowledge_projection.py` with read-only preview,
+  deterministic source watermarking, explicit apply approval, source-change
+  rejection, idempotent shadow apply, reconciliation, and sidecar export.
+- Projected normalized conversation, recording, utterance, evaluation,
+  decision, linked legacy contact, and speaker-assignment records through
+  repository interfaces rather than exposing storage SQL to callers.
+- Preserved legacy contact and assignment identifiers as source provenance;
+  deterministic opaque IDs represent knowledge-store people, utterances, and
+  diarized speakers.
+- Added immutable assignment observations, projection-state repository
+  methods, and private `0700`/`0600` reconciliation receipts.
+- Kept source transcripts and processing sidecars byte-for-byte unchanged and
+  retained explicit `sidecar` authority.
+
+Validation:
+
+- Eight focused C1/C2 tests pass, including preview/apply, source drift,
+  round-trip, receipt permission, idempotence, migration, and rollback cases.
+- Transcript-store, processing, C1, and C2 focused coverage passes with 40
+  tests.
+- The full suite passes with 336 tests; `py_compile` and `git diff --check`
+  pass.
+- A private isolated preview over the 3 current Voice Recordings processing
+  sidecars reconciled 3 conversations, 3 recordings, 245 utterances, 3
+  evaluations, 11 proposals, and 0 decisions.
+- All 3 live-source records exported to semantically equivalent sidecars in
+  the isolated store. The live `~/.transcripts/transcripts.sqlite3` schema
+  remained unmigrated.
+- No provider access, model call, speaker assignment, external write, source
+  artifact mutation, live database migration, or Graphiti write occurred.
+
+Next:
+
+- Execute C3 source, evidence, concept, retrieval-request, bundle, and
+  isolation records plus exact, FTS5, relationship, timestamp, scope, and
+  embedding indexes.
+
 ## Turn 228 | 2026-07-26
 
 Summary: Completed Plan 0029 C1 as an additive, sidecar-authoritative storage

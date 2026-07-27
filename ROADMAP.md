@@ -256,8 +256,12 @@ Milestone Focus:
   `docs/conversation-knowledge-storage-and-retrieval.md`, with the storage
   decision recorded in ADR 0002. C1 is complete in source with versioned
   additive schema migration, private backup, rollback, and deep
-  conversation/person/processing-history interfaces; C2 sidecar-authoritative
-  shadow projection is next.
+  conversation/person/processing-history interfaces. C2 is complete with
+  hash-bound read-only preview, approval-gated idempotent shadow apply,
+  immutable reconciliation receipts, legacy contact/assignment projection,
+  and sidecar round-trip export. A private isolated preview reconciled all 3
+  current Voice Recordings processing sidecars without migrating the live
+  store. C3 evidence, concept, and retrieval records are next.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

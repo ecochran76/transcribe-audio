@@ -57,8 +57,18 @@ snapshots, cross-source person records, and immutable evaluation/review
 history. The v1 schema includes the remaining relationship, concept,
 observation, claim, and projection-state records required by later milestones.
 The implementation is additive, leaves authority in sidecars, and has not
-migrated the live user store. C2 shadow projection is the current critical
-path.
+migrated the live user store.
+
+C2 is complete in source. `conversation_knowledge_projection.py` provides a
+read-only, hash-bound preview and approval-token-gated apply interface for
+normalized transcripts, processing histories, linked legacy contacts, and
+speaker assignments. It records deterministic watermarks and immutable
+private reconciliation receipts, projects legacy assignments as immutable
+source observations, and exports semantically equivalent processing sidecars
+without changing their source. Fixture reconciliation and a private isolated
+preview over the three current Voice Recordings processing sidecars passed.
+The live user store was not migrated and `sidecar` remains the authority mode.
+C3 evidence, concept, and retrieval records are the current critical path.
 
 ## Stable architectural decisions
 
@@ -102,6 +112,20 @@ Stop condition:
   fails.
 
 ### C2 | Sidecar shadow projection
+
+Status: COMPLETE
+
+Evidence:
+
+- Two end-to-end behavior tests cover read-only preview, explicit apply
+  approval, source-change rejection, idempotent re-apply, private immutable
+  receipts, legacy contact and assignment projection, reconciliation, and
+  sidecar round trip.
+- The private isolated live preview reconciled 3 conversations, 3 recordings,
+  245 utterances, 3 evaluations, 11 proposals, and 0 current decisions without
+  migrating the live store.
+- All 3 projected live sidecars round-tripped semantically, and authority
+  remained `sidecar`.
 
 Outcome:
 

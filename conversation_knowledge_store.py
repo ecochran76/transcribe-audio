@@ -194,6 +194,43 @@ class ProcessingSaveReceipt:
     review_decision_count: int
 
 
+@dataclass(frozen=True)
+class ObservationRecord:
+    observation_id: str
+    observation_type: str
+    subject_type: str
+    subject_id: str
+    source_type: str
+    source_id: str
+    conversation_id: str
+    observed_at: str
+    source_event_at: str = ""
+    retrieved_at: str = ""
+    valid_from: str = ""
+    valid_to: str = ""
+    review_state: str = "unreviewed"
+    payload: dict[str, Any] = field(default_factory=dict)
+    content_hash: str = ""
+
+
+@dataclass(frozen=True)
+class ObservationSaveReceipt:
+    status: str
+    conversation_id: str
+    observation_count: int
+
+
+@dataclass(frozen=True)
+class ProjectionStateRecord:
+    projection_name: str
+    scope_type: str
+    scope_id: str
+    schema_version: str
+    input_watermark: str
+    built_at: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 def _utc_now() -> str:
     return (
         datetime.now(timezone.utc)
@@ -1001,6 +1038,225 @@ class ConversationKnowledgeStore:
                 )
                 for decision in decision_rows
             ),
+        )
+
+    def save_observations(
+        self,
+        conversation_id: str,
+        observations: tuple[ObservationRecord, ...],
+    ) -> ObservationSaveReceipt:
+        """Append immutable source observations for one conversation."""
+        conversation_id = _uuid(
+            conversation_id,
+            field_name="conversation_id",
+        )
+        for observation in observations:
+            _uuid(observation.observation_id, field_name="observation_id")
+            if observation.conversation_id != conversation_id:
+                raise ValueError(
+                    "Observation belongs to a different conversation."
+                )
+            if not all(
+                (
+                    observation.observation_type,
+                    observation.subject_type,
+                    observation.subject_id,
+                    observation.source_type,
+                    observation.source_id,
+                    observation.observed_at,
+                )
+            ):
+                raise ValueError(
+                    "Observation type, subject, source, and observed_at "
+                    "are required."
+                )
+        existing = {
+            item.observation_id: item
+            for item in self.load_observations(conversation_id)
+        }
+        for observation in observations:
+            prior = existing.get(observation.observation_id)
+            if prior is not None and prior != observation:
+                raise ValueError(
+                    "Observation history is immutable: "
+                    f"{observation.observation_id}."
+                )
+        missing = [
+            item for item in observations if item.observation_id not in existing
+        ]
+        if not missing:
+            return ObservationSaveReceipt(
+                status="unchanged",
+                conversation_id=conversation_id,
+                observation_count=len(observations),
+            )
+        now = _utc_now()
+        with transcript_store.connect(self.root) as con:
+            self._require_current_schema(con)
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                for observation in missing:
+                    con.execute(
+                        """
+                        INSERT INTO knowledge_observations (
+                            id, observation_type, subject_type, subject_id,
+                            source_type, source_id, conversation_id,
+                            source_event_at, observed_at, retrieved_at,
+                            valid_from, valid_to, review_state, payload_json,
+                            content_hash, created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            observation.observation_id,
+                            observation.observation_type,
+                            observation.subject_type,
+                            observation.subject_id,
+                            observation.source_type,
+                            observation.source_id,
+                            observation.conversation_id,
+                            observation.source_event_at,
+                            observation.observed_at,
+                            observation.retrieved_at,
+                            observation.valid_from,
+                            observation.valid_to,
+                            observation.review_state,
+                            _json_dumps(observation.payload),
+                            observation.content_hash,
+                            now,
+                        ),
+                    )
+                con.commit()
+            except Exception:
+                con.rollback()
+                raise
+        return ObservationSaveReceipt(
+            status="inserted",
+            conversation_id=conversation_id,
+            observation_count=len(observations),
+        )
+
+    def load_observations(
+        self,
+        conversation_id: str,
+    ) -> tuple[ObservationRecord, ...]:
+        """Load immutable source observations for one conversation."""
+        conversation_id = _uuid(
+            conversation_id,
+            field_name="conversation_id",
+        )
+        with transcript_store.connect(self.root) as con:
+            if not self._schema_is_current(con):
+                return ()
+            rows = con.execute(
+                """
+                SELECT *
+                FROM knowledge_observations
+                WHERE conversation_id = ?
+                ORDER BY observed_at, id
+                """,
+                (conversation_id,),
+            ).fetchall()
+        return tuple(
+            ObservationRecord(
+                observation_id=str(row["id"]),
+                observation_type=str(row["observation_type"]),
+                subject_type=str(row["subject_type"]),
+                subject_id=str(row["subject_id"]),
+                source_type=str(row["source_type"]),
+                source_id=str(row["source_id"]),
+                conversation_id=str(row["conversation_id"]),
+                source_event_at=str(row["source_event_at"]),
+                observed_at=str(row["observed_at"]),
+                retrieved_at=str(row["retrieved_at"]),
+                valid_from=str(row["valid_from"]),
+                valid_to=str(row["valid_to"]),
+                review_state=str(row["review_state"]),
+                payload=_json_object(str(row["payload_json"])),
+                content_hash=str(row["content_hash"]),
+            )
+            for row in rows
+        )
+
+    def save_projection_state(
+        self,
+        state: ProjectionStateRecord,
+    ) -> str:
+        """Record one replaceable projection watermark."""
+        if not all(
+            (
+                state.projection_name,
+                state.scope_type,
+                state.scope_id,
+                state.schema_version,
+                state.input_watermark,
+                state.built_at,
+            )
+        ):
+            raise ValueError("Projection identity, version, and watermark are required.")
+        existing = self.load_projection_state(
+            state.projection_name,
+            state.scope_type,
+            state.scope_id,
+        )
+        if existing == state:
+            return "unchanged"
+        with transcript_store.connect(self.root) as con:
+            self._require_current_schema(con)
+            con.execute(
+                """
+                INSERT INTO knowledge_projection_state (
+                    projection_name, scope_type, scope_id, schema_version,
+                    input_watermark, built_at, metadata_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(projection_name, scope_type, scope_id) DO UPDATE SET
+                    schema_version = excluded.schema_version,
+                    input_watermark = excluded.input_watermark,
+                    built_at = excluded.built_at,
+                    metadata_json = excluded.metadata_json
+                """,
+                (
+                    state.projection_name,
+                    state.scope_type,
+                    state.scope_id,
+                    state.schema_version,
+                    state.input_watermark,
+                    state.built_at,
+                    _json_dumps(state.metadata),
+                ),
+            )
+            con.commit()
+        return "updated" if existing is not None else "inserted"
+
+    def load_projection_state(
+        self,
+        projection_name: str,
+        scope_type: str,
+        scope_id: str,
+    ) -> ProjectionStateRecord | None:
+        """Load one projection watermark."""
+        with transcript_store.connect(self.root) as con:
+            if not self._schema_is_current(con):
+                return None
+            row = con.execute(
+                """
+                SELECT *
+                FROM knowledge_projection_state
+                WHERE projection_name = ? AND scope_type = ? AND scope_id = ?
+                """,
+                (projection_name, scope_type, scope_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return ProjectionStateRecord(
+            projection_name=str(row["projection_name"]),
+            scope_type=str(row["scope_type"]),
+            scope_id=str(row["scope_id"]),
+            schema_version=str(row["schema_version"]),
+            input_watermark=str(row["input_watermark"]),
+            built_at=str(row["built_at"]),
+            metadata=_json_object(str(row["metadata_json"])),
         )
 
     @staticmethod
