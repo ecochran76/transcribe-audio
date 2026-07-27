@@ -68,7 +68,18 @@ source observations, and exports semantically equivalent processing sidecars
 without changing their source. Fixture reconciliation and a private isolated
 preview over the three current Voice Recordings processing sidecars passed.
 The live user store was not migrated and `sidecar` remains the authority mode.
-C3 evidence, concept, and retrieval records are the current critical path.
+
+C3 is complete in source. Schema version 2 adds bounded evidence snapshots,
+evidence-independence groups, lexical and embedding-profile indexes, immutable
+retrieval requests, content-hashed evidence bundles, and reason-coded bundle
+items. `conversation_knowledge_evidence.py` provides exact scoped identity
+lookup, tenant/account/capability/time-isolated lexical and semantic evidence
+search, typed concepts and mentions, and replayable request/bundle interfaces.
+Raw provider-body fields and over-cap snippets or metadata are rejected.
+Migration, rollback, isolation, immutability, hash-integrity, and private
+live-database-copy rehearsals pass. The live user store remains unmigrated and
+sidecars remain authoritative. C4 reviewed observations and deterministic
+affinity projections are the current critical path.
 
 ## Stable architectural decisions
 
@@ -144,6 +155,22 @@ Gate:
 - Sidecars remain authoritative.
 
 ### C3 | Evidence, concept, and retrieval records
+
+Status: COMPLETE
+
+Evidence:
+
+- Six C3 tests cover bounded-content rejection, exact source-scoped identity
+  lookup, tenant/account/capability/temporal isolation, lexical and semantic
+  evidence retrieval, concepts and mentions, immutable request/bundle replay,
+  reason-coded inclusion/exclusion, provider failures, migration failure, and
+  v2 rollback.
+- The complete 342-test inventory passes in isolated partitions while the host
+  filesystem journal is degraded: 330 non-participant tests and all 12
+  participant-identity tests.
+- A consistent private copy of the live version-0 store migrated through
+  versions 1 and 2, preserved legacy document counts, rolled version 2 back to
+  version 1, and reapplied version 2 with `sidecar` authority unchanged.
 
 Outcome:
 

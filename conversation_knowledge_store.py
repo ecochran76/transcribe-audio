@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 1
+LATEST_SCHEMA_VERSION = 2
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -331,6 +331,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 2 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v2(con)
+                    applied.append(2)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -358,6 +367,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 2 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v2(con)
+                    rolled_back.append(2)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 1 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -1279,7 +1297,7 @@ class ConversationKnowledgeStore:
         ).fetchone()
         return bool(
             state
-            and int(state["schema_version"]) == LATEST_SCHEMA_VERSION
+            and 1 <= int(state["schema_version"]) <= LATEST_SCHEMA_VERSION
             and not bool(state["dirty"])
         )
 
@@ -1898,6 +1916,227 @@ class ConversationKnowledgeStore:
                 PRIMARY KEY(projection_name, scope_type, scope_id)
             )
             """
+        )
+
+    @staticmethod
+    def _apply_v2(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_evidence_independence_groups (
+                id TEXT PRIMARY KEY,
+                group_key TEXT NOT NULL UNIQUE,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_evidence_snapshots (
+                id TEXT PRIMARY KEY,
+                source_record_id TEXT
+                    REFERENCES knowledge_source_records(id) ON DELETE SET NULL,
+                source_profile_id TEXT NOT NULL,
+                provider_kind TEXT NOT NULL,
+                account_id TEXT NOT NULL DEFAULT '',
+                tenant_id TEXT NOT NULL DEFAULT '',
+                source_type TEXT NOT NULL,
+                capability TEXT NOT NULL,
+                snippet TEXT NOT NULL DEFAULT '',
+                structured_metadata_json TEXT NOT NULL DEFAULT '{}',
+                source_event_at TEXT NOT NULL DEFAULT '',
+                observed_at TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL DEFAULT '',
+                expires_at TEXT NOT NULL DEFAULT '',
+                temporal_class TEXT NOT NULL,
+                source_uri TEXT NOT NULL DEFAULT '',
+                content_hash TEXT NOT NULL,
+                redaction_json TEXT NOT NULL DEFAULT '{}',
+                truncation_json TEXT NOT NULL DEFAULT '{}',
+                independence_group_id TEXT NOT NULL
+                    REFERENCES knowledge_evidence_independence_groups(id),
+                freshness_state TEXT NOT NULL,
+                embedding_json TEXT NOT NULL DEFAULT '[]',
+                embedding_provider TEXT NOT NULL DEFAULT '',
+                embedding_model TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_scope
+            ON knowledge_evidence_snapshots(
+                source_profile_id, account_id, tenant_id, capability
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_temporal
+            ON knowledge_evidence_snapshots(
+                temporal_class, source_event_at, observed_at, retrieved_at
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_source_record
+            ON knowledge_evidence_snapshots(source_record_id)
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_content_hash
+            ON knowledge_evidence_snapshots(content_hash)
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_embedding_profile
+            ON knowledge_evidence_snapshots(
+                embedding_provider, embedding_model, source_profile_id
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE VIRTUAL TABLE knowledge_evidence_fts USING fts5(
+                evidence_id UNINDEXED,
+                search_text,
+                tokenize='unicode61'
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE VIRTUAL TABLE knowledge_concept_fts USING fts5(
+                concept_id UNINDEXED,
+                search_text,
+                tokenize='unicode61'
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_retrieval_requests (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL
+                    REFERENCES knowledge_conversations(id) ON DELETE CASCADE,
+                recording_ids_json TEXT NOT NULL DEFAULT '[]',
+                speaker_labels_json TEXT NOT NULL DEFAULT '[]',
+                clue_ids_json TEXT NOT NULL DEFAULT '[]',
+                conversation_at TEXT NOT NULL DEFAULT '',
+                as_of TEXT NOT NULL,
+                prepared_person_ids_json TEXT NOT NULL DEFAULT '[]',
+                scopes_json TEXT NOT NULL,
+                capabilities_json TEXT NOT NULL,
+                budgets_json TEXT NOT NULL,
+                freshness_policy TEXT NOT NULL,
+                hindsight_policy TEXT NOT NULL,
+                retrieval_version TEXT NOT NULL,
+                ranking_version TEXT NOT NULL,
+                requesting_workflow TEXT NOT NULL,
+                run_id TEXT NOT NULL DEFAULT '',
+                content_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_retrieval_requests_conversation
+            ON knowledge_retrieval_requests(conversation_id, as_of, created_at)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_evidence_bundles (
+                id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL
+                    REFERENCES knowledge_retrieval_requests(id)
+                    ON DELETE CASCADE,
+                status TEXT NOT NULL,
+                candidate_person_ids_json TEXT NOT NULL DEFAULT '[]',
+                warnings_json TEXT NOT NULL DEFAULT '[]',
+                source_failures_json TEXT NOT NULL DEFAULT '[]',
+                allowlists_json TEXT NOT NULL DEFAULT '{}',
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_evidence_bundles_request
+            ON knowledge_evidence_bundles(request_id, created_at)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_evidence_bundle_items (
+                bundle_id TEXT NOT NULL
+                    REFERENCES knowledge_evidence_bundles(id) ON DELETE CASCADE,
+                evidence_id TEXT NOT NULL
+                    REFERENCES knowledge_evidence_snapshots(id)
+                    ON DELETE RESTRICT,
+                disposition TEXT NOT NULL
+                    CHECK (disposition IN ('included', 'excluded')),
+                reason_code TEXT NOT NULL,
+                rank INTEGER NOT NULL DEFAULT 0,
+                score REAL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                PRIMARY KEY(bundle_id, evidence_id)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_bundle_items_disposition
+            ON knowledge_evidence_bundle_items(
+                bundle_id, disposition, reason_code, rank
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO knowledge_schema_migrations (version, applied_at)
+            VALUES (2, ?)
+            """,
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 2, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v2(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        con.execute("DROP TABLE IF EXISTS knowledge_evidence_bundle_items")
+        con.execute("DROP TABLE IF EXISTS knowledge_evidence_bundles")
+        con.execute("DROP TABLE IF EXISTS knowledge_retrieval_requests")
+        con.execute("DROP TABLE IF EXISTS knowledge_concept_fts")
+        con.execute("DROP TABLE IF EXISTS knowledge_evidence_fts")
+        con.execute("DROP TABLE IF EXISTS knowledge_evidence_snapshots")
+        con.execute(
+            "DROP TABLE IF EXISTS knowledge_evidence_independence_groups"
+        )
+        con.execute(
+            "DELETE FROM knowledge_schema_migrations WHERE version = 2"
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 1, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
         )
 
     @staticmethod

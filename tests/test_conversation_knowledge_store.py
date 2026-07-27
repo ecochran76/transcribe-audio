@@ -53,9 +53,9 @@ def test_core_schema_migration_preserves_existing_store_and_sidecar_authority(
 
     assert before.schema_version == 0
     assert receipt.from_version == 0
-    assert receipt.to_version == 1
-    assert receipt.applied_versions == (1,)
-    assert after.schema_version == 1
+    assert receipt.to_version == 2
+    assert receipt.applied_versions == (1, 2)
+    assert after.schema_version == 2
     assert after.authority_mode == "sidecar"
     assert after.dirty is False
     assert search_results[0]["title"] == "Migration compatibility conversation"
@@ -128,9 +128,9 @@ def test_migration_backup_and_rollback_preserve_legacy_store(
     assert Path(migration.backup_path).is_file()
     assert stat.S_IMODE(Path(migration.backup_path).parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(Path(migration.backup_path).stat().st_mode) == 0o600
-    assert rollback.from_version == 1
+    assert rollback.from_version == 2
     assert rollback.to_version == 0
-    assert rollback.rolled_back_versions == (1,)
+    assert rollback.rolled_back_versions == (2, 1)
     assert rollback.backup_path
     assert store.schema_status().schema_version == 0
     assert transcript_store.search_store(

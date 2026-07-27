@@ -2,6 +2,56 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 230 | 2026-07-26
+
+Summary: Completed Plan 0029 C3 with bounded, source-scoped evidence storage
+and replayable retrieval records while keeping the live store unmigrated.
+
+Implemented:
+
+- Added schema version 2 with evidence-independence groups, bounded evidence
+  snapshots, FTS5 evidence/concept indexes, embedding-profile indexes,
+  immutable retrieval requests, content-hashed evidence bundles, and
+  reason-coded bundle items.
+- Added `conversation_knowledge_evidence.py` as the focused repository
+  interface for exact external-identity lookup, lexical and semantic evidence
+  search, typed concepts and mentions, and request/bundle replay.
+- Required exact source-profile, account, tenant, capability, `as_of`, and
+  hindsight-policy filters for every evidence query.
+- Preserved source-event, observed, retrieved, expiry, temporal-class,
+  freshness, redaction, truncation, independence-group, content-hash, and
+  provider-failure fields.
+- Rejected snippets and structured metadata above their caps and prohibited
+  raw provider-body fields from the structured metadata surface.
+- Added transactional version-2 migration and rollback without weakening
+  version-1 conversation/person/processing interfaces.
+
+Validation:
+
+- Six C3 behavior tests pass for bounded content, tenant/account/capability/time
+  isolation, exact and FTS5 lookup, bounded vector ranking, immutable concepts
+  and mentions, request/bundle hashes, provider failures, migration failure,
+  and rollback.
+- The complete 342-test inventory passes in isolated partitions: 330 tests
+  excluding `test_participant_identity.py`, then all 12 participant tests
+  split between configured-source and no-live-provider lanes.
+- Partitioning was required because the degraded host filesystem journal left
+  unrelated live Odollo subprocesses in uninterruptible
+  `jbd2_log_wait_commit`; memory-backed temp roots avoided misattributing that
+  infrastructure fault to C3.
+- A consistent private copy of the live version-0 transcript database migrated
+  through versions 1 and 2, preserved legacy document counts, rolled version 2
+  back to version 1, and reapplied version 2. Authority remained `sidecar`.
+- `py_compile` and `git diff --check` pass.
+- No provider retrieval, model call, source artifact mutation, speaker
+  assignment, external write, live database migration, or Graphiti write
+  occurred in C3.
+
+Next:
+
+- Execute C4 immutable reviewed outcomes and deterministic current person,
+  interaction, organization, project, topic, and terminology projections.
+
 ## Turn 229 | 2026-07-26
 
 Summary: Completed Plan 0029 C2 as a sidecar-authoritative, hash-bound shadow

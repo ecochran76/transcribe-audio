@@ -261,7 +261,13 @@ Milestone Focus:
   immutable reconciliation receipts, legacy contact/assignment projection,
   and sidecar round-trip export. A private isolated preview reconciled all 3
   current Voice Recordings processing sidecars without migrating the live
-  store. C3 evidence, concept, and retrieval records are next.
+  store. C3 is complete with bounded evidence snapshots, explicit
+  source/account/tenant/capability/time isolation, exact and FTS5 lookup,
+  bounded embedding search, typed concepts and mentions, immutable retrieval
+  requests, content-hashed evidence bundles, and reason-coded
+  inclusion/exclusion. Private live-database-copy migration and rollback
+  rehearsals passed without changing the live store. C4 reviewed observations
+  and deterministic affinity projections are next.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
