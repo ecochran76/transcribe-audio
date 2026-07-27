@@ -92,6 +92,15 @@ class ExternalIdentityMatch:
 
 
 @dataclass(frozen=True)
+class ScopedSourceRecord:
+    person_id: str
+    source_record_id: str
+    source_profile_id: str
+    account_id: str
+    tenant_id: str
+
+
+@dataclass(frozen=True)
 class ConceptRecord:
     concept_id: str
     concept_type: str
@@ -487,10 +496,55 @@ class ConversationEvidenceRepository:
                     self._snapshot_from_row(row),
                 )
                 for row in rows
+                if len(_json_list(str(row["embedding_json"])))
+                == len(query_embedding)
             ),
             key=lambda item: (-item[0], item[1].evidence_id),
         )
         return tuple(item[1] for item in ranked[: max(1, min(limit, 500))])
+
+    def scoped_snapshots(
+        self,
+        *,
+        scopes: tuple[EvidenceScope, ...],
+        capabilities: tuple[str, ...],
+        as_of: str,
+        hindsight_policy: str,
+        source_record_ids: tuple[str, ...] = (),
+        limit: int = 500,
+    ) -> tuple[EvidenceSnapshotRecord, ...]:
+        """Load bounded evidence within exact scopes, optionally by source."""
+        self._validate_query(
+            scopes=scopes,
+            capabilities=capabilities,
+            as_of=as_of,
+            hindsight_policy=hindsight_policy,
+        )
+        where, parameters = self._query_filter(
+            scopes=scopes,
+            capabilities=capabilities,
+            as_of=as_of,
+            hindsight_policy=hindsight_policy,
+        )
+        source_clause = ""
+        if source_record_ids:
+            placeholders = ",".join("?" for _ in source_record_ids)
+            source_clause = (
+                f" AND snapshot.source_record_id IN ({placeholders})"
+            )
+            parameters.extend(source_record_ids)
+        with transcript_store.connect(self.root) as con:
+            rows = con.execute(
+                f"""
+                SELECT snapshot.*
+                FROM knowledge_evidence_snapshots AS snapshot
+                WHERE {where}{source_clause}
+                ORDER BY snapshot.observed_at, snapshot.id
+                LIMIT ?
+                """,
+                (*parameters, max(1, min(limit, 2_000))),
+            ).fetchall()
+        return tuple(self._snapshot_from_row(row) for row in rows)
 
     def find_people_by_external_identity(
         self,
@@ -533,6 +587,41 @@ class ConversationEvidenceRepository:
                 normalized_value=str(row["normalized_value"]),
                 authority=str(row["authority"]),
                 verified=bool(row["verified"]),
+            )
+            for row in rows
+        )
+
+    def source_records_for_people(
+        self,
+        person_ids: tuple[str, ...],
+        *,
+        scopes: tuple[EvidenceScope, ...],
+    ) -> tuple[ScopedSourceRecord, ...]:
+        """Return every permitted source affinity for selected people."""
+        if not person_ids or not scopes:
+            return ()
+        for person_id in person_ids:
+            _uuid(person_id, field_name="person_id")
+        scope_sql, scope_parameters = self._scope_filter(scopes)
+        placeholders = ",".join("?" for _ in person_ids)
+        with transcript_store.connect(self.root) as con:
+            rows = con.execute(
+                f"""
+                SELECT person_id, id, source_profile_id, account_id, tenant_id
+                FROM knowledge_source_records AS source
+                WHERE person_id IN ({placeholders})
+                  AND ({scope_sql})
+                ORDER BY person_id, source_profile_id, id
+                """,
+                (*person_ids, *scope_parameters),
+            ).fetchall()
+        return tuple(
+            ScopedSourceRecord(
+                person_id=str(row["person_id"]),
+                source_record_id=str(row["id"]),
+                source_profile_id=str(row["source_profile_id"]),
+                account_id=str(row["account_id"]),
+                tenant_id=str(row["tenant_id"]),
             )
             for row in rows
         )

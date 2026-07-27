@@ -95,6 +95,20 @@ unchanged second rebuild; no reviewed person profiles were expected because
 those sidecars contain no review decisions or linked contacts. C5 host-owned
 evidence retrieval is the current critical path.
 
+C5 is complete in source. `conversation_identity_retrieval.py` implements the
+host-owned `prepare_identity_evidence(...)` seam with an explicit policy for
+source-profile/account/tenant tuples, capabilities, `as_of`, hindsight,
+freshness, provider-call, record, character, per-source, and relationship-hop
+budgets. It resolves calendar emails and authoritative identifiers before
+lexical, semantic, and relationship retrieval; groups people without erasing
+permitted source affinities; ranks support and contradiction with raw feature
+values; enforces independence groups and total packet budgets; rejects
+out-of-scope provider results; and persists the immutable request and
+content-hashed bundle before returning. Calendar-only and prepared-person
+fallbacks remain available. Provider exceptions and partial results yield
+labeled partial bundles, never negative evidence. C6 speaker-workflow
+integration is the current critical path.
+
 ## Stable architectural decisions
 
 - Follow
@@ -234,6 +248,22 @@ Gate:
   observations.
 
 ### C5 | Host-owned evidence retrieval
+
+Status: COMPLETE
+
+Evidence:
+
+- Four C5 behavior tests cover exact-first lookup, bounded lexical/semantic and
+  relationship retrieval, support and contradiction ranking, independence and
+  packet budgets, freshness exclusion, multi-database source preservation,
+  calendar/prepared fallback, provider exceptions, out-of-scope result
+  rejection, provider-call limits, immutable request/bundle replay, and
+  labeled partial results.
+- C1-C5 focused coverage passes with 53 tests; the complete 349-test inventory
+  passes in host-safe partitions.
+- A private isolated preview over the three current sidecars persisted three
+  replayable bundles with 11 calendar candidates, zero fabricated evidence,
+  explicit `no_bounded_evidence` warnings, and unchanged `sidecar` authority.
 
 Outcome:
 

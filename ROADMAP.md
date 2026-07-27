@@ -272,7 +272,14 @@ Milestone Focus:
   project/topic/terminology/source profiles, same-name ambiguity preservation,
   supporting observation IDs, and build watermarks. Delete/rebuild and private
   live-source rehearsals pass without observation mutation or live migration.
-  C5 host-owned evidence retrieval is next.
+  C5 is complete with an explicit host-owned `prepare_identity_evidence(...)`
+  policy, exact-first candidate resolution, bounded lexical/semantic/
+  relationship retrieval, support and contradiction features, independence
+  and total packet budgets, scope-safe multi-database person grouping,
+  immutable request/bundle replay, calendar/prepared fallback, and labeled
+  partial-provider failure. The private live-source rehearsal retained all
+  calendar candidates without fabricating unavailable evidence. C6
+  speaker-workflow integration is next.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

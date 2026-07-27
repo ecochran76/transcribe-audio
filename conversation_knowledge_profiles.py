@@ -1130,7 +1130,6 @@ class ConversationProfileProjector:
                         key: sorted(
                             str(item)
                             for item in values
-                            if str(item)
                         )
                         for key, values in bucket["metadata"].items()
                     },

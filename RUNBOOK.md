@@ -2,6 +2,57 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 232 | 2026-07-26
+
+Summary: Completed Plan 0029 C5 with host-owned, exact-first, bounded identity
+evidence retrieval and immutable bundle receipts.
+
+Implemented:
+
+- Added `conversation_identity_retrieval.py` with
+  `prepare_identity_evidence(...)` and one explicit policy for source tuples,
+  capabilities, temporal/hindsight/freshness rules, provider calls, packet
+  records/characters, per-source limits, and relationship hops.
+- Added a bounded host-adapter protocol; provider results must already satisfy
+  the evidence snapshot contract and are rejected if their scope, capability,
+  time, or freshness falls outside policy.
+- Resolved calendar attendee emails and authoritative identifiers before
+  lexical, semantic, source-record, and relationship retrieval.
+- Preserved every permitted account/tenant source affinity for grouped people
+  while filtering relationship summaries that belong to non-permitted scopes.
+- Ranked supporting and contradicting evidence with persisted raw features,
+  enforced evidence-independence groups and total packet budgets, and retained
+  explicit inclusion/exclusion reason codes.
+- Persisted immutable retrieval requests and content-hashed bundles before
+  returning any model-consumable packet.
+- Preserved calendar-only and prepared-person fallback behavior.
+- Converted provider exceptions, partial results, and call-budget exhaustion
+  into labeled partial bundles and warnings rather than negative evidence.
+
+Validation:
+
+- Four C5 tests pass for exact-first lookup, bounded hybrid retrieval,
+  contradiction ranking, independence/freshness/record/character/per-source
+  budgets, multi-database grouping, calendar/prepared fallback, partial
+  provider failure, out-of-scope rejection, call limits, and replay.
+- C1-C5 focused coverage passes with 53 tests.
+- The complete 349-test inventory passes in host-safe partitions: 337
+  non-participant tests and the 12 participant tests already split across
+  explicit empty/configured provenance lanes.
+- The private isolated preview over the 3 current sidecars persisted 3
+  replayable bundles, retained 11 calendar candidates, included no unavailable
+  evidence, and labeled the empty bounded scope with
+  `no_bounded_evidence`.
+- `py_compile` and `git diff --check` pass.
+- No live provider call, model call, live database migration, source artifact
+  mutation, speaker assignment, external write, or Graphiti write occurred.
+
+Next:
+
+- Execute C6 one-caller-at-a-time integration into the speaker workflow while
+  preserving Clue Discovery, exact prepared-reference validation, confidence
+  calibration, review gates, and all existing fallbacks.
+
 ## Turn 231 | 2026-07-26
 
 Summary: Completed Plan 0029 C4 with immutable reviewed observations and
