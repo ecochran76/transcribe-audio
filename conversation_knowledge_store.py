@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 2
+LATEST_SCHEMA_VERSION = 3
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -340,6 +340,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 3 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v3(con)
+                    applied.append(3)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -367,6 +376,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 3 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v3(con)
+                    rolled_back.append(3)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 2 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -516,9 +534,10 @@ class ConversationKnowledgeStore:
         conversation_id: str,
     ) -> ConversationSnapshot | None:
         """Load one complete conversation snapshot."""
-        conversation_id = _uuid(
-            conversation_id,
-            field_name="conversation_id",
+        conversation_id = (
+            _uuid(conversation_id, field_name="conversation_id")
+            if conversation_id
+            else ""
         )
         with transcript_store.connect(self.root) as con:
             if not self._schema_is_current(con):
@@ -972,9 +991,10 @@ class ConversationKnowledgeStore:
         conversation_id: str,
     ) -> ProcessingHistory | None:
         """Load immutable evaluations, decisions, and the current pointer."""
-        conversation_id = _uuid(
-            conversation_id,
-            field_name="conversation_id",
+        conversation_id = (
+            _uuid(conversation_id, field_name="conversation_id")
+            if conversation_id
+            else ""
         )
         with transcript_store.connect(self.root) as con:
             if not self._schema_is_current(con):
@@ -1064,9 +1084,10 @@ class ConversationKnowledgeStore:
         observations: tuple[ObservationRecord, ...],
     ) -> ObservationSaveReceipt:
         """Append immutable source observations for one conversation."""
-        conversation_id = _uuid(
-            conversation_id,
-            field_name="conversation_id",
+        conversation_id = (
+            _uuid(conversation_id, field_name="conversation_id")
+            if conversation_id
+            else ""
         )
         for observation in observations:
             _uuid(observation.observation_id, field_name="observation_id")
@@ -1132,7 +1153,7 @@ class ConversationKnowledgeStore:
                             observation.subject_id,
                             observation.source_type,
                             observation.source_id,
-                            observation.conversation_id,
+                            observation.conversation_id or None,
                             observation.source_event_at,
                             observation.observed_at,
                             observation.retrieved_at,
@@ -1159,22 +1180,33 @@ class ConversationKnowledgeStore:
         conversation_id: str,
     ) -> tuple[ObservationRecord, ...]:
         """Load immutable source observations for one conversation."""
-        conversation_id = _uuid(
-            conversation_id,
-            field_name="conversation_id",
+        conversation_id = (
+            _uuid(conversation_id, field_name="conversation_id")
+            if conversation_id
+            else ""
         )
         with transcript_store.connect(self.root) as con:
             if not self._schema_is_current(con):
                 return ()
-            rows = con.execute(
-                """
-                SELECT *
-                FROM knowledge_observations
-                WHERE conversation_id = ?
-                ORDER BY observed_at, id
-                """,
-                (conversation_id,),
-            ).fetchall()
+            if conversation_id:
+                rows = con.execute(
+                    """
+                    SELECT *
+                    FROM knowledge_observations
+                    WHERE conversation_id = ?
+                    ORDER BY observed_at, id
+                    """,
+                    (conversation_id,),
+                ).fetchall()
+            else:
+                rows = con.execute(
+                    """
+                    SELECT *
+                    FROM knowledge_observations
+                    WHERE conversation_id IS NULL
+                    ORDER BY observed_at, id
+                    """
+                ).fetchall()
         return tuple(
             ObservationRecord(
                 observation_id=str(row["id"]),
@@ -1183,7 +1215,7 @@ class ConversationKnowledgeStore:
                 subject_id=str(row["subject_id"]),
                 source_type=str(row["source_type"]),
                 source_id=str(row["source_id"]),
-                conversation_id=str(row["conversation_id"]),
+                conversation_id=str(row["conversation_id"] or ""),
                 source_event_at=str(row["source_event_at"]),
                 observed_at=str(row["observed_at"]),
                 retrieved_at=str(row["retrieved_at"]),
@@ -2134,6 +2166,108 @@ class ConversationKnowledgeStore:
             """
             UPDATE knowledge_store_state
             SET schema_version = 1, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v3(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_current_person_profiles (
+                person_id TEXT PRIMARY KEY
+                    REFERENCES knowledge_people(id) ON DELETE CASCADE,
+                resolution_status TEXT NOT NULL,
+                primary_name TEXT NOT NULL,
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                source_record_ids_json TEXT NOT NULL DEFAULT '[]',
+                observation_ids_json TEXT NOT NULL,
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_current_people_name
+            ON knowledge_current_person_profiles(primary_name, person_id)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_affinity_profiles (
+                id TEXT PRIMARY KEY,
+                subject_type TEXT NOT NULL,
+                subject_id TEXT NOT NULL,
+                affinity_type TEXT NOT NULL,
+                object_type TEXT NOT NULL,
+                object_id TEXT NOT NULL DEFAULT '',
+                normalized_value TEXT NOT NULL DEFAULT '',
+                display_value TEXT NOT NULL DEFAULT '',
+                support_count INTEGER NOT NULL CHECK (support_count >= 0),
+                independent_interaction_count INTEGER NOT NULL
+                    CHECK (independent_interaction_count >= 0),
+                first_observed_at TEXT NOT NULL DEFAULT '',
+                last_observed_at TEXT NOT NULL DEFAULT '',
+                review_state TEXT NOT NULL,
+                observation_ids_json TEXT NOT NULL,
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL,
+                UNIQUE(
+                    subject_type, subject_id, affinity_type, object_type,
+                    object_id, normalized_value
+                )
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_affinity_subject
+            ON knowledge_affinity_profiles(
+                subject_type, subject_id, affinity_type
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_affinity_object
+            ON knowledge_affinity_profiles(
+                object_type, object_id, normalized_value, affinity_type
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO knowledge_schema_migrations (version, applied_at)
+            VALUES (3, ?)
+            """,
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 3, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v3(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        con.execute("DROP TABLE IF EXISTS knowledge_affinity_profiles")
+        con.execute("DROP TABLE IF EXISTS knowledge_current_person_profiles")
+        con.execute(
+            "DELETE FROM knowledge_schema_migrations WHERE version = 3"
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 2, updated_at = ?
             WHERE singleton = 1
             """,
             (now,),

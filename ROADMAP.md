@@ -266,8 +266,13 @@ Milestone Focus:
   bounded embedding search, typed concepts and mentions, immutable retrieval
   requests, content-hashed evidence bundles, and reason-coded
   inclusion/exclusion. Private live-database-copy migration and rollback
-  rehearsals passed without changing the live store. C4 reviewed observations
-  and deterministic affinity projections are next.
+  rehearsals passed without changing the live store. C4 is complete with
+  immutable reviewed and diarization outcomes, versioned source-affinity
+  observations, deterministic current person and interaction/organization/
+  project/topic/terminology/source profiles, same-name ambiguity preservation,
+  supporting observation IDs, and build watermarks. Delete/rebuild and private
+  live-source rehearsals pass without observation mutation or live migration.
+  C5 host-owned evidence retrieval is next.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 231 | 2026-07-26
+
+Summary: Completed Plan 0029 C4 with immutable reviewed observations and
+deterministic person/affinity projections.
+
+Implemented:
+
+- Added schema version 3 with replaceable current-person and typed-affinity
+  profile tables, supporting-observation IDs, deterministic input watermarks,
+  and transactional rollback to the version-2 evidence schema.
+- Added `conversation_knowledge_profiles.py` to append confirmed, rejected,
+  deferred, superseded, split-speaker, mixed-speaker, and reviewer-asserted
+  identity observations from immutable processing history.
+- Added versioned source-record affinity and concept-mention observations;
+  source updates append a new content-hash-keyed observation instead of
+  rewriting the prior record.
+- Built deterministic current person, interaction, organization, project,
+  topic, terminology, and source-relationship profiles.
+- Preserved same-name ambiguous people as separate profiles and retained all
+  account/tenant/source affinities after grouping.
+- Kept materialized profile rebuilds independent from the immutable
+  observation ledger.
+
+Validation:
+
+- Three C4 tests pass for all required outcome types, immutable re-append,
+  same-name ambiguity, every source affinity, supporting observation IDs and
+  watermark, deterministic delete/rebuild, and version-3 rollback.
+- C1-C4 focused coverage passes with 49 tests.
+- The complete 345-test inventory passes in host-safe partitions: 333 tests
+  excluding `test_participant_identity.py`, 9 participant tests against an
+  explicit empty provenance profile, and 3 configured-source participant tests
+  using their own fixture profiles.
+- Partitioning avoids unrelated default live-provider calls while the host
+  filesystem journal remains degraded; it covers every collected test.
+- The private isolated preview over the 3 current processing sidecars appended
+  3 split/mixed diarization observations. No person or affinity profile was
+  expected because those sidecars have no review decisions or linked contacts;
+  the second rebuild was unchanged.
+- `py_compile` and `git diff --check` pass.
+- No live database migration, provider retrieval, model call, source artifact
+  mutation, speaker assignment, external write, or Graphiti write occurred.
+
+Next:
+
+- Execute C5 `prepare_identity_evidence(...)` with exact-first bounded
+  retrieval, explicit temporal/source policies, ranking, budgets, immutable
+  bundle receipts, and labeled partial-provider failure.
+
 ## Turn 230 | 2026-07-26
 
 Summary: Completed Plan 0029 C3 with bounded, source-scoped evidence storage

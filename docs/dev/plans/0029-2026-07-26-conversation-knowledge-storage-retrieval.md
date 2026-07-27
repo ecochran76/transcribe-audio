@@ -79,7 +79,21 @@ Raw provider-body fields and over-cap snippets or metadata are rejected.
 Migration, rollback, isolation, immutability, hash-integrity, and private
 live-database-copy rehearsals pass. The live user store remains unmigrated and
 sidecars remain authoritative. C4 reviewed observations and deterministic
-affinity projections are the current critical path.
+affinity projections are complete in source.
+
+C4 adds schema version 3 and `conversation_knowledge_profiles.py`. Confirmed,
+rejected, deferred, superseded, split-speaker, mixed-speaker, and
+reviewer-asserted outcomes become typed immutable observations. Versioned
+source-record and concept-mention observations preserve every source affinity.
+Deterministic current person and interaction, organization, project, topic,
+terminology, and source-relationship profiles cite their complete supporting
+observation IDs and build watermark. Same-name ambiguous people remain
+separate. Deleting and rebuilding all materialized profiles produces the same
+records without changing the observation ledger. A private isolated preview
+over the three current sidecars produced three diarization observations and an
+unchanged second rebuild; no reviewed person profiles were expected because
+those sidecars contain no review decisions or linked contacts. C5 host-owned
+evidence retrieval is the current critical path.
 
 ## Stable architectural decisions
 
@@ -188,6 +202,20 @@ Gate:
 - Tenant, account, capability, and temporal isolation tests must pass.
 
 ### C4 | Reviewed person and affinity observations
+
+Status: COMPLETE
+
+Evidence:
+
+- Three C4 behavior tests cover every required review/diarization outcome,
+  immutable re-append, same-name ambiguity, every source affinity, complete
+  supporting-observation IDs and watermark, deterministic delete/rebuild, and
+  version-3 rollback that preserves version-2 evidence records.
+- The complete 345-test inventory passes in host-safe partitions: 333
+  non-participant tests and all 12 participant-identity tests.
+- The private isolated live-source preview appended three split/mixed
+  diarization observations from three sidecars and produced an unchanged
+  second rebuild without migrating the live store.
 
 Outcome:
 

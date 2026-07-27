@@ -450,7 +450,7 @@ def test_v2_rollback_preserves_v1_domain_records(tmp_path: Path) -> None:
 
     receipt = store.rollback(target_version=1, backup=False)
 
-    assert receipt.rolled_back_versions == (2,)
+    assert receipt.rolled_back_versions == (3, 2)
     assert store.schema_status().schema_version == 1
     assert store.load_conversation_snapshot(CONVERSATION_ID) is not None
     with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
