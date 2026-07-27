@@ -357,7 +357,7 @@ Evidence:
   five evidence-family identities without containing gold content. All case
   prediction states remain `not_started`.
 - The immutable aggregate decision receipt has content hash
-  `dcfe0d52f33432259ff0c1c9839fec047ee68a35ba355e24cb008d9563f56cf9`.
+  `08ace0d9c00278ddb97cd1fffb7b59e01af67228198af0bd605106f0e150f05f`.
 - Historical context remains visible but is not presented as the new
   comparison: 20 reviewed cases contain 53 reviewed person labels; the
   accepted calibration replay retained 17 correct top proposals and zero
@@ -369,6 +369,10 @@ Evidence:
 - Calendar-only, transcript-only, provenance-only, accumulated-history, and
   combined results are explicitly `not_run`, with null metrics, because the
   provider-adapter and default-caller gates failed before prediction.
+- Final validation passes with 354 tests in host-safe partitions, planning
+  audit `ok`, Python compile checks, and `git diff --check`. The durable
+  evaluation root and freeze directory are `0700`; freeze and decision
+  receipts are `0600`.
 
 Outcome:
 

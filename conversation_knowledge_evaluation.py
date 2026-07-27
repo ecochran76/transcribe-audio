@@ -142,6 +142,13 @@ def _freeze_dir(evaluation_root: Path, freeze_id: str) -> Path:
     return evaluation_root.expanduser() / freeze_id
 
 
+def _private_evaluation_root(evaluation_root: Path) -> Path:
+    root = evaluation_root.expanduser()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(root, 0o700)
+    return root
+
+
 def _latest_gold_rank(index: dict[str, Any]) -> int:
     records = index.get("records")
     if not isinstance(records, list):
@@ -240,7 +247,10 @@ def freeze_chronological_evaluation(
     freeze_id = "evaluation-" + str(
         uuid5(_EVALUATION_NAMESPACE, _canonical_hash(stable_identity))
     )
-    freeze_path = _freeze_dir(evaluation_root, freeze_id) / "freeze.json"
+    freeze_path = (
+        _freeze_dir(_private_evaluation_root(evaluation_root), freeze_id)
+        / "freeze.json"
+    )
     if freeze_path.exists():
         return {**_read_json(freeze_path), "freeze_path": str(freeze_path)}
     frozen = {
@@ -295,7 +305,10 @@ def record_readiness_decision(
         )
     if decision not in _DECISIONS:
         raise ValueError(f"Unsupported evaluation decision: {decision}.")
-    freeze_dir = _freeze_dir(evaluation_root, freeze_id)
+    freeze_dir = _freeze_dir(
+        _private_evaluation_root(evaluation_root),
+        freeze_id,
+    )
     freeze = _read_json(freeze_dir / "freeze.json")
     if freeze.get("schema_version") != FREEZE_SCHEMA_VERSION:
         raise ValueError("Evaluation freeze schema is invalid.")

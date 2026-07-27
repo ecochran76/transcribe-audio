@@ -101,6 +101,8 @@ def test_freeze_selects_unseen_chronological_cases_without_gold_content(
     assert "email" not in serialized
     assert "speaker_outcomes" not in serialized
     freeze_path = Path(frozen["freeze_path"])
+    assert (tmp_path / "evaluations").stat().st_mode & 0o777 == 0o700
+    assert freeze_path.parent.stat().st_mode & 0o777 == 0o700
     assert freeze_path.stat().st_mode & 0o777 == 0o600
 
     repeated = conversation_knowledge_evaluation.freeze_chronological_evaluation(

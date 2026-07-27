@@ -229,8 +229,8 @@ Milestone Focus:
   speaker proposals, so C7 is paused at chronological rank 24 rather than
   spending another review batch. Plan 0027's bounded reference repair was
   rejected as a complete identity-quality repair, while Plan 0028's confidence
-  calibration was accepted. Plan 0026 remains paused while planned Plan 0029
-  establishes and evaluates the accumulated-context retrieval path.
+  calibration was accepted. Plan 0026 remains paused while Plan 0030 completes
+  the bounded provider-adapter and blind accumulated-context evaluation slice.
 - Closed Plan 0027 preserves rejected App Intelligence output and permits at
   most one host-mediated corrective turn containing the invalid fields and
   exact prepared-reference allowlists. It does not weaken validation, remap
@@ -247,8 +247,8 @@ Milestone Focus:
   17/53 top-person correctness while reducing High/Very High wrong proposals
   from 12 to 0; a future unseen chronological holdout remains required before
   automatic confirmation.
-- Open Plan 0029 defines the durable conversation-knowledge storage and
-  retrieval campaign. It evolves the existing user-scoped SQLite transcript
+- Closed Plan 0029 established the durable conversation-knowledge storage and
+  retrieval campaign. It evolved the existing user-scoped SQLite transcript
   store through sidecar-authoritative shadow projection, immutable
   observations and evidence bundles, temporal and tenant-aware hybrid
   retrieval, reproducible person/topic/relationship profiles, and a

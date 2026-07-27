@@ -2,6 +2,46 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 234 | 2026-07-27
+
+Summary: Reconciled the concurrently completed Plan 0029 closeout and restored
+its C7 freeze and decision receipts to the documented durable private root.
+
+Implemented:
+
+- Confirmed the concurrent C6 commit had the exact same tree as the local C6
+  commit and rebased without duplicating it.
+- Recreated the C7 freeze deterministically from the unchanged campaign
+  manifest and gold index. It retained the exact freeze ID, ten chronological
+  ranks, four incomplete exclusions, two duplicate-member exclusions, and
+  `not_started` prediction state without reading gold bodies.
+- Persisted a durable aggregate `refine` receipt with all five evidence
+  families explicitly `not_run` and every requested comparison metric null.
+- Added explicit `0700` enforcement for the evaluation root as well as its
+  freeze directory; freeze and decision files remain `0600`.
+- Kept sidecars authoritative and automatic confirmation disabled.
+
+Validation:
+
+- Freeze ID:
+  `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b`.
+- Durable decision content hash:
+  `08ace0d9c00278ddb97cd1fffb7b59e01af67228198af0bd605106f0e150f05f`.
+- Campaign-manifest hash:
+  `e387ea4fdd51bf9cfb336cacf918aa782cb8e16b931ba8e022218a3e542e5aa4`.
+- Gold-index hash:
+  `6560591461573bf08d50dd110c031d56f287ea570563b9ae0bfdae691d48d3d8`.
+- Live transcript database still contains zero knowledge-schema tables.
+- Current source still has no concrete production `HostEvidenceAdapter`, and
+  the selected-conversation API still uses the legacy collector by default.
+
+Next:
+
+- Execute
+  `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`
+  R1. Do not read or predict the frozen cohort until its adapter,
+  default-caller, shadow-store, and operator-gold gates pass.
+
 ## Turn 233 | 2026-07-26
 
 Summary: Closed Plan 0029 with an explicit bounded-refinement decision after
@@ -42,7 +82,7 @@ Validation:
 - Private freeze:
   `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b`.
 - Immutable decision content hash:
-  `dcfe0d52f33432259ff0c1c9839fec047ee68a35ba355e24cb008d9563f56cf9`.
+  `08ace0d9c00278ddb97cd1fffb7b59e01af67228198af0bd605106f0e150f05f`.
 - The frozen cohort remains unseen with every prediction `not_started`.
 - No new model call, provider call, source mutation, speaker assignment,
   external write, live migration, database-authority cutover, automatic
