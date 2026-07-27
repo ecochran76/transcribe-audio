@@ -107,7 +107,20 @@ out-of-scope provider results; and persists the immutable request and
 content-hashed bundle before returning. Calendar-only and prepared-person
 fallbacks remain available. Provider exceptions and partial results yield
 labeled partial bundles, never negative evidence. C6 speaker-workflow
-integration is the current critical path.
+integration is complete in source.
+
+C6 adds the persisted retrieval bundle as an explicit, mutually exclusive
+Identity Evaluation input. Included snapshots become the existing
+prepared-reference evidence records; excluded snapshots expose only bounded
+provenance, freshness, temporal, ranking, and exclusion metadata, never their
+content. Canonical person IDs and every permitted source record remain
+available to the evaluator. Retrieval request, bundle, warning, failure,
+allowlist, freshness, temporal, independence, and inclusion metadata survive
+into the review sidecar. The unchanged validator still owns exact-reference
+checks, factor scoring, numeric confidence calibration, and the mandatory
+human-confirmation gate. The legacy prepared-evidence parameters remain as the
+incremental fallback pending the C7 authority decision. C7 chronological
+evaluation is the current critical path.
 
 ## Stable architectural decisions
 
@@ -282,6 +295,22 @@ Gate:
   treating unavailable evidence as negative evidence.
 
 ### C6 | Speaker workflow integration
+
+Status: COMPLETE
+
+Evidence:
+
+- Two C6 behavior tests cover retrieval-bundle adaptation, canonical person
+  IDs, exact included-evidence references, excluded-content isolation,
+  inclusion/exclusion reasons, freshness and temporal metadata, partial-source
+  warnings, persisted review metadata, and rejection of parallel legacy
+  evidence authority.
+- Existing workflow tests continue to cover the legacy prepared-evidence
+  fallback, reference-only repair, factor scoring, confidence calibration, and
+  explicit proposal confirmation.
+- The complete 351-test inventory passes in host-safe partitions: 339
+  non-participant tests and all 12 participant-identity tests. Python compile
+  checks and `git diff --check` also pass.
 
 Outcome:
 

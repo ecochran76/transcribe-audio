@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import app_intelligence_ledger
 import intelligence_config
+from conversation_identity_retrieval import PreparedIdentityEvidenceBundle
 from conversation_processing import (
     append_evaluation,
     append_review_decision,
@@ -27,6 +28,15 @@ from speaker_identity_preprocess import (
 REFERENCE_REPAIR_PACKET_SCHEMA_VERSION = (
     "transcribe-audio.speaker-reference-repair-packet.v1"
 )
+IDENTITY_RETRIEVAL_CONTEXT_SCHEMA_VERSION = (
+    "transcribe-audio.identity-retrieval-context.v1"
+)
+_RETRIEVAL_FAILURE_FIELDS = {
+    "adapter_id",
+    "source_profile_id",
+    "reason_code",
+    "detail",
+}
 
 
 def _read_transcript(path: Path) -> dict[str, Any]:
@@ -168,17 +178,45 @@ def prepare_identity_evaluation(
     person_records: Iterable[dict[str, Any]] = (),
     provenance_sources: Iterable[dict[str, Any]] = (),
     source_contexts: Iterable[dict[str, Any]] = (),
+    retrieval_bundle: Optional[PreparedIdentityEvidenceBundle] = None,
     route: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Prepare, but never send, the second phase after validated discovery."""
     transcript = _read_transcript(transcript_path)
+    person_records = tuple(person_records)
+    provenance_sources = tuple(provenance_sources)
+    source_contexts = tuple(source_contexts)
+    bundle_inputs: Optional[dict[str, Any]] = None
+    if retrieval_bundle is not None:
+        if person_records or provenance_sources:
+            raise ValueError(
+                "retrieval_bundle cannot be combined with legacy person_records "
+                "or provenance_sources."
+            )
+        bundle_inputs = _identity_inputs_from_retrieval_bundle(retrieval_bundle)
+        source_contexts = (*source_contexts, *bundle_inputs["source_contexts"])
     packet = build_identity_evaluation_packet(
         transcript=transcript,
         discovery_readout=discovery_readout,
         person_records=person_records,
-        provenance_sources=provenance_sources,
+        provenance_sources=(
+            bundle_inputs["provenance_sources"]
+            if bundle_inputs is not None
+            else provenance_sources
+        ),
         source_contexts=source_contexts,
     )
+    if bundle_inputs is not None:
+        request_conversation_id = retrieval_bundle.request.conversation_id
+        packet_conversation_id = str(
+            (packet.get("conversation") or {}).get("conversation_id") or ""
+        )
+        if request_conversation_id != packet_conversation_id:
+            raise ValueError(
+                "retrieval_bundle conversation does not match the transcript."
+            )
+        packet["people"] = bundle_inputs["people"]
+        packet["retrieval"] = bundle_inputs["retrieval"]
     result = _prepare_run(
         phase="identity_evaluation",
         document_id=document_id,
@@ -189,6 +227,154 @@ def prepare_identity_evaluation(
         input_packet=packet,
     )
     return {**result, "packet": packet}
+
+
+def _identity_inputs_from_retrieval_bundle(
+    bundle: PreparedIdentityEvidenceBundle,
+) -> dict[str, Any]:
+    """Adapt one persisted retrieval result into the existing evaluation contract."""
+    request = bundle.request
+    persisted = bundle.persisted_bundle
+    item_by_evidence_id = {
+        item.evidence_id: item
+        for item in persisted.items
+    }
+    provenance_sources: list[dict[str, Any]] = []
+    evidence_context: list[dict[str, Any]] = []
+    for ranked in bundle.evidence:
+        snapshot = ranked.snapshot
+        item = item_by_evidence_id.get(snapshot.evidence_id)
+        if item is None:
+            raise ValueError(
+                f"retrieval_bundle lacks persisted item: {snapshot.evidence_id}."
+            )
+        summary = {
+            "evidence_id": snapshot.evidence_id,
+            "source_profile_id": snapshot.source_profile_id,
+            "provider_kind": snapshot.provider_kind,
+            "account_id": snapshot.account_id,
+            "tenant_id": snapshot.tenant_id,
+            "source_type": snapshot.source_type,
+            "capability": snapshot.capability,
+            "disposition": item.disposition,
+            "reason_code": item.reason_code,
+            "rank": item.rank,
+            "score": item.score,
+            "direction": ranked.direction,
+            "freshness_state": snapshot.freshness_state,
+            "temporal_class": snapshot.temporal_class,
+            "source_event_at": snapshot.source_event_at,
+            "observed_at": snapshot.observed_at,
+            "retrieved_at": snapshot.retrieved_at,
+            "content_hash": snapshot.content_hash,
+            "independence_group_id": snapshot.independence_group_id,
+        }
+        evidence_context.append(summary)
+        if item.disposition != "included":
+            continue
+        provenance_sources.append(
+            {
+                "source_type": snapshot.source_type,
+                "source_id": snapshot.evidence_id,
+                "label": (
+                    str(snapshot.structured_metadata.get("label") or "")
+                    or f"{snapshot.provider_kind} {snapshot.capability}"
+                ),
+                "snippet": snapshot.snippet,
+                "profile": snapshot.source_profile_id,
+                "tenant": snapshot.tenant_id,
+                "account": snapshot.account_id,
+                "capability": snapshot.capability,
+                "timestamp": snapshot.source_event_at,
+                "independence_key": snapshot.independence_group_id,
+                "freshness_state": snapshot.freshness_state,
+                "temporal_class": snapshot.temporal_class,
+                "inclusion_reason": item.reason_code,
+                "direction": ranked.direction,
+                "content_hash": snapshot.content_hash,
+            }
+        )
+
+    people: list[dict[str, Any]] = []
+    for candidate in bundle.people:
+        emails = sorted(
+            {
+                identity.removeprefix("email:")
+                for identity in candidate.exact_identities
+                if identity.startswith("email:") and identity.removeprefix("email:")
+            }
+        )
+        people.append(
+            {
+                "person_id": candidate.person_id,
+                "display_name": emails[0] if emails else candidate.person_id,
+                "emails": emails,
+                "source_records": [
+                    {
+                        "source_id": source_profile_id,
+                        "source_type": "retrieved_identity_source",
+                        "record_id": "",
+                        "label": "",
+                        "email": "",
+                    }
+                    for source_profile_id in candidate.source_profile_ids
+                ]
+                + [
+                    {
+                        "source_id": "",
+                        "source_type": "retrieved_identity_record",
+                        "record_id": source_record_id,
+                        "label": "",
+                        "email": "",
+                    }
+                    for source_record_id in candidate.source_record_ids
+                ],
+                "match_reasons": list(candidate.match_reasons),
+                "exact_identities": list(candidate.exact_identities),
+            }
+        )
+
+    source_contexts = [
+        {
+            "source_id": scope.source_profile_id,
+            "source_profile": scope.source_profile_id,
+            "account_id": scope.account_id,
+            "tenant_id": scope.tenant_id,
+            "capabilities": list(request.capabilities),
+            "retrieval_scope": "explicit",
+        }
+        for scope in request.scopes
+    ]
+    return {
+        "people": people,
+        "provenance_sources": provenance_sources,
+        "source_contexts": source_contexts,
+        "retrieval": {
+            "schema_version": IDENTITY_RETRIEVAL_CONTEXT_SCHEMA_VERSION,
+            "request_id": request.request_id,
+            "bundle_id": persisted.bundle_id,
+            "bundle_content_hash": persisted.content_hash,
+            "status": persisted.status,
+            "retrieval_version": request.retrieval_version,
+            "ranking_version": request.ranking_version,
+            "as_of": request.as_of,
+            "conversation_at": request.conversation_at,
+            "freshness_policy": request.freshness_policy,
+            "hindsight_policy": request.hindsight_policy,
+            "budgets": dict(request.budgets),
+            "evidence": evidence_context,
+            "warnings": list(bundle.warnings),
+            "source_failures": [
+                {
+                    key: str(value)
+                    for key, value in item.items()
+                    if key in _RETRIEVAL_FAILURE_FIELDS
+                }
+                for item in bundle.source_failures
+            ],
+            "allowlists": dict(persisted.allowlists),
+        },
+    }
 
 
 def _normalized_ids(values: Any) -> set[str]:
@@ -574,8 +760,16 @@ def persist_identity_evaluation(
             "snippet": source.get("snippet"),
             "profile": source.get("profile"),
             "tenant": source.get("tenant"),
+            "account": source.get("account"),
+            "capability": source.get("capability"),
             "email": source.get("email"),
             "timestamp": source.get("timestamp"),
+            "independence_key": source.get("independence_key"),
+            "freshness_state": source.get("freshness_state"),
+            "temporal_class": source.get("temporal_class"),
+            "inclusion_reason": source.get("inclusion_reason"),
+            "direction": source.get("direction"),
+            "content_hash": source.get("content_hash"),
         }
         for source in packet.get("provenance_sources", [])
         if isinstance(source, dict)
@@ -594,6 +788,7 @@ def persist_identity_evaluation(
         "source_contexts": packet.get("source_contexts") or [],
         "people": packet.get("people") or [],
         "evidence_snapshots": evidence_snapshots,
+        "retrieval": packet.get("retrieval") or {},
         "calendar_association": scored_readout.get("calendar_association") or {},
         "person_links": scored_readout.get("person_links") or [],
         "person_group_proposals": validated.get("person_group_proposals") or [],

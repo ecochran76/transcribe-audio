@@ -906,10 +906,29 @@ def _compact_provenance_sources(values: Iterable[dict[str, Any]]) -> list[dict[s
                 "snippet": normalize_string(value.get("snippet"))[:MAX_PROVENANCE_SNIPPET_CHARS],
                 "profile": normalize_string(metadata.get("profile") or value.get("profile")),
                 "tenant": normalize_string(metadata.get("tenant") or metadata.get("tenant_profile")),
+                "account": normalize_string(metadata.get("account") or value.get("account")),
+                "capability": normalize_string(
+                    metadata.get("capability") or value.get("capability")
+                ),
                 "email": normalize_email(metadata.get("email") or value.get("email")),
                 "timestamp": normalize_string(metadata.get("timestamp") or value.get("timestamp")),
                 "independence_key": normalize_string(
                     metadata.get("independence_key") or value.get("independence_key")
+                ),
+                "freshness_state": normalize_string(
+                    metadata.get("freshness_state") or value.get("freshness_state")
+                ),
+                "temporal_class": normalize_string(
+                    metadata.get("temporal_class") or value.get("temporal_class")
+                ),
+                "inclusion_reason": normalize_string(
+                    metadata.get("inclusion_reason") or value.get("inclusion_reason")
+                ),
+                "direction": normalize_string(
+                    metadata.get("direction") or value.get("direction")
+                ),
+                "content_hash": normalize_string(
+                    metadata.get("content_hash") or value.get("content_hash")
                 ),
             }
         )
