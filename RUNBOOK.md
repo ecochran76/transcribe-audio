@@ -2,6 +2,58 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 233 | 2026-07-26
+
+Summary: Closed Plan 0029 with an explicit bounded-refinement decision after
+freezing the next unseen chronological cohort and stopping before misleading
+model work.
+
+Implemented:
+
+- Completed C6 retrieval-bundle adaptation in the existing Identity Evaluation
+  workflow while preserving exact prepared-reference validation, factor
+  scoring, confidence calibration, and mandatory human confirmation.
+- Included evidence becomes model-visible bounded provenance; excluded
+  evidence exposes only reason, scope, freshness, temporal, ranking, and hash
+  metadata, never excluded content.
+- Persisted retrieval request, bundle, warning, failure, allowlist,
+  independence, freshness, temporal, and inclusion metadata in review
+  sidecars.
+- Added `conversation_knowledge_evaluation.py` with approval-gated,
+  deterministic private cohort freezes and immutable aggregate readiness
+  decisions.
+- Froze ten unseen cases at chronological ranks 25, 26, 27, 28, 29, 30, 31,
+  34, 35, and 39. Four incomplete and two duplicate-member rows remained
+  explicitly counted rather than silently disappearing.
+- Recorded C7 decision `refine` before starting predictions. Production source
+  has no concrete GWS/Odollo `HostEvidenceAdapter`, the default transcript API
+  caller still uses the legacy collector, and the live store intentionally has
+  no knowledge-schema tables.
+- Opened Plan 0030 for the bounded adapter, default-caller, private-shadow, and
+  blind five-family evaluation slice.
+
+Validation:
+
+- C6 focused coverage passes with 42 tests.
+- The complete C6 inventory passes in host-safe partitions: 339
+  non-participant tests and all 12 participant-identity tests.
+- Three C7 freeze/decision tests pass; compile checks and `git diff --check`
+  pass.
+- Private freeze:
+  `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b`.
+- Immutable decision content hash:
+  `dcfe0d52f33432259ff0c1c9839fec047ee68a35ba355e24cb008d9563f56cf9`.
+- The frozen cohort remains unseen with every prediction `not_started`.
+- No new model call, provider call, source mutation, speaker assignment,
+  external write, live migration, database-authority cutover, automatic
+  confirmation, or Graphiti write occurred.
+
+Next:
+
+- Execute Plan 0030 R1 with concrete bounded GWS/Odollo evidence-snapshot
+  adapters. Do not consume the frozen cohort until adapter, default-caller,
+  shadow-read, and operator-gold gates pass.
+
 ## Turn 232 | 2026-07-26
 
 Summary: Completed Plan 0029 C5 with host-owned, exact-first, bounded identity

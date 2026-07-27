@@ -1,6 +1,6 @@
 # Plan 0029 | Conversation knowledge storage and retrieval
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -120,7 +120,23 @@ into the review sidecar. The unchanged validator still owns exact-reference
 checks, factor scoring, numeric confidence calibration, and the mandatory
 human-confirmation gate. The legacy prepared-evidence parameters remain as the
 incremental fallback pending the C7 authority decision. C7 chronological
-evaluation is the current critical path.
+evaluation reached an explicit bounded-refinement decision.
+
+C7 froze ten unseen chronological cases spanning ranks 25 through 39 before
+starting any new prediction. Readiness then failed before model execution:
+only the `HostEvidenceAdapter` protocol exists in production source, and the
+selected-conversation API still invokes the legacy configured-evidence
+collector instead of constructing and consuming the immutable retrieval
+bundle by default. The live store also remains intentionally unmigrated, so a
+five-family run would have mislabeled zero provider evidence as a combined
+retrieval result. No predictions were started and the cohort remains unseen.
+
+The terminal Plan 0029 decision is `refine`. Plan 0030 owns the bounded missing
+slice: production GWS/Odollo evidence-snapshot adapters, default caller wiring
+with an observable legacy rollback, a private shadow evaluation store, and
+blind five-family evaluation on the already frozen cohort after operator gold
+review. Sidecars remain authoritative and automatic confirmation remains
+disabled.
 
 ## Stable architectural decisions
 
@@ -328,6 +344,32 @@ Gate:
 
 ### C7 | Chronological evaluation and authority decision
 
+Status: COMPLETE WITH `refine` DECISION
+
+Evidence:
+
+- Private freeze
+  `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b` contains ten unseen,
+  structurally eligible cases at chronological ranks 25, 26, 27, 28, 29, 30,
+  31, 34, 35, and 39. Four incomplete and two duplicate-member rows remain
+  counted as explicit exclusions.
+- The freeze binds campaign, manifest, gold-index, artifact, repository, and
+  five evidence-family identities without containing gold content. All case
+  prediction states remain `not_started`.
+- The immutable aggregate decision receipt has content hash
+  `dcfe0d52f33432259ff0c1c9839fec047ee68a35ba355e24cb008d9563f56cf9`.
+- Historical context remains visible but is not presented as the new
+  comparison: 20 reviewed cases contain 53 reviewed person labels; the
+  accepted calibration replay retained 17 correct top proposals and zero
+  High/Very High wrong proposals while 15 of 20 historical outputs passed
+  validation.
+- Retrieval readiness recorded three private preview bundles, eleven calendar
+  candidates, zero included provider-evidence snapshots, zero production
+  provider adapters, and zero live knowledge-schema tables.
+- Calendar-only, transcript-only, provenance-only, accumulated-history, and
+  combined results are explicitly `not_run`, with null metrics, because the
+  provider-adapter and default-caller gates failed before prediction.
+
 Outcome:
 
 - Freeze a new chronological evaluation set before inspecting predictions.
@@ -344,6 +386,14 @@ Authority gate:
   shadow-read agreement, backup/restore, and rollback evidence all pass.
 - Automatic confirmation remains disabled until an unseen holdout validates
   the complete accepted path.
+
+Decision:
+
+- `refine`.
+- Do not enable database authority or automatic confirmation.
+- Preserve the frozen cohort without predictions for Plan 0030.
+- Do not interpret missing provider adapters as negative evidence or as a
+  measured failure of accumulated context.
 
 ## Critical path and parallel work
 

@@ -190,6 +190,7 @@ Plans:
 - `docs/dev/plans/0027-2026-07-25-speaker-output-reference-repair.md`
 - `docs/dev/plans/0028-2026-07-25-speaker-confidence-calibration.md`
 - `docs/dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md`
+- `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`
 
 Milestone Focus:
 
@@ -278,8 +279,18 @@ Milestone Focus:
   and total packet budgets, scope-safe multi-database person grouping,
   immutable request/bundle replay, calendar/prepared fallback, and labeled
   partial-provider failure. The private live-source rehearsal retained all
-  calendar candidates without fabricating unavailable evidence. C6
-  speaker-workflow integration is next.
+  calendar candidates without fabricating unavailable evidence. C6 integrates
+  immutable bundles into the existing exact-reference, factor-scoring,
+  confidence, and human-review path. C7 froze ten unseen chronological cases,
+  then recorded `refine` before prediction because production GWS/Odollo
+  snapshot adapters and the default bundle caller are absent. Sidecars remain
+  authoritative and automatic confirmation remains disabled.
+- Open Plan 0030 owns only that bounded refinement: production evidence
+  adapters, default selected-conversation bundle wiring with observable legacy
+  rollback, private shadow-read proof, operator gold review, and the blind
+  calendar/transcript/provenance/history/combined comparison on the already
+  frozen cohort. It cannot add storage redesign, automatic confirmation, or
+  database-authority cutover.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

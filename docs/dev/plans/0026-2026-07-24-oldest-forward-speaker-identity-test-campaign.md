@@ -103,12 +103,15 @@ three wrong speaker proposals carried High/Very High confidence. Only 2/10
 model outputs passed host validation; four failed Clue Discovery reference
 validation and four failed Identity Evaluation reference validation.
 
-The campaign is intentionally paused before C7 at chronological rank 24.
-Advancing another review batch would not be useful while 80% of holdout model
-outputs are rejected. Plan 0027 is the bounded successor for a single
-host-mediated invalid-reference corrective turn. Plan 0026 remains OPEN with
-its private gold, baseline, refinement, holdout, comparison receipts, and next
-chronological cursor preserved.
+The campaign remains intentionally paused before C7. Plans 0027 and 0028
+completed bounded reference-repair and confidence-calibration work. Plan 0029
+then closed with a `refine` decision after freezing, but not predicting, the
+next ten unseen chronological cases at ranks 25 through 39. Readiness stopped
+before model execution because production provider snapshot adapters and the
+default immutable-bundle caller are not yet integrated. Plan 0030 owns that
+bounded adapter/caller/evaluation slice. Plan 0026 remains OPEN with its
+private gold, baseline, refinement, holdout, comparison receipts, and unseen
+freeze preserved.
 
 The first thirteen chronological transcript rows already expose useful
 campaign strata:
