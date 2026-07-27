@@ -88,6 +88,41 @@ presented during an evaluation. It preserves auditability without retaining
 complete source bodies.
 _Avoid_: Live provenance, full source export
 
+**Evidence Retrieval Request**:
+The immutable host-owned specification of which conversation clues, source
+profiles, candidates, temporal policy, and packet budgets may be used to
+collect identity evidence.
+_Avoid_: Model search request, unrestricted provenance search
+
+**Evidence Bundle**:
+The immutable, content-hashed collection of prepared people, clues, evidence
+snapshots, relationship and concept summaries, warnings, and exact output
+allowlists supplied to one evaluation.
+_Avoid_: Live provider results, mutable context window
+
+**Observation**:
+An attributable record of what a source, transcript, or reviewer supplied at
+a particular time. Observations remain immutable and support rebuildable
+profiles and claims.
+_Avoid_: Current truth, overwritten profile
+
+**Claim**:
+A reviewable assertion derived from one or more observations, with supporting
+and contradicting evidence, temporal applicability, alternatives, confidence,
+and status.
+_Avoid_: Observation, established fact
+
+**As-Of Time**:
+The time boundary used to decide which evidence and accumulated knowledge an
+evaluation may treat as available.
+_Avoid_: Retrieval time, review time
+
+**Hindsight Evidence**:
+Evidence learned only after the conversation or evaluation time, including
+later reviewer corrections. It must be labeled and excluded from blind
+historical evaluation unless policy explicitly allows it.
+_Avoid_: Contemporaneous evidence, refreshed provenance
+
 **Conversation Processing Record**:
 The conversation-owned, history-preserving collection of preprocessing
 evaluations, evidence and confidence assessments, review state, and
@@ -167,6 +202,12 @@ A source-attributed representation of a person in one account, tenant, or
 database. Several source records may contribute to one person candidate.
 _Avoid_: Person, duplicate person
 
+**External Identity**:
+A source-scoped identifier such as an email, Google Workspace contact ID,
+Odollo contact or lead ID, or calendar attendee identity that may link a
+source record to a person.
+_Avoid_: Person ID, display name
+
 **Relationship Context**:
 Information implied by the account, tenant, or database in which a source
 record appears, describing whose relationship with the person that source is
@@ -216,6 +257,12 @@ _Avoid_: High-confidence proposal, inferred identity
 The preserved comparison between an evidence-backed proposal and its human
 review decision, including any structured correction and rejection reason.
 _Avoid_: Training example, contact update, memory write
+
+**Derived Person Profile**:
+A rebuildable summary of reviewed identities, aliases, source affinities,
+relationships, interactions, topics, and terminology supported by explicit
+observation IDs and a projection version.
+_Avoid_: Contact record, model memory, independent evidence
 
 **Review Decision**:
 An attributable, timestamped human decision on a specific proposal and

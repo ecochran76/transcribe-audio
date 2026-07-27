@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 227 | 2026-07-26
+
+Summary: Established the durable architecture and staged implementation plan
+for accumulating and retrieving conversation knowledge.
+
+Decisions:
+
+- The existing user-scoped transcript home is the target local storage
+  authority: SQLite stores normalized records and indexes, while
+  content-addressed files retain audio and immutable artifacts.
+- Processing sidecars remain authoritative during shadow projection and
+  become portable database exports only after explicit reconciliation,
+  backup/restore, rollback, and authority-cutover gates pass.
+- The domain model separates observations, claims, evaluations, review
+  decisions, source records, people, external identities, relationships,
+  concepts, and derived profiles.
+- Evidence retrieval remains host-owned, tenant- and account-scoped,
+  temporal, budgeted, duplicate-aware, and immutable before App Intelligence
+  reasoning.
+- Graphiti remains a reviewed compact projection, not the authority for raw
+  transcripts, provider evidence, or processing history.
+
+Durable authorities:
+
+- `docs/adr/0002-use-a-user-scoped-conversation-knowledge-store.md`
+- `docs/conversation-knowledge-storage-and-retrieval.md`
+- `docs/dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md`
+- `CONTEXT.md` for the new retrieval, temporal, observation, claim, external
+  identity, and derived-profile language.
+
+Next:
+
+- Execute Plan 0029 C1 as a schema-and-interface slice. Do not migrate live
+  authority, change speaker behavior, or resume chronological identity
+  spending until its compatibility and rollback gates pass.
+
 ## Turn 226 | 2026-07-25
 
 Summary: Rejected Plan 0027 as a complete identity-quality repair, then

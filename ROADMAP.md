@@ -189,6 +189,7 @@ Plans:
 - `docs/dev/plans/0026-2026-07-24-oldest-forward-speaker-identity-test-campaign.md`
 - `docs/dev/plans/0027-2026-07-25-speaker-output-reference-repair.md`
 - `docs/dev/plans/0028-2026-07-25-speaker-confidence-calibration.md`
+- `docs/dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md`
 
 Milestone Focus:
 
@@ -225,9 +226,10 @@ Milestone Focus:
   refinement, and once-scored chronological holdout. The holdout passed host
   validation for only 2/10 predictions and retained three High/Very High wrong
   speaker proposals, so C7 is paused at chronological rank 24 rather than
-  spending another review batch. Open Plan 0027 is the bounded repair gate
-  for invalid model evidence references; Plan 0026 resumes only after that
-  hypothesis is accepted or rejected.
+  spending another review batch. Plan 0027's bounded reference repair was
+  rejected as a complete identity-quality repair, while Plan 0028's confidence
+  calibration was accepted. Plan 0026 remains paused while planned Plan 0029
+  establishes and evaluates the accumulated-context retrieval path.
 - Closed Plan 0027 preserves rejected App Intelligence output and permits at
   most one host-mediated corrective turn containing the invalid fields and
   exact prepared-reference allowlists. It does not weaken validation, remap
@@ -244,6 +246,15 @@ Milestone Focus:
   17/53 top-person correctness while reducing High/Very High wrong proposals
   from 12 to 0; a future unseen chronological holdout remains required before
   automatic confirmation.
+- Planned Plan 0029 defines the durable conversation-knowledge storage and
+  retrieval campaign. It evolves the existing user-scoped SQLite transcript
+  store through sidecar-authoritative shadow projection, immutable
+  observations and evidence bundles, temporal and tenant-aware hybrid
+  retrieval, reproducible person/topic/relationship profiles, and a
+  chronological comparison before either storage-authority cutover or
+  automatic confirmation. The architecture authority is
+  `docs/conversation-knowledge-storage-and-retrieval.md`, with the storage
+  decision recorded in ADR 0002.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
