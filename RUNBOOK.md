@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 228 | 2026-07-26
+
+Summary: Completed Plan 0029 C1 as an additive, sidecar-authoritative storage
+foundation without migrating the live user store.
+
+Implemented:
+
+- Added `conversation_knowledge_store.py` with one deep interface for schema
+  lifecycle and normalized domain persistence.
+- Added versioned transactional migration, private `0700` backup directories
+  and `0600` integrity-checked SQLite backups, rollback to schema version 0,
+  and explicit `sidecar` authority state.
+- Added idempotent conversation, recording, utterance, person, source-record,
+  external-identity, evaluation, and review-history interfaces.
+- Added v1 relationship, concept, observation, claim, and projection-state
+  tables for later Plan 0029 milestones.
+- Preserved tenant/account Source Context and source affinities when several
+  provider records represent one person.
+
+Validation:
+
+- Six C1 behavior tests pass for legacy-store compatibility, idempotent
+  snapshots, cross-source identity context, immutable processing history,
+  backup/rollback, and transactional migration failure.
+- Transcript-store, conversation-processing, and C1 focused tests pass with
+  37 tests.
+- The final full suite passes with 334 tests.
+- `py_compile` and `git diff --check` pass.
+- No live user-store migration, speaker behavior change, provider access,
+  assignment, external write, or Graphiti write occurred.
+
+Next:
+
+- Execute C2 shadow projection from hash-verified transcript and processing
+  sidecars, with idempotent reconciliation and round-trip export receipts.
+
 ## Turn 227 | 2026-07-26
 
 Summary: Established the durable architecture and staged implementation plan

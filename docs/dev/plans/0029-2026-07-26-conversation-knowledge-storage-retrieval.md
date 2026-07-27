@@ -1,6 +1,6 @@
 # Plan 0029 | Conversation knowledge storage and retrieval
 
-State: PLANNED
+State: OPEN
 
 Lane: P09
 
@@ -50,6 +50,16 @@ Plan 0026 remains the identity-quality campaign. Its next chronological batch
 must not resume until this plan reaches the explicit evaluation gate or is
 rejected earlier.
 
+C1 is complete in source. `conversation_knowledge_store.py` provides a deep
+storage interface over versioned transactional migrations, private
+integrity-checked backups, tested rollback, conversation/recording/utterance
+snapshots, cross-source person records, and immutable evaluation/review
+history. The v1 schema includes the remaining relationship, concept,
+observation, claim, and projection-state records required by later milestones.
+The implementation is additive, leaves authority in sidecars, and has not
+migrated the live user store. C2 shadow projection is the current critical
+path.
+
 ## Stable architectural decisions
 
 - Follow
@@ -67,6 +77,8 @@ rejected earlier.
 ## Milestones
 
 ### C1 | Versioned domain schema and migration harness
+
+Status: COMPLETE
 
 Outcome:
 

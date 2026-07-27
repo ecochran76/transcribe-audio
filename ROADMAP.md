@@ -246,7 +246,7 @@ Milestone Focus:
   17/53 top-person correctness while reducing High/Very High wrong proposals
   from 12 to 0; a future unseen chronological holdout remains required before
   automatic confirmation.
-- Planned Plan 0029 defines the durable conversation-knowledge storage and
+- Open Plan 0029 defines the durable conversation-knowledge storage and
   retrieval campaign. It evolves the existing user-scoped SQLite transcript
   store through sidecar-authoritative shadow projection, immutable
   observations and evidence bundles, temporal and tenant-aware hybrid
@@ -254,7 +254,10 @@ Milestone Focus:
   chronological comparison before either storage-authority cutover or
   automatic confirmation. The architecture authority is
   `docs/conversation-knowledge-storage-and-retrieval.md`, with the storage
-  decision recorded in ADR 0002.
+  decision recorded in ADR 0002. C1 is complete in source with versioned
+  additive schema migration, private backup, rollback, and deep
+  conversation/person/processing-history interfaces; C2 sidecar-authoritative
+  shadow projection is next.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
