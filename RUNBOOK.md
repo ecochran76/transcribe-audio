@@ -2,6 +2,70 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 236 | 2026-07-29
+
+Plan: Plan 0030 version 2
+
+Packet: P0 | Authority, freeze, and runtime preflight
+
+State transition: `OPEN/P0 -> OPEN/R1A`
+
+Progress classification: `feature_progress`; removed the named authority,
+freeze-integrity, source-scope, and runtime-readiness gate without consuming
+the cohort.
+
+Evidence:
+
+- Private receipt:
+  `~/.local/state/transcribe-audio/plan-0030/preflight-a4fb020d-4bae-5ec3-8fc0-de8f743f34e4.json`
+  (`0600`, parent `0700`).
+- Receipt content hash:
+  `06d270faceaa4b34e32891ab11225d295944b6b904654e660f6467f27e0e905f`.
+- Freeze
+  `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b` retains ten cases at ranks
+  25, 26, 27, 28, 29, 30, 31, 34, 35, and 39; all predictions are
+  `not_started`, all ground-truth markers are `not_reviewed`, gold content is
+  absent, and source hashes match.
+- Plan 0029's `refine` receipt hash recomputes; sidecar authority remains true,
+  while database authority and automatic confirmation remain false.
+- Installed provenance validates three scoped sources: one GWS profile with
+  explicit empty account/tenant scope and two tenant-explicit Odollo profiles.
+  GWS and both configured Odollo executables are present.
+- Current source has only the `HostEvidenceAdapter` protocol and the selected
+  caller remains legacy. The live database has zero knowledge-schema tables.
+- Graphiti runtime was healthy but returned no Plan 0030-specific authority;
+  repo and private receipts remained authoritative.
+
+Delegation:
+
+- `not_spawned`; P0 directly gated every later lane and required sensitive
+  authority/freeze inspection. A parallel worker would have duplicated the
+  critical path.
+- Handle: none. Terminal status: `not_spawned`. Reconciliation: primary agent
+  verified all source and runtime evidence directly.
+
+Bounds:
+
+- Work-unit attempts: `1/2`.
+- Review rework cycles: `0/1`.
+- Hardening checkpoints: `0/2`.
+- Provider attempts per scope: `0/2`.
+- Reference-repair turns: `0/1`.
+- Frozen cohorts consumed: `0/1`.
+
+Actions and authority:
+
+- Provider calls: 0; model calls: 0; external writes: 0; predictions: 0;
+  gold-body reads: 0.
+- Sidecar authority retained; live database authority and automatic
+  confirmation disabled.
+- Source commit and remote were both `e0abd37`; no served behavior changed.
+
+Next:
+
+- Execute R1A with one public-interface tracer test for bounded adapter
+  normalization, then proceed one behavior at a time.
+
 ## Turn 235 | 2026-07-29
 
 Summary: Upgraded Plan 0030 to a bounded `/goal` execution authority after a

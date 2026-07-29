@@ -123,6 +123,14 @@ The live transcript store has no knowledge-schema tables and sidecars remain
 authoritative. The last private retrieval preview produced three valid empty
 bundles with eleven calendar candidates and no fabricated provider evidence.
 
+P0 is complete. The immutable private receipt
+`preflight-a4fb020d-4bae-5ec3-8fc0-de8f743f34e4` verifies the unchanged ten-case
+freeze, matching campaign/gold-index and Plan 0029 decision hashes,
+`not_started` predictions, unread gold bodies, three validated configured
+source scopes, ready GWS/Odollo executables, zero live knowledge-schema tables,
+and sidecar authority. It records zero provider calls, model calls, external
+writes, predictions, or gold-body reads. R1A is the current packet.
+
 ## Revision History
 
 - Version 1, 2026-07-26: bounded successor scope created from Plan 0029's
