@@ -278,24 +278,21 @@ Milestone Focus:
   relationship retrieval, support and contradiction features, independence
   and total packet budgets, scope-safe multi-database person grouping,
   immutable request/bundle replay, calendar/prepared fallback, and labeled
-  partial-provider failure. The private live-source rehearsal retained all
-  calendar candidates without fabricating unavailable evidence. C6 integrates
-  immutable bundles into the existing exact-reference, factor-scoring,
-  confidence, and human-review path. C7 froze ten unseen chronological cases,
-  then recorded `refine` before prediction because production GWS/Odollo
-  snapshot adapters and the default bundle caller are absent. Sidecars remain
-  authoritative and automatic confirmation remains disabled.
-- Open Plan 0030 owns only that bounded refinement: production evidence
-  adapters, default selected-conversation bundle wiring with observable legacy
-  rollback, private shadow-read proof, operator gold review, and the blind
-  calendar/transcript/provenance/history/combined comparison on the already
-  frozen cohort. It cannot add storage redesign, automatic confirmation, or
-  database-authority cutover. Plan version 2 is `/goal`-compatible with hard
-  attempt/rework/concurrency bounds, packet-level checkpoints and delegation
-  receipts, explicit partial-result/no-automatic-fallback policy, strict
-  source and temporal semantics, independent operator gold, family-specific
-  candidate recall plus frozen-union ranking, neutral review, and terminal
-  accept/refine/reject/stop conditions.
+  partial-provider failure. C6 integrates immutable bundles into the existing
+  exact-reference, factor-scoring, confidence, and human-review path. C7 froze
+  ten unseen chronological cases. Closed Plan 0030 added production GWS/Odollo
+  adapters, made scoped immutable bundles the default selected caller, gated
+  legacy collection behind an operator receipt, and proved deterministic
+  private shadow replay/restore/rollback without changing authority.
+- Plan 0030 closed `refine` at J2 before gold or prediction. GWS authorization
+  remained revoked and the repaired Odollo persistence path could not receive
+  a forbidden third live attempt, so zero included provider snapshots were
+  proven. The frozen cohort remains unconsumed with all predictions
+  `not_started` and gold unread. Any successor must restore provider readiness,
+  authorize a fresh bounded attempt packet, and prove included provider yield
+  before provenance or combined measurement. Sidecars remain authoritative,
+  the live database remains schema v0, and automatic confirmation remains
+  disabled.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

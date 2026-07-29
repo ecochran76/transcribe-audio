@@ -2,6 +2,79 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 240 | 2026-07-29
+
+Plan: Plan 0030 version 2
+
+Packet: J2 | Integrated readiness and terminal decision
+
+State transition: `OPEN/J2 -> CLOSED/REFINE`
+
+Progress classification: `terminal`; the bounded implementation and authority
+proof are preserved, while R3 is correctly not run because provider yield did
+not satisfy the explicit gate.
+
+Evidence:
+
+- Neutral J2 receipt:
+  `~/.local/state/transcribe-audio/plan-0030/j2-39c5aeab-9b54-4bf4-8530-2c4fb1183e02.json`
+  (`0600`), SHA-256
+  `c872dbb4917f6bbab404cac8c89deebba656615b8b192da5d867c791d40a5891`.
+- J2 passed silent-fallback, explicit-scope, zero-yield semantics,
+  family-label, default-caller, rollback, and private-shadow gates.
+- J2 failed the required yield gate: the immutable runtime bundle contained
+  zero evidence controls and zero included provider snapshots after all
+  permitted source attempts.
+- Current source passes 142 host-safe focused tests, Python compilation, and
+  `git diff --check`.
+- Commit `febed062dd3908295db8d74d770866be048a46ab` is pushed to
+  `origin/plan-0026-campaign`.
+- `transcripts.service` was restarted from that current source and is active;
+  Codex App Server reports ready. The served speaker prepare-evaluation route
+  rejects an invalid legacy rollback token with HTTP 400 before provider
+  access.
+- Immutable terminal `refine` receipt:
+  `~/.local/state/transcribe-audio/plan-0030/terminal-refine-6c2c6298-37dc-42bc-84c1-4a933554479d.json`
+  (`0600`), SHA-256
+  `e191559dc01fa6abf3204a47cf0126b14c047e9683842185d76e19da05bac5ee`.
+
+Delegation:
+
+- `/root/j1_neutral_review` executed the read-only J2 review with no children,
+  edits, provider/model calls, predictions, or gold reads; terminal `refine`.
+- Primary reconciliation accepted the finding because it follows the plan's
+  explicit included-snapshot prerequisite and exhausted attempt bounds.
+
+Bounds:
+
+- Work-unit attempts: R2A `2/2`, R2B `2/2`.
+- Review rework cycles: `1/1`.
+- Hardening checkpoints: `1/2`.
+- Provider attempts: GWS `2/2`; each Odollo scope `2/2`.
+- Reference-repair turns: `0/1`.
+- Frozen cohorts consumed: `0/1`.
+
+Actions and authority:
+
+- R3A, R3B, R3C, and R3D: `not_run`,
+  reason `blocked_by_j2_no_included_provider_snapshot`.
+- Model calls: 0; predictions: 0; gold-body reads: 0; external writes: 0;
+  automatic confirmations: 0.
+- Frozen predictions remain 10/10 `not_started`; ground truth remains 10/10
+  `not_reviewed`; gold content remains absent.
+- Sidecar authority remains active. Live database authority is false, schema
+  version remains 0, and zero `knowledge_*` tables exist.
+
+Residual risk and successor entry:
+
+- GWS refresh authorization must be restored.
+- A successor must explicitly authorize a new bounded provider-attempt packet
+  and prove at least one included provider snapshot before any provenance or
+  combined prediction.
+- The current frozen cohort must not be reused for tuning; any successor
+  authority must explicitly decide whether its still-unseen state permits
+  continued evaluation.
+
 ## Turn 239 | 2026-07-29
 
 Plan: Plan 0030 version 2

@@ -1,6 +1,6 @@
 # Plan 0030 | Provider adapters and blind retrieval evaluation
 
-State: OPEN
+State: CLOSED — REFINE
 
 Lane: P09
 
@@ -175,6 +175,18 @@ not permit a third live verification. No included provider snapshot is proven,
 so `provenance_only` and `combined` predictions remain blocked. The frozen
 cohort remains unconsumed, every prediction remains `not_started`, and gold
 content remains unread.
+
+J2 closed the plan with `refine`. Neutral review verified the adapter,
+default-caller, partial-bundle, explicit-rollback, receipt, shadow-authority,
+zero-yield, and family-label gates, but found the required provider-yield gate
+unsatisfied: zero included provider snapshots were proven within the exhausted
+attempt bounds. R3A through R3D did not run. The immutable terminal receipt is
+`~/.local/state/transcribe-audio/plan-0030/terminal-refine-6c2c6298-37dc-42bc-84c1-4a933554479d.json`,
+SHA-256
+`e191559dc01fa6abf3204a47cf0126b14c047e9683842185d76e19da05bac5ee`.
+Sidecars remain authoritative, the live database remains schema v0 with zero
+knowledge tables, automatic confirmation remains disabled, frozen predictions
+remain `not_started`, and gold remains unread.
 
 ## Revision History
 
