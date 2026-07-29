@@ -129,7 +129,19 @@ freeze, matching campaign/gold-index and Plan 0029 decision hashes,
 `not_started` predictions, unread gold bodies, three validated configured
 source scopes, ready GWS/Odollo executables, zero live knowledge-schema tables,
 and sidecar authority. It records zero provider calls, model calls, external
-writes, predictions, or gold-body reads. R1A is the current packet.
+writes, predictions, or gold-body reads.
+
+R1A is complete. The shared `conversation_evidence_adapters.py` boundary now
+requires explicit source profile/provider/account/tenant scope, stable provider
+record identity, allowlisted capability/source type/metadata, bounded snippets
+and metadata, timezone-aware timestamps, deterministic snapshot IDs and hashes,
+and fixed failure/warning codes. It rejects raw provider bodies and assigns
+`contemporaneous`, `later_retrieved`, or `hindsight` from source-event,
+retrieval, and evaluation time. Eighteen focused contract tests and the
+existing evidence-store/retrieval suites pass (28 tests total). Private receipt
+`r1a-a3e131da-c37f-4830-99be-ab053ea4fe0b` records no provider/model calls,
+external writes, predictions, or gold-body reads. R1B and R1C are now eligible
+to execute as disjoint provider lanes.
 
 ## Revision History
 

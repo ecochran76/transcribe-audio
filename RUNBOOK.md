@@ -2,6 +2,64 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 237 | 2026-07-29
+
+Plan: Plan 0030 version 2
+
+Packet: R1A | Shared adapter contract and fixtures
+
+State transition: `OPEN/R1A -> OPEN/R1B+R1C`
+
+Progress classification: `feature_progress`; created the shared bounded
+normalization seam required by both provider-specific lanes.
+
+Evidence:
+
+- Private receipt:
+  `~/.local/state/transcribe-audio/plan-0030/r1a-a3e131da-c37f-4830-99be-ab053ea4fe0b.json`
+  (`0600`, parent `0700`).
+- Receipt content hash:
+  `7a1ac31493101a2bea0e49b52fae00c21b045581f65fecfa8167bde9991c9f23`.
+- `conversation_evidence_adapters.py` now owns explicit provider scope,
+  allowlisted normalization, stable snapshot identities/hashes, temporal
+  classification, raw-body rejection, size limits, and fixed adapter
+  failure/warning codes.
+- Contract TDD recorded four red stages: missing module, missing scope
+  validation, missing record allowlist validation, and missing failure schema.
+- Eighteen focused contract tests pass.
+- Existing evidence repository and identity retrieval tests remain green; the
+  combined focused run passed 28 tests in 0.35 seconds.
+- Python compilation and `git diff --check` pass.
+
+Delegation:
+
+- `not_spawned`; R1A defined the shared seam required by both later provider
+  lanes and could not be partitioned without creating competing contracts.
+- Handle: none. Terminal status: `not_spawned`. Reconciliation: primary agent
+  implemented and validated the shared public contract.
+
+Bounds:
+
+- Work-unit attempts: `1/2`.
+- Review rework cycles: `0/1`.
+- Hardening checkpoints: `0/2`.
+- Provider attempts per scope: `0/2`.
+- Reference-repair turns: `0/1`.
+- Frozen cohorts consumed: `0/1`.
+
+Actions and authority:
+
+- Provider calls: 0; model calls: 0; external writes: 0; predictions: 0;
+  gold-body reads: 0.
+- Sidecar authority retained; live database authority and automatic
+  confirmation disabled.
+- Base source and remote commit were both `5ccc251`.
+
+Next:
+
+- Commit and push R1A, then execute GWS R1B and Odollo R1C as disjoint bounded
+  provider lanes.
+
 ## Turn 236 | 2026-07-29
 
 Plan: Plan 0030 version 2
