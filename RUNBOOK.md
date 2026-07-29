@@ -2,6 +2,77 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 238 | 2026-07-29
+
+Plan: Plan 0030 version 2
+
+Packets: R1B, R1C, J1 | Concrete provider adapters and integration review
+
+State transition: `OPEN/R1B+R1C+J1 -> OPEN/R2A+R2B`
+
+Progress classification: `feature_progress`; both configured provider families
+now have concrete read-only bounded evidence adapters and the neutral join gate
+passes.
+
+Evidence:
+
+- Private receipt:
+  `~/.local/state/transcribe-audio/plan-0030/j1-3b947d28-45f1-4b3e-9a0e-fea6afdf7286.json`
+  (`0600`, parent `0700`).
+- Receipt content hash:
+  `4fe89e18d4182263cd8b97772277416f74b1215e9c37630c522a1fc83b9c2004`.
+- GWS supports configured `people`, `gmail`, `drive`, and `calendar`
+  capabilities through a concrete timeout-bounded CLI reader. Gmail requests
+  metadata and snippets only; Drive and Calendar use bounded field lists.
+- Odollo supports configured `contacts`, `leads`, and `log_notes` through
+  tenant-isolated read-only record searches. Log-note bodies may be searched
+  for a match but are never requested in returned fields or persisted.
+- Both adapters preserve explicit source profile/account/tenant scope and
+  delegate all temporal, ID, hash, and content-boundary enforcement to the
+  shared normalizer. Neither groups people nor infers identity.
+- Primary reconciliation removed raw GWS diagnostic text from durable failure
+  detail before neutral review.
+- Neutral review initially found three issues: raw/unbounded redaction and
+  truncation metadata, unbounded advancing GWS pagination/invalid failures,
+  and GWS/Odollo failure semantic drift. The single allowed rework cycle
+  closed all three; the same reviewer verified closure with 43 focused tests.
+- The final combined adapter/evidence/retrieval run passed 53 tests in 0.35
+  seconds. Compilation and `git diff --check` pass.
+
+Delegation:
+
+- `/root/r1b_gws`: terminal `complete`, work-unit attempts `2/2`, no children.
+  Attempt two added the missing concrete GWS CLI reader.
+- `/root/r1c_odollo`: terminal `complete`, work-unit attempts `1/2`, no
+  children.
+- `/root/j1_neutral_review`: terminal `pass_after_rework`, review-rework cycles
+  `1/1`, no children.
+- Primary reconciliation reviewed both disjoint write surfaces, applied the
+  one bounded J1 rework, and ran the combined suites.
+
+Bounds:
+
+- R1B work-unit attempts: `2/2`.
+- R1C work-unit attempts: `1/2`.
+- Review rework cycles: `1/1`.
+- Hardening checkpoints: `0/2`.
+- Provider attempts per scope: `0/2`.
+- Reference-repair turns: `0/1`.
+- Frozen cohorts consumed: `0/1`.
+
+Actions and authority:
+
+- Live provider calls: 0; model calls: 0; external writes: 0; predictions: 0;
+  gold-body reads: 0.
+- Sidecar authority retained; live database authority and automatic
+  confirmation disabled.
+- Base source and remote commit were both `ad3d7d3`.
+
+Next:
+
+- Commit and push the adapter join, then execute R2A default-caller
+  integration and R2B private sidecar provenance proof.
+
 ## Turn 237 | 2026-07-29
 
 Plan: Plan 0030 version 2

@@ -124,6 +124,13 @@ def _raw_body_keys(value: Any) -> set[str]:
     return set()
 
 
+def _validate_control_metadata(value: dict[str, Any], *, field_name: str) -> None:
+    if _raw_body_keys(value):
+        raise ValueError(f"{field_name} cannot contain raw provider bodies.")
+    if len(_canonical_json(value)) > MAX_EVIDENCE_METADATA_CHARS:
+        raise ValueError(f"{field_name} exceeds the bounded character cap.")
+
+
 def adapter_failure(
     *,
     adapter_id: str,
@@ -202,6 +209,8 @@ class EvidenceSnapshotNormalizer:
             raise ValueError("structured metadata fields cannot contain raw bodies.")
         if len(record.snippet) > MAX_EVIDENCE_SNIPPET_CHARS:
             raise ValueError("snippet exceeds the bounded evidence character cap.")
+        _validate_control_metadata(record.redaction, field_name="redaction")
+        _validate_control_metadata(record.truncation, field_name="truncation")
 
         canonical_as_of, parsed_as_of = _timestamp(as_of, field_name="as_of")
         canonical_retrieved, parsed_retrieved = _timestamp(

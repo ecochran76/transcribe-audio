@@ -143,6 +143,19 @@ existing evidence-store/retrieval suites pass (28 tests total). Private receipt
 external writes, predictions, or gold-body reads. R1B and R1C are now eligible
 to execute as disjoint provider lanes.
 
+R1B, R1C, and J1 are complete. Concrete read-only GWS and Odollo adapters now
+cover the configured four-family and three-family capability sets with
+explicit source scope, stable bounded snapshots, fixed failures/warnings, and
+no identity inference or legacy fallback. R1B used its second and final work
+unit to add the concrete GWS CLI reader. The neutral J1 review initially found
+unchecked control metadata, advancing-page boundedness, and cross-adapter
+failure semantic drift; the single permitted review-rework cycle closed all
+three and the reviewer verified no residual finding. The focused combined run
+passes 53 tests. Private receipt
+`j1-3b947d28-45f1-4b3e-9a0e-fea6afdf7286` records zero live provider/model
+calls, external writes, predictions, or gold-body reads. R2A and R2B are the
+next eligible packets.
+
 ## Revision History
 
 - Version 1, 2026-07-26: bounded successor scope created from Plan 0029's

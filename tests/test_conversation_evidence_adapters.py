@@ -295,6 +295,50 @@ def test_normalize_rejects_unbounded_provider_content(
             retrieved_at="2026-07-29T12:00:00Z",
         )
 
+
+@pytest.mark.parametrize(
+    "record",
+    (
+        conversation_evidence_adapters.BoundedProviderRecord(
+            provider_record_id="people/c123",
+            source_type="gws_contact",
+            capability="contacts",
+            snippet="Ada Example",
+            redaction={"raw_body": "private provider content"},
+        ),
+        conversation_evidence_adapters.BoundedProviderRecord(
+            provider_record_id="people/c123",
+            source_type="gws_contact",
+            capability="contacts",
+            snippet="Ada Example",
+            truncation={"nested": {"content": "private provider content"}},
+        ),
+        conversation_evidence_adapters.BoundedProviderRecord(
+            provider_record_id="people/c123",
+            source_type="gws_contact",
+            capability="contacts",
+            snippet="Ada Example",
+            redaction={"reason": "x" * (MAX_EVIDENCE_METADATA_CHARS + 1)},
+        ),
+        conversation_evidence_adapters.BoundedProviderRecord(
+            provider_record_id="people/c123",
+            source_type="gws_contact",
+            capability="contacts",
+            snippet="Ada Example",
+            truncation={"reason": "x" * (MAX_EVIDENCE_METADATA_CHARS + 1)},
+        ),
+    ),
+)
+def test_normalize_rejects_raw_or_unbounded_control_metadata(
+    record: conversation_evidence_adapters.BoundedProviderRecord,
+) -> None:
+    with pytest.raises(ValueError, match="redaction|truncation"):
+        _normalizer().normalize(
+            record,
+            as_of="2026-07-26T14:00:00Z",
+            retrieved_at="2026-07-29T12:00:00Z",
+        )
+
     with pytest.raises(ValueError, match="provider_kind"):
         conversation_evidence_adapters.EvidenceSnapshotNormalizer(
             scope=conversation_evidence_adapters.AdapterSourceScope(
