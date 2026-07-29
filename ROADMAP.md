@@ -290,7 +290,12 @@ Milestone Focus:
   rollback, private shadow-read proof, operator gold review, and the blind
   calendar/transcript/provenance/history/combined comparison on the already
   frozen cohort. It cannot add storage redesign, automatic confirmation, or
-  database-authority cutover.
+  database-authority cutover. Plan version 2 is `/goal`-compatible with hard
+  attempt/rework/concurrency bounds, packet-level checkpoints and delegation
+  receipts, explicit partial-result/no-automatic-fallback policy, strict
+  source and temporal semantics, independent operator gold, family-specific
+  candidate recall plus frozen-union ranking, neutral review, and terminal
+  accept/refine/reject/stop conditions.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

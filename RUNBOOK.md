@@ -2,6 +2,62 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 235 | 2026-07-29
+
+Summary: Upgraded Plan 0030 to a bounded `/goal` execution authority after a
+one-question-at-a-time design grilling session.
+
+Decisions:
+
+- Partial provider failure remains on the immutable-bundle path; the legacy
+  collector has no automatic fallback and requires explicit approval, warning,
+  and receipt.
+- Provider adapters normalize bounded records but never group people or infer
+  identity.
+- Source profile, account, and tenant are always explicit, including
+  intentionally empty values.
+- Historical evidence retrieved later is labeled `later_retrieved`; current
+  undated contacts cannot establish contemporaneous topic or relationship
+  context.
+- Query plans are frozen before provider access with exact identifiers first
+  and capped transcript-derived terms. Identity Evaluation cannot retrieve.
+- Exact verified identifiers permit deterministic internal grouping; softer
+  grouping remains confidence-scored and reversible, with no upstream contact
+  mutation.
+- Evaluation gold requires independent operator confirmation. Each evidence
+  family reports both family-specific candidate generation and ranking over a
+  frozen union candidate set.
+
+Plan contract:
+
+- Added explicit objective fidelity, authority order, execution bounds,
+  checkpoint fields, bounded packet inputs/write surfaces/validation/terminal
+  conditions, execution graph, delegation and reconciliation rules, neutral
+  review, hard stops, acceptance criteria, and definition of done.
+- The only parallel implementation lanes are the disjoint GWS/Odollo adapters,
+  private shadow validation, and operator-owned gold review.
+- Plan 0030 must close on one immutable `accept`, `refine`, `reject`, or `stop`
+  decision; retry or hardening bounds cannot be extended inside the plan.
+- Graphiti discovery was healthy but returned no Plan 0030-specific memory;
+  current repo authorities and the Plan 0029 receipts remained authoritative.
+
+Delegation:
+
+- `spawned`; lane `read-only neutral Plan 0030 review`; handle
+  `/root/review_plan0030`; terminal status `cancelled_after_timeout`.
+- The reviewer returned no findings after the initial wait, an explicit
+  conclude request, and one partial-result request. The primary agent cancelled
+  it, inferred no review result, and retained final reconciliation ownership.
+- Deterministic plan-field validation and direct primary policy reconciliation
+  remain the closeout evidence. Plan execution must obtain a fresh neutral
+  review at J1 and R3D when runtime capacity is healthy.
+
+Next:
+
+- Execute P0 in
+  `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`.
+  Do not access gold bodies or consume a frozen prediction.
+
 ## Turn 234 | 2026-07-27
 
 Summary: Reconciled the concurrently completed Plan 0029 closeout and restored
