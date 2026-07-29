@@ -126,6 +126,16 @@ def _strip_html(value: Any) -> str:
     return re.sub(r"\s+", " ", unescape(text)).strip()
 
 
+def _odoo_utc_timestamp(value: Any) -> str:
+    text = _text(value)
+    if re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?",
+        text,
+    ):
+        return text.replace(" ", "T", 1) + "Z"
+    return text
+
+
 def _raw_body_keys(value: Any) -> set[str]:
     if isinstance(value, dict):
         keys = {
@@ -480,7 +490,7 @@ class OdolloEvidenceAdapter:
             snippet = "; ".join(
                 item for item in (contact_name, email, name, company) if item
             )
-            source_event_at = _text(row.get("create_date"))
+            source_event_at = _odoo_utc_timestamp(row.get("create_date"))
         else:
             subject = _strip_html(row.get("subject")) or "Odoo log note"
             author = _m2o_label(row.get("author_id"))
@@ -495,7 +505,7 @@ class OdolloEvidenceAdapter:
                 "author": author,
             }
             snippet = "; ".join(item for item in (subject, author) if item)
-            source_event_at = _text(row.get("date"))
+            source_event_at = _odoo_utc_timestamp(row.get("date"))
         return BoundedProviderRecord(
             provider_record_id=provider_record_id,
             source_record_id=provider_record_id,

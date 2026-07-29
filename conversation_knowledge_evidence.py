@@ -299,6 +299,18 @@ class ConversationEvidenceRepository:
     def save_snapshot(self, snapshot: EvidenceSnapshotRecord) -> str:
         """Append one immutable, bounded evidence snapshot."""
         self._validate_snapshot(snapshot)
+        if snapshot.source_record_id:
+            with transcript_store.connect(self.root) as con:
+                linked = con.execute(
+                    """
+                    SELECT 1
+                    FROM knowledge_source_records
+                    WHERE id = ?
+                    """,
+                    (snapshot.source_record_id,),
+                ).fetchone()
+            if linked is None:
+                snapshot = replace(snapshot, source_record_id="")
         existing = self.load_snapshot(snapshot.evidence_id)
         if existing is not None:
             if existing != snapshot:

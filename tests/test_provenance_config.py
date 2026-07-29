@@ -215,6 +215,24 @@ def test_speaker_preprocessing_returns_bounded_semantic_source_context(tmp_path:
         {"source_id": "gws-work", **raw["sources"]["gws-work"]["source_context"]},
         {"source_id": "odollo-soylei", **raw["sources"]["odollo-soylei"]["source_context"]},
     ]
+    assert config["retrieval_sources"] == [
+        {
+            "source_id": "gws-work",
+            "source_profile_id": "gws-work",
+            "provider_kind": "gws",
+            "account_id": "",
+            "tenant_id": "",
+            "evidence_capabilities": ["gmail", "people"],
+        },
+        {
+            "source_id": "odollo-soylei",
+            "source_profile_id": "odollo-soylei",
+            "provider_kind": "odollo",
+            "account_id": "",
+            "tenant_id": "soylei-prod",
+            "evidence_capabilities": ["contacts", "leads", "log_notes"],
+        },
+    ]
     assert "config_dir" not in json.dumps(config["source_contexts"])
     assert "command" not in json.dumps(config["source_contexts"])
 

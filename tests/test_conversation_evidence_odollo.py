@@ -320,6 +320,33 @@ def test_retrieve_labels_malformed_provider_timestamp_as_bounded_failure() -> No
     )
 
 
+def test_retrieve_interprets_odoo_utc_naive_timestamps_as_utc() -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                [
+                    {
+                        "id": 22,
+                        "name": "Project Juniper",
+                        "create_date": "2026-07-28 14:30:00",
+                    }
+                ]
+            ),
+            stderr="",
+        )
+
+    result = OdolloEvidenceAdapter(
+        _config(),
+        run_command=run,
+        retrieved_at=lambda: "2026-07-29T14:00:00Z",
+    ).retrieve(_request(capabilities=("leads",)))
+
+    assert result.failures == ()
+    assert result.snapshots[0].source_event_at == "2026-07-28T14:30:00Z"
+
+
 def test_retrieve_does_not_enumerate_tenant_when_query_plan_has_no_terms() -> None:
     called = False
 

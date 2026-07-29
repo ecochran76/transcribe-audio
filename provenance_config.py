@@ -616,15 +616,30 @@ def speaker_preprocessing_source_configs_from_provenance(
     """Resolve only sources with explicit semantic Source Context."""
     raw = read_config(path, state_root=state_root)
     if not raw:
-        return {"gws": [], "odollo": [], "msgcli": [], "source_contexts": [], "warnings": []}
+        return {
+            "gws": [],
+            "odollo": [],
+            "msgcli": [],
+            "source_contexts": [],
+            "retrieval_sources": [],
+            "warnings": [],
+        }
     validate_config(raw)
     profile_name = active_profile_name(raw, profile)
     workflow = workflow_payload(raw, "context_workbench", profile_name)
     if workflow.get("enabled", True) is False:
-        return {"gws": [], "odollo": [], "msgcli": [], "source_contexts": [], "warnings": []}
+        return {
+            "gws": [],
+            "odollo": [],
+            "msgcli": [],
+            "source_contexts": [],
+            "retrieval_sources": [],
+            "warnings": [],
+        }
 
     eligible_ids: list[str] = []
     source_contexts: list[dict[str, Any]] = []
+    retrieval_sources: list[dict[str, Any]] = []
     warnings: list[str] = []
     for source_id in workflow_source_ids(raw, "context_workbench", profile_name):
         source = enabled_source(raw, source_id)
@@ -646,11 +661,32 @@ def speaker_preprocessing_source_configs_from_provenance(
             continue
         eligible_ids.append(source_id)
         source_contexts.append({"source_id": source_id, **source_context})
+        retrieval_sources.append(
+            {
+                "source_id": source_id,
+                "source_profile_id": source_id,
+                "provider_kind": kind,
+                "account_id": str(source.get("account") or ""),
+                "tenant_id": (
+                    str(
+                        source.get("tenant_profile")
+                        or source.get("profile")
+                        or ""
+                    )
+                    if kind == SOURCE_KIND_ODOLLO
+                    else ""
+                ),
+                "evidence_capabilities": list(
+                    source_context["evidence_capabilities"]
+                ),
+            }
+        )
 
     configs = _context_source_configs_for_ids(raw, eligible_ids)
     return {
         **configs,
         "source_contexts": source_contexts,
+        "retrieval_sources": retrieval_sources,
         "warnings": warnings,
     }
 

@@ -156,6 +156,26 @@ passes 53 tests. Private receipt
 calls, external writes, predictions, or gold-body reads. R2A and R2B are the
 next eligible packets.
 
+R2A and R2B are complete. The selected caller now defaults to an explicit
+scoped immutable retrieval bundle, freezes an exact-first query plan capped at
+24 terms before provider access, preserves partial bundles without fallback,
+and permits the old collector only through a token/operator/warning/receipt
+rollback action. Private retrieval receipts bind request, query-plan, and
+bundle hashes plus bounded failure, inclusion, freshness, temporal, and
+independence metadata. The deterministic legacy projection overlay binds
+private UUIDv5 identities to the exact source SHA-256 without modifying source
+artifacts. R2B attempt two proved 10/10 frozen-source preservation, overlay
+replay, shadow projection/read agreement, rollback, restore, and unchanged
+live sidecar authority.
+
+J2 is active with a verified readiness blocker. GWS exhausted its two allowed
+attempts with a revoked refresh token. Both Odollo scopes exhausted their two
+attempts while exposing two now-tested integration defects, but the plan does
+not permit a third live verification. No included provider snapshot is proven,
+so `provenance_only` and `combined` predictions remain blocked. The frozen
+cohort remains unconsumed, every prediction remains `not_started`, and gold
+content remains unread.
+
 ## Revision History
 
 - Version 1, 2026-07-26: bounded successor scope created from Plan 0029's

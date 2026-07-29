@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -1032,6 +1033,12 @@ def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
         transcript.id,
         state_root=state_root,
         store_root=store_root,
+        evidence_mode="legacy_rollback",
+        legacy_approval_token=(
+            transcript_api.conversation_identity_policy
+            .LEGACY_ROLLBACK_APPROVAL_TOKEN
+        ),
+        operator="test-operator",
         discovery_readout={
             "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
             "speaker_clues": [],
@@ -1045,7 +1052,16 @@ def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
     assert discovery["source_warnings"] == ["No eligible Source Context in test."]
     assert evaluation["phase"] == "identity_evaluation"
     assert evaluation["will_send_prompt"] is False
-    assert evaluation["source_warnings"] == ["No bounded source results in test."]
+    assert evaluation["source_warnings"] == [
+        (
+            transcript_api.conversation_identity_policy
+            .LEGACY_ROLLBACK_WARNING
+        ),
+        "No bounded source results in test.",
+    ]
+    assert Path(
+        evaluation["legacy_rollback_receipt"]["receipt_path"]
+    ).stat().st_mode & 0o777 == 0o600
 
     captured = transcript_api.persist_selected_speaker_identity_evaluation(
         transcript.id,
@@ -1091,6 +1107,123 @@ def test_selected_speaker_preprocessing_prepares_both_reviewed_phases(
     assert captured["status"] == "awaiting_review"
     assert state["status"] == "awaiting_review"
     assert decision["record"]["review_decisions"][0]["action"] == "defer"
+
+
+def test_selected_identity_evaluation_defaults_to_immutable_retrieval_bundle(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    resolved = {
+        "gws": [],
+        "odollo": [],
+        "source_contexts": [{"source_id": "gws-default"}],
+        "retrieval_sources": [],
+        "warnings": ["config warning"],
+    }
+    monkeypatch.setattr(
+        transcript_api.provenance_config,
+        "speaker_preprocessing_source_configs_from_provenance",
+        lambda **kwargs: resolved,
+    )
+    bundle = SimpleNamespace(
+        request=SimpleNamespace(
+            request_id="00000000-0000-4000-8000-000000000801",
+            budgets={"query_terms": ["person@example.com", "orchard"]},
+        ),
+        persisted_bundle=SimpleNamespace(
+            bundle_id="00000000-0000-4000-8000-000000000802",
+            content_hash="bundle-hash",
+            status="partial",
+        ),
+        source_failures=(
+            {
+                "adapter_id": "gws-evidence-v1",
+                "reason_code": "provider_unavailable",
+            },
+        ),
+        warnings=("no_bounded_evidence",),
+    )
+    retrieved = SimpleNamespace(
+        bundle=bundle,
+        policy_build=SimpleNamespace(
+            source_contexts=tuple(resolved["source_contexts"]),
+            warnings=tuple(resolved["warnings"]),
+        ),
+        projection_receipt=SimpleNamespace(
+            receipt_path="/private/projection.json"
+        ),
+        shadow_root=Path("/private/shadow"),
+        retrieval_receipt_path=Path("/private/retrieval.json"),
+        retrieval_receipt_sha256="retrieval-receipt-hash",
+    )
+    retrieval_calls = []
+    monkeypatch.setattr(
+        transcript_api.conversation_identity_policy,
+        "prepare_transcript_identity_evidence",
+        lambda *args, **kwargs: (
+            retrieval_calls.append((args, kwargs)) or retrieved
+        ),
+    )
+    monkeypatch.setattr(
+        transcript_api.speaker_identity_preprocess,
+        "collect_configured_identity_evidence",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("default retrieval must not call legacy evidence")
+        ),
+    )
+    prepared_calls = []
+    monkeypatch.setattr(
+        transcript_api.speaker_preprocessing_workflow,
+        "prepare_identity_evaluation",
+        lambda *args, **kwargs: (
+            prepared_calls.append((args, kwargs))
+            or {
+                "phase": "identity_evaluation",
+                "will_send_prompt": False,
+                "packet": {},
+            }
+        ),
+    )
+
+    result = transcript_api.prepare_selected_speaker_identity_evaluation(
+        transcript.id,
+        state_root=state_root,
+        store_root=store_root,
+        discovery_readout={
+            "schema_version": (
+                "transcribe-audio.speaker-clue-discovery-readout.v1"
+            ),
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+
+    assert len(retrieval_calls) == 1
+    assert retrieval_calls[0][1]["resolved"] is resolved
+    assert prepared_calls[0][1]["retrieval_bundle"] is bundle
+    assert result["evidence_mode"] == "retrieval"
+    assert result["legacy_rollback_receipt"] == {}
+    assert result["retrieval"]["status"] == "partial"
+    assert result["retrieval"]["query_terms"] == [
+        "person@example.com",
+        "orchard",
+    ]
+    assert result["retrieval"]["retrieval_receipt_sha256"] == (
+        "retrieval-receipt-hash"
+    )
+    assert result["source_warnings"] == [
+        "config warning",
+        "no_bounded_evidence",
+    ]
 
 
 def test_selected_speaker_reference_repair_uses_original_ledger_packet(

@@ -2,6 +2,97 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 239 | 2026-07-29
+
+Plan: Plan 0030 version 2
+
+Packets: R2A, R2B | Default immutable retrieval and private shadow authority
+
+State transition: `OPEN/R2A+R2B -> OPEN/J2`
+
+Progress classification: `feature_progress` with verified J2 readiness
+blockers; the default caller and shadow-authority gates are implemented, while
+live provider yield remains unproven within the attempt bound.
+
+Evidence:
+
+- R2A private receipt:
+  `~/.local/state/transcribe-audio/plan-0030/r2a-6ca3f875-8998-4e0c-95a8-04d425b175cb.json`
+  (`0600`), SHA-256
+  `1d19f0e076abec2844bf3cae679de665c084c168df0119d218693315120c0df5`.
+- The selected Identity Evaluation API now defaults to an explicit
+  source-profile/account/tenant/capability policy and an immutable retrieval
+  bundle. Exact calendar identifiers lead a query plan capped at 24 terms;
+  validated Clue Discovery person hints and retrieval terms are included
+  before transcript-derived tokens.
+- Partial provider failures remain on the retrieval-bundle path. Legacy
+  collection requires `evidence_mode=legacy_rollback`, the exact approval
+  token, an operator, a visible warning, and a durable private receipt.
+- Default receipts include request/query-plan and bundle hashes, failures,
+  warnings, included/excluded reasons, freshness, temporal class, and
+  independence groups without raw provider bodies.
+- A non-frozen direct runtime smoke produced a correctly labeled partial
+  bundle and private receipt
+  `conversation-identity-shadow/identity-retrieval-receipts/8e0454a0-4d09-46bf-82fd-73cc658aa1c7.json`
+  (`0600`), SHA-256
+  `5a569ebb2c63fe687ff45f7c67aae31b9143202350a5511074d5ce4da736dda9`.
+- GWS attempt two remained `provider_auth_failed`: the persisted refresh token
+  is expired or revoked even after a local `gws auth sync-gog`. The two Odollo
+  attempts exposed later-retrieved/UTC-naive timestamp handling and then an
+  unlinked-provider-record foreign key. Both code defects now have regression
+  fixes, but a third live attempt is forbidden. No included provider snapshot
+  is therefore proven.
+- R2B remediation attempt `2/2` passed. Ten frozen inputs received only
+  deterministic SHA-256-bound UUIDv5 private overlays; 10/10 source hashes,
+  overlay replays, projections, sidecar read agreements, restored agreements,
+  and unchanged replays passed. Rollback v3 to v0 and independent v3 restore
+  passed.
+- R2B private receipt:
+  `~/.local/state/transcribe-audio/plan-0030/r2b-e436aa63-f5c3-40a4-9bb0-e30d9b823cab/receipt.json`
+  (`0600`, private tree `0700`), SHA-256
+  `c5082f098ed3bf7ffecc50c57c70f233430eb6cea8964cc381be2da68fb8d8d9`.
+- The final host-safe focused run passes 142 tests; compilation and
+  `git diff --check` pass.
+- `transcripts.service` was restarted from the current worktree and is active.
+  Its served prepare-evaluation route rejects an invalid legacy rollback token
+  with HTTP 400 before provider access.
+
+Delegation:
+
+- `/root/r2b_shadow_authority`: first rehearsal terminal `refine`; bounded
+  remediation attempt `2/2` terminal `pass`, no children or tracked edits.
+- Primary reconciliation implemented the deterministic overlay contract,
+  validated the joined source, retained provider-attempt accounting, and did
+  not rerun an exhausted source.
+
+Bounds:
+
+- R2A work-unit attempts: `2/2`.
+- R2B work-unit attempts: `2/2`.
+- Review rework cycles: `1/1` (already consumed at J1).
+- Hardening checkpoints: `1/2`.
+- Provider attempts: GWS `2/2`; each Odollo scope `2/2`.
+- Reference-repair turns: `0/1`.
+- Frozen cohorts consumed: `0/1`.
+
+Actions and authority:
+
+- Model calls: 0; external writes: 0; predictions: 0; gold-body reads: 0.
+- Local writes were limited to the private shadow/receipts, non-frozen durable
+  transcript identity synchronization, local GWS credential sync, and service
+  restart.
+- Frozen predictions remain `not_started`; gold remains unread.
+- Live database remains schema v0 with zero `knowledge_*` tables. Sidecar
+  authority remains active; database authority and automatic confirmation are
+  disabled.
+- Source commit and push are pending the J2 checkpoint.
+
+Next:
+
+- Obtain neutral J2 readiness review. Because no included provider snapshot is
+  proven and provider attempts are exhausted, provenance/combined predictions
+  remain blocked and J2 must select the plan's bounded terminal path.
+
 ## Turn 238 | 2026-07-29
 
 Plan: Plan 0030 version 2

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,31 @@ REQUEST_ID = "00000000-0000-4000-8000-000000000206"
 BUNDLE_ID = "00000000-0000-4000-8000-000000000207"
 CONCEPT_ID = "00000000-0000-4000-8000-000000000208"
 MENTION_ID = "00000000-0000-4000-8000-000000000209"
+
+
+def test_unlinked_provider_record_is_preserved_as_metadata_without_fk_failure(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    snapshot = replace(
+        _snapshots()[0],
+        evidence_id="00000000-0000-4000-8000-000000000211",
+        source_record_id="people/unresolved-provider-record",
+        structured_metadata={
+            "provider_record_id": "people/unresolved-provider-record",
+        },
+        content_hash="unlinked-provider-evidence-hash",
+    )
+
+    assert repository.save_snapshot(snapshot) == "inserted"
+    assert repository.save_snapshot(snapshot) == "unchanged"
+    stored = repository.load_snapshot(snapshot.evidence_id)
+
+    assert stored is not None
+    assert stored.source_record_id == ""
+    assert stored.structured_metadata["provider_record_id"] == (
+        "people/unresolved-provider-record"
+    )
 
 
 def _repository(

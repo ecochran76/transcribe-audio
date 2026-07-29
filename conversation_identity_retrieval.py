@@ -23,6 +23,7 @@ from conversation_knowledge_store import ConversationKnowledgeStore
 
 RETRIEVAL_VERSION = "conversation-identity-retrieval.v1"
 RANKING_VERSION = "conversation-identity-ranking.v1"
+MAX_PROVIDER_QUERY_TERMS = 24
 _IDENTITY_NAMESPACE = UUID("fd5f90be-0f38-43df-ac36-68e7e78c29de")
 
 
@@ -57,6 +58,7 @@ class HostEvidenceAdapter(Protocol):
 class IdentityEvidencePolicy:
     scopes: tuple[EvidenceScope, ...]
     capabilities: tuple[str, ...]
+    prepared_query_terms: tuple[str, ...] = ()
     prepared_person_ids: tuple[str, ...] = ()
     authoritative_identifiers: tuple[tuple[str, str], ...] = ()
     provider_adapters: tuple[HostEvidenceAdapter, ...] = ()
@@ -308,6 +310,7 @@ def prepare_identity_evidence(
         attendees=_event_attendees(event),
         clues=clues,
         speaker_labels=speaker_labels,
+        prepared_terms=policy.prepared_query_terms,
     )
     request = RetrievalRequestRecord(
         request_id=request_id,
@@ -597,10 +600,12 @@ def _query_terms(
     attendees: tuple[dict[str, str], ...],
     clues: tuple[TranscriptClue, ...],
     speaker_labels: tuple[str, ...],
+    prepared_terms: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     values: list[str] = []
     for attendee in attendees:
         values.extend((attendee["email"], attendee["name"]))
+    values.extend(prepared_terms)
     for clue in clues:
         values.extend(
             token
@@ -622,7 +627,7 @@ def _query_terms(
             value.strip().casefold() in seen
             or seen.add(value.strip().casefold())
         )
-    )
+    )[:MAX_PROVIDER_QUERY_TERMS]
 
 
 def _exact_candidates(

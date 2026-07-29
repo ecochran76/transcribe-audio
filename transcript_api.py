@@ -27,6 +27,7 @@ import intelligence_config
 import automation_config
 import app_intelligence_ledger
 import codex_app_server_client
+import conversation_identity_policy
 import conversation_processing
 import participant_identity
 import provenance_config
@@ -1891,6 +1892,9 @@ def prepare_selected_speaker_identity_evaluation(
     discovery_readout: Optional[dict[str, Any]] = None,
     clue_discovery_run_id: str = "",
     store_root: Optional[Path] = None,
+    evidence_mode: str = "retrieval",
+    legacy_approval_token: str = "",
+    operator: str = "",
 ) -> dict[str, Any]:
     """Validate discovery, retrieve bounded evidence, and prepare phase two."""
     detail, transcript, transcript_path = _selected_transcript_artifact(
@@ -1919,31 +1923,103 @@ def prepare_selected_speaker_identity_evaluation(
             state_root=state_root,
             run_id=clue_discovery_run_id,
         )
-    identity_review = detail.get("identity_review") if isinstance(detail.get("identity_review"), dict) else {}
-    identity_bundle = (
-        identity_review.get("identity_bundle")
-        if isinstance(identity_review.get("identity_bundle"), dict)
-        else {}
-    )
-    evidence = speaker_identity_preprocess.collect_configured_identity_evidence(
-        transcript=transcript,
-        identity_bundle=identity_bundle,
-        discovery_readout=discovery_readout,
-        state_root=state_root,
-    )
-    prepared = speaker_preprocessing_workflow.prepare_identity_evaluation(
-        transcript_path,
-        document_id=source_document_id,
-        state_root=state_root,
-        discovery_readout=discovery_readout,
-        person_records=evidence.get("person_records") or [],
-        provenance_sources=evidence.get("provenance_sources") or [],
-        source_contexts=evidence.get("source_contexts") or [],
-    )
+    mode = str(evidence_mode or "retrieval").strip()
+    legacy_receipt: dict[str, str] = {}
+    retrieval_metadata: dict[str, Any] = {}
+    if mode == "legacy_rollback":
+        legacy_receipt = conversation_identity_policy.record_legacy_rollback(
+            state_root=state_root,
+            document_id=source_document_id,
+            operator=operator,
+            approval_token=legacy_approval_token,
+        )
+        identity_review = (
+            detail.get("identity_review")
+            if isinstance(detail.get("identity_review"), dict)
+            else {}
+        )
+        identity_bundle = (
+            identity_review.get("identity_bundle")
+            if isinstance(identity_review.get("identity_bundle"), dict)
+            else {}
+        )
+        evidence = speaker_identity_preprocess.collect_configured_identity_evidence(
+            transcript=transcript,
+            identity_bundle=identity_bundle,
+            discovery_readout=discovery_readout,
+            state_root=state_root,
+        )
+        prepared = speaker_preprocessing_workflow.prepare_identity_evaluation(
+            transcript_path,
+            document_id=source_document_id,
+            state_root=state_root,
+            discovery_readout=discovery_readout,
+            person_records=evidence.get("person_records") or [],
+            provenance_sources=evidence.get("provenance_sources") or [],
+            source_contexts=evidence.get("source_contexts") or [],
+        )
+        source_warnings = unique_strings(
+            [
+                legacy_receipt["warning"],
+                *(evidence.get("warnings") or []),
+            ]
+        )
+    elif mode == "retrieval":
+        resolved_sources = (
+            provenance_config
+            .speaker_preprocessing_source_configs_from_provenance(
+                state_root=state_root,
+            )
+        )
+        retrieved = conversation_identity_policy.prepare_transcript_identity_evidence(
+            transcript_path,
+            discovery_readout,
+            state_root=state_root,
+            resolved=resolved_sources,
+            run_id=clue_discovery_run_id,
+        )
+        prepared = speaker_preprocessing_workflow.prepare_identity_evaluation(
+            transcript_path,
+            document_id=source_document_id,
+            state_root=state_root,
+            discovery_readout=discovery_readout,
+            source_contexts=retrieved.policy_build.source_contexts,
+            retrieval_bundle=retrieved.bundle,
+        )
+        persisted_bundle = retrieved.bundle.persisted_bundle
+        retrieval_metadata = {
+            "request_id": retrieved.bundle.request.request_id,
+            "bundle_id": persisted_bundle.bundle_id,
+            "bundle_sha256": persisted_bundle.content_hash,
+            "status": persisted_bundle.status,
+            "source_failures": [
+                dict(value) for value in retrieved.bundle.source_failures
+            ],
+            "query_terms": list(
+                retrieved.bundle.request.budgets.get("query_terms") or []
+            ),
+            "projection_receipt": retrieved.projection_receipt.receipt_path,
+            "retrieval_receipt": str(retrieved.retrieval_receipt_path),
+            "retrieval_receipt_sha256": (
+                retrieved.retrieval_receipt_sha256
+            ),
+            "shadow_root": str(retrieved.shadow_root),
+        }
+        source_warnings = unique_strings(
+            [
+                *retrieved.policy_build.warnings,
+                *retrieved.bundle.warnings,
+            ]
+        )
+    else:
+        raise ValueError("Unsupported speaker evidence mode.")
     return {
         **prepared,
         "transcript_artifact": detail["transcript_artifact"],
-        "source_warnings": evidence.get("warnings") or [],
+        "evidence_mode": mode,
+        "retrieval": retrieval_metadata,
+        "legacy_rollback_receipt": legacy_receipt,
+        "source_warnings": source_warnings,
         "will_execute_external_action": False,
         "will_perform_external_write": False,
     }
@@ -5846,6 +5922,13 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             clue_discovery_run_id=str(
                                 body.get("clue_discovery_run_id") or ""
                             ),
+                            evidence_mode=str(
+                                body.get("evidence_mode") or "retrieval"
+                            ),
+                            legacy_approval_token=str(
+                                body.get("legacy_approval_token") or ""
+                            ),
+                            operator=str(body.get("operator") or ""),
                         ),
                         status=HTTPStatus.CREATED,
                     )

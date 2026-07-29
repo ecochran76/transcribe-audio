@@ -161,6 +161,55 @@ def _write_projection_fixture(tmp_path: Path) -> tuple[Path, Path, str]:
     return transcript_path, sidecar_path, ingested.id
 
 
+def test_legacy_projection_input_is_deterministic_private_and_source_bound(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "legacy.transcript.json"
+    source_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transcript_title": "Legacy projection fixture",
+                "transcript_text": "Hello.",
+                "utterances": [
+                    {
+                        "speaker": "A",
+                        "start": 0,
+                        "end": 500,
+                        "text": "Hello.",
+                    }
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_hash = _sha256(source_path)
+
+    first = conversation_knowledge_projection.materialize_legacy_projection_input(
+        source_path,
+        output_root=tmp_path / "private",
+    )
+    second = conversation_knowledge_projection.materialize_legacy_projection_input(
+        source_path,
+        output_root=tmp_path / "private",
+    )
+    plan = conversation_knowledge_projection.ConversationKnowledgeProjector(
+        tmp_path / "shadow"
+    ).preview(first.projection_path)
+
+    assert _sha256(source_path) == source_hash
+    assert first == second
+    assert first.source_transcript_sha256 == source_hash
+    assert first.projection_path.stat().st_mode & 0o777 == 0o600
+    assert first.projection_path.parent.stat().st_mode & 0o777 == 0o700
+    assert plan.source_transcript_sha256 == first.projection_sha256
+    assert plan.conversation_snapshot.conversation.conversation_id == (
+        first.conversation_id
+    )
+
+
 def test_preview_is_read_only_and_apply_round_trips_sidecar(
     tmp_path: Path,
 ) -> None:

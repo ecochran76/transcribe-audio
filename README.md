@@ -674,6 +674,29 @@ evaluation and review state; `/decisions` records attributable
 confirm/reject/defer actions; `/confirm-ready` confirms only proposals with
 host-derived scores of at least 85 and no review flags.
 
+`prepare-evaluation` defaults to `evidence_mode=retrieval`. The host freezes an
+exact-first query plan (at most 24 terms), projects the selected transcript
+into the private sidecar-authoritative shadow store, and persists an immutable
+retrieval request, evidence bundle, and `0600` receipt before preparing the
+model packet. Partial provider results remain the canonical bundle and never
+fall back automatically. The receipt records request/query-plan and bundle
+hashes, bounded failures and warnings, included/excluded reasons, freshness,
+temporal class, and independence groups without raw provider bodies.
+
+The old collector is available only as an operator rollback:
+
+```json
+{
+  "evidence_mode": "legacy_rollback",
+  "legacy_approval_token": "USE_LEGACY_SPEAKER_EVIDENCE",
+  "operator": "operator-id"
+}
+```
+
+That action writes a warning-bearing private rollback receipt and still
+performs no provider, CRM, model, or other external write. An absent or invalid
+token fails closed.
+
 Speaker preprocessing resolves the indexed original transcript first. If that
 path is unavailable, it accepts only the exact DB-recorded copied artifact
 under `~/.transcripts/artifacts/` whose SHA-256 matches the indexed hash.

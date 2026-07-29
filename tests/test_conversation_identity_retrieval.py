@@ -20,6 +20,35 @@ ADAPTER_EVIDENCE_ID = "00000000-0000-4000-8000-000000000406"
 OUT_OF_SCOPE_EVIDENCE_ID = "00000000-0000-4000-8000-000000000407"
 
 
+def test_provider_query_terms_are_exact_first_deduplicated_and_capped() -> None:
+    clues = (
+        conversation_identity_retrieval.TranscriptClue(
+            clue_id=CLUE_ID,
+            speaker_label="Speaker 1",
+            text=" ".join(f"contextterm{index}" for index in range(40)),
+            recording_id=RECORDING_ID,
+        ),
+    )
+
+    terms = conversation_identity_retrieval._query_terms(
+        attendees=(
+            {"email": "person@example.com", "name": "Example Person"},
+            {"email": "guest@example.com", "name": "Guest Person"},
+        ),
+        clues=clues,
+        speaker_labels=("Speaker 1", "Named Participant"),
+    )
+
+    assert terms[:4] == (
+        "person@example.com",
+        "Example Person",
+        "guest@example.com",
+        "Guest Person",
+    )
+    assert len(terms) == conversation_identity_retrieval.MAX_PROVIDER_QUERY_TERMS
+    assert len({value.casefold() for value in terms}) == len(terms)
+
+
 def _evidence(
     suffix: int,
     *,
@@ -238,6 +267,7 @@ class FakePartialAdapter:
         )
         assert repository.load_retrieval_request(REQUEST_ID) is not None
         assert "alpha" in request.query_terms
+        assert "prepared@example.com" in request.query_terms
         return conversation_identity_retrieval.ProviderRetrievalResult(
             snapshots=(
                 conversation_knowledge_evidence.EvidenceSnapshotRecord(
@@ -293,6 +323,7 @@ def test_prepare_identity_evidence_is_exact_first_bounded_and_replayable(
             ),
         ),
         capabilities=("mail",),
+        prepared_query_terms=("prepared@example.com",),
         provider_adapters=(adapter,),
         query_embedding=(1.0, 0.0),
         max_records=3,

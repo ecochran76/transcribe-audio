@@ -34,6 +34,17 @@ from conversation_knowledge_store import (
 APPLY_APPROVAL_TOKEN = "apply-sidecar-shadow-projection"
 PROJECTION_NAME = "sidecar-shadow"
 PROJECTION_SCHEMA_VERSION = "transcribe-audio.sidecar-shadow.v1"
+_LEGACY_PROJECTION_NAMESPACE = UUID("a1699f20-b9f3-4c88-b18b-769fc8fbbef3")
+
+
+@dataclass(frozen=True)
+class LegacyProjectionInput:
+    source_path: Path
+    projection_path: Path
+    source_transcript_sha256: str
+    projection_sha256: str
+    conversation_id: str
+    recording_id: str
 _IDENTITY_NAMESPACE = UUID("e00b88cb-f121-49f1-96c8-59576b7c735f")
 
 
@@ -159,6 +170,72 @@ def _write_immutable_private_json(path: Path, payload: dict[str, Any]) -> None:
             raise ValueError(f"Immutable receipt conflict: {path}.")
         return
     _write_private_json(path, payload)
+
+
+def materialize_legacy_projection_input(
+    source_path: Path,
+    *,
+    output_root: Path,
+) -> LegacyProjectionInput:
+    """Create a deterministic private identity overlay without mutating source."""
+    source = source_path.expanduser().resolve(strict=True)
+    if not source.name.endswith(conversation_processing.TRANSCRIPT_SUFFIX):
+        raise ValueError("Legacy projection source must be a normalized transcript.")
+    if conversation_processing.processing_sidecar_path(source).exists():
+        raise ValueError(
+            "Legacy projection overlay is only valid when no authority sidecar exists."
+        )
+    source_hash = _sha256_file(source)
+    payload = _read_json(source)
+    try:
+        conversation_id = _opaque_uuid(
+            payload.get("conversation_id"),
+            field_name="conversation_id",
+        )
+    except ValueError:
+        conversation_id = str(
+            uuid5(
+                _LEGACY_PROJECTION_NAMESPACE,
+                f"conversation:{source_hash}",
+            )
+        )
+    try:
+        recording_id = _opaque_uuid(
+            payload.get("recording_id"),
+            field_name="recording_id",
+        )
+    except ValueError:
+        recording_id = str(
+            uuid5(
+                _LEGACY_PROJECTION_NAMESPACE,
+                f"recording:{source_hash}",
+            )
+        )
+    projected = {
+        **payload,
+        "schema_version": max(2, int(payload.get("schema_version") or 0)),
+        "conversation_id": conversation_id,
+        "recording_id": recording_id,
+        "projection_identity": {
+            "scheme": "legacy-source-sha256-uuid5.v1",
+            "source_transcript_sha256": source_hash,
+        },
+    }
+    destination_root = output_root.expanduser().resolve()
+    destination = destination_root / f"{source_hash}-{source.name}"
+    if destination.exists():
+        if _read_json(destination) != projected:
+            raise ValueError(f"Immutable legacy projection conflict: {destination}.")
+    else:
+        _write_private_json(destination, projected)
+    return LegacyProjectionInput(
+        source_path=source,
+        projection_path=destination,
+        source_transcript_sha256=source_hash,
+        projection_sha256=_sha256_file(destination),
+        conversation_id=conversation_id,
+        recording_id=recording_id,
+    )
 
 
 class ConversationKnowledgeProjector:
