@@ -1,6 +1,6 @@
 # Plan 0031 | Provider yield retry
 
-State: OPEN
+State: CLOSED — REFINE
 
 Lane: P09
 
@@ -59,6 +59,22 @@ The operator reports that GWS authorization is restored. Current live
 configuration resolves one explicit GWS source and two explicit Odollo tenant
 sources without warnings. `transcripts.service` is active from the pushed
 Plan 0030 source.
+
+P1 is terminal `refine`. The metadata-only GWS probe succeeded, proving that
+authorization is restored. The one served default attempt created an
+immutable, explicit three-scope request, but the selected prior smoke
+conversation projected only anonymous diarization labels and no calendar
+attendees or prepared discovery terms. Its query plan therefore contained
+zero terms; every adapter correctly returned `query terms are required`
+without issuing a provider query. The partial bundle included zero snapshots.
+
+A provider-free eligibility scan then found eleven recent, non-frozen
+calendar-associated conversations with nonempty deterministic query plans.
+Plan 0032 is the bounded successor for one target-qualified immutable attempt.
+The Plan 0031 terminal receipt is
+`~/.local/state/transcribe-audio/plan-0031/terminal-refine-5c5cdc9a-cb28-45d7-8e8f-00dca005c262.json`,
+SHA-256
+`0f5dad7093c23ba3ea8ec758c8c7f1ce3bcdadf054ff07bb6abb9b7e80199c31`.
 
 ## Authority And Bounds
 
@@ -164,4 +180,3 @@ Plan 0031 is done when one immutable terminal receipt records `pass`, `refine`,
 or `stop`; this plan, `ROADMAP.md`, and `RUNBOOK.md` agree; all bounds and
 authority states are explicit; and the resulting documentation commit is
 pushed.
-

@@ -2,6 +2,41 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 242 | 2026-07-29
+
+Plan:
+`docs/dev/plans/0032-2026-07-29-target-qualified-provider-yield-retry.md`
+version 1
+
+Packet: P1 | Qualified immutable retry and terminal gate
+
+State transition: `CLOSED/Plan-0031-REFINE -> OPEN/Plan-0032-P1`
+
+Progress classification: `bounded_remediation`; a provider-free eligibility
+scan removed the verified zero-term input-selection blocker without relaxing
+the immutable-attempt gate.
+
+Authority and bounds:
+
+- The fixed target is document `158fe299a59444821675`, the first recent
+  non-frozen candidate with a nonempty deterministic query plan.
+- Preflight: six calendar attendees, six exact-first query terms, 270
+  utterances, four anonymous diarization labels, and no frozen-cohort
+  membership.
+- One served default retrieval attempt and one attempt per configured source
+  scope are authorized. No target substitution or code remediation is
+  permitted after execution.
+- Model calls, frozen-cohort consumption, gold reads, predictions, legacy
+  rollback, automatic confirmation, database authority, and external writes
+  remain prohibited.
+- Delegation: `not_spawned`; this is one serialized immutable live attempt with
+  a deterministic terminal gate.
+
+Next:
+
+- Revalidate the fixed target, execute the one served request, and record the
+  terminal receipt.
+
 ## Turn 241 | 2026-07-29
 
 Plan: `docs/dev/plans/0031-2026-07-29-provider-yield-retry.md` version 1
@@ -40,8 +75,32 @@ Preflight evidence:
 
 Next:
 
-- Verify GWS with the bounded metadata-only probe, then execute and validate
-  the one authorized served immutable retrieval attempt.
+- Terminal `refine`.
+- The metadata-only GWS calendar probe succeeded and emitted only authorization
+  and response-shape status.
+- The served request created immutable retrieval receipt
+  `conversation-identity-shadow/identity-retrieval-receipts/c6e118c1-66a7-4fc6-a56b-4834a8309c74.json`
+  (`0600`), SHA-256
+  `46a7834826d890b7b6d2a8586071ecd6b9ca85c8db7635c8dce99ebf220c9f76`.
+- The request had three explicit scopes, seven capabilities, two anonymous
+  speaker labels, zero clue IDs, zero prepared people, and zero query terms.
+  Every adapter returned `provider_query_failed/query terms are required`
+  without issuing a provider query. The partial bundle had zero items and
+  warning `no_bounded_evidence`.
+- A provider-free scan of twelve recent conversations found eleven eligible
+  non-frozen calendar-associated inputs. The first has six calendar attendees,
+  six deterministic query terms, 270 utterances, and four anonymous labels.
+- The frozen cohort remains 10/10 `not_started`, 10/10 `not_reviewed`, gold
+  absent, and unconsumed. The live database still has zero `knowledge_*`
+  tables; sidecar authority and disabled automatic confirmation are unchanged.
+- Terminal receipt:
+  `~/.local/state/transcribe-audio/plan-0031/terminal-refine-5c5cdc9a-cb28-45d7-8e8f-00dca005c262.json`
+  (`0600`), SHA-256
+  `0f5dad7093c23ba3ea8ec758c8c7f1ce3bcdadf054ff07bb6abb9b7e80199c31`.
+
+Next:
+
+- Execute Plan 0032's one target-qualified immutable retrieval attempt.
 
 ## Turn 240 | 2026-07-29
 
