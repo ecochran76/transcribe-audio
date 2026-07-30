@@ -176,6 +176,16 @@ def test_gws_adapter_normalizes_explicit_scope_and_temporal_evidence() -> None:
         "drive",
         "calendar",
     ]
+    assert [call[3] for call in provider.calls] == [
+        2,
+        3,
+        4,
+        7,
+        2,
+        3,
+        4,
+        7,
+    ]
 
 
 def test_gws_adapter_skips_nonmatching_scope_and_filters_capabilities() -> None:
@@ -324,6 +334,55 @@ def test_gws_adapter_enforces_pagination_record_and_character_budgets() -> None:
     assert provider.calls == [
         ("people", ("person@example.com", "orchard"), "", 2),
         ("people", ("person@example.com", "orchard"), "page-2", 1),
+    ]
+
+
+def test_gws_adapter_preserves_later_capability_access_under_record_budget() -> None:
+    provider = FakeGwsProvider(
+        {
+            ("calendar", ""): GwsProviderPage(
+                records=tuple(
+                    {
+                        "provider_record_id": f"event-{index}",
+                        "source_type": "gws_calendar_event_detail",
+                        "snippet": f"calendar result {index}",
+                        "source_event_at": "2024-01-01T10:00:00Z",
+                    }
+                    for index in range(4)
+                ),
+                next_page_token="calendar-more",
+            ),
+            ("people", ""): GwsProviderPage(
+                records=(
+                    {
+                        "provider_record_id": "people/1",
+                        "source_type": "gws_contact",
+                        "snippet": "Pat Person <person@example.com>",
+                    },
+                )
+            ),
+        }
+    )
+    adapter = GwsEvidenceAdapter(
+        scope=SCOPE,
+        provider=provider,
+        retrieved_at="2026-07-29T16:00:00Z",
+    )
+
+    result = adapter.retrieve(
+        request(capabilities=("calendar", "people"), max_records=4)
+    )
+
+    assert [item.capability for item in result.snapshots] == [
+        "calendar",
+        "calendar",
+        "people",
+    ]
+    assert result.failures == ()
+    assert result.warnings == ("provider_records_truncated",)
+    assert provider.calls == [
+        ("calendar", ("person@example.com", "orchard"), "", 2),
+        ("people", ("person@example.com", "orchard"), "", 2),
     ]
 
 

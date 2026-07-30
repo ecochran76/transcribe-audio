@@ -43,8 +43,25 @@ Authority and bounds:
 
 Next:
 
-- Record RED, implement the smallest adapter-local fair-share logic, obtain
-  GREEN and joined regressions, then push before the final live proof.
+- RED:
+  `.venv/bin/python -m pytest tests/test_conversation_evidence_gws.py::test_gws_adapter_preserves_later_capability_access_under_record_budget -q`
+  failed because four Calendar snapshots consumed the record budget and
+  People was never queried.
+- GREEN: the same command passed after the adapter-local implementation.
+- The adapter now derives each capability's share from the remaining global
+  record budget and remaining configured capabilities. It truncates only the
+  current capability at that share, continues to later capabilities, and
+  leaves unused share available downstream.
+- The full GWS suite passes 15 tests. The joined adapters, identity retrieval,
+  policy, evidence, projection, provenance, workflow, and transcript API suite
+  passes 143 tests.
+- README now documents the installed GWS service PATH and adaptive
+  capability-budget contract.
+
+Next:
+
+- Compile, audit, commit, and push the repair, then restart once and execute
+  the sole final GWS-specific immutable proof.
 
 ## Turn 243 | 2026-07-29
 

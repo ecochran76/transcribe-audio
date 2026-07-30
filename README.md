@@ -766,6 +766,24 @@ EnvironmentFile=/home/ecochran76/.local/state/transcribe-audio/odollo.env
 
 Restart the service after changing that file. Missing `ODOO_*_API_KEY` variables surface as Odollo `401 Unauthorized` warnings in the participant identity bundle.
 
+The production GWS evidence adapter also runs inside
+`transcripts.service`. If `gws` is installed under
+`~/.cargo/bin`, add that directory to the service PATH with a separate
+non-secret drop-in so the service does not depend on an interactive-shell
+PATH:
+
+```ini
+[Service]
+Environment="PATH=/home/ecochran76/.cargo/bin:/home/ecochran76/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+```
+
+The bounded GWS adapter shares its global record budget adaptively across the
+configured Calendar, Drive, People, and Gmail capabilities. A high-yield
+earlier capability is truncated to a fair share so later capabilities are
+still queried; unused share remains available to later capabilities. The
+global record and character caps, explicit scope, temporal policy, and
+read-only behavior remain unchanged.
+
 Smoke the replay-manifest and registered artifact reader against the live API:
 
 ```bash

@@ -838,15 +838,27 @@ class GwsEvidenceAdapter:
         inspected_records = 0
         stop_for_budget = False
 
-        for capability in capabilities:
+        for capability_index, capability in enumerate(capabilities):
+            remaining_global_records = request.max_records - inspected_records
+            if remaining_global_records <= 0:
+                self._add_warning(warnings, "provider_records_truncated")
+                break
+            remaining_capabilities = len(capabilities) - capability_index
+            capability_record_budget = max(
+                1,
+                remaining_global_records // remaining_capabilities,
+            )
+            capability_records_inspected = 0
+            capability_truncated = False
             page_token = ""
             seen_page_tokens: set[str] = set()
             more_records_available = False
             page_attempts = 0
-            max_page_attempts = max(1, min(request.max_records, 100))
+            max_page_attempts = max(1, min(capability_record_budget, 100))
             while (
                 len(snapshots) < request.max_records
                 and inspected_records < request.max_records
+                and capability_records_inspected < capability_record_budget
             ):
                 if page_attempts >= max_page_attempts:
                     failures.append(
@@ -861,7 +873,10 @@ class GwsEvidenceAdapter:
                     self._add_warning(warnings, "provider_records_truncated")
                     break
                 page_attempts += 1
-                remaining_records = request.max_records - inspected_records
+                remaining_records = min(
+                    request.max_records - inspected_records,
+                    capability_record_budget - capability_records_inspected,
+                )
                 try:
                     page = self.provider.fetch_page(
                         capability=capability,
@@ -913,7 +928,13 @@ class GwsEvidenceAdapter:
                         more_records_available = True
                         stop_for_budget = True
                         break
+                    if capability_records_inspected >= capability_record_budget:
+                        self._add_warning(warnings, "provider_records_truncated")
+                        more_records_available = True
+                        capability_truncated = True
+                        break
                     inspected_records += 1
+                    capability_records_inspected += 1
                     try:
                         record = self._bounded_record(payload, capability=capability)
                         snapshot = self.normalizer.normalize(
@@ -955,6 +976,8 @@ class GwsEvidenceAdapter:
 
                 if stop_for_budget:
                     break
+                if capability_truncated:
+                    break
                 next_page_token = str(page.next_page_token or "").strip()
                 if not next_page_token:
                     break
@@ -980,6 +1003,11 @@ class GwsEvidenceAdapter:
             ):
                 self._add_warning(warnings, "provider_records_truncated")
                 stop_for_budget = True
+            elif (
+                capability_records_inspected >= capability_record_budget
+                and more_records_available
+            ):
+                self._add_warning(warnings, "provider_records_truncated")
             if stop_for_budget:
                 break
 

@@ -58,6 +58,14 @@ records at twenty, returned `provider_records_truncated`, and rejected twenty
 GWS snapshots as outside the historical scope before any GWS evidence control
 could be included. The service is healthy with the PATH repair active.
 
+The source work unit is complete. RED reproduced the starvation at the public
+adapter interface: the oversized Calendar page returned four Calendar
+snapshots and never called People. The adapter now computes an adaptive share
+from the remaining global budget and remaining configured capabilities,
+truncates only the current capability at that share, and continues to later
+capabilities. GREEN passed the new test; all 15 GWS tests and the 143-test
+joined host-safe suite pass.
+
 ## Design And Test Contract
 
 Module: `GwsEvidenceAdapter`
@@ -181,4 +189,3 @@ Plan 0034 is done when one immutable terminal receipt records `pass`, `refine`,
 or `stop`; tests, pushed source, installed runtime, and repo authorities agree;
 all bounds and authority states are explicit; and the closeout commit is
 pushed.
-
