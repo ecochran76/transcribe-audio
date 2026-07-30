@@ -1,6 +1,6 @@
 # Plan 0033 | GWS service PATH repair
 
-State: OPEN
+State: CLOSED — REFINE
 
 Lane: P09
 
@@ -54,6 +54,22 @@ The user systemd manager PATH is
 `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:...` and omits
 that directory. The merged service unit has no PATH override. Existing Codex
 and Odollo drop-ins are independent and must be preserved.
+
+P1 is terminal `refine`. The installed PATH drop-in validated and the service
+restarted once from PID 2447995 to PID 3519614 with `NRestarts=0`; the running
+process PATH now includes `/home/ecochran76/.cargo/bin` and API health is
+green. GWS executed through the served default path.
+
+The immutable request returned twenty GWS snapshots, but all twenty were
+excluded by the shared historical scope policy. The request ordered
+`calendar` first, the GWS adapter used one global twenty-record budget, and
+warning `provider_records_truncated` proves the first high-yield capability
+exhausted the budget before later GWS capabilities could contribute. No GWS
+evidence control was included. Plan 0034 owns one test-first adapter-local
+fairness repair and one final served verification. The terminal receipt is
+`~/.local/state/transcribe-audio/plan-0033/terminal-refine-818efd3e-7a4f-4dc5-98f1-ce8dfb7d24b4.json`,
+SHA-256
+`98a34d358971b0a7f7804c7be556412e3459a2b16a2b1daf60d29ff06d1c1e82`.
 
 ## Authority And Bounds
 
@@ -153,4 +169,3 @@ Plan 0033 is done when one immutable terminal receipt records `pass`, `refine`,
 or `stop`; the installed service state and repo authorities agree; all bounds,
 rollback, and authority states are explicit; and the closeout commit is
 pushed.
-

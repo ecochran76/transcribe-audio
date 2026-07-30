@@ -2,6 +2,50 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 244 | 2026-07-29
+
+Plan:
+`docs/dev/plans/0034-2026-07-29-gws-capability-budget-fairness.md`
+version 1
+
+Packet: P1 | Test-first fairness repair and final GWS proof
+
+State transition: `CLOSED/Plan-0033-REFINE -> OPEN/Plan-0034-P1`
+
+Progress classification: `bounded_remediation`; GWS now executes inside the
+service and the remaining zero-yield cause is isolated to adapter-local global
+budget starvation.
+
+Design and validation authority:
+
+- Public interface: `GwsEvidenceAdapter.retrieve`.
+- External seam: injected `GwsProviderReader`; the existing in-memory fake is
+  the test adapter.
+- Required behavior: an oversized first-capability page is truncated to a fair
+  share while a later configured capability is still queried and can return a
+  normalized snapshot.
+- No new interface, request field, config option, capability reorder, or
+  temporal-policy change is permitted.
+- TDD and codebase-design skills were read; CodeGraph impact limits the blast
+  radius to the GWS adapter, its tests, policy construction, and transcript API
+  caller.
+
+Authority and bounds:
+
+- One red/green cycle, one source work unit, one service restart, and one final
+  immutable request on the fixed Plan 0032 target are authorized.
+- Model calls, target substitution, credentials/config changes,
+  frozen-cohort consumption, gold reads, predictions, legacy rollback,
+  automatic confirmation, database authority, and external writes remain
+  prohibited.
+- Delegation: `not_spawned`; the test/code pair and dependent live proof are
+  one narrow serialized critical path.
+
+Next:
+
+- Record RED, implement the smallest adapter-local fair-share logic, obtain
+  GREEN and joined regressions, then push before the final live proof.
+
 ## Turn 243 | 2026-07-29
 
 Plan: `docs/dev/plans/0033-2026-07-29-gws-service-path-repair.md`
@@ -40,8 +84,37 @@ Authority and bounds:
 
 Next:
 
-- Install and validate the PATH drop-in, restart once, then execute the one
-  GWS-inclusive immutable proof.
+- Terminal `refine`.
+- Installed `30-gws-path.conf`, verified the merged unit, reloaded, and
+  restarted once. PID changed from 2447995 to 3519614, `NRestarts=0`, the
+  running process PATH includes `/home/ecochran76/.cargo/bin`, and API health
+  is green.
+- The immutable six-term request executed GWS and returned twenty snapshots,
+  but the shared historical policy excluded all twenty. The adapter emitted
+  `provider_records_truncated`, no GWS evidence control was included, and four
+  Odollo snapshots remained included.
+- Retrieval receipt:
+  `conversation-identity-shadow/identity-retrieval-receipts/d702aa25-b5bb-49df-bfae-30acdad33e37.json`
+  (`0600`), SHA-256
+  `90ab6a9a513d3ea71cefa9d01bc18977301e63f96af34966f5bfe98721c360bd`.
+- Source tracing confirms the GWS adapter processes capabilities in request
+  order under one global inspected-record budget. The first high-yield
+  capability can therefore starve all later capabilities even when its
+  snapshots will be excluded by the host retrieval policy.
+- Terminal receipt:
+  `~/.local/state/transcribe-audio/plan-0033/terminal-refine-818efd3e-7a4f-4dc5-98f1-ce8dfb7d24b4.json`
+  (`0600`), SHA-256
+  `98a34d358971b0a7f7804c7be556412e3459a2b16a2b1daf60d29ff06d1c1e82`.
+- Frozen and authority states remain unchanged: 10/10 predictions
+  `not_started`, 10/10 ground truth `not_reviewed`, gold absent/unread, zero
+  live `knowledge_*` tables, sidecar authority, and automatic confirmation
+  disabled.
+
+Next:
+
+- Add one public-interface regression test for cross-capability budget
+  fairness, implement the adapter-local fix, and execute one final immutable
+  GWS proof.
 
 ## Turn 242 | 2026-07-29
 

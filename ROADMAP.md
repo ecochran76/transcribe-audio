@@ -303,11 +303,16 @@ Milestone Focus:
   provider-yield prerequisite. GWS remained explicitly unavailable inside the
   service because the installed user-systemd PATH omitted its executable.
 - `docs/dev/plans/0033-2026-07-29-gws-service-path-repair.md` is the bounded
-  installed-runtime repair. It permits one non-secret PATH drop-in, one service
-  restart, and one immutable retry on the fixed non-frozen target. It must
-  include normalized `gws-default` evidence or close `refine`; it cannot touch
-  credentials, substitute a target, consume the frozen cohort, read gold,
-  create predictions, or change authority.
+  installed-runtime repair and closed `refine`. The PATH drop-in succeeded and
+  GWS executed, but its first high-yield capability consumed the complete
+  twenty-record adapter budget; all twenty snapshots were outside the
+  historical scope and later GWS capabilities were starved.
+- `docs/dev/plans/0034-2026-07-29-gws-capability-budget-fairness.md` is the
+  final bounded code repair. It preserves the adapter interface and global
+  caps while requiring later configured capabilities to retain budget access.
+  One test-first work unit, one service restart, and one immutable GWS-specific
+  proof are permitted; no target substitution, temporal-policy relaxation,
+  frozen-cohort use, gold read, prediction, or authority change is allowed.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
