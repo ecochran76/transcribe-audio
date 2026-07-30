@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 
 import intelligence_config
 import provenance_config
@@ -46,6 +46,9 @@ APPLY_CAMPAIGN_TOKEN = "APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST"
 RECORD_GOLD_TOKEN = "RECORD_SPEAKER_EVALUATION_GOLD"
 FREEZE_GOLD_TOKEN = "FREEZE_SPEAKER_EVALUATION_GOLD_BATCH"
 START_BLIND_BASELINE_TOKEN = "START_SPEAKER_EVALUATION_BLIND_BASELINE"
+START_EVALUATION_HOLDOUT_TOKEN = (
+    "START_SPEAKER_EVALUATION_HOLDOUT_BASELINE"
+)
 CAPTURE_BLIND_PREDICTION_TOKEN = (
     "CAPTURE_SPEAKER_EVALUATION_BLIND_PREDICTION"
 )
@@ -57,6 +60,12 @@ RECORD_REFINEMENT_DECISION_TOKEN = (
 )
 REPLAY_SPEAKER_CONFIDENCE_CALIBRATION_TOKEN = (
     "REPLAY_SPEAKER_CONFIDENCE_CALIBRATION"
+)
+CONVERSATION_EVALUATION_FREEZE_SCHEMA_VERSION = (
+    "transcribe-audio.conversation-knowledge-evaluation-freeze.v1"
+)
+_EVALUATION_HOLDOUT_NAMESPACE = UUID(
+    "1e6bf246-1d75-4938-b9a8-11d06469cb3c"
 )
 GOLD_DISPOSITIONS = {
     "eligible_known",
@@ -637,6 +646,159 @@ def freeze_gold_batch(
     return {**freeze, "freeze_path": str(freeze_path)}
 
 
+def start_evaluation_holdout_baseline(
+    campaign_id: str,
+    *,
+    evaluation_freeze_path: Path,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+) -> dict[str, Any]:
+    """Bind one unseen evaluation freeze to an idempotent blind holdout."""
+    if approval_token != START_EVALUATION_HOLDOUT_TOKEN:
+        raise ValueError(
+            "Evaluation holdout start requires approval token "
+            f"{START_EVALUATION_HOLDOUT_TOKEN}."
+        )
+    selected_runtime_root = (
+        runtime_root or DEFAULT_CAMPAIGN_ROOT
+    ).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    manifest_path = campaign_dir / "manifest.json"
+    gold_index_path = campaign_dir / "gold" / "index.json"
+    manifest = _campaign_manifest(selected_runtime_root, campaign_id)
+    source_path = evaluation_freeze_path.expanduser()
+    source = _read_json(source_path)
+    source_id = str(source.get("freeze_id") or "")
+    if (
+        source.get("schema_version")
+        != CONVERSATION_EVALUATION_FREEZE_SCHEMA_VERSION
+        or not re.fullmatch(r"evaluation-[0-9a-f-]{36}", source_id)
+    ):
+        raise ValueError("Conversation evaluation freeze identity is invalid.")
+    if (
+        source.get("campaign_id") != campaign_id
+        or source.get("manifest_id") != manifest.get("manifest_id")
+    ):
+        raise ValueError(
+            "Conversation evaluation freeze does not belong to this campaign."
+        )
+    if (
+        source.get("status") != "frozen_pending_readiness"
+        or source.get("prediction_visibility") != "unseen"
+        or source.get("gold_content_included") is not False
+    ):
+        raise ValueError("Conversation evaluation freeze is not blind.")
+    source_hashes = (
+        source.get("source_hashes")
+        if isinstance(source.get("source_hashes"), dict)
+        else {}
+    )
+    current_manifest_hash = hashlib.sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
+    if source_hashes.get("campaign_manifest_sha256") != current_manifest_hash:
+        raise ValueError(
+            "Campaign manifest changed after the evaluation freeze."
+        )
+    if not gold_index_path.is_file():
+        raise ValueError("Campaign gold index is missing.")
+    current_gold_index_hash = hashlib.sha256(
+        gold_index_path.read_bytes()
+    ).hexdigest()
+    if source_hashes.get("gold_index_sha256") != current_gold_index_hash:
+        raise ValueError("Campaign gold index changed after the evaluation freeze.")
+
+    cases = source.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("Conversation evaluation freeze has no cases.")
+    if int(source.get("cohort_size") or 0) != len(cases):
+        raise ValueError("Conversation evaluation cohort size is inconsistent.")
+    document_ids: list[str] = []
+    seen_document_ids: set[str] = set()
+    for case in cases:
+        if not isinstance(case, dict):
+            raise ValueError("Conversation evaluation case is invalid.")
+        document_id = str(case.get("document_id") or "")
+        artifact_sha256 = str(case.get("artifact_sha256") or "")
+        if (
+            not document_id
+            or document_id in seen_document_ids
+            or not re.fullmatch(r"[a-f0-9]{64}", artifact_sha256)
+        ):
+            raise ValueError("Conversation evaluation case identity is invalid.")
+        if (
+            case.get("prediction_status") != "not_started"
+            or case.get("ground_truth_status") != "not_reviewed"
+        ):
+            raise ValueError("Conversation evaluation case is no longer unseen.")
+        manifest_item = _manifest_item(manifest, document_id)
+        if (
+            str(manifest_item.get("artifact_sha256") or "")
+            != artifact_sha256
+        ):
+            raise ValueError(
+                "Conversation evaluation case artifact changed after freeze."
+            )
+        seen_document_ids.add(document_id)
+        document_ids.append(document_id)
+
+    source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    bridge_freeze_id = str(
+        uuid5(
+            _EVALUATION_HOLDOUT_NAMESPACE,
+            f"{source_id}:{source_sha256}",
+        )
+    )
+    bridge_path = campaign_dir / "freezes" / f"{bridge_freeze_id}.json"
+    bridge = {
+        "schema_version": GOLD_FREEZE_SCHEMA_VERSION,
+        "freeze_id": bridge_freeze_id,
+        "campaign_id": campaign_id,
+        "manifest_id": manifest["manifest_id"],
+        "status": "evaluation_holdout_frozen",
+        "batch_size": len(document_ids),
+        "gold_case_count": 0,
+        "gold_ids": [],
+        "document_ids": [],
+        "blind_holdout_document_ids": document_ids,
+        "frozen_at": str(source.get("frozen_at") or ""),
+        "prediction_visibility": "excluded",
+        "source_evaluation_freeze_id": source_id,
+        "source_evaluation_freeze_sha256": source_sha256,
+        "gold_content_included": False,
+    }
+    if bridge_path.exists():
+        if _read_json(bridge_path) != bridge:
+            raise ValueError(f"Immutable evaluation holdout conflict: {bridge_path}.")
+    else:
+        _write_private_json(bridge_path, bridge)
+
+    for baseline_path in sorted(
+        (campaign_dir / "baselines").glob("*/baseline.json")
+    ):
+        existing = _read_json(baseline_path)
+        if existing.get("source_evaluation_freeze_id") != source_id:
+            continue
+        if (
+            existing.get("source_evaluation_freeze_sha256") != source_sha256
+            or existing.get("document_ids") != document_ids
+        ):
+            raise ValueError(
+                f"Immutable evaluation baseline conflict: {baseline_path}."
+            )
+        return {**existing, "baseline_path": str(baseline_path)}
+
+    return start_blind_baseline(
+        campaign_id,
+        freeze_id=bridge_freeze_id,
+        runtime_root=selected_runtime_root,
+        approval_token=START_BLIND_BASELINE_TOKEN,
+        run_kind="holdout",
+        hypothesis="measure the served default combined speaker path",
+        evidence_mode="fresh_retrieval",
+    )
+
+
 def start_blind_baseline(
     campaign_id: str,
     *,
@@ -737,6 +899,12 @@ def start_blind_baseline(
         "rubric_versions": manifest.get("rubric_versions") or {},
         "provenance_config_fingerprint": str(
             manifest.get("provenance_config_fingerprint") or ""
+        ),
+        "source_evaluation_freeze_id": str(
+            freeze.get("source_evaluation_freeze_id") or ""
+        ),
+        "source_evaluation_freeze_sha256": str(
+            freeze.get("source_evaluation_freeze_sha256") or ""
         ),
         "prediction_visibility": "blind",
         "will_read_gold_records": False,

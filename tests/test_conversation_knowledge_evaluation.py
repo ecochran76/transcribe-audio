@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import conversation_knowledge_evaluation
+import speaker_evaluation_campaign
 
 
 def _write_json(path: Path, value: dict[str, object]) -> None:
@@ -115,6 +116,99 @@ def test_freeze_selects_unseen_chronological_cases_without_gold_content(
         ),
     )
     assert repeated == frozen
+
+
+def test_evaluation_freeze_starts_one_idempotent_blind_holdout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign_root, campaign_id = _campaign(tmp_path)
+    monkeypatch.setattr(
+        conversation_knowledge_evaluation,
+        "_repository_state",
+        lambda: {"commit": "a" * 40, "dirty_tree": False},
+    )
+    frozen = conversation_knowledge_evaluation.freeze_chronological_evaluation(
+        campaign_id,
+        campaign_root=campaign_root,
+        evaluation_root=tmp_path / "evaluations",
+        cohort_size=5,
+        approval_token=(
+            conversation_knowledge_evaluation.FREEZE_EVALUATION_TOKEN
+        ),
+    )
+
+    baseline = speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+        campaign_id,
+        evaluation_freeze_path=Path(frozen["freeze_path"]),
+        runtime_root=campaign_root,
+        approval_token=(
+            speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+        ),
+    )
+
+    assert baseline["run_kind"] == "holdout"
+    assert baseline["status"] == "awaiting_predictions"
+    assert baseline["source_evaluation_freeze_id"] == frozen["freeze_id"]
+    assert baseline["document_ids"] == [
+        case["document_id"] for case in frozen["cases"]
+    ]
+    assert baseline["batch_size"] == 5
+    assert baseline["captured_prediction_count"] == 0
+    assert baseline["will_read_gold_records"] is False
+    assert baseline["gold_content_included"] is False
+    serialized = json.dumps(baseline)
+    assert "speaker_outcomes" not in serialized
+    assert "gold_id" not in serialized
+    assert Path(baseline["baseline_path"]).stat().st_mode & 0o777 == 0o600
+
+    repeated = speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+        campaign_id,
+        evaluation_freeze_path=Path(frozen["freeze_path"]),
+        runtime_root=campaign_root,
+        approval_token=(
+            speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+        ),
+    )
+    assert repeated == baseline
+
+
+def test_evaluation_holdout_rejects_nonblind_case_without_runtime_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign_root, campaign_id = _campaign(tmp_path)
+    monkeypatch.setattr(
+        conversation_knowledge_evaluation,
+        "_repository_state",
+        lambda: {"commit": "a" * 40, "dirty_tree": False},
+    )
+    frozen = conversation_knowledge_evaluation.freeze_chronological_evaluation(
+        campaign_id,
+        campaign_root=campaign_root,
+        evaluation_root=tmp_path / "evaluations",
+        cohort_size=5,
+        approval_token=(
+            conversation_knowledge_evaluation.FREEZE_EVALUATION_TOKEN
+        ),
+    )
+    freeze_path = Path(frozen["freeze_path"])
+    changed = json.loads(freeze_path.read_text(encoding="utf-8"))
+    changed["cases"][0]["prediction_status"] = "complete"
+    _write_json(freeze_path, changed)
+
+    with pytest.raises(ValueError, match="no longer unseen"):
+        speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+            campaign_id,
+            evaluation_freeze_path=freeze_path,
+            runtime_root=campaign_root,
+            approval_token=(
+                speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+            ),
+        )
+
+    assert not (campaign_root / campaign_id / "freezes").exists()
+    assert not (campaign_root / campaign_id / "baselines").exists()
 
 
 def test_readiness_decision_is_aggregate_immutable_and_preserves_unseen_cohort(

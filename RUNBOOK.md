@@ -51,6 +51,33 @@ Next:
 - Capture all ten predictions, then pause at the independent operator-review
   gate without exposing predictions.
 
+P0 implementation checkpoint:
+
+- RED:
+  `.venv/bin/python -m pytest
+  tests/test_conversation_knowledge_evaluation.py::test_evaluation_freeze_starts_one_idempotent_blind_holdout
+  -q` failed because the public freeze-to-holdout interface did not exist.
+- GREEN: the same command passes after adding
+  `start_evaluation_holdout_baseline`.
+- The interface verifies the conversation-freeze schema and identity,
+  blindness flags, `not_started`/`not_reviewed` states, cohort size, campaign
+  manifest hash, gold-index hash, and every document/artifact pair before any
+  baseline write.
+- The bridge writes one deterministic private holdout freeze, reuses the
+  existing baseline/capture/reveal machinery, and returns the same baseline
+  on exact replay. A conflicting or non-blind replay fails closed.
+- A second public-interface test proves a non-blind case is rejected before
+  either a freeze or baseline directory is written.
+- Focused evaluation, campaign, and baseline-runner validation passes 22
+  tests. The joined adapter, identity retrieval, knowledge, workflow,
+  campaign, and transcript API validation passes 164 tests.
+- Python compilation and `git diff --check` pass.
+- The live campaign manifest and gold-index hashes exactly match the frozen
+  source hashes. No frozen document appears in the current gold index.
+- The served speaker-disambiguation profile is `codex_supervisor` using
+  provider `codex-app-server` and model `gpt-5.6-sol`; provider readiness is
+  green on Codex CLI `0.146.0`.
+
 ## Turn 245 | 2026-07-30
 
 Scope: establish the durable product north star and route recurring planning

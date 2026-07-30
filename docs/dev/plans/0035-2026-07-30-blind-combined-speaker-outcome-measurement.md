@@ -96,6 +96,13 @@ The ten cases do not yet have independent gold reviews. This is intentional:
 prediction capture must complete before the operator sees any model outcome,
 and the model must never receive the later gold records.
 
+P0 is complete in source. The new public interface validates the evaluation
+freeze, current manifest and gold-index hashes, case identities, blindness,
+and review state before writing one deterministic compatible holdout. Exact
+replay is idempotent, drift fails closed, the focused suite passes 22 tests,
+and the joined host-safe suite passes 164 tests. P1 live baseline creation is
+the active packet.
+
 ## Authority and bounds
 
 Authority order:
@@ -144,7 +151,8 @@ Outcome:
   `not_started`/`not_reviewed` states before creating a compatible holdout
   baseline.
 - Make exact replay idempotent and conflicting replay fail closed.
-- Read no gold index or gold body while creating the baseline.
+- Read gold-index metadata only to prove that the frozen cases remain
+  unreviewed. Read no gold body while creating the baseline.
 
 Validation:
 
