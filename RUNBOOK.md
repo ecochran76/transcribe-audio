@@ -2,6 +2,54 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 247 | 2026-07-30
+
+Plan:
+`docs/dev/plans/0036-2026-07-30-literal-fts-blind-speaker-rerun.md`
+version 1
+
+Packet: P0 | Literal FTS query
+
+State transition: `CLOSED/Plan-0035-REFINE -> OPEN/Plan-0036-P0`
+
+Plan 0035 terminal evidence:
+
+- P0 added and tested the evaluation-freeze bridge; 164 joined tests passed.
+- P1 preflight receipt:
+  `~/.local/state/transcribe-audio/plan-0035/preflight-9c2585df-ee7f-45be-add6-c32ed4f4277c.json`
+  (`0600`), SHA-256
+  `520b636db36f9bf0cf51fc5219f1f806971daeb9ad809c853eb07a257ca20360`.
+- P2 baseline:
+  `baseline-f77e1874-fbfb-4ff3-87fa-9b57e2de197f`.
+  Four predictions are immutable and six cases remain unstarted.
+- Case 3 first failed with `no such column: member`; the sole unchanged retry
+  succeeded. Case 5 then failed with `no such column: like`.
+- Both failures originate from unquoted hyphen-bearing tokens in the shared
+  FTS prefix-query builder. The service stayed active with `NRestarts=0`.
+- P3/P4 did not run. Gold-index hash
+  `6560591461573bf08d50dd110c031d56f287ea570563b9ae0bfdae691d48d3d8`
+  is unchanged, gold was not read or written, and no prediction was revealed.
+- Terminal receipt:
+  `~/.local/state/transcribe-audio/plan-0035/terminal-refine-2dd137bf-2575-4095-a645-0bc8d6d70fe7.json`
+  (`0600`), SHA-256
+  `afb1886c9965c6e8ce74fe0db12b45e8b664993bffdd1b9a8c0206fa15e752c9`.
+
+Plan 0036 bounds:
+
+- Quote tokens only; do not change token selection, retrieval policy,
+  provider order, prompts, model, confidence, or candidates.
+- Preserve the partial baseline without reveal.
+- Create one explicitly linked superseding baseline for the exact same unseen
+  cohort after pushed and served validation.
+- One total unchanged case retry is available on the superseding baseline.
+
+Next:
+
+- Reproduce the hyphenated-term SQLite failure through the public evidence
+  search interface.
+- Quote FTS5 prefix tokens, prove GREEN, and run the joined regression suite.
+- Add the approval-gated explicit supersession path before any new model turn.
+
 ## Turn 246 | 2026-07-30
 
 Plan:

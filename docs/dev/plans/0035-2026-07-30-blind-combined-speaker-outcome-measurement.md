@@ -1,6 +1,6 @@
 # Plan 0035 | Blind combined speaker outcome measurement
 
-State: OPEN
+State: CLOSED — REFINE
 
 Lane: P09
 
@@ -96,12 +96,28 @@ The ten cases do not yet have independent gold reviews. This is intentional:
 prediction capture must complete before the operator sees any model outcome,
 and the model must never receive the later gold records.
 
-P0 is complete in source. The new public interface validates the evaluation
+P0 completed in source. The new public interface validates the evaluation
 freeze, current manifest and gold-index hashes, case identities, blindness,
 and review state before writing one deterministic compatible holdout. Exact
 replay is idempotent, drift fails closed, the focused suite passes 22 tests,
-and the joined host-safe suite passes 164 tests. P1 live baseline creation is
-the active packet.
+and the joined host-safe suite passes 164 tests.
+
+P1 passed and created
+`baseline-f77e1874-fbfb-4ff3-87fa-9b57e2de197f` from the exact freeze after a
+pushed-source service restart and clean preflight. P2 captured four immutable
+predictions. Case 3 first failed because an unquoted FTS term was parsed as a
+column; the sole unchanged retry succeeded. Case 5 then failed in the same
+class with a different term. The total retry bound was exhausted, so no later
+case started.
+
+The plan closed `refine` before gold review or reveal. Four predictions remain
+private, six cases remain unstarted, the gold-index hash is unchanged,
+automatic confirmation and database authority remain disabled, and external
+writes remain zero. The terminal receipt is
+`~/.local/state/transcribe-audio/plan-0035/terminal-refine-2dd137bf-2575-4095-a645-0bc8d6d70fe7.json`
+(`0600`), SHA-256
+`afb1886c9965c6e8ce74fe0db12b45e8b664993bffdd1b9a8c0206fa15e752c9`.
+Plan 0036 owns the bounded literal-FTS repair and a new superseding baseline.
 
 ## Authority and bounds
 

@@ -204,6 +204,7 @@ Plans:
 - `docs/dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md`
 - `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`
 - `docs/dev/plans/0035-2026-07-30-blind-combined-speaker-outcome-measurement.md`
+- `docs/dev/plans/0036-2026-07-30-literal-fts-blind-speaker-rerun.md`
 
 Milestone Focus:
 
@@ -335,6 +336,15 @@ Milestone Focus:
   Its current maturity is `2 — Shadow`; completion will provide the evidence
   to accept or reject advancement toward `3 — Operational`, not declare that
   level from provider or runtime readiness alone.
+- Plan 0035 closed `refine` after four predictions. Two model-derived
+  hyphenated query terms reached FTS5 without literal quoting and were
+  interpreted as column expressions. The sole unchanged retry recovered the
+  first failure; the second exhausted the bound. Six cases remain unstarted,
+  gold remains absent, and no prediction was revealed.
+- Open Plan 0036 owns one shared FTS literalization, an explicit superseding
+  baseline for the same unseen cohort, and continuation through the
+  independent-review and outcome-scoring gates. It permits no prompt,
+  retrieval-policy, confidence, or candidate change.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
