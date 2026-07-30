@@ -203,6 +203,7 @@ Plans:
 - `docs/dev/plans/0028-2026-07-25-speaker-confidence-calibration.md`
 - `docs/dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md`
 - `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`
+- `docs/dev/plans/0035-2026-07-30-blind-combined-speaker-outcome-measurement.md`
 
 Milestone Focus:
 
@@ -327,6 +328,13 @@ Milestone Focus:
   PATH repair is active, the 143-test joined suite passes, and the frozen
   cohort and authority states remain untouched. Any blind prediction or human
   gold-review campaign still requires separate explicit authorization.
+- Open Plan 0035 is the authorized outcome-measurement successor. It binds the
+  exact ten-case conversation-evaluation freeze to the existing blind
+  App Intelligence runner, captures the current default combined path before
+  any review, then requires independent post-prediction gold before reveal.
+  Its current maturity is `2 — Shadow`; completion will provide the evidence
+  to accept or reject advancement toward `3 — Operational`, not declare that
+  level from provider or runtime readiness alone.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

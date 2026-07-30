@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 246 | 2026-07-30
+
+Plan:
+`docs/dev/plans/0035-2026-07-30-blind-combined-speaker-outcome-measurement.md`
+version 1
+
+Packet: P0 | Freeze bridge and public-interface proof
+
+State transition: `CLOSED/Plan-0034-PASS -> OPEN/Plan-0035-P0`
+
+Vision outcome:
+
+- Measure the current default combined speaker-identification path on the next
+  frozen chronological cohort.
+- Move from maturity `2 — Shadow` toward an evidence-backed decision about
+  `3 — Operational`.
+- Do not equate provider readiness, service health, or prediction completion
+  with identity quality.
+
+Authority and bounds:
+
+- User authorized the successor with `plan and execute`.
+- Exact freeze:
+  `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b`, ten cases at
+  chronological ranks 25 through 39.
+- Live readback before implementation: 10/10 predictions `not_started`,
+  10/10 ground truth `not_reviewed`, gold absent, and freeze hash-bound.
+- Plan 0034 proves included read-only GWS and Odollo evidence and preserves
+  sidecar authority, zero live `knowledge_*` tables, and disabled automatic
+  confirmation.
+- The App Intelligence readiness helper reports Codex app-server healthy with
+  stdio, schema-generation, and TypeScript-generation capabilities.
+- No subagent is spawned because the single bridge/test pair and dependent
+  live run form one serialized private-authority path.
+
+Correction:
+
+- The cohort is frozen and unseen, but its gold is not frozen. Independent
+  operator gold must be written after prediction completion and before reveal.
+  Plan 0035 preserves this gate instead of scoring against inferred labels.
+
+Next:
+
+- Add one test-first, idempotent bridge from the conversation-evaluation
+  freeze to the existing private holdout-baseline interface.
+- Push and install the source before starting the sole blind run.
+- Capture all ten predictions, then pause at the independent operator-review
+  gate without exposing predictions.
+
 ## Turn 245 | 2026-07-30
 
 Scope: establish the durable product north star and route recurring planning
