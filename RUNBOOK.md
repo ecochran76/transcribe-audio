@@ -2,6 +2,47 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 243 | 2026-07-29
+
+Plan: `docs/dev/plans/0033-2026-07-29-gws-service-path-repair.md`
+version 1
+
+Packet: P1 | Installed runtime repair and GWS-inclusive proof
+
+State transition: `CLOSED/Plan-0032-PASS -> OPEN/Plan-0033-P1`
+
+Progress classification: `bounded_remediation`; the general provider-yield
+gate passed, and the remaining GWS defect is now attributed to the installed
+service PATH rather than authorization, adapter semantics, or target input.
+
+Preflight evidence:
+
+- Interactive `gws` resolves to `/home/ecochran76/.cargo/bin/gws`; the
+  metadata-only calendar probe already proved its restored authorization.
+- The user manager PATH and merged `transcripts.service` unit omit
+  `/home/ecochran76/.cargo/bin`.
+- The Plan 0032 immutable receipt reports
+  `provider_unavailable/gws executable unavailable` for all four GWS
+  capabilities while four Odollo snapshots were included.
+- Existing `10-codex-bin.conf` and `20-odollo-env.conf` drop-ins remain loaded
+  and are outside the repair write surface.
+
+Authority and bounds:
+
+- One `30-gws-path.conf` drop-in, one daemon reload/restart, and one served
+  immutable retry on the fixed Plan 0032 target are authorized.
+- Model calls, source changes, credential changes, target substitution,
+  frozen-cohort consumption, gold reads, predictions, legacy rollback,
+  automatic confirmation, database authority, and external writes remain
+  prohibited.
+- Delegation: `not_spawned`; installed mutation and dependent live proof are a
+  serialized critical path.
+
+Next:
+
+- Install and validate the PATH drop-in, restart once, then execute the one
+  GWS-inclusive immutable proof.
+
 ## Turn 242 | 2026-07-29
 
 Plan:
@@ -34,8 +75,31 @@ Authority and bounds:
 
 Next:
 
-- Revalidate the fixed target, execute the one served request, and record the
-  terminal receipt.
+- Terminal `pass`.
+- The immutable request had three explicit scopes, seven capabilities, and six
+  query terms. It included four normalized supporting-evidence snapshots: one
+  Soylei contact, two Soylei leads, and one Saber log note.
+- GWS remained explicitly partial with four
+  `provider_unavailable/gws executable unavailable` failures. Interactive GWS
+  authorization is valid; the service PATH omits
+  `/home/ecochran76/.cargo/bin`.
+- Retrieval receipt:
+  `conversation-identity-shadow/identity-retrieval-receipts/54732bd0-41e9-4acd-9c65-4bc50f41ab21.json`
+  (`0600`), SHA-256
+  `eb395d24f2955720eb8a76d77b5b3552d2ae490d002de72b2d0964ad3b99c784`.
+- Terminal receipt:
+  `~/.local/state/transcribe-audio/plan-0032/terminal-pass-1827a286-99fe-42ca-a0c4-3812a4d72f79.json`
+  (`0600`), SHA-256
+  `75b264ed287a8d65c42204a5234a8b730b0f7af8b259e6dd652030098f16037f`.
+- Frozen predictions remain 10/10 `not_started`; ground truth remains 10/10
+  `not_reviewed`; gold remains absent and unread. The live database still has
+  zero `knowledge_*` tables; sidecar authority and disabled automatic
+  confirmation are unchanged.
+
+Next:
+
+- Repair only the installed service PATH, then prove one GWS snapshot through
+  a fresh bounded immutable request.
 
 ## Turn 241 | 2026-07-29
 

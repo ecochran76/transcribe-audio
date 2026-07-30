@@ -298,11 +298,16 @@ Milestone Focus:
   deterministic query terms, so all adapters correctly refused retrieval
   without executing a provider query.
 - `docs/dev/plans/0032-2026-07-29-target-qualified-provider-yield-retry.md`
-  is the bounded target-selection remediation. It authorizes one served
-  default immutable attempt on the first recent non-frozen
-  calendar-associated conversation with a preflight-proven six-term query
-  plan. It cannot substitute another target, consume the frozen cohort, read
-  gold, create predictions, or change authority.
+  closed `pass`: its six-term immutable request included four normalized
+  Odollo snapshots across both configured tenants, proving the general
+  provider-yield prerequisite. GWS remained explicitly unavailable inside the
+  service because the installed user-systemd PATH omitted its executable.
+- `docs/dev/plans/0033-2026-07-29-gws-service-path-repair.md` is the bounded
+  installed-runtime repair. It permits one non-secret PATH drop-in, one service
+  restart, and one immutable retry on the fixed non-frozen target. It must
+  include normalized `gws-default` evidence or close `refine`; it cannot touch
+  credentials, substitute a target, consume the frozen cohort, read gold,
+  create predictions, or change authority.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

@@ -1,6 +1,6 @@
 # Plan 0032 | Target-qualified provider yield retry
 
-State: OPEN
+State: CLOSED — PASS
 
 Lane: P09
 
@@ -58,6 +58,22 @@ The selected candidate is the first eligible item in that stable newest-first
 listing. Its preflight records six calendar attendees, six query terms, 270
 utterances, and four anonymous diarization labels. It is not a member of
 freeze `evaluation-53f5e11d-fee5-51ed-9f8a-aba36834b95b`.
+
+P1 is terminal `pass`. The served request preserved its six-term query plan,
+three explicit scopes, and seven capabilities. It included four normalized
+Odollo snapshots: one Soylei contact, two Soylei leads, and one Saber log-note
+record. All four were included as ranked supporting evidence. This proves the
+Plan 0030 provider-yield prerequisite without consuming the frozen cohort or
+changing authority.
+
+GWS remained partial for a separate installed-runtime reason:
+`transcripts.service` could not resolve the configured `gws` executable
+because its PATH omitted `/home/ecochran76/.cargo/bin`; the interactive
+metadata probe had already proved authorization. Plan 0033 owns that bounded
+service repair and verification. The Plan 0032 terminal receipt is
+`~/.local/state/transcribe-audio/plan-0032/terminal-pass-1827a286-99fe-42ca-a0c4-3812a4d72f79.json`,
+SHA-256
+`75b264ed287a8d65c42204a5234a8b730b0f7af8b259e6dd652030098f16037f`.
 
 ## Authority And Bounds
 
@@ -149,4 +165,3 @@ Delegation:
 Plan 0032 is done when one immutable terminal receipt records `pass`, `refine`,
 or `stop`; this plan, `ROADMAP.md`, and `RUNBOOK.md` agree; all bounds and
 authority states are explicit; and the documentation commit is pushed.
-
