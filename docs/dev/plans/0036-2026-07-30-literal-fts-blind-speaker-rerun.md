@@ -70,8 +70,20 @@ normalized token was quoted as a literal prefix phrase. The explicit
 supersession regression failed before the interface accepted the exact
 partial baseline ID, then passed after the minimal linked replacement path.
 The focused suite passes 64 tests; the joined host-safe suite passes 194
-tests. P2 pushed-source service installation and the superseding live run are
-the active packet.
+tests.
+
+P2 is complete. Commit
+`fee6ef624e4449f15753074e8c0e292150cfd0b5` is pushed and served by
+`transcripts.service`. Superseding baseline
+`baseline-65fdc53f-fc1a-4534-a88d-cf4b0563fbcc` captured all ten immutable
+blind outcomes with zero infrastructure retries and is linked to the partial
+Plan 0035 baseline. Its completed baseline hash is
+`6f86a58d74899d0de834a9d03e75585c696e02d4d4fcf8f659f2c11912036cdd`.
+All baseline and prediction artifacts are private mode `0600`. The gold-index
+hash remains
+`6560591461573bf08d50dd110c031d56f287ea570563b9ae0bfdae691d48d3d8`;
+no gold or prediction body was read, no prediction was revealed, and no
+external write occurred. P3 independent operator review is the active packet.
 
 ## Authority and bounds
 

@@ -72,6 +72,37 @@ P0/P1 implementation checkpoint:
   campaign, and transcript API suite passes 194 tests.
 - Python compilation and `git diff --check` pass.
 
+P2 blind-rerun checkpoint:
+
+- Pushed source commit:
+  `fee6ef624e4449f15753074e8c0e292150cfd0b5`.
+- Restarted `transcripts.service` once from pushed source. It is active with
+  PID `2334963`, `NRestarts=0`, and `/api/health` reports `status=ok`.
+- Created superseding baseline
+  `baseline-65fdc53f-fc1a-4534-a88d-cf4b0563fbcc`, linked to partial baseline
+  `baseline-f77e1874-fbfb-4ff3-87fa-9b57e2de197f`.
+- The exact ten-case cohort completed 10/10 blind predictions with zero
+  infrastructure retries. The formerly failing hyphenated-query case
+  completed through the served literal-FTS repair.
+- Completed baseline SHA-256:
+  `6f86a58d74899d0de834a9d03e75585c696e02d4d4fcf8f659f2c11912036cdd`.
+  Baseline and prediction files are mode `0600`.
+- Gold-index SHA-256 remains
+  `6560591461573bf08d50dd110c031d56f287ea570563b9ae0bfdae691d48d3d8`.
+  No gold or prediction body was read and no prediction was revealed.
+- Private completion receipt:
+  `~/.local/state/transcribe-audio/plan-0036/predictions-complete-07432082-0974-4250-8da5-f8e9a34e497e.json`
+  (`0600`), SHA-256
+  `19e0b6dc6b5c6b5692e078669014caf83f6e5aaa7fcfd7c4346581518dff257e`.
+
+State transition: `OPEN/Plan-0036-P2 -> OPEN/Plan-0036-P3`
+
+Next:
+
+- Present the ten prediction-excluded review packets in chronological order.
+- Collect one independent operator gold record for each case.
+- Reveal and score only after all ten current reviews exist.
+
 ## Turn 246 | 2026-07-30
 
 Plan:

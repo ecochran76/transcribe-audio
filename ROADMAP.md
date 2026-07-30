@@ -344,7 +344,11 @@ Milestone Focus:
 - Open Plan 0036 owns one shared FTS literalization, an explicit superseding
   baseline for the same unseen cohort, and continuation through the
   independent-review and outcome-scoring gates. It permits no prompt,
-  retrieval-policy, confidence, or candidate change.
+  retrieval-policy, confidence, or candidate change. The pushed repair is
+  served and its linked replacement baseline completed all ten blind
+  predictions with zero infrastructure retries. Independent operator gold is
+  now the active gate; prediction bodies remain sealed until all ten reviews
+  exist.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
