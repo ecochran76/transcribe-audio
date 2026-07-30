@@ -211,6 +211,80 @@ def test_evaluation_holdout_rejects_nonblind_case_without_runtime_write(
     assert not (campaign_root / campaign_id / "baselines").exists()
 
 
+def test_evaluation_holdout_explicitly_supersedes_one_partial_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign_root, campaign_id = _campaign(tmp_path)
+    monkeypatch.setattr(
+        conversation_knowledge_evaluation,
+        "_repository_state",
+        lambda: {"commit": "a" * 40, "dirty_tree": False},
+    )
+    frozen = conversation_knowledge_evaluation.freeze_chronological_evaluation(
+        campaign_id,
+        campaign_root=campaign_root,
+        evaluation_root=tmp_path / "evaluations",
+        cohort_size=5,
+        approval_token=(
+            conversation_knowledge_evaluation.FREEZE_EVALUATION_TOKEN
+        ),
+    )
+    partial = speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+        campaign_id,
+        evaluation_freeze_path=Path(frozen["freeze_path"]),
+        runtime_root=campaign_root,
+        approval_token=(
+            speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+        ),
+    )
+    first_case = partial["cases"][0]
+    speaker_evaluation_campaign.capture_blind_prediction(
+        campaign_id,
+        baseline_id=partial["baseline_id"],
+        document_id=first_case["document_id"],
+        artifact_sha256=first_case["artifact_sha256"],
+        prediction={"evaluation_id": "partial-evaluation-1"},
+        runtime_root=campaign_root,
+        approval_token=(
+            speaker_evaluation_campaign.CAPTURE_BLIND_PREDICTION_TOKEN
+        ),
+    )
+
+    replacement = (
+        speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+            campaign_id,
+            evaluation_freeze_path=Path(frozen["freeze_path"]),
+            runtime_root=campaign_root,
+            approval_token=(
+                speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+            ),
+            supersedes_baseline_id=partial["baseline_id"],
+        )
+    )
+
+    assert replacement["baseline_id"] != partial["baseline_id"]
+    assert replacement["parent_baseline_id"] == partial["baseline_id"]
+    assert replacement["document_ids"] == partial["document_ids"]
+    assert replacement["captured_prediction_count"] == 0
+    assert speaker_evaluation_campaign.blind_baseline_status(
+        campaign_id,
+        baseline_id=partial["baseline_id"],
+        runtime_root=campaign_root,
+    )["captured_prediction_count"] == 1
+
+    repeated = speaker_evaluation_campaign.start_evaluation_holdout_baseline(
+        campaign_id,
+        evaluation_freeze_path=Path(frozen["freeze_path"]),
+        runtime_root=campaign_root,
+        approval_token=(
+            speaker_evaluation_campaign.START_EVALUATION_HOLDOUT_TOKEN
+        ),
+        supersedes_baseline_id=partial["baseline_id"],
+    )
+    assert repeated == replacement
+
+
 def test_readiness_decision_is_aggregate_immutable_and_preserves_unseen_cohort(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

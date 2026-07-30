@@ -64,6 +64,15 @@ were `no such column: member` and `no such column: like`.
 The service stayed active with `NRestarts=0`. Gold remains absent for all ten
 cases. No prediction has been revealed.
 
+P0 and P1 are complete in source. The public evidence-search regression
+reproduced `no such column: member` before the repair and passed after every
+normalized token was quoted as a literal prefix phrase. The explicit
+supersession regression failed before the interface accepted the exact
+partial baseline ID, then passed after the minimal linked replacement path.
+The focused suite passes 64 tests; the joined host-safe suite passes 194
+tests. P2 pushed-source service installation and the superseding live run are
+the active packet.
+
 ## Authority and bounds
 
 Authority order:

@@ -652,6 +652,7 @@ def start_evaluation_holdout_baseline(
     evaluation_freeze_path: Path,
     runtime_root: Optional[Path] = None,
     approval_token: str,
+    supersedes_baseline_id: str = "",
 ) -> dict[str, Any]:
     """Bind one unseen evaluation freeze to an idempotent blind holdout."""
     if approval_token != START_EVALUATION_HOLDOUT_TOKEN:
@@ -773,6 +774,7 @@ def start_evaluation_holdout_baseline(
     else:
         _write_private_json(bridge_path, bridge)
 
+    superseded: dict[str, Any] | None = None
     for baseline_path in sorted(
         (campaign_dir / "baselines").glob("*/baseline.json")
     ):
@@ -786,7 +788,43 @@ def start_evaluation_holdout_baseline(
             raise ValueError(
                 f"Immutable evaluation baseline conflict: {baseline_path}."
             )
+        existing_id = str(existing.get("baseline_id") or "")
+        if supersedes_baseline_id:
+            if (
+                existing.get("parent_baseline_id")
+                == supersedes_baseline_id
+            ):
+                return {**existing, "baseline_path": str(baseline_path)}
+            if existing_id == supersedes_baseline_id:
+                superseded = existing
+            continue
         return {**existing, "baseline_path": str(baseline_path)}
+
+    if supersedes_baseline_id:
+        if superseded is None:
+            raise ValueError(
+                "Superseded evaluation baseline does not exist for this freeze."
+            )
+        captured_count = int(
+            superseded.get("captured_prediction_count") or 0
+        )
+        batch_size = int(superseded.get("batch_size") or 0)
+        if (
+            superseded.get("status") != "awaiting_predictions"
+            or captured_count < 1
+            or captured_count >= batch_size
+        ):
+            raise ValueError(
+                "Only a partially captured evaluation baseline may be superseded."
+            )
+        comparison_path = (
+            campaign_dir
+            / "baselines"
+            / supersedes_baseline_id
+            / "comparison.json"
+        )
+        if comparison_path.exists():
+            raise ValueError("A revealed evaluation baseline cannot be superseded.")
 
     return start_blind_baseline(
         campaign_id,
@@ -794,7 +832,12 @@ def start_evaluation_holdout_baseline(
         runtime_root=selected_runtime_root,
         approval_token=START_BLIND_BASELINE_TOKEN,
         run_kind="holdout",
-        hypothesis="measure the served default combined speaker path",
+        parent_baseline_id=supersedes_baseline_id,
+        hypothesis=(
+            "rerun after literal FTS prefix repair"
+            if supersedes_baseline_id
+            else "measure the served default combined speaker path"
+        ),
         evidence_mode="fresh_retrieval",
     )
 

@@ -1154,7 +1154,7 @@ def ingest_artifact(
 
 def fts_query(query: str) -> str:
     terms = [term for term in tokens(query) if len(term) >= 2]
-    return " OR ".join(f"{term}*" for term in terms) or query
+    return " OR ".join(f'"{term}"*' for term in terms) or query
 
 
 def snippet(text: str, query: str, *, length: int = 240) -> str:

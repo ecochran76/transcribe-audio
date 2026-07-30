@@ -50,6 +50,28 @@ Next:
 - Quote FTS5 prefix tokens, prove GREEN, and run the joined regression suite.
 - Add the approval-gated explicit supersession path before any new model turn.
 
+P0/P1 implementation checkpoint:
+
+- FTS RED:
+  `.venv/bin/python -m pytest
+  tests/test_conversation_knowledge_evidence.py::test_evidence_query_treats_hyphenated_prefix_terms_as_literals
+  -q` failed with `sqlite3.OperationalError: no such column: member`.
+- FTS GREEN: the same test passes after `transcript_store.fts_query` quotes
+  every normalized token as an FTS5 literal phrase before applying `*`.
+- Supersession RED:
+  `.venv/bin/python -m pytest
+  tests/test_conversation_knowledge_evaluation.py::test_evaluation_holdout_explicitly_supersedes_one_partial_baseline
+  -q` failed because the public interface rejected
+  `supersedes_baseline_id`.
+- Supersession GREEN: the same test passes after the interface verifies one
+  matching partially captured, unrevealed baseline and links the replacement
+  through `parent_baseline_id`. Exact replay returns the same replacement.
+- The focused transcript, evidence, retrieval, evaluation, campaign, and
+  runner suite passes 64 tests.
+- The joined transcript-store, adapter, retrieval, knowledge, workflow,
+  campaign, and transcript API suite passes 194 tests.
+- Python compilation and `git diff --check` pass.
+
 ## Turn 246 | 2026-07-30
 
 Plan:

@@ -272,6 +272,28 @@ def test_evidence_query_enforces_scope_capability_and_temporal_policy(
     )[0].evidence_id == GWS_EVIDENCE_ID
 
 
+def test_evidence_query_treats_hyphenated_prefix_terms_as_literals(
+    tmp_path: Path,
+) -> None:
+    repository = _repository(tmp_path)
+    repository.save_snapshot(_snapshots()[0])
+    gws_scope = conversation_knowledge_evidence.EvidenceScope(
+        source_profile_id="gws-personal",
+        account_id="personal@example.com",
+        tenant_id="",
+    )
+
+    results = repository.search_snapshots(
+        "alpha board-member",
+        scopes=(gws_scope,),
+        capabilities=("mail",),
+        as_of="2026-07-26T14:00:00Z",
+        hindsight_policy="exclude",
+    )
+
+    assert [item.evidence_id for item in results] == [GWS_EVIDENCE_ID]
+
+
 def test_snapshot_contract_rejects_unbounded_provider_content(
     tmp_path: Path,
 ) -> None:
