@@ -1,6 +1,6 @@
 # Plan 0034 | GWS capability budget fairness
 
-State: OPEN
+State: CLOSED — PASS
 
 Lane: P09
 
@@ -65,6 +65,24 @@ from the remaining global budget and remaining configured capabilities,
 truncates only the current capability at that share, and continues to later
 capabilities. GREEN passed the new test; all 15 GWS tests and the 143-test
 joined host-safe suite pass.
+
+The installed service was restarted once from pushed commit
+`bb0f0813b0036e4df779e8ad03b666fc834d5144`. Its process PATH includes the
+GWS executable directory, `NRestarts=0`, API health is green, and the default
+`codex-app-server` supervisor is ready. The sole final immutable request
+included two normalized `gws-default` People controls and four Odollo controls.
+Eighteen historical GWS results remained explicitly excluded as out of scope,
+so the evidence bundle is correctly labeled `partial`; those exclusions do not
+erase the included GWS proof.
+
+Plan 0034 therefore closed `pass`. The frozen authority is unchanged: 10/10
+predictions remain `not_started`, 10/10 ground-truth records remain
+`not_reviewed`, gold is absent and unseen, the live store has zero
+`knowledge_*` tables, sidecars remain authoritative, and automatic
+confirmation remains disabled. The terminal receipt is
+`~/.local/state/transcribe-audio/plan-0034/terminal-pass-79e7c595-bdfc-4c21-af67-9df4fb2e6d71.json`
+(`0600`), SHA-256
+`c569c6422ac23c822c06d6dde091f944503c6f38efdb3276cce170f63cd103f5`.
 
 ## Design And Test Contract
 

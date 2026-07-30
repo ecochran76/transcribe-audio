@@ -10,7 +10,7 @@ version 1
 
 Packet: P1 | Test-first fairness repair and final GWS proof
 
-State transition: `CLOSED/Plan-0033-REFINE -> OPEN/Plan-0034-P1`
+State transition: `CLOSED/Plan-0033-REFINE -> CLOSED/Plan-0034-PASS`
 
 Progress classification: `bounded_remediation`; GWS now executes inside the
 service and the remaining zero-yield cause is isolated to adapter-local global
@@ -58,10 +58,37 @@ Next:
 - README now documents the installed GWS service PATH and adaptive
   capability-budget contract.
 
+Terminal:
+
+- Committed and pushed the adapter repair as
+  `bb0f0813b0036e4df779e8ad03b666fc834d5144`, restarted the service once,
+  and verified PID `3775047`, `NRestarts=0`, the active GWS PATH, green API
+  health, and ready default `codex-app-server` supervision.
+- The sole final immutable request
+  `5bc9882e-71b8-43ca-b45c-10a9505772d2` retained six terms, three source
+  scopes, and seven capabilities. It included two `gws-default` People
+  controls and four Odollo controls.
+- The evidence bundle remains correctly `partial`: 18 historical provider
+  results were explicitly excluded as outside the shared temporal scope and
+  `provider_records_truncated` remained visible.
+- Retrieval receipt:
+  `~/.local/state/transcribe-audio/conversation-identity-shadow/identity-retrieval-receipts/5bc9882e-71b8-43ca-b45c-10a9505772d2.json`
+  (`0600`), SHA-256
+  `028ecd3c488ddf5fdf6051b3247794447111ff4d88a6aac3346e7b86068daa4b`.
+- Frozen and authority states remain unchanged: 10/10 predictions
+  `not_started`, 10/10 ground truth `not_reviewed`, gold absent/unseen, zero
+  live `knowledge_*` tables, sidecar authority, and automatic confirmation
+  disabled.
+- Terminal receipt:
+  `~/.local/state/transcribe-audio/plan-0034/terminal-pass-79e7c595-bdfc-4c21-af67-9df4fb2e6d71.json`
+  (`0600`), SHA-256
+  `c569c6422ac23c822c06d6dde091f944503c6f38efdb3276cce170f63cd103f5`.
+
 Next:
 
-- Compile, audit, commit, and push the repair, then restart once and execute
-  the sole final GWS-specific immutable proof.
+- Treat provider readiness as proven. A blind frozen-cohort prediction or
+  human gold-review campaign is separate work and requires its own explicit
+  authorization.
 
 ## Turn 243 | 2026-07-29
 

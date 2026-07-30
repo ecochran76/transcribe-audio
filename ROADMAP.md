@@ -307,12 +307,14 @@ Milestone Focus:
   GWS executed, but its first high-yield capability consumed the complete
   twenty-record adapter budget; all twenty snapshots were outside the
   historical scope and later GWS capabilities were starved.
-- `docs/dev/plans/0034-2026-07-29-gws-capability-budget-fairness.md` is the
-  final bounded code repair. It preserves the adapter interface and global
-  caps while requiring later configured capabilities to retain budget access.
-  One test-first work unit, one service restart, and one immutable GWS-specific
-  proof are permitted; no target substitution, temporal-policy relaxation,
-  frozen-cohort use, gold read, prediction, or authority change is allowed.
+- `docs/dev/plans/0034-2026-07-29-gws-capability-budget-fairness.md` closed
+  `pass`. The test-first adapter-local repair preserves the public interface
+  and global caps while retaining budget access for later configured
+  capabilities. The final served immutable request included two normalized
+  `gws-default` People controls and four Odollo controls. The installed service
+  PATH repair is active, the 143-test joined suite passes, and the frozen
+  cohort and authority states remain untouched. Any blind prediction or human
+  gold-review campaign still requires separate explicit authorization.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
