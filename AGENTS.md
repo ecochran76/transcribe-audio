@@ -1,5 +1,17 @@
 # Repository Guidelines
 
+## Product vision
+
+- [VISION.md](VISION.md) is the canonical product north star for this repo.
+- Read it before non-trivial planning, architecture, prioritization, or goal
+  execution.
+- Every substantive plan must state which vision outcomes it advances, the
+  current and target maturity levels, and the evidence that will measure
+  progress.
+- If a bounded milestone or implementation detail conflicts with the vision,
+  reconcile the conflict explicitly instead of silently narrowing the product
+  objective.
+
 ## Project Structure & Module Organization
 - The transcription entry points are `assembly_transcribe.py`, `faster_whisper_transcribe.py`, and `watch_transcriptions.py`; shared export, calendar, and formatting behavior belongs in `transcribe_common.py`.
 - Keep new modules in the repo root until a larger `src/` layout is justified in `ROADMAP.md` and a bounded plan under `docs/dev/plans/`.

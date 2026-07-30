@@ -2,6 +2,18 @@
 
 `ROADMAP.md` is the master plan for this repo. Bounded execution plans live under `docs/dev/plans/`; turn-by-turn history lives in `RUNBOOK.md`.
 
+## Product north star
+
+[VISION.md](VISION.md) defines the product outcome that this roadmap exists to
+deliver: trustworthy contextual readouts that feed a private, growing body of
+conversation knowledge for future transcripts and authorized agents.
+
+Every new or revised roadmap lane and bounded plan must name the vision
+outcomes it advances, its current and target maturity levels, its measurable
+effect, and its evidence gate. Closing an infrastructure or provider-readiness
+lane does not by itself establish end-to-end progress unless the downstream
+contextualization or knowledge-reuse outcome is also measured.
+
 ## P01 | Normalize Transcript Artifacts
 
 State: CLOSED

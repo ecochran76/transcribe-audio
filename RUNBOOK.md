@@ -2,6 +2,40 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 245 | 2026-07-30
+
+Scope: establish the durable product north star and route recurring planning
+surfaces to it.
+
+State transition: `distributed product intent -> canonical VISION.md`
+
+Outcome:
+
+- Added `VISION.md` as the canonical authority for the intended automatic
+  transcript-to-contextual-readout-to-knowledge loop.
+- Defined the required readout dimensions, evidence and authority boundaries,
+  calibrated-confidence behavior, maturity scale, outcome measures, planning
+  contract, and conditions for realizing the vision.
+- Linked `AGENTS.md` to the vision for non-trivial planning, architecture,
+  prioritization, and goal execution.
+- Linked `ROADMAP.md` to the vision and required roadmap lanes and bounded plans
+  to report measurable vision progress rather than infrastructure completion
+  alone.
+
+Validation:
+
+- `git diff --check`
+- Relative-link target existence check for all links in `VISION.md`
+- `.venv/bin/python
+  .codex/skills/repo-policy-selector/scripts/audit_planning_contract.py
+  --repo . --active-only --json` (`ok: true`)
+
+Residual:
+
+- Existing open plans predate the new planning contract. Apply the contract
+  when each plan is next revised rather than rewriting their historical state
+  in this documentation-only slice.
+
 ## Turn 244 | 2026-07-29
 
 Plan:
