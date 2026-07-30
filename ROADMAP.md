@@ -293,6 +293,13 @@ Milestone Focus:
   before provenance or combined measurement. Sidecars remain authoritative,
   the live database remains schema v0, and automatic confirmation remains
   disabled.
+- `docs/dev/plans/0031-2026-07-29-provider-yield-retry.md` is the
+  operator-authorized bounded provider-yield retry after GWS authorization was
+  restored. It permits one metadata-only GWS authorization probe and one
+  served default immutable retrieval attempt on the prior non-frozen smoke
+  conversation. It must prove at least one included provider snapshot or close
+  `refine`; it cannot consume the frozen cohort, read gold, create predictions,
+  or change authority.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.

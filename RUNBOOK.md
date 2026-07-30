@@ -2,6 +2,47 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 241 | 2026-07-29
+
+Plan: `docs/dev/plans/0031-2026-07-29-provider-yield-retry.md` version 1
+
+Packet: P1 | Readiness, immutable retry, and terminal gate
+
+State transition: `CLOSED/Plan-0030-REFINE -> OPEN/Plan-0031-P1`
+
+Progress classification: `feature_progress`; the operator reports restored
+GWS authorization and explicitly authorizes the fresh bounded provider retry
+required by the Plan 0030 successor entry condition.
+
+Authority and bounds:
+
+- Plan 0031 authorizes one metadata-only GWS authorization probe, one served
+  default immutable retrieval attempt, and one Odollo call per configured
+  scope as part of that attempt.
+- The prior non-frozen smoke conversation remains the only evaluation target.
+- Model calls, frozen-cohort consumption, gold reads, predictions, legacy
+  rollback, automatic confirmation, database authority, and external writes
+  remain prohibited.
+- Delegation: `not_spawned`; the live retry is a short serialized critical
+  path and no independent write or review lane exists before its receipt.
+
+Preflight evidence:
+
+- Git starts clean on `plan-0026-campaign`; local and upstream HEAD are
+  `eeeb0e083ca9135880e15619cd460d4442400576`.
+- CodeGraph is current with zero pending changes.
+- Graphiti runtime is healthy; repo-group discovery returned only older
+  unrelated operational facts, so repo files and live readbacks remain
+  authority.
+- `transcripts.service` is active from the pushed repo source.
+- Provenance resolution returns one explicit GWS source and two explicit
+  Odollo tenant sources with no warnings.
+
+Next:
+
+- Verify GWS with the bounded metadata-only probe, then execute and validate
+  the one authorized served immutable retrieval attempt.
+
 ## Turn 240 | 2026-07-29
 
 Plan: Plan 0030 version 2
