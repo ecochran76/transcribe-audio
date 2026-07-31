@@ -59,6 +59,12 @@ DEFAULT_OPEN_ACQUISITION_ROOT = (
 DEFAULT_OPEN_ACQUISITION_MANIFEST = (
     DEFAULT_OPEN_ACQUISITION_ROOT / "acquisition-manifest-v2.json"
 )
+DEFAULT_PYANNOTE_ACQUISITION_ROOT = (
+    DEFAULT_RUNTIME_ROOT / "acquisitions/pyannote-community-1-20260731"
+)
+DEFAULT_PYANNOTE_ACQUISITION_MANIFEST = (
+    DEFAULT_PYANNOTE_ACQUISITION_ROOT / "acquisition-manifest.json"
+)
 METHOD_IDS = (
     "no_enhancement",
     "silero_vad",
@@ -416,6 +422,128 @@ class RNNoiseAdapter:
             "abstention_reasons": [],
         }
 
+
+def _activity_regions(
+    turns: list[tuple[float, float, str]], *, minimum_count: int
+) -> list[dict[str, float]]:
+    events: dict[float, int] = {}
+    for start, end, _ in turns:
+        events[start] = events.get(start, 0) + 1
+        events[end] = events.get(end, 0) - 1
+    regions: list[dict[str, float]] = []
+    active = 0
+    previous: Optional[float] = None
+    for position in sorted(events):
+        if previous is not None and position > previous and active >= minimum_count:
+            if regions and abs(regions[-1]["end_seconds"] - previous) < 1e-9:
+                regions[-1]["end_seconds"] = position
+            else:
+                regions.append({
+                    "start_seconds": previous,
+                    "end_seconds": position,
+                })
+        active += events[position]
+        previous = position
+    return regions
+
+
+def _bounded_turns(
+    turns: list[tuple[float, float, str]], duration: float
+) -> list[tuple[float, float, str]]:
+    bounded: list[tuple[float, float, str]] = []
+    for start, end, label in turns:
+        clipped_start = max(0.0, min(duration, start))
+        clipped_end = max(0.0, min(duration, end))
+        if clipped_end > clipped_start:
+            bounded.append((clipped_start, clipped_end, label))
+    return bounded
+
+
+def _speaker_change_regions(
+    turns: list[tuple[float, float, str]], duration: float
+) -> list[dict[str, float]]:
+    changes: list[dict[str, float]] = []
+    ordered = sorted(turns, key=lambda item: (item[0], item[1], item[2]))
+    previous_label: Optional[str] = None
+    for start, _, label in ordered:
+        if previous_label is not None and label != previous_label and start < duration:
+            end = min(duration, start + 0.001)
+            if end > start and (not changes or start >= changes[-1]["end_seconds"]):
+                changes.append({
+                    "start_seconds": start,
+                    "end_seconds": end,
+                })
+        previous_label = label
+    return changes
+
+
+class PyannoteCommunity1Adapter:
+    method_id = "pyannote_community_1"
+
+    def __init__(
+        self, *, snapshot_dir: Path, revision_sha: str, asset_sha256: str
+    ) -> None:
+        self.snapshot_dir = snapshot_dir
+        self.revision_sha = revision_sha
+        self.asset_sha256 = asset_sha256
+
+    def descriptor(self) -> dict[str, Any]:
+        return {
+            "method_id": self.method_id,
+            "adapter_revision": "host-pyannote-community-1-v1",
+            "operation": "diarization_preparation",
+            "executes_audio": True,
+            "executes_model": True,
+            "revision_sha": self.revision_sha,
+            "asset_sha256": self.asset_sha256,
+        }
+
+    def prepare(self, source: Mapping[str, Any]) -> dict[str, Any]:
+        import torch
+        from pyannote.audio import Pipeline
+
+        audio, sample_rate = _read_pcm16_mono(Path(str(source["artifact_path"])))
+        pipeline = Pipeline.from_pretrained(self.snapshot_dir)
+        if torch.cuda.is_available():
+            pipeline.to(torch.device("cuda"))
+        output = pipeline({"waveform": audio, "sample_rate": sample_rate})
+        annotation = output.speaker_diarization
+        exclusive = output.exclusive_speaker_diarization
+        turns = [
+            (float(segment.start), float(segment.end), str(label))
+            for segment, _, label in annotation.itertracks(yield_label=True)
+        ]
+        exclusive_turns = [
+            (float(segment.start), float(segment.end), str(label))
+            for segment, _, label in exclusive.itertracks(yield_label=True)
+        ]
+        duration = float(source["derived_audio"]["output_duration_seconds"])
+        bounded_turns = _bounded_turns(turns, duration)
+        bounded_exclusive_turns = _bounded_turns(exclusive_turns, duration)
+        speech_regions = _activity_regions(bounded_turns, minimum_count=1)
+        overlap_regions = _activity_regions(bounded_turns, minimum_count=2)
+        changes = _speaker_change_regions(bounded_exclusive_turns, duration)
+        status = "success" if speech_regions else "blocked"
+        return {
+            "status": status,
+            "reason_code": None if speech_regions else "abstained_no_speech",
+            "output_artifact_id": source["derived_audio"]["artifact_id"],
+            "output_sha256": source["artifact_sha256"],
+            "output_path": source["artifact_path"],
+            "timestamp_map": source["derived_audio"]["timestamp_map"],
+            "speech_regions": speech_regions,
+            "overlap_regions": overlap_regions,
+            "speaker_change_regions": changes,
+            "quality_delta": None,
+            "model_revisions": {
+                "pyannote_audio": EXPECTED_PACKAGES[self.method_id][1],
+                "community_1_revision": self.revision_sha,
+                "asset_sha256": self.asset_sha256,
+            },
+            "warnings": ["in_memory_pcm_decode"],
+            "abstention_reasons": [] if speech_regions else ["no_speech_detected"],
+        }
+
 class FakePreparationAdapter:
     """Deterministic test adapter; never selected by the production registry."""
 
@@ -535,6 +663,72 @@ def _verified_open_acquisition() -> Optional[dict[str, Any]]:
     }
 
 
+def _verified_pyannote_acquisition() -> Optional[dict[str, Any]]:
+    path = DEFAULT_PYANNOTE_ACQUISITION_MANIFEST.expanduser().absolute()
+    root = DEFAULT_PYANNOTE_ACQUISITION_ROOT.expanduser().absolute()
+    if not path.is_file():
+        return None
+    _private_require(path, root)
+    manifest = _private_read(path)
+    expected_keys = {
+        "schema_version", "repo_id", "revision_sha", "package_distribution",
+        "package_version", "authorization_basis", "gated_access_verified",
+        "contact_information_sharing_authorized", "snapshot_dir", "artifacts",
+        "created_at",
+    }
+    if (
+        set(manifest) != expected_keys
+        or manifest.get("schema_version")
+        != "transcribe-audio.pyannote-community-1-acquisition-manifest.v1"
+        or manifest.get("repo_id")
+        != "pyannote/speaker-diarization-community-1"
+        or manifest.get("revision_sha")
+        != "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee"
+        or manifest.get("package_distribution") != "pyannote-audio"
+        or manifest.get("package_version") != "4.0.4"
+        or manifest.get("authorization_basis") != "operator_blanket_2026-07-31"
+        or manifest.get("gated_access_verified") is not True
+        or manifest.get("contact_information_sharing_authorized") is not True
+    ):
+        raise SpeechPreparationError("Community-1 acquisition manifest is invalid.")
+    snapshot_dir = Path(str(manifest["snapshot_dir"])).expanduser().absolute()
+    if snapshot_dir != root / "community-1" or snapshot_dir.is_symlink():
+        raise SpeechPreparationError("Community-1 snapshot path is invalid.")
+    expected_artifacts = {
+        ".gitattributes", "README.md", "config.yaml", "diarization.gif",
+        "embedding/README.md", "embedding/pytorch_model.bin", "plda/README.md",
+        "plda/plda.npz", "plda/xvec_transform.npz",
+        "segmentation/pytorch_model.bin",
+    }
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, Mapping) or set(artifacts) != expected_artifacts:
+        raise SpeechPreparationError("Community-1 artifact inventory is incomplete.")
+    for name, value in artifacts.items():
+        artifact_path = snapshot_dir / name
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != {"path", "sha256", "size_bytes"}
+            or Path(str(value["path"])).expanduser().absolute() != artifact_path
+            or not re.fullmatch(r"[a-f0-9]{64}", str(value["sha256"]))
+        ):
+            raise SpeechPreparationError("Community-1 artifact entry is invalid.")
+        _private_require(artifact_path, root)
+        if (
+            artifact_path.stat().st_size != value["size_bytes"]
+            or sha256_file(artifact_path) != value["sha256"]
+        ):
+            raise SpeechPreparationError("Community-1 artifact hash mismatch.")
+    return {
+        **manifest,
+        "manifest_path": str(path),
+        "manifest_sha256": sha256_file(path),
+        "asset_sha256": canonical_artifact_hash([
+            {"name": name, "sha256": artifacts[name]["sha256"]}
+            for name in sorted(artifacts)
+        ]),
+    }
+
+
 def readiness_matrix() -> dict[str, dict[str, Any]]:
     """Return live code/asset/authorization state without loading a model."""
     matrix: dict[str, dict[str, Any]] = {
@@ -594,15 +788,29 @@ def readiness_matrix() -> dict[str, dict[str, Any]]:
         "reason": None if acquisition else "requires pinned RNNoise v0.2 library and model hashes",
     }
     pyannote_version = _package_version(EXPECTED_PACKAGES["pyannote_community_1"][0])
+    pyannote_acquisition = _verified_pyannote_acquisition()
+    pyannote_ready = (
+        pyannote_version == EXPECTED_PACKAGES["pyannote_community_1"][1]
+        and pyannote_acquisition is not None
+    )
     matrix["pyannote_community_1"] = {
-        "status": "blocked",
-        "reason_code": "provider_auth_required",
+        "status": "success" if pyannote_ready else "blocked",
+        "reason_code": None if pyannote_ready else "provider_auth_required",
         "code_revision": pyannote_version,
         "expected_code_revision": EXPECTED_PACKAGES["pyannote_community_1"][1],
-        "asset_sha256": None,
-        "acquisition_manifest_sha256": None,
-        "authorization": "operator_blanket_2026-07-31",
-        "reason": (
+        "asset_sha256": (
+            pyannote_acquisition["asset_sha256"] if pyannote_acquisition else None
+        ),
+        "acquisition_manifest_sha256": (
+            pyannote_acquisition["manifest_sha256"]
+            if pyannote_acquisition else None
+        ),
+        "authorization": (
+            "verified_acquisition" if pyannote_ready
+            else "operator_blanket_2026-07-31"
+        ),
+        "authorization_basis": "operator_blanket_2026-07-31",
+        "reason": None if pyannote_ready else (
             "Community-1 terms/contact sharing are authorized, but the local "
             "Hugging Face client has no authenticated identity or access token"
         ),
@@ -965,6 +1173,13 @@ def _adapter_registry(
                     output_root=runtime_root / "outputs",
                 ),
             })
+        pyannote_acquisition = _verified_pyannote_acquisition()
+        if pyannote_acquisition is not None:
+            registry["pyannote_community_1"] = PyannoteCommunity1Adapter(
+                snapshot_dir=Path(pyannote_acquisition["snapshot_dir"]),
+                revision_sha=pyannote_acquisition["revision_sha"],
+                asset_sha256=pyannote_acquisition["asset_sha256"],
+            )
     if not adapters:
         return registry
     if not test_mode:
@@ -1318,6 +1533,33 @@ def _validate_method_result(
     return dict(result)
 
 
+def _pending_downstream_measurements(
+    all_methods_succeeded: bool,
+) -> dict[str, dict[str, Any]]:
+    preparation_reason = (
+        "not_run_downstream_measurements"
+        if all_methods_succeeded
+        else "not_run_dependency_real_methods"
+    )
+    return {
+        "transcription": {
+            "status": "blocked",
+            "reason_code": preparation_reason,
+            "denominator": 0,
+        },
+        "diarization": {
+            "status": "blocked",
+            "reason_code": preparation_reason,
+            "denominator": 0,
+        },
+        "verification": {
+            "status": "blocked",
+            "reason_code": "not_run_dependency_p3_p4",
+            "denominator": 0,
+        },
+    }
+
+
 def apply_comparison(
     p1_run_id: str,
     *,
@@ -1393,12 +1635,17 @@ def apply_comparison(
         )
         for result in method_results
     ]
+    all_methods_succeeded = all(
+        result["status"] == "success" for result in method_results
+    )
     created_at = utc_now()
     comparison = {
         "schema_version": COMPARISON_SCHEMA,
         "run_id": plan["run_id"],
-        "status": "blocked",
-        "reason_code": "required_real_comparisons_not_run",
+        "status": "success" if all_methods_succeeded else "blocked",
+        "reason_code": (
+            None if all_methods_succeeded else "required_real_comparisons_not_run"
+        ),
         "lifecycle_state": "active",
         "p1_source": plan["p1_source"],
         "dry_run_path": str(paths["dry_run"]),
@@ -1411,26 +1658,16 @@ def apply_comparison(
             "failure": sum(result["status"] == "failure" for result in method_results),
             "blocked": sum(result["status"] == "blocked" for result in method_results),
         },
-        "downstream_measurements": {
-            "transcription": {
-                "status": "blocked",
-                "reason_code": "not_run_dependency_real_methods",
-                "denominator": 0,
-            },
-            "diarization": {
-                "status": "blocked",
-                "reason_code": "not_run_dependency_real_methods",
-                "denominator": 0,
-            },
-            "verification": {
-                "status": "blocked",
-                "reason_code": "not_run_dependency_p3_p4",
-                "denominator": 0,
-            },
-        },
+        "downstream_measurements": _pending_downstream_measurements(
+            all_methods_succeeded
+        ),
         "selection_decision": {
             "status": "blocked",
-            "reason_code": "required_real_comparisons_not_run",
+            "reason_code": (
+                "not_run_downstream_measurements"
+                if all_methods_succeeded
+                else "required_real_comparisons_not_run"
+            ),
             "selected_method": None,
         },
         "privacy_mode": "private_operation",

@@ -2,6 +2,60 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 256 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`,
+version 3
+
+Packet: P2D-P2E | Community-1 acquisition and joined terminal comparison
+
+State transition: `OPEN/Plan-0037-P2 -> CLOSED/Plan-0037-P2`.
+
+- The operator identified `~/credentials/API-keys.env` as the Hugging Face
+  credential source. Authentication and gated repository access were verified
+  without printing or persisting token values.
+- Acquired the complete private Community-1 snapshot at exact revision
+  `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`. Immutable acquisition manifest
+  SHA-256 is
+  `b3fd1614b3f233fa0b2e0bece0dfd88aaa9063e6f864b5298a7cf86effdaca10`;
+  readiness re-hashes all ten assets and verifies private modes before use.
+- Added the real host-owned Community-1 adapter. It loads only the pinned local
+  snapshot, supplies in-memory 16 kHz PCM to bypass unavailable TorchCodec
+  decoding, and exports only normalized speech, overlap, and speaker-change
+  regions. Provider labels, objects, waveforms, and credentials do not escape
+  into portable receipts.
+- The second development recording exposed a provider segment extending past
+  the authoritative P1 duration. One bounded repair clips provider turns to
+  `[0, duration]` before union/overlap normalization; the failed recording and
+  the remaining cohort then passed.
+- Final joined receipt:
+  `~/.local/state/transcribe-audio/plan-0037/speech-preparation/development-comparison-20260731-v5/development-comparison.json`,
+  SHA-256
+  `0b3c68a31cbf7bc7f80d5302a52c8c7630414ca198cef78223b63baedbfd0ac3`.
+  The deterministic three-shortest development slice totals 2,892 seconds;
+  calibration/evaluation selected counts are zero; all 15/15 preparation
+  attempts and all private comparison/output replays succeeded.
+- Community-1 measured `167/15/61`, `202/8/82`, and `192/5/61`
+  speech/overlap/change regions across the three recordings. These are
+  preparation observations only; downstream transcription, diarization
+  evaluation, verification, and method selection remain
+  `blocked/not_run_downstream_measurements` with zero attempts.
+- Independent review found v4's per-recording transcription/diarization fields
+  still used the obsolete `not_run_dependency_real_methods` reason. Source and
+  regression coverage were repaired, all three immutable comparisons were
+  regenerated under v5, and the v5 aggregate above supersedes v4. All 19 v5
+  files are `0600` and all 26 directories are `0700`.
+
+Validation and closeout:
+
+- Focused speech-preparation tests: 21 passed; the declared joined focused
+  command passed 51 tests.
+- Full repository suite: 488 passed. Focused compile and `git diff --check`
+  also passed. Reused read-only reviewer `/root/p1_review_final`; the terminal
+  audit returned `PASS` after the v5 reason-code and directory-mode repairs,
+  with no reviewer edits.
+
 ## Turn 255 | 2026-07-31
 
 Plan:

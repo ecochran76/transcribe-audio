@@ -414,14 +414,12 @@ State: OPEN
 Current State: Plan 0037 is the immediate speaker-identity critical path. P0
 closed through Plan 0038, and P1 closed through Plan 0039 with immutable,
 content-addressed PCM derivatives, deterministic signal-quality evidence,
-full timestamp identity maps, and fail-closed lifecycle receipts. Plan 0040
-P2B now has a reviewed host seam and no-enhancement baseline; its real Silero,
-DeepFilterNet, RNNoise, pyannote, and development-cohort comparisons remain
-blocked behind acquisition and human gates. P2C has a reviewed immutable
-no-download acquisition plan with official open-candidate revisions, package
-hashes, Python 3.12 source-build constraints, and an exact approval token, but
-no candidate has been downloaded or installed. Usable speech and acoustic
-conditions remain unassessed pending P2. Plan 0041 P3 is closed at synthetic
+full timestamp identity maps, and fail-closed lifecycle receipts. Plan 0040 P2
+is closed at development-only preparation shadow maturity: pinned Silero,
+DeepFilterNet, RNNoise, and pyannote Community-1 assets plus the no-enhancement
+baseline completed 15/15 attempts across the three-recording, 2,892-second
+development slice with replayed private evidence. Calibration/evaluation,
+downstream outcome measurement, and method selection remain unrun. Plan 0041 P3 is closed at synthetic
 shadow maturity with a distinct operator-approved reference-only authority,
 immutable lifecycle replay, mandatory production lineage, and independently
 anchored P4 descendant invalidation. Model-specific profile materialization

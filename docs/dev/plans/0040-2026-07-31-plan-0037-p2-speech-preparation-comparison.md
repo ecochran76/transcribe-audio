@@ -1,10 +1,10 @@
 # Plan 0040 | Plan 0037 P2 speech preparation comparison
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
-Plan Version: 2
+Plan Version: 3
 
 Parent: Plan 0037 P2
 
@@ -26,9 +26,10 @@ acoustic identity path remains `1 - Built` until P3/P4 provide reviewed
 profiles and calibrated verification evidence.
 
 Measured effect: every attempted method has an exact code/model revision,
-asset hash, timing map, output/abstention status, resource cost, signal-quality
-delta, and comparison denominator. The packet measures preparation yield and
-timing integrity; it does not claim identity improvement.
+asset hash, timing map, output/abstention status, and comparison denominator.
+Resource usage and signal-quality delta remain nullable when not measured.
+The packet measures preparation yield and timing integrity; it does not claim
+downstream or identity improvement.
 
 Evidence: interface and adversarial tests, pinned license/acquisition
 inventory, synthetic fixtures, private unchanged replay, a development-only
@@ -63,33 +64,29 @@ comparison receipt, joined regressions, and independent terminal review.
   threshold, calibration, or identity promotion.
 - No P0 calibration/evaluation audio, Plan 0036 prediction read, historical
   reprocessing batch, transcription replacement, or default pipeline change.
-- No acceptance of gated model terms, contact-information sharing, token use,
-  or gated checkpoint download without an explicit operator gate.
+- No gated checkpoint download without operator authorization, and no token
+  values, provider-native objects, or contact details in portable receipts.
 - No claim that cleaner audio improves transcription, diarization, or identity
   unless a later packet measures that downstream outcome.
 - No external provider write or App Intelligence invocation.
 
 ## Current state
 
-P1 is closed and pushed at `20c67d7`. The host can replay immutable 16 kHz
-mono PCM derivatives with complete timestamp and quality evidence. The venv
-contains PyTorch 2.11.0, torchaudio 2.11.0, onnxruntime 1.24.4, and
-pyannote.audio 4.0.4, but no Silero/DeepFilterNet package or RNNoise executable
-is installed. The P0 inventory records every P2 checkpoint as `not_acquired`.
-A Hugging Face cache contains incomplete/unreviewed pyannote-related snapshots;
-their presence does not prove a complete model, accepted current terms, pinned
-inventory, or authorization to use/download them.
+P1 is closed and pushed at `20c67d7`. The host replays immutable 16 kHz mono
+PCM derivatives with complete timestamp and quality evidence. P2 is now closed
+at preparation shadow maturity: all five pinned methods ran on the bounded
+development cohort, and calibration/evaluation remained sealed.
 
 P2B is implemented and terminally reviewed. The host-owned seam now publishes
 a normalized five-method readiness matrix, run-bound dry-run/apply/rollback
-tokens, replay-verified P1 input binding, strict private immutable receipts,
+lifecycle bindings, replay-verified P1 input binding, strict private immutable
+receipts,
 finite and method-specific timing validation, deterministic fake adapters only
 under explicit test mode, and a no-enhancement baseline that reuses the P1
-artifact without rewriting audio. A lifecycle apply can succeed while the
-aggregate comparison truthfully remains
-`blocked/required_real_comparisons_not_run`; the current denominator is one
-successful no-enhancement method and four blocked real methods. P2C-P2E and
-the parent P2 remain open.
+artifact without rewriting audio. At the P2B checkpoint, a lifecycle apply
+succeeded while the aggregate comparison truthfully remained
+`blocked/required_real_comparisons_not_run`; that denominator was one
+successful no-enhancement method and four blocked real methods.
 
 P2C now has a terminally reviewed acquisition planner and an exact
 repo-owned open-candidate spec. Silero VAD `6.2.1`, DeepFilterNet `0.5.6`,
@@ -111,8 +108,8 @@ a private prefix, and bound installed assets in an immutable private
 acquisition manifest. A synthetic production smoke ran no-enhancement,
 DeepFilterNet, and RNNoise successfully; Silero correctly abstained on a
 non-speech tone. Community-1 terms/contact sharing and bounded development
-processing are also covered by the grant, but the local Hugging Face client
-currently has no authenticated identity or access token.
+processing are also covered by the grant. This checkpoint was initially
+blocked because no authenticated Hugging Face credential source was known.
 
 The deterministic bounded development slice selected the three shortest
 development recordings (2,892 seconds) and selected zero calibration or
@@ -125,8 +122,30 @@ It binds corrected acquisition manifest SHA-256
 `fc28406a6c2a8a84763a238940d0cec29a414e1d7952d74d69c9f597fdbe1d13`;
 enhanced outputs are SHA-256-addressed and replay reopens and re-hashes each
 private WAV. Earlier `a7304d...` evidence is explicitly superseded.
-P2 remains open solely because Community-1 cannot be acquired/run without a
-provider-authenticated Hugging Face identity.
+The operator identified the authenticated credential source as
+`~/credentials/API-keys.env`. No token value entered a receipt or repo file.
+Community-1 was downloaded as the exact private snapshot at revision
+`3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`; acquisition manifest SHA-256 is
+`b3fd1614b3f233fa0b2e0bece0dfd88aaa9063e6f864b5298a7cf86effdaca10`.
+The host adapter loads only that snapshot, supplies in-memory PCM, and emits
+normalized speech, overlap, and one-millisecond speaker-change regions without
+speaker labels or provider-native objects.
+
+The final joined development receipt is
+`~/.local/state/transcribe-audio/plan-0037/speech-preparation/development-comparison-20260731-v5/development-comparison.json`,
+SHA-256 `0b3c68a31cbf7bc7f80d5302a52c8c7630414ca198cef78223b63baedbfd0ac3`.
+The same deterministic three-recording slice totals 2,892 seconds; all 15/15
+method attempts succeeded and all comparison/output receipts replayed. The
+Community-1 observations were respectively `167/15/61`, `202/8/82`, and
+`192/5/61` speech/overlap/change regions. A provider end-time beyond the P1
+duration was repaired once by clipping provider turns to the authoritative
+`[0, duration]` interval before normalization. The aggregate preparation
+result is `success`; downstream transcription, diarization evaluation,
+verification, and method selection remain
+`blocked/not_run_downstream_measurements` and make no quality claim.
+This v5 receipt supersedes v4 after independent review found that its three
+per-recording transcription/diarization fields still carried the obsolete
+`not_run_dependency_real_methods` reason despite successful preparation.
 
 Graphiti was healthy at P2 opening but returned only advisory older
 speaker-preprocessing facts. Current repo plans, installed-package readbacks,
@@ -160,19 +179,19 @@ permission, and no-side-effect review.
 - Open-license acquisition may proceed after selecting an immutable code
   or package revision, verifying official terms, and recording all acquired
   asset hashes. Downloads stay in private user-scoped caches/runtime paths.
-- pyannote Community-1 is authorized but remains `status=blocked`,
-  `reason_code=provider_auth_required` until the local Hugging Face client has
-  an authenticated identity with repository access. Existing partial cache
-  fragments do not constitute a complete pinned snapshot.
+- pyannote Community-1 readiness succeeds only when the complete private
+  snapshot, exact revision, installed package, authorization basis, file modes,
+  inventory, and every artifact SHA-256 match the immutable acquisition
+  manifest. Partial cache fragments never qualify.
 - A method without a complete pinned asset set emits `status=blocked` with
   `reason_code=not_acquired` or `provider_auth_required`; it must not silently fall back to
   another model.
 - Development-cohort apply requires a persisted, hash-bound dry run and the
   standing grant; no per-run token is required.
   Synthetic tests may use deterministic fake adapters without model downloads.
-- Stop and keep P2 open if an acquisition changes license posture, requires
-  credentials/privilege, cannot be content-hashed, or if timing/source
-  integrity cannot be proved.
+- Stop and keep P2 open if an acquisition changes license posture, introduces
+  an unresolved or unauthorized credential/privilege requirement, cannot be
+  content-hashed, or if timing/source integrity cannot be proved.
 
 ## Execution graph
 
@@ -221,18 +240,16 @@ remaining blocker keeps P2 open.
 - Synthetic tone/noise/silence/overlap smoke through dry-run, apply, replay,
   rollback, and mode/hash audit.
 - Development-only private comparison receipt with explicit per-method
-  denominators and `status=blocked` plus precise `not_run_*` reason codes
-  preserved.
+  denominators, preparation `status=success`, and precise downstream
+  `blocked/not_run_downstream_measurements` reason codes preserved.
 - Active planning-contract audit, `git diff --check`, and full repository suite.
 - Reconcile `/root/p1_review_final` P2 design and terminal reports.
 
 ## Terminal condition
 
-Close only after the real no-enhancement, Silero, DeepFilterNet, RNNoise, and
-pyannote preparation methods all run on the explicitly approved development
-cohort with pinned/hash-verified assets, replayable timing evidence, synthetic
-and bounded development validation, and no unresolved independent-review
-blocker. Provider-authenticated Hugging Face access remains the unresolved
-pyannote dependency; the operator authorization gate is already satisfied.
-P2B/P2C implementation checkpoints may still commit and push truthful blocked
-receipts without claiming the parent comparison complete.
+Closed after the real no-enhancement, Silero, DeepFilterNet, RNNoise, and
+pyannote preparation methods all ran on the approved development cohort with
+pinned/hash-verified assets, replayable timing evidence, synthetic and bounded
+development validation, and no unresolved independent-review blocker.
+Downstream outcome measurement remains outside P2 and is not implied by this
+preparation closure.

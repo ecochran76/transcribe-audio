@@ -29,6 +29,15 @@ def isolate_live_acquisition(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
         "DEFAULT_OPEN_ACQUISITION_MANIFEST",
         root / "acquisition-manifest.json",
     )
+    pyannote_root = tmp_path / "unacquired-pyannote-runtime"
+    monkeypatch.setattr(
+        speech_preparation, "DEFAULT_PYANNOTE_ACQUISITION_ROOT", pyannote_root
+    )
+    monkeypatch.setattr(
+        speech_preparation,
+        "DEFAULT_PYANNOTE_ACQUISITION_MANIFEST",
+        pyannote_root / "acquisition-manifest.json",
+    )
 from acoustic_speech_preparation import (
     APPLY_TOKEN,
     METHOD_IDS,
@@ -43,9 +52,121 @@ from acoustic_speech_preparation import (
     replay_open_candidate_acquisition,
     resolve_comparison_lineage_receipt,
     rollback_comparison,
+    _activity_regions,
+    _bounded_turns,
+    _speaker_change_regions,
+    _pending_downstream_measurements,
     _validate_method_result,
+    _verified_pyannote_acquisition,
     _write_pcm16_mono,
 )
+
+
+def test_activity_regions_merge_union_and_measure_overlap() -> None:
+    turns = [
+        (0.0, 1.0, "speaker-a"),
+        (0.5, 1.5, "speaker-b"),
+        (2.0, 2.5, "speaker-a"),
+    ]
+
+    assert _activity_regions(turns, minimum_count=1) == [
+        {"start_seconds": 0.0, "end_seconds": 1.5},
+        {"start_seconds": 2.0, "end_seconds": 2.5},
+    ]
+    assert _activity_regions(turns, minimum_count=2) == [
+        {"start_seconds": 0.5, "end_seconds": 1.0},
+    ]
+
+
+def test_speaker_change_regions_are_bounded_and_non_overlapping() -> None:
+    turns = [
+        (0.0, 0.7, "speaker-a"),
+        (0.7, 1.2, "speaker-b"),
+        (0.7005, 1.0, "speaker-a"),
+        (1.9995, 2.1, "speaker-b"),
+        (2.0, 2.2, "speaker-a"),
+    ]
+
+    assert _speaker_change_regions(turns, 2.0) == [
+        {"start_seconds": 0.7, "end_seconds": 0.701},
+        {"start_seconds": 1.9995, "end_seconds": 2.0},
+    ]
+
+
+def test_provider_turns_are_clipped_to_authoritative_duration() -> None:
+    assert _bounded_turns(
+        [(-0.1, 0.2, "a"), (1.9, 2.1, "b"), (2.1, 2.2, "c")], 2.0
+    ) == [(0.0, 0.2, "a"), (1.9, 2.0, "b")]
+
+
+def test_downstream_reasons_distinguish_completed_preparation() -> None:
+    pending = _pending_downstream_measurements(True)
+    assert pending["transcription"]["reason_code"] == (
+        "not_run_downstream_measurements"
+    )
+    assert pending["diarization"]["reason_code"] == (
+        "not_run_downstream_measurements"
+    )
+    assert pending["verification"]["reason_code"] == "not_run_dependency_p3_p4"
+
+    blocked = _pending_downstream_measurements(False)
+    assert blocked["transcription"]["reason_code"] == (
+        "not_run_dependency_real_methods"
+    )
+
+
+def test_pyannote_acquisition_requires_complete_private_hash_binding(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "pyannote-acquisition"
+    snapshot = root / "community-1"
+    names = {
+        ".gitattributes", "README.md", "config.yaml", "diarization.gif",
+        "embedding/README.md", "embedding/pytorch_model.bin",
+        "plda/README.md", "plda/plda.npz", "plda/xvec_transform.npz",
+        "segmentation/pytorch_model.bin",
+    }
+    artifacts = {}
+    for name in sorted(names):
+        path = snapshot / name
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.write_bytes(name.encode("utf-8"))
+        path.chmod(0o600)
+        artifacts[name] = {
+            "path": str(path),
+            "sha256": sha256_file(path),
+            "size_bytes": path.stat().st_size,
+        }
+    for directory in [root, snapshot, snapshot / "embedding", snapshot / "plda", snapshot / "segmentation"]:
+        directory.chmod(0o700)
+    manifest_path = root / "acquisition-manifest.json"
+    manifest = {
+        "schema_version": "transcribe-audio.pyannote-community-1-acquisition-manifest.v1",
+        "repo_id": "pyannote/speaker-diarization-community-1",
+        "revision_sha": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+        "package_distribution": "pyannote-audio",
+        "package_version": "4.0.4",
+        "authorization_basis": "operator_blanket_2026-07-31",
+        "gated_access_verified": True,
+        "contact_information_sharing_authorized": True,
+        "snapshot_dir": str(snapshot),
+        "artifacts": artifacts,
+        "created_at": "2026-07-31T00:00:00Z",
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_path.chmod(0o600)
+    monkeypatch.setattr(speech_preparation, "DEFAULT_PYANNOTE_ACQUISITION_ROOT", root)
+    monkeypatch.setattr(
+        speech_preparation, "DEFAULT_PYANNOTE_ACQUISITION_MANIFEST", manifest_path
+    )
+
+    verified = _verified_pyannote_acquisition()
+    assert verified is not None
+    assert verified["revision_sha"] == manifest["revision_sha"]
+    assert len(verified["asset_sha256"]) == 64
+    (snapshot / "config.yaml").write_bytes(b"tampered")
+    with pytest.raises(SpeechPreparationError, match="hash mismatch"):
+        _verified_pyannote_acquisition()
 
 
 def write_wav(path: Path, *, duration_seconds: float = 1.25) -> Path:
