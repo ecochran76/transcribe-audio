@@ -1,0 +1,113 @@
+{
+  "schema_version": "transcribe-audio.verification-model-acquisition-plan.v1",
+  "authorization_basis": "operator_blanket_2026-07-31",
+  "authorization_scope": "plan_0037_model_acquisition_install_and_development_processing_only",
+  "real_biometric_enrollment_authorized": false,
+  "private_runtime_root": "~/.local/state/transcribe-audio/plan-0037/verification-calibration/acquisitions",
+  "source_authorities": {
+    "speechbrain_model": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+    "speechbrain_package": "https://pypi.org/project/speechbrain/1.1.0/",
+    "wespeaker_code": "https://github.com/wenet-e2e/wespeaker/archive/dfa741957e5c11f477623b6e583d67d0af25ee88.tar.gz",
+    "wespeaker_models": "https://raw.githubusercontent.com/wenet-e2e/wespeaker/dfa741957e5c11f477623b6e583d67d0af25ee88/docs/pretrained.md"
+  },
+  "wespeaker_authority_bindings": {
+    "code_archive_size_bytes": 343032,
+    "code_archive_sha256": "160b268ea4020b7c9ee52ceb79ad7a8e663d7e21ec763cbd72aef00290f140ec",
+    "pretrained_terms_size_bytes": 13382,
+    "pretrained_terms_sha256": "34a46fc9faeb6a5c8204c840a06b1ca94fc5ac3c52d5460f5bd6c1bf9aa701cf",
+    "checkpoint_terms": "CC-BY-4.0"
+  },
+  "candidates": [
+    {
+      "candidate_id": "speechbrain_ecapa_tdnn",
+      "adapter_role": "verification_baseline",
+      "runtime": {
+        "distribution": "speechbrain",
+        "version": "1.1.0",
+        "artifact": "speechbrain-1.1.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/2c/bb/4e35594c80a20017bd0e8a64f77102f33453c713bde8326cebfc2bba16e1/speechbrain-1.1.0-py3-none-any.whl",
+        "size_bytes": 2278632,
+        "sha256": "0f1bc7d5c5ce07b9ed752a9d931a4858180f825f4d079b44035a0aed645f4dd2",
+        "license": "Apache-2.0"
+      },
+      "model": {
+        "repo_id": "speechbrain/spkrec-ecapa-voxceleb",
+        "revision_sha": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+        "gated": false,
+        "declared_license": "Apache-2.0",
+        "training_data": "VoxCeleb1 plus VoxCeleb2",
+        "artifacts": [
+          {"path": "classifier.ckpt", "size_bytes": 5534328, "sha256": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535"},
+          {"path": "embedding_model.ckpt", "size_bytes": 83316686, "sha256": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2"},
+          {"path": "mean_var_norm_emb.ckpt", "size_bytes": 1921, "sha256": null},
+          {"path": "hyperparams.yaml", "size_bytes": 1919, "sha256": null},
+          {"path": "label_encoder.txt", "size_bytes": 128619, "sha256": null}
+        ],
+        "missing_upstream_sha256_policy": "compute_and_bind_before_load"
+      }
+    },
+    {
+      "candidate_id": "wespeaker_campplus",
+      "adapter_role": "primary_verification_candidate",
+      "runtime": {
+        "engine": "onnxruntime",
+        "installed_version": "1.24.4",
+        "wespeaker_code_revision_sha": "dfa741957e5c11f477623b6e583d67d0af25ee88",
+        "code_license": "Apache-2.0"
+      },
+      "model": {
+        "repo_id": "Wespeaker/wespeaker-voxceleb-campplus",
+        "revision_sha": "acf623ad8ca746e50baa432255cf8fc57c669c45",
+        "gated": false,
+        "hosting_declared_license": "Apache-2.0",
+        "checkpoint_license": "CC-BY-4.0",
+        "training_data": "VoxCeleb",
+        "artifacts": [
+          {"path": "voxceleb_CAM++.onnx", "size_bytes": 29292449, "sha256": "b50810498b5bcf5773d086f6993d344476bd0c88b566a41e8d801aaf8461efad"},
+          {"path": "config.yaml", "size_bytes": 1569, "sha256": null}
+        ],
+        "missing_upstream_sha256_policy": "compute_and_bind_before_load"
+      }
+    },
+    {
+      "candidate_id": "wespeaker_resnet34",
+      "adapter_role": "architecture_variation_candidate",
+      "runtime": {
+        "engine": "onnxruntime",
+        "installed_version": "1.24.4",
+        "wespeaker_code_revision_sha": "dfa741957e5c11f477623b6e583d67d0af25ee88",
+        "code_license": "Apache-2.0"
+      },
+      "model": {
+        "repo_id": "Wespeaker/wespeaker-voxceleb-resnet34",
+        "revision_sha": "ff1ac5bca8ef11e90662b879aa923979e0bd277b",
+        "gated": false,
+        "hosting_declared_license": "Apache-2.0",
+        "checkpoint_license": "CC-BY-4.0",
+        "training_data": "VoxCeleb",
+        "artifacts": [
+          {"path": "voxceleb_resnet34.onnx", "size_bytes": 26534127, "sha256": "9fea6516d7ad6bf0a76c7689f5a49b65d330fad6dde96c91bb4435ffbfe056a1"},
+          {"path": "config.yaml", "size_bytes": 1536, "sha256": null}
+        ],
+        "missing_upstream_sha256_policy": "compute_and_bind_before_load"
+      }
+    }
+  ],
+  "deferred_candidates": [
+    {
+      "candidate_id": "nvidia_titanet",
+      "status": "deferred_not_acquired",
+      "activation_condition": "one_specific_quality_or_deployment_question_remains_after_initial_three_model_comparison"
+    }
+  ],
+  "exclusions": [
+    "private_audio_read",
+    "real_reference_registration",
+    "embedding_materialization",
+    "development_trial_execution",
+    "calibration_read",
+    "evaluation_read",
+    "plan_0036_prediction_read",
+    "external_write"
+  ]
+}

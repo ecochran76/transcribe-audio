@@ -1,0 +1,34 @@
+{
+  "schema_version": "transcribe-audio.verification-split-access-policy.v1",
+  "parent_corpus_manifest_sha256": "73f0e04aab0274ddfeaa7f6b1567ecb135eebc0a0d6e5818cb3bd2ee5535dabf",
+  "canonicalization": "json_sort_keys_compact_utf8_preserve_parent_record_order",
+  "splits": {
+    "development": {
+      "recording_count": 16,
+      "conversation_count": 16,
+      "record_set_sha256": "1326728c26dafcda41d3883ca25569dba928ee52d5e481348fac1773e4547f5e",
+      "conversation_set_sha256": "b767b9b1e5167c1b13a01fb0e1c4add4dd1323e983e1df8708e5e9dcd379436c",
+      "authorization_state": "authorized_by_operator_blanket_2026-07-31"
+    },
+    "calibration": {
+      "recording_count": 3,
+      "conversation_count": 3,
+      "record_set_sha256": "23480f0cbc0a73555a77d94301ca7f135e932250225abe544267c5c0d36ea543",
+      "conversation_set_sha256": "44d844aff33d3ff27986a3102a320db2f7fafcbdcd5a196b4c2909af535cdbc6",
+      "authorization_state": "not_authorized_pending_exact_calibration_apply"
+    },
+    "evaluation": {
+      "recording_count": 5,
+      "conversation_count": 5,
+      "record_set_sha256": "1ae7dde3b9b627859dd2885ea66be1693ebf1e4c8e9f9a946ed6c20a41000ec0",
+      "conversation_set_sha256": "bc2b39a1e1d6dec4665dea98f087a45dd4ecd4e6dc9240b87620ce9d7b58704b",
+      "authorization_state": "not_authorized_pending_exact_terminal_evaluation_apply"
+    }
+  },
+  "transition_contract": {
+    "development_to_calibration": "verified_development_receipt_hash_plus_exact_calibration_apply_authority",
+    "calibration_to_evaluation": "verified_development_and_calibration_receipt_hashes_plus_frozen_decision_policy_hash_plus_exact_terminal_evaluation_apply_authority",
+    "evaluation_reads_before_transition": "fail_closed",
+    "authorization_receipts_are_immutable": true
+  }
+}

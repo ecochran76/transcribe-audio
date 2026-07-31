@@ -2,6 +2,68 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 257 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 3
+
+Packet: P4A | Verification/calibration design and acquisition readiness
+
+State transition: `NOT-STARTED/Plan-0037-P4 -> OPEN/Plan-0037-P4`.
+
+- Re-anchored the resumed Plan 0037 goal on `VISION.md`, Plan 0037, current
+  policies, ROADMAP/RUNBOOK, pushed commit `70f3f24`, local runtime evidence,
+  CodeGraph, and advisory Graphiti recall. P0-P3 are closed; P4 is the next
+  serialized join and P5-P7 remain dependency-blocked.
+- Opened Plan 0042 for private model-specific profile materialization,
+  conversation-separated verification/calibration, and a sealed terminal
+  model decision. Reconciled stale parent text that still described P2 as open
+  or implied its deferred downstream measurements had run.
+- Selected SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and WeSpeaker ResNet34 as
+  the required first comparison. Pinned SpeechBrain package/model, WeSpeaker
+  code, and both WeSpeaker model revisions plus upstream-published LFS SHA-256
+  values in
+  `docs/dev/fixtures/plan-0037-p4/verification-model-acquisition-plan.json`.
+- Kept code and checkpoint terms distinct: official WeSpeaker documentation
+  says VoxCeleb checkpoints follow CC-BY-4.0 even though the hosting model cards
+  display Apache-2.0. Missing upstream SHA-256 values for small configs must be
+  computed and bound before load.
+- Preserved the consequential authority boundary: the standing Plan 0037 grant
+  covers acquisition/install and bounded development processing, but ordinary
+  gold/contact/calendar/speaker confirmation is not biometric enrollment
+  consent. Real reference registration remains behind an exact separately
+  reviewed enrollment manifest/apply authorization.
+- The initial read-only design audit returned `REFINE`. Repaired its four
+  blockers by hash-binding WeSpeaker code and checkpoint-terms authorities,
+  freezing hashed split-access transitions, freezing a pre-reveal terminal
+  decision policy, and specifying P4 supersede/withdraw/delete byte-removal,
+  non-biometric tombstone, and dual P4/P3 score-time checks. Calibration and
+  evaluation remain unauthorized and sealed pending their exact later apply
+  authorities.
+- Added the immutable, side-effect-free `acoustic_verification.py` acquisition
+  dry-run/replay surface. It rejects spec drift, mutable or incorrect authority
+  bindings, enrollment authority injection, side-effect flags, and private-mode
+  violations. The reviewed live dry-run will be regenerated after design
+  approval because the repaired acquisition fixture has a new hash.
+- The repaired independent design audit passed. Generated and replayed live
+  dry-run `acquire-verification-489bdb9d743f150f1909e042`, binding spec
+  SHA-256 `c6cc78b265eed77b5b52637765dc3cde07a74e99b1ef7fde6328a15ae1345c1c`
+  and dry-run SHA-256
+  `6b47964dea6a2caa65a73a23c1561267d1a22f89575a29685465ebada580af8c`.
+- Acquired all three public, revision-pinned model snapshots plus the exact
+  SpeechBrain wheel and immutable WeSpeaker code/terms authorities under the
+  private P4 runtime. Installed SpeechBrain `1.1.0`; ONNX Runtime remains
+  `1.24.4`. Acquisition manifest SHA-256 is
+  `6470ecc8591fd8a40f8d788ba9a3edddc37a508cc54d47800037ab594b957ebe`.
+  Independent readback verified 12 artifact hashes and private modes. No audio
+  was read, no profile/embedding was materialized, and no trial ran.
+
+Next:
+
+- Add fail-closed acquisition readiness plus the P4B host adapter/profile seam,
+  then prove it with deterministic fake models before any real enrollment.
+
 ## Turn 256 | 2026-07-31
 
 Plan:

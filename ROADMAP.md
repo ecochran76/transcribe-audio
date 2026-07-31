@@ -422,9 +422,12 @@ development slice with replayed private evidence. Calibration/evaluation,
 downstream outcome measurement, and method selection remain unrun. Plan 0041 P3 is closed at synthetic
 shadow maturity with a distinct operator-approved reference-only authority,
 immutable lifecycle replay, mandatory production lineage, and independently
-anchored P4 descendant invalidation. Model-specific profile materialization
-remains P4. No calibrated verification model, real enrolled reference library,
-or historical reprocessing
+anchored P4 descendant invalidation. Plan 0042 P4 is open for exact
+SpeechBrain ECAPA, WeSpeaker CAM++, and WeSpeaker ResNet34 acquisition,
+model-specific profile materialization, held-out calibration, and sealed
+evaluation. P4A model/code/terms acquisition is hash-verified and closed; P4B
+host adapters and synthetic profile lifecycle are next. No calibrated
+verification model, real enrolled reference library, or historical reprocessing
 workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
 gold reviews.
 
@@ -435,6 +438,7 @@ Plans:
 - `docs/dev/plans/0039-2026-07-31-plan-0037-p1-audio-derivatives-quality.md`
 - `docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`
 - `docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`
+- `docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`
 
 Research:
 

@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Execution Mode: high-level campaign plan with bounded implementation packets
 
@@ -16,7 +16,7 @@ This plan makes source audio reusable evidence for speaker identity. It adds
 versioned speech cleanup, calibrated speaker verification, and a private
 biometric reference library before context-assisted identity resumes.
 
-Current maturity: `1 — Experimental` for acoustic speaker identity.
+Current maturity: `1 — Built` for acoustic speaker identity.
 
 Target maturity: `2 — Shadow` after local blind comparison, followed by an
 evidence-backed decision about advancement toward `3 — Operational`.
@@ -72,14 +72,19 @@ identity authority:
 
 ## Current state
 
-P0 is closed through
-[Plan 0038](0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md).
-Six versioned artifact contracts, a fail-closed model/license inventory, and a
-private 24-recording conversation-disjoint corpus are frozen. The complete
-user-scoped transcript store now uses `0700` directories and `0600` files,
-including persistent enforcement for future artifacts and blobs. Acoustic
-condition fields remain explicitly unassessed pending P1/P2; no model,
-enrollment, prediction reveal, or App Intelligence integration has run.
+P0 is closed through Plan 0038, P1 through Plan 0039, P2 through Plan 0040,
+and P3 through Plan 0041. The repo now has frozen contracts and a private
+24-recording conversation-disjoint corpus; immutable content-addressed PCM and
+quality evidence; five-method development-only speech preparation with 15/15
+successful attempts; and a synthetic private biometric-reference authority
+with CAS lifecycle and P4 descendant invalidation.
+
+P4 is open through
+[Plan 0042](0042-2026-07-31-plan-0037-p4-verification-calibration.md). No real
+biometric reference, model-specific profile, verification score, calibrated
+threshold, evaluation reveal, App Intelligence integration, or historical
+reprocessing exists. Plan 0036 remains sealed and paused after five of ten
+current gold reviews.
 
 The host continues to build a bounded speaker clue packet from transcript,
 calendar, contact, relationship, GWS, and Odollo evidence. App Intelligence
@@ -190,7 +195,7 @@ usable-duration conditions. Keep all source and evaluation artifacts private.
 
 ### P1 | Audio derivatives and quality
 
-State: CLOSED via Plan 0039. P2 is next.
+State: CLOSED via Plan 0039.
 
 Create a deep module that decodes audio, records channel policy, computes
 quality measures, and writes content-addressed derived artifacts. Preserve an
@@ -199,15 +204,15 @@ apply, replay, and rollback receipts.
 
 ### P2 | Speech preparation
 
-State: OPEN via Plan 0040.
+State: CLOSED via Plan 0040.
 
 Use Silero VAD as the initial speech detector. Compare no enhancement,
 DeepFilterNet, and RNNoise. Evaluate pyannote Community-1 for diarization,
 overlap, and speaker-change preparation.
 
-Measure downstream transcription, diarization, and verification behavior.
-Reject enhancement configurations that sound cleaner but increase identity or
-timing errors.
+P2 proved preparation yield and timing integrity only. Downstream
+transcription, diarization, and verification behavior plus enhancement
+selection join P4/P7; no cleaner-audio outcome claim was made at P2 closure.
 
 ### P3 | Biometric reference library
 
@@ -226,6 +231,8 @@ action-specific approvals, deletion tombstones, and independently anchored P4
 descendant invalidation passed terminal review. No real enrollment occurred.
 
 ### P4 | Verification and calibration
+
+State: OPEN via Plan 0042.
 
 Materialize model-specific profiles from immutable eligible P3 reference
 generations. Benchmark SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and one WeSpeaker ResNet or
