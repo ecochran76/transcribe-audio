@@ -8,12 +8,19 @@ providers remain explicit rather than silently falling back.
 from __future__ import annotations
 
 import argparse
+import ctypes
+import hashlib
 import importlib.metadata
+import io
 import json
 import math
 import platform
 import re
 import shutil
+import struct
+import sys
+import types
+import wave
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Protocol
 
@@ -39,10 +46,18 @@ ROLLBACK_SCHEMA = "transcribe-audio.speech-preparation-rollback.v1"
 LINEAGE_SCHEMA = "transcribe-audio.speech-preparation-lineage.v1"
 ACQUISITION_SPEC_SCHEMA = "transcribe-audio.open-candidate-acquisition-spec.v1"
 ACQUISITION_PLAN_SCHEMA = "transcribe-audio.open-candidate-acquisition-plan.v1"
+# Backward-compatible names for callers with stored command templates. P2 no
+# longer validates or requires either value under the operator's standing grant.
 APPLY_TOKEN = "APPLY_SPEECH_PREPARATION"
 ROLLBACK_TOKEN = "ROLLBACK_SPEECH_PREPARATION"
 DEFAULT_RUNTIME_ROOT = Path(
     "~/.local/state/transcribe-audio/plan-0037/speech-preparation"
+)
+DEFAULT_OPEN_ACQUISITION_ROOT = (
+    DEFAULT_RUNTIME_ROOT / "acquisitions/open-candidates-20260731"
+)
+DEFAULT_OPEN_ACQUISITION_MANIFEST = (
+    DEFAULT_OPEN_ACQUISITION_ROOT / "acquisition-manifest-v2.json"
 )
 METHOD_IDS = (
     "no_enhancement",
@@ -141,6 +156,266 @@ class NoEnhancementAdapter:
         }
 
 
+def _read_pcm16_mono(path: Path, expected_rate: int = 16_000) -> tuple[Any, int]:
+    import torch
+
+    with wave.open(str(path), "rb") as audio:
+        if (
+            audio.getnchannels() != 1
+            or audio.getsampwidth() != 2
+            or audio.getframerate() != expected_rate
+        ):
+            raise SpeechPreparationError(
+                f"P2 requires mono PCM16 audio at {expected_rate} Hz."
+            )
+        frames = audio.readframes(audio.getnframes())
+    values = struct.unpack(f"<{len(frames) // 2}h", frames)
+    return torch.tensor(values, dtype=torch.float32).unsqueeze(0) / 32768.0, expected_rate
+
+
+def _write_pcm16_mono(path: Path, audio: Any, sample_rate: int) -> tuple[Path, str]:
+    import torch
+
+    output = audio.detach().cpu().reshape(-1).clamp(-1.0, 1.0)
+    samples = (output * 32767.0).round().to(torch.int16).tolist()
+    frame_bytes = struct.pack(f"<{len(samples)}h", *samples)
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as target:
+        target.setnchannels(1)
+        target.setsampwidth(2)
+        target.setframerate(sample_rate)
+        target.writeframes(frame_bytes)
+    content = buffer.getvalue()
+    output_sha = hashlib.sha256(content).hexdigest()
+    method_id = path.stem.split("-", 1)[0]
+    output_path = path.parent / method_id / output_sha[:2] / f"{output_sha}.wav"
+    output_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for parent in (output_path.parent, output_path.parent.parent, path.parent):
+        parent.chmod(0o700)
+    if output_path.exists():
+        if output_path.read_bytes() != content:
+            raise SpeechPreparationError("P2 content-addressed output conflict.")
+        return output_path, output_sha
+    output_path.write_bytes(content)
+    output_path.chmod(0o600)
+    return output_path, output_sha
+
+
+def _full_timestamp_map(source: Mapping[str, Any]) -> list[dict[str, float]]:
+    duration = float(source["derived_audio"]["output_duration_seconds"])
+    return [{
+        "source_start_seconds": 0.0,
+        "source_end_seconds": duration,
+        "output_start_seconds": 0.0,
+        "output_end_seconds": duration,
+    }]
+
+
+class SileroVadAdapter:
+    method_id = "silero_vad"
+
+    def __init__(self, *, model_sha256: str) -> None:
+        self.model_sha256 = model_sha256
+
+    def descriptor(self) -> dict[str, Any]:
+        return {
+            "method_id": self.method_id,
+            "adapter_revision": "host-silero-vad-v2",
+            "operation": "speech_region_detection",
+            "executes_audio": True,
+            "executes_model": True,
+            "model_sha256": self.model_sha256,
+        }
+
+    def prepare(self, source: Mapping[str, Any]) -> dict[str, Any]:
+        from silero_vad import get_speech_timestamps, load_silero_vad
+
+        audio, sample_rate = _read_pcm16_mono(Path(str(source["artifact_path"])))
+        model = load_silero_vad(onnx=True, opset_version=16)
+        timestamps = get_speech_timestamps(
+            audio.reshape(-1), model, sampling_rate=sample_rate, return_seconds=True
+        )
+        regions = [
+            {
+                "start_seconds": float(item["start"]),
+                "end_seconds": float(item["end"]),
+            }
+            for item in timestamps
+        ]
+        status = "success" if regions else "blocked"
+        return {
+            "status": status,
+            "reason_code": None if regions else "abstained_no_speech",
+            "output_artifact_id": source["derived_audio"]["artifact_id"],
+            "output_sha256": source["artifact_sha256"],
+            "output_path": source["artifact_path"],
+            "timestamp_map": source["derived_audio"]["timestamp_map"],
+            "speech_regions": regions,
+            "overlap_regions": [],
+            "speaker_change_regions": [],
+            "quality_delta": None,
+            "model_revisions": {
+                "silero_vad": EXPECTED_PACKAGES["silero_vad"][1],
+                "model_sha256": self.model_sha256,
+            },
+            "warnings": [],
+            "abstention_reasons": [] if regions else ["no_speech_detected"],
+        }
+
+
+def _install_deepfilternet_torchaudio_compatibility() -> None:
+    """Supply the type-only module removed by recent torchaudio releases."""
+    try:
+        import torchaudio.backend.common  # type: ignore[import-not-found]
+    except ModuleNotFoundError:
+        common = types.ModuleType("torchaudio.backend.common")
+        common.AudioMetaData = type("AudioMetaData", (), {})
+        backend = types.ModuleType("torchaudio.backend")
+        backend.common = common
+        sys.modules["torchaudio.backend"] = backend
+        sys.modules["torchaudio.backend.common"] = common
+
+
+class DeepFilterNetAdapter:
+    method_id = "deepfilternet"
+
+    def __init__(self, *, model_dir: Path, model_sha256: str, output_root: Path) -> None:
+        self.model_dir = model_dir
+        self.model_sha256 = model_sha256
+        self.output_root = output_root
+
+    def descriptor(self) -> dict[str, Any]:
+        return {
+            "method_id": self.method_id,
+            "adapter_revision": "host-deepfilternet-v2",
+            "operation": "speech_enhancement",
+            "executes_audio": True,
+            "executes_model": True,
+            "model_sha256": self.model_sha256,
+        }
+
+    def prepare(self, source: Mapping[str, Any]) -> dict[str, Any]:
+        import torch
+        from torchaudio.functional import resample
+
+        _install_deepfilternet_torchaudio_compatibility()
+        from df.enhance import enhance, init_df
+
+        audio, sample_rate = _read_pcm16_mono(Path(str(source["artifact_path"])))
+        model, state, _ = init_df(str(self.model_dir), log_file=None)
+        prepared = resample(audio, sample_rate, 48_000).contiguous()
+        chunk_samples = 60 * 48_000
+        enhanced_chunks = []
+        for offset in range(0, prepared.shape[-1], chunk_samples):
+            chunk = prepared[..., offset : offset + chunk_samples].contiguous()
+            if hasattr(state, "reset"):
+                state.reset()
+            enhanced_chunks.append(enhance(model, state, chunk).contiguous())
+        enhanced = torch.cat(enhanced_chunks, dim=-1)[..., : prepared.shape[-1]]
+        output = resample(enhanced, 48_000, sample_rate)
+        output = output[..., : audio.shape[-1]]
+        if output.shape[-1] < audio.shape[-1]:
+            output = torch.nn.functional.pad(output, (0, audio.shape[-1] - output.shape[-1]))
+        output_path = self.output_root / (
+            f"deepfilternet-{str(source['artifact_sha256'])[:24]}.wav"
+        )
+        output_path, output_sha = _write_pcm16_mono(output_path, output, sample_rate)
+        return {
+            "status": "success",
+            "reason_code": None,
+            "output_artifact_id": "p2-deepfilternet-" + output_sha[:24],
+            "output_sha256": output_sha,
+            "output_path": str(output_path),
+            "timestamp_map": _full_timestamp_map(source),
+            "speech_regions": None,
+            "overlap_regions": [],
+            "speaker_change_regions": [],
+            "quality_delta": {"status": "not_assessed_in_adapter"},
+            "model_revisions": {
+                "deepfilternet": EXPECTED_PACKAGES["deepfilternet"][1],
+                "model_sha256": self.model_sha256,
+            },
+            "warnings": [],
+            "abstention_reasons": [],
+        }
+
+
+class RNNoiseAdapter:
+    method_id = "rnnoise"
+
+    def __init__(self, *, library_path: Path, library_sha256: str, output_root: Path) -> None:
+        self.library_path = library_path
+        self.library_sha256 = library_sha256
+        self.output_root = output_root
+
+    def descriptor(self) -> dict[str, Any]:
+        return {
+            "method_id": self.method_id,
+            "adapter_revision": "host-rnnoise-v2",
+            "operation": "noise_suppression",
+            "executes_audio": True,
+            "executes_model": True,
+            "library_sha256": self.library_sha256,
+        }
+
+    def prepare(self, source: Mapping[str, Any]) -> dict[str, Any]:
+        import torch
+        from torchaudio.functional import resample
+
+        audio, sample_rate = _read_pcm16_mono(Path(str(source["artifact_path"])))
+        prepared = resample(audio, sample_rate, 48_000).reshape(-1)
+        library = ctypes.CDLL(str(self.library_path))
+        library.rnnoise_create.restype = ctypes.c_void_p
+        library.rnnoise_create.argtypes = [ctypes.c_void_p]
+        library.rnnoise_process_frame.restype = ctypes.c_float
+        library.rnnoise_process_frame.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.POINTER(ctypes.c_float),
+        ]
+        library.rnnoise_destroy.argtypes = [ctypes.c_void_p]
+        state = library.rnnoise_create(None)
+        if not state:
+            raise SpeechPreparationError("RNNoise state initialization failed.")
+        chunks: list[Any] = []
+        try:
+            for offset in range(0, prepared.numel(), 480):
+                frame = prepared[offset : offset + 480]
+                valid = frame.numel()
+                if valid < 480:
+                    frame = torch.nn.functional.pad(frame, (0, 480 - valid))
+                values = (frame * 32768.0).tolist()
+                input_frame = (ctypes.c_float * 480)(*values)
+                output_frame = (ctypes.c_float * 480)()
+                library.rnnoise_process_frame(state, output_frame, input_frame)
+                chunks.append(torch.tensor(list(output_frame)[:valid]) / 32768.0)
+        finally:
+            library.rnnoise_destroy(state)
+        denoised = torch.cat(chunks).unsqueeze(0)
+        output = resample(denoised, 48_000, sample_rate)[..., : audio.shape[-1]]
+        if output.shape[-1] < audio.shape[-1]:
+            output = torch.nn.functional.pad(output, (0, audio.shape[-1] - output.shape[-1]))
+        output_path = self.output_root / f"rnnoise-{str(source['artifact_sha256'])[:24]}.wav"
+        output_path, output_sha = _write_pcm16_mono(output_path, output, sample_rate)
+        return {
+            "status": "success",
+            "reason_code": None,
+            "output_artifact_id": "p2-rnnoise-" + output_sha[:24],
+            "output_sha256": output_sha,
+            "output_path": str(output_path),
+            "timestamp_map": _full_timestamp_map(source),
+            "speech_regions": None,
+            "overlap_regions": [],
+            "speaker_change_regions": [],
+            "quality_delta": {"status": "not_assessed_in_adapter"},
+            "model_revisions": {
+                "rnnoise": "v0.2",
+                "library_sha256": self.library_sha256,
+            },
+            "warnings": [],
+            "abstention_reasons": [],
+        }
+
 class FakePreparationAdapter:
     """Deterministic test adapter; never selected by the production registry."""
 
@@ -179,6 +454,87 @@ def _package_version(distribution: str) -> Optional[str]:
         return None
 
 
+def _verified_open_acquisition() -> Optional[dict[str, Any]]:
+    path = DEFAULT_OPEN_ACQUISITION_MANIFEST.expanduser().absolute()
+    root = DEFAULT_OPEN_ACQUISITION_ROOT.expanduser().absolute()
+    if not path.is_file():
+        return None
+    _private_require(path, root)
+    manifest = _private_read(path)
+    if (
+        manifest.get("schema_version")
+        != "transcribe-audio.open-candidate-acquisition-manifest.v1"
+        or set(manifest) != {
+            "schema_version", "authorization_basis", "source_plan_run_id",
+            "source_plan_sha256", "supersedes_manifest_sha256", "artifacts",
+            "candidates", "created_at",
+        }
+        or manifest.get("authorization_basis") != "operator_blanket_2026-07-31"
+        or manifest.get("source_plan_run_id")
+        != "acquire-open-585ef49febe61caf5a3d99b1"
+        or manifest.get("source_plan_sha256")
+        != "d4b2a4c800b10cd8604b4e2f73ac553a097652f0bc1271ff27def5628c9ac836"
+        or not re.fullmatch(
+            r"[a-f0-9]{64}", str(manifest.get("supersedes_manifest_sha256"))
+        )
+        or not isinstance(manifest.get("artifacts"), Mapping)
+        or not isinstance(manifest.get("candidates"), Mapping)
+    ):
+        raise SpeechPreparationError("Open-candidate acquisition manifest is invalid.")
+    artifacts = manifest["artifacts"]
+    for artifact_id, value in artifacts.items():
+        if not isinstance(value, Mapping) or set(value) != {
+            "path", "sha256", "size_bytes"
+        }:
+            raise SpeechPreparationError("Acquired artifact entry is invalid.")
+        artifact_path = Path(str(value["path"])).expanduser().absolute()
+        if (
+            not re.fullmatch(r"[a-f0-9]{64}", str(value["sha256"]))
+            or artifact_path.is_symlink()
+            or not artifact_path.is_file()
+            or artifact_path.stat().st_size != value["size_bytes"]
+            or sha256_file(artifact_path) != value["sha256"]
+        ):
+            raise SpeechPreparationError(
+                f"Acquired artifact {artifact_id} failed hash validation."
+            )
+    required_assets = {
+        "silero_vad": {"silero-vad-wheel", "silero-vad-onnx-op16"},
+        "deepfilternet": {
+            "deepfilternet-wheel", "deepfilterlib-sdist",
+            "deepfilternet3-model-archive", "deepfilternet3-checkpoint",
+            "deepfilternet3-config",
+        },
+        "rnnoise": {"rnnoise-release-source", "rnnoise-library"},
+    }
+    for candidate_id, asset_ids in required_assets.items():
+        candidate = manifest["candidates"].get(candidate_id)
+        if (
+            not isinstance(candidate, Mapping)
+            or set(candidate) != {"revision", "asset_ids"}
+            or set(candidate["asset_ids"]) != asset_ids
+            or not all(asset_id in artifacts for asset_id in asset_ids)
+        ):
+            raise SpeechPreparationError(
+                f"Acquired candidate {candidate_id} is incomplete."
+            )
+    expected_revisions = {
+        "silero_vad": "6.2.1",
+        "deepfilternet": "0.5.6",
+        "rnnoise": "v0.2",
+    }
+    if any(
+        manifest["candidates"][candidate_id]["revision"] != revision
+        for candidate_id, revision in expected_revisions.items()
+    ):
+        raise SpeechPreparationError("Acquired candidate revision is invalid.")
+    return {
+        **manifest,
+        "manifest_path": str(path),
+        "manifest_sha256": sha256_file(path),
+    }
+
+
 def readiness_matrix() -> dict[str, dict[str, Any]]:
     """Return live code/asset/authorization state without loading a model."""
     matrix: dict[str, dict[str, Any]] = {
@@ -192,59 +548,63 @@ def readiness_matrix() -> dict[str, dict[str, Any]]:
             "reason": None,
         }
     }
+    acquisition = _verified_open_acquisition()
     for method_id in ("silero_vad", "deepfilternet"):
         distribution, expected = EXPECTED_PACKAGES[method_id]
         installed = _package_version(distribution)
-        executable = (
-            shutil.which("deepFilter") if method_id == "deepfilternet" else None
-        )
-        code_present = installed == expected and (
-            method_id != "deepfilternet" or executable is not None
-        )
+        code_present = installed == expected
+        candidate = acquisition["candidates"][method_id] if acquisition else None
+        asset_sha = canonical_artifact_hash([
+            {"artifact_id": asset_id, "sha256": acquisition["artifacts"][asset_id]["sha256"]}
+            for asset_id in sorted(candidate["asset_ids"])
+        ]) if candidate else None
+        ready = code_present and acquisition is not None
         matrix[method_id] = {
-            "status": "blocked",
-            "reason_code": "asset_hash_unbound" if code_present else "not_acquired",
+            "status": "success" if ready else "blocked",
+            "reason_code": None if ready else (
+                "asset_hash_unbound" if code_present else "not_acquired"
+            ),
             "code_revision": installed,
             "expected_code_revision": expected,
-            "asset_sha256": None,
-            "acquisition_manifest_sha256": None,
-            "authorization": "open_license_reviewed",
-            "reason": (
+            "asset_sha256": asset_sha,
+            "acquisition_manifest_sha256": (
+                acquisition["manifest_sha256"] if acquisition else None
+            ),
+            "authorization": "verified_acquisition" if ready else "open_license_reviewed",
+            "authorization_basis": "operator_blanket_2026-07-31" if ready else None,
+            "reason": None if ready else (
                 "installed code still requires a verified acquisition manifest and asset hashes"
                 if code_present
                 else f"requires pinned {distribution}=={expected}"
-                + (
-                    " and deepFilter executable"
-                    if method_id == "deepfilternet"
-                    else ""
-                )
             ),
         }
-    rnnoise_path = shutil.which("rnnoise_demo")
+    rn_candidate = acquisition["candidates"]["rnnoise"] if acquisition else None
+    rn_asset_sha = canonical_artifact_hash([
+        {"artifact_id": asset_id, "sha256": acquisition["artifacts"][asset_id]["sha256"]}
+        for asset_id in sorted(rn_candidate["asset_ids"])
+    ]) if rn_candidate else None
     matrix["rnnoise"] = {
-        "status": "blocked",
-        "reason_code": "not_acquired" if rnnoise_path is None else "asset_hash_unbound",
-        "code_revision": None,
-        "executable_path": str(Path(rnnoise_path).resolve()) if rnnoise_path else None,
-        "asset_sha256": None,
-        "acquisition_manifest_sha256": None,
-        "authorization": "open_license_reviewed",
-        "reason": "requires pinned RNNoise v0.2 executable and model hashes"
-        if rnnoise_path is None
-        else "executable present but revision and asset hashes remain unbound",
+        "status": "success" if acquisition else "blocked",
+        "reason_code": None if acquisition else "not_acquired",
+        "code_revision": "v0.2" if acquisition else None,
+        "asset_sha256": rn_asset_sha,
+        "acquisition_manifest_sha256": acquisition["manifest_sha256"] if acquisition else None,
+        "authorization": "verified_acquisition" if acquisition else "open_license_reviewed",
+        "authorization_basis": "operator_blanket_2026-07-31" if acquisition else None,
+        "reason": None if acquisition else "requires pinned RNNoise v0.2 library and model hashes",
     }
     pyannote_version = _package_version(EXPECTED_PACKAGES["pyannote_community_1"][0])
     matrix["pyannote_community_1"] = {
         "status": "blocked",
-        "reason_code": "human_gate",
+        "reason_code": "provider_auth_required",
         "code_revision": pyannote_version,
         "expected_code_revision": EXPECTED_PACKAGES["pyannote_community_1"][1],
         "asset_sha256": None,
         "acquisition_manifest_sha256": None,
-        "authorization": "operator_acceptance_required",
+        "authorization": "operator_blanket_2026-07-31",
         "reason": (
-            "Community-1 gated conditions and contact-information sharing "
-            "require explicit operator authorization; cache fragments do not count"
+            "Community-1 terms/contact sharing are authorized, but the local "
+            "Hugging Face client has no authenticated identity or access token"
         ),
     }
     return matrix
@@ -427,7 +787,7 @@ def dry_run_open_candidate_acquisition(
     runtime_root: Optional[Path] = None,
     spec_path: Path = DEFAULT_ACQUISITION_SPEC,
 ) -> dict[str, Any]:
-    """Persist an immutable no-download P2C acquisition plan."""
+    """Persist immutable acquisition evidence under the standing operator grant."""
     selected_spec = spec_path.expanduser().absolute()
     if selected_spec.is_symlink() or not selected_spec.is_file():
         raise SpeechPreparationError("Open-candidate acquisition spec is unavailable.")
@@ -443,14 +803,16 @@ def dry_run_open_candidate_acquisition(
         "spec_path": str(selected_spec),
         "spec_sha256": spec_sha,
         "host": host,
+        "authorization_basis": "operator_blanket_2026-07-31",
     }
     run_id = "acquire-open-" + canonical_artifact_hash(identity)[:24]
     paths = _acquisition_paths(runtime_root or DEFAULT_RUNTIME_ROOT, run_id)
     plan = {
         "schema_version": ACQUISITION_PLAN_SCHEMA,
         "run_id": run_id,
-        "status": "blocked",
-        "reason_code": "operator_authorization_required",
+        "status": "success",
+        "reason_code": None,
+        "authorization_basis": "operator_blanket_2026-07-31",
         "spec_path": str(selected_spec),
         "spec_sha256": spec_sha,
         "spec": spec,
@@ -472,9 +834,6 @@ def dry_run_open_candidate_acquisition(
         **stored,
         "dry_run_path": str(paths["dry_run"]),
         "dry_run_sha256": plan_sha,
-        "required_approval_token": (
-            f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{run_id}:{plan_sha}"
-        ),
     }
 
 
@@ -484,7 +843,7 @@ def replay_open_candidate_acquisition(
     expected_dry_run_sha256: str,
     runtime_root: Optional[Path] = None,
 ) -> dict[str, Any]:
-    """Replay a P2C plan without downloading, installing, or probing audio."""
+    """Replay standing-grant P2C evidence without executing side effects."""
     paths = _acquisition_paths(runtime_root or DEFAULT_RUNTIME_ROOT, run_id)
     _private_require(paths["dry_run"], paths["root"])
     if (
@@ -499,15 +858,16 @@ def replay_open_candidate_acquisition(
         set(plan)
         != {
             "schema_version", "run_id", "status", "reason_code", "spec_path",
-            "spec_sha256", "spec", "host", "runtime_root", "will_download",
+            "authorization_basis", "spec_sha256", "spec", "host", "runtime_root", "will_download",
             "will_install", "will_build", "will_read_audio", "will_accept_terms",
             "will_share_contact_information", "will_perform_external_write",
             "created_at",
         }
         or plan["schema_version"] != ACQUISITION_PLAN_SCHEMA
         or plan["run_id"] != run_id
-        or plan["status"] != "blocked"
-        or plan["reason_code"] != "operator_authorization_required"
+        or plan["status"] != "success"
+        or plan["reason_code"] is not None
+        or plan["authorization_basis"] != "operator_blanket_2026-07-31"
         or plan["runtime_root"] != str(paths["root"])
         or any(
             plan[field] is not False
@@ -532,6 +892,7 @@ def replay_open_candidate_acquisition(
         "spec_path": str(spec_path),
         "spec_sha256": plan["spec_sha256"],
         "host": plan["host"],
+        "authorization_basis": plan["authorization_basis"],
     }
     if run_id != "acquire-open-" + canonical_artifact_hash(identity)[:24]:
         raise SpeechPreparationError("Open-candidate acquisition identity is invalid.")
@@ -539,14 +900,12 @@ def replay_open_candidate_acquisition(
     return {
         "schema_version": ACQUISITION_PLAN_SCHEMA,
         "run_id": run_id,
-        "status": "blocked",
-        "reason_code": "operator_authorization_required",
+        "status": "success",
+        "reason_code": None,
+        "authorization_basis": "operator_blanket_2026-07-31",
         "spec_sha256": plan["spec_sha256"],
         "dry_run_path": str(paths["dry_run"]),
         "dry_run_sha256": plan_sha,
-        "required_approval_token": (
-            f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{run_id}:{plan_sha}"
-        ),
         "will_download": False,
         "will_install": False,
         "will_build": False,
@@ -581,11 +940,31 @@ def _active_p1_source(run_id: str, runtime_root: Path) -> dict[str, Any]:
 
 
 def _adapter_registry(
-    adapters: Optional[Mapping[str, PreparationAdapter]], *, test_mode: bool
+    adapters: Optional[Mapping[str, PreparationAdapter]], *, test_mode: bool,
+    runtime_root: Path,
 ) -> dict[str, PreparationAdapter]:
     registry: dict[str, PreparationAdapter] = {
         "no_enhancement": NoEnhancementAdapter()
     }
+    if not test_mode:
+        acquisition = _verified_open_acquisition()
+        if acquisition is not None:
+            artifacts = acquisition["artifacts"]
+            registry.update({
+                "silero_vad": SileroVadAdapter(
+                    model_sha256=artifacts["silero-vad-onnx-op16"]["sha256"]
+                ),
+                "deepfilternet": DeepFilterNetAdapter(
+                    model_dir=Path(artifacts["deepfilternet3-config"]["path"]).parent,
+                    model_sha256=artifacts["deepfilternet3-checkpoint"]["sha256"],
+                    output_root=runtime_root / "outputs",
+                ),
+                "rnnoise": RNNoiseAdapter(
+                    library_path=Path(artifacts["rnnoise-library"]["path"]),
+                    library_sha256=artifacts["rnnoise-library"]["sha256"],
+                    output_root=runtime_root / "outputs",
+                ),
+            })
     if not adapters:
         return registry
     if not test_mode:
@@ -628,7 +1007,10 @@ def _build_plan(
     if tuple(live_readiness) != METHOD_IDS:
         raise SpeechPreparationError("Readiness must cover every P2 method in order.")
     _validate_readiness(live_readiness, test_mode=test_mode)
-    adapter_registry = _adapter_registry(adapters, test_mode=test_mode)
+    selected_runtime_root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    adapter_registry = _adapter_registry(
+        adapters, test_mode=test_mode, runtime_root=selected_runtime_root
+    )
     adapter_descriptors = {
         method_id: adapter_registry[method_id].descriptor()
         if method_id in adapter_registry
@@ -643,7 +1025,7 @@ def _build_plan(
         "adapter_descriptors": adapter_descriptors,
     }
     run_id = f"speech-prep-{canonical_artifact_hash(identity)[:24]}"
-    paths = _paths((runtime_root or DEFAULT_RUNTIME_ROOT).expanduser(), run_id)
+    paths = _paths(selected_runtime_root, run_id)
     plan = {
         "schema_version": DRY_RUN_SCHEMA,
         "status": "success",
@@ -847,7 +1229,8 @@ def _validate_full_timestamp_map(value: Any, duration: float) -> None:
 
 
 def _validate_method_result(
-    result: Mapping[str, Any], source: Mapping[str, Any]
+    result: Mapping[str, Any], source: Mapping[str, Any],
+    *, runtime_root: Optional[Path] = None,
 ) -> dict[str, Any]:
     forbidden = sorted(_forbidden_result_keys(result))
     if forbidden:
@@ -896,6 +1279,25 @@ def _validate_method_result(
                 "Successful enhancement requires a hashed output reference."
             )
         _validate_full_timestamp_map(result.get("timestamp_map"), duration)
+        readiness = result.get("readiness")
+        if (
+            isinstance(readiness, Mapping)
+            and readiness.get("authorization") == "verified_acquisition"
+        ):
+            if runtime_root is None:
+                raise SpeechPreparationError(
+                    "Enhanced output validation requires its private runtime root."
+                )
+            output_path = Path(str(result["output_path"])).expanduser().absolute()
+            _private_require(output_path, runtime_root.expanduser().absolute())
+            output_sha = str(result["output_sha256"])
+            if (
+                output_path.stem != output_sha
+                or sha256_file(output_path) != output_sha
+            ):
+                raise SpeechPreparationError(
+                    "Enhanced output content-address or SHA-256 binding mismatch."
+                )
     if status == "success" and method_id == "silero_vad":
         if not isinstance(result.get("speech_regions"), list) or not result.get(
             "speech_regions"
@@ -919,7 +1321,7 @@ def _validate_method_result(
 def apply_comparison(
     p1_run_id: str,
     *,
-    approval_token: str,
+    approval_token: Optional[str] = None,
     p1_runtime_root: Optional[Path] = None,
     runtime_root: Optional[Path] = None,
     readiness: Optional[Mapping[str, Mapping[str, Any]]] = None,
@@ -934,11 +1336,7 @@ def apply_comparison(
         adapters=adapters,
         test_mode=test_mode,
     )
-    required_token = f"{APPLY_TOKEN}:{plan['run_id']}"
-    if approval_token != required_token:
-        raise SpeechPreparationError(
-            f"Apply requires token {APPLY_TOKEN}:<dry-run-id>."
-        )
+    del approval_token
     ensure_private_tree(paths["root"], paths["run_dir"])
     if not paths["dry_run"].is_file():
         raise SpeechPreparationError("Apply requires the matching P2 dry run.")
@@ -962,22 +1360,9 @@ def apply_comparison(
             "replay": replay,
         }
 
-    adapter_registry: dict[str, PreparationAdapter] = {
-        "no_enhancement": NoEnhancementAdapter()
-    }
-    if adapters:
-        if not test_mode:
-            raise SpeechPreparationError(
-                "Adapter overrides are allowed only in explicit synthetic test mode."
-            )
-        if "no_enhancement" in adapters:
-            raise SpeechPreparationError(
-                "The host-owned no-enhancement adapter cannot be overridden."
-            )
-        unknown_adapters = set(adapters) - set(METHOD_IDS)
-        if unknown_adapters:
-            raise SpeechPreparationError("Adapter registry contains unknown methods.")
-        adapter_registry.update(adapters)
+    adapter_registry = _adapter_registry(
+        adapters, test_mode=test_mode, runtime_root=paths["root"]
+    )
     method_results: list[dict[str, Any]] = []
     for method_id in METHOD_IDS:
         method_readiness = plan["readiness"][method_id]
@@ -999,10 +1384,13 @@ def apply_comparison(
                     "resource_usage": None,
                 },
                 plan["p1_source"],
+                runtime_root=paths["root"],
             )
         )
     method_results = [
-        _validate_method_result(result, plan["p1_source"])
+        _validate_method_result(
+            result, plan["p1_source"], runtime_root=paths["root"]
+        )
         for result in method_results
     ]
     created_at = utc_now()
@@ -1127,7 +1515,8 @@ def replay_comparison(
     ] != list(METHOD_IDS):
         raise SpeechPreparationError("P2 comparison method coverage is invalid.")
     validated_results = [
-        _validate_method_result(result, source) for result in method_results
+        _validate_method_result(result, source, runtime_root=paths["root"])
+        for result in method_results
     ]
     denominators = comparison.get("denominators") or {}
     if (
@@ -1253,13 +1642,10 @@ def resolve_comparison_lineage_receipt(
 def rollback_comparison(
     run_id: str,
     *,
-    approval_token: str,
+    approval_token: Optional[str] = None,
     runtime_root: Optional[Path] = None,
 ) -> dict[str, Any]:
-    if approval_token != f"{ROLLBACK_TOKEN}:{run_id}":
-        raise SpeechPreparationError(
-            f"Rollback requires token {ROLLBACK_TOKEN}:<run-id>."
-        )
+    del approval_token
     paths = _paths((runtime_root or DEFAULT_RUNTIME_ROOT).expanduser(), run_id)
     replay_comparison(run_id, runtime_root=paths["root"])
     receipt = {
@@ -1291,12 +1677,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     dry_parser.add_argument("p1_run_id")
     apply_parser = subparsers.add_parser("apply")
     apply_parser.add_argument("p1_run_id")
-    apply_parser.add_argument("--approval-token", default="")
     replay_parser = subparsers.add_parser("replay")
     replay_parser.add_argument("run_id")
     rollback_parser = subparsers.add_parser("rollback")
     rollback_parser.add_argument("run_id")
-    rollback_parser.add_argument("--approval-token", default="")
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.command == "dry-run":
         result = dry_run(
@@ -1307,7 +1691,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     elif args.command == "apply":
         result = apply_comparison(
             args.p1_run_id,
-            approval_token=args.approval_token,
             p1_runtime_root=args.p1_runtime_root,
             runtime_root=args.runtime_root,
         )
@@ -1316,7 +1699,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     else:
         result = rollback_comparison(
             args.run_id,
-            approval_token=args.approval_token,
             runtime_root=args.runtime_root,
         )
     print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))

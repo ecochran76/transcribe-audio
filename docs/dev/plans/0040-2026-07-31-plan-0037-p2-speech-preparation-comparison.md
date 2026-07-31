@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0037 P2
 
@@ -91,7 +91,7 @@ aggregate comparison truthfully remains
 successful no-enhancement method and four blocked real methods. P2C-P2E and
 the parent P2 remain open.
 
-P2C now has a terminally reviewed no-download acquisition planner and an exact
+P2C now has a terminally reviewed acquisition planner and an exact
 repo-owned open-candidate spec. Silero VAD `6.2.1`, DeepFilterNet `0.5.6`,
 DeepFilterLib `0.5.6`, DeepFilterNet3, and signed RNNoise `v0.2` source/tag
 identities are pinned to official URLs, revisions, sizes, and SHA-256 values
@@ -99,10 +99,34 @@ where upstream publishes them. The two artifacts without official SHA-256
 must be hashed and content-addressed immediately after an authorized download
 and before build/use. The planner records that Python 3.12 requires a local
 DeepFilterLib source build, excludes pyannote terms/contact sharing and all
-audio/model execution, writes only a private immutable blocked dry run, and
-requires replay to supply its originally reviewed byte hash. No apply or
-download path is enabled; P2C remains blocked on explicit operator
-authorization.
+audio/model execution, and requires replay to supply its originally reviewed
+byte hash. The operator supplied a standing blanket grant on 2026-07-31 for
+the bounded Plan 0037 scope; the dry-run hash remains audit evidence, but no
+per-run approval phrase or token is required.
+
+Under that grant, P2C acquired all five open artifacts into private storage,
+verified published SHA-256 values, computed the two missing SHA-256 values
+before use, built DeepFilterLib 0.5.6 for CPython 3.12, built RNNoise v0.2 into
+a private prefix, and bound installed assets in an immutable private
+acquisition manifest. A synthetic production smoke ran no-enhancement,
+DeepFilterNet, and RNNoise successfully; Silero correctly abstained on a
+non-speech tone. Community-1 terms/contact sharing and bounded development
+processing are also covered by the grant, but the local Hugging Face client
+currently has no authenticated identity or access token.
+
+The deterministic bounded development slice selected the three shortest
+development recordings (2,892 seconds) and selected zero calibration or
+evaluation recordings. All 12 open-method attempts succeeded, including
+Silero speech-region evidence and full-length DeepFilterNet/RNNoise outputs.
+One long-form DeepFilterNet failure was repaired by bounded contiguous
+60-second processing and passed its single retry. Aggregate receipt SHA-256 is
+`81aa1b407798409f2b4871f3eb5f0673de540ebab537ee6acb51570e09ce21fc`.
+It binds corrected acquisition manifest SHA-256
+`fc28406a6c2a8a84763a238940d0cec29a414e1d7952d74d69c9f597fdbe1d13`;
+enhanced outputs are SHA-256-addressed and replay reopens and re-hashes each
+private WAV. Earlier `a7304d...` evidence is explicitly superseded.
+P2 remains open solely because Community-1 cannot be acquired/run without a
+provider-authenticated Hugging Face identity.
 
 Graphiti was healthy at P2 opening but returned only advisory older
 speaker-preprocessing facts. Current repo plans, installed-package readbacks,
@@ -127,20 +151,24 @@ under the private P2 runtime root. Read-only reviewer
 metadata, scope-exclusion, spec-drift, timestamp-tamper, serialization-tamper,
 permission, and no-side-effect review.
 
-## Authorization and fail-closed gates
+## Standing authorization and fail-closed gates
 
-- Open-license acquisition may proceed only after selecting an immutable code
+- The operator's 2026-07-31 blanket grant authorizes all bounded Plan 0037
+  acquisitions, installs/builds, gated terms/contact sharing, and development
+  processing. Persisted hashes and dry runs are evidence controls, not
+  authorization ceremonies; do not request per-run phrases or tokens.
+- Open-license acquisition may proceed after selecting an immutable code
   or package revision, verifying official terms, and recording all acquired
   asset hashes. Downloads stay in private user-scoped caches/runtime paths.
-- pyannote Community-1 remains `status=blocked`, `reason_code=human_gate`
-  until the operator has
-  explicitly accepted its gated conditions and authorized the associated
-  contact-information sharing/download. Existing cache fragments do not
-  satisfy this gate.
+- pyannote Community-1 is authorized but remains `status=blocked`,
+  `reason_code=provider_auth_required` until the local Hugging Face client has
+  an authenticated identity with repository access. Existing partial cache
+  fragments do not constitute a complete pinned snapshot.
 - A method without a complete pinned asset set emits `status=blocked` with
-  `reason_code=not_acquired` or `human_gate`; it must not silently fall back to
+  `reason_code=not_acquired` or `provider_auth_required`; it must not silently fall back to
   another model.
-- Development-cohort apply requires a persisted dry run and explicit token.
+- Development-cohort apply requires a persisted, hash-bound dry run and the
+  standing grant; no per-run token is required.
   Synthetic tests may use deterministic fake adapters without model downloads.
 - Stop and keep P2 open if an acquisition changes license posture, requires
   credentials/privilege, cannot be content-hashed, or if timing/source
@@ -153,7 +181,7 @@ permission, and no-side-effect review.
 | P2A design/readiness audit | delegated read-only reviewer | P1 | gates, installed state, contracts, and validation matrix returned |
 | P2B host seam and no-enhancement baseline | primary | P1 | deterministic fake/no-op adapters and lifecycle tests pass |
 | P2C open candidate acquisition/adapters | primary | P2A-P2B | Silero, DeepFilterNet, and RNNoise revisions/assets are pinned or truthfully `blocked/not_acquired` |
-| P2D gated diarization adapter | primary | P2B plus human gate | pyannote runs from a complete pinned snapshot or records `blocked/human_gate` |
+| P2D gated diarization adapter | primary | P2B plus provider-authenticated Hugging Face access | pyannote runs from a complete pinned snapshot or records `blocked/provider_auth_required` |
 | P2E bounded comparison and review | primary plus delegated reviewer | P2C-P2D | every required real method runs on the approved development cohort and receipt replay has no unresolved blocker |
 
 Intended concurrency is two active agents. The primary owns all writes,
@@ -180,7 +208,7 @@ remaining blocker keeps P2 open.
 - Poor quality, no speech, all speech, overlap, short audio, corrupt/tampered
   evidence, model failure, OOM/timeout, absent assets, and human-gated assets
   fail closed or abstain without fabricated zeros.
-- Apply/replay/rollback are token-gated, idempotent, no-clobber, mode-correct,
+- Apply/replay/rollback are standing-grant governed, idempotent, no-clobber, mode-correct,
   tamper-evident, non-destructive, and prevent revoked-run reuse.
 - Development comparisons cannot read calibration/evaluation splits, reveal
   Plan 0036 predictions, enroll biometrics, score names, or write externally.
@@ -204,6 +232,7 @@ Close only after the real no-enhancement, Silero, DeepFilterNet, RNNoise, and
 pyannote preparation methods all run on the explicitly approved development
 cohort with pinned/hash-verified assets, replayable timing evidence, synthetic
 and bounded development validation, and no unresolved independent-review
-blocker. Any unexecuted required method, including a pending pyannote human
-gate, keeps P2 open. P2B implementation checkpoints may still commit and push
-truthful blocked receipts without claiming the parent comparison complete.
+blocker. Provider-authenticated Hugging Face access remains the unresolved
+pyannote dependency; the operator authorization gate is already satisfied.
+P2B/P2C implementation checkpoints may still commit and push truthful blocked
+receipts without claiming the parent comparison complete.

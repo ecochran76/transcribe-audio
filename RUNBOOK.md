@@ -2,6 +2,68 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 255 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`,
+version 2
+
+Packet: P2C-P2D | Standing authorization and open-candidate execution
+
+State transition: `OPEN/Plan-0037-P2 -> OPEN/Plan-0037-P2`.
+
+- The operator rejected per-run authorization incantations and supplied a
+  blanket grant for the full bounded Plan 0037 scope. Dry-run and content
+  hashes remain audit/integrity evidence, but no P2 acquisition, apply, or
+  rollback token is required.
+- Downloaded pinned Silero VAD 6.2.1, DeepFilterNet/DeepFilterLib 0.5.6,
+  DeepFilterNet3, and signed RNNoise v0.2 artifacts into the private P2 root.
+  Verified published hashes and bound locally computed SHA-256 values
+  `49c52edc...84d2` for DeepFilterNet3 and `90fce4b0...0d37` for RNNoise.
+- Built DeepFilterLib for CPython 3.12 and RNNoise into private runtime paths.
+  Bound every download, model, config, and RNNoise library in immutable
+  acquisition manifest SHA-256
+  `fc28406a6c2a8a84763a238940d0cec29a414e1d7952d74d69c9f597fdbe1d13`.
+  This v2 manifest supersedes the first manifest after source inspection proved
+  Silero opset 16 loads `silero_vad.onnx` (SHA-256 `1a153a22...8e3`), not the
+  initially bound op15 file.
+- Added real host-owned Silero, DeepFilterNet, and RNNoise adapters. They decode
+  PCM directly, keep provider objects out of receipts, preserve full original
+  time, write private content-addressed enhanced WAVs, and require verified
+  model or library hashes before readiness succeeds.
+- Production synthetic run `speech-prep-8bec5774c352cf95296b213b` completed
+  with no-enhancement, DeepFilterNet, and RNNoise successful; Silero truthfully
+  abstained on non-speech tone; pyannote remained unattempted. Replay verified
+  comparison SHA-256
+  `8e18c736cae9535d7a0be37c6042a815a1e1fd56c719289e822a40e3e88921a7`.
+- Ran a deterministic development-only slice: the three shortest frozen
+  development recordings (2,892 seconds total). Calibration/evaluation
+  selected counts remained zero. All 12 open-method attempts succeeded:
+  no-enhancement, Silero, DeepFilterNet, and RNNoise on each recording;
+  Silero measured 184, 248, and 321 speech regions.
+- The second recording exposed DeepFilterNet's unsupported one-shot CUDA GRU
+  path on a 19-minute tensor. One permitted repair changed enhancement to
+  contiguous 60-second chunks with full-length concatenation; the retry and
+  the third 19.5-minute recording then passed. Immutable aggregate receipt
+  SHA-256 is
+  `81aa1b407798409f2b4871f3eb5f0673de540ebab537ee6acb51570e09ce21fc`.
+- Terminal review found enhanced-output replay originally trusted receipt
+  hashes without reopening WAV bytes. The repaired v2 adapters now store
+  outputs at SHA-256-addressed paths and replay requires private containment,
+  `0600` mode, file existence, content-address equality, and byte-hash match.
+  The v3 receipt above supersedes the stale `a7304d...` receipt and binds the
+  corrected Silero manifest plus all regenerated comparisons.
+- Community-1 terms/contact sharing and bounded development processing are
+  covered by the standing grant. The Hugging Face client is unauthenticated
+  with no token, and the cached Community-1 snapshot contains only two PLDA
+  files, so P2D is `blocked/provider_auth_required` pending provider access.
+
+Next:
+
+- Acquire and run Community-1 immediately if provider authentication becomes
+  available, then complete the five-method joined comparison and terminal
+  review. Calibration/evaluation remain sealed.
+
 ## Turn 254 | 2026-07-31
 
 Plan:
@@ -44,12 +106,10 @@ Validation and review:
   installed-state readbacks, official package/release metadata, and the new
   repo fixture controlled.
 
-Next:
+Next (superseded by Turn 255):
 
-- Await the exact persisted
-  `AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:<run-id>:<dry-run-sha256>` token before
-  implementing or executing downloads/builds. Pyannote and development-cohort
-  apply remain separate later gates.
+- The operator replaced the former token gate with standing Plan 0037
+  authorization; Turn 255 records the executed acquisition.
 
 ## Turn 253 | 2026-07-31
 

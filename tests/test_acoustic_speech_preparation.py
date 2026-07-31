@@ -8,6 +8,7 @@ import wave
 from pathlib import Path
 
 import pytest
+import acoustic_speech_preparation as speech_preparation
 
 from acoustic_audio_derivatives import (
     APPLY_TOKEN as P1_APPLY_TOKEN,
@@ -16,6 +17,18 @@ from acoustic_audio_derivatives import (
     resolve_active_derivative,
     sha256_file,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_live_acquisition(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Unit tests must not depend on or execute workstation model assets."""
+    root = tmp_path / "unacquired-model-runtime"
+    monkeypatch.setattr(speech_preparation, "DEFAULT_OPEN_ACQUISITION_ROOT", root)
+    monkeypatch.setattr(
+        speech_preparation,
+        "DEFAULT_OPEN_ACQUISITION_MANIFEST",
+        root / "acquisition-manifest.json",
+    )
 from acoustic_speech_preparation import (
     APPLY_TOKEN,
     METHOD_IDS,
@@ -30,6 +43,8 @@ from acoustic_speech_preparation import (
     replay_open_candidate_acquisition,
     resolve_comparison_lineage_receipt,
     rollback_comparison,
+    _validate_method_result,
+    _write_pcm16_mono,
 )
 
 
@@ -81,12 +96,10 @@ def test_open_candidate_acquisition_dry_run_is_immutable_and_no_download(
     root = tmp_path / "p2c"
     before = readiness_matrix()
     plan = dry_run_open_candidate_acquisition(runtime_root=root)
-    assert plan["status"] == "blocked"
-    assert plan["reason_code"] == "operator_authorization_required"
-    assert plan["required_approval_token"] == (
-        f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{plan['run_id']}:"
-        f"{plan['dry_run_sha256']}"
-    )
+    assert plan["status"] == "success"
+    assert plan["reason_code"] is None
+    assert plan["authorization_basis"] == "operator_blanket_2026-07-31"
+    assert "required_approval_token" not in plan
     assert plan["spec"]["authorization_scope"] == (
         "download_install_build_open_candidates_only"
     )
@@ -113,7 +126,7 @@ def test_open_candidate_acquisition_dry_run_is_immutable_and_no_download(
         runtime_root=root,
     )
     assert replay["dry_run_sha256"] == plan["dry_run_sha256"]
-    assert replay["required_approval_token"] == plan["required_approval_token"]
+    assert replay["authorization_basis"] == plan["authorization_basis"]
     for path in root.rglob("*"):
         expected = 0o700 if path.is_dir() else 0o600
         assert stat.S_IMODE(path.stat().st_mode) == expected
@@ -231,11 +244,55 @@ def test_readiness_uses_normalized_status_and_explicit_reason_codes() -> None:
     assert tuple(matrix) == METHOD_IDS
     assert matrix["no_enhancement"]["status"] == "success"
     assert matrix["silero_vad"]["status"] == "blocked"
-    assert matrix["silero_vad"]["reason_code"] == "not_acquired"
+    assert matrix["silero_vad"]["reason_code"] == "asset_hash_unbound"
     assert matrix["deepfilternet"]["status"] == "blocked"
     assert matrix["rnnoise"]["status"] == "blocked"
     assert matrix["pyannote_community_1"]["status"] == "blocked"
-    assert matrix["pyannote_community_1"]["reason_code"] == "human_gate"
+    assert matrix["pyannote_community_1"]["reason_code"] == "provider_auth_required"
+
+
+def test_enhanced_output_is_content_addressed_and_rehashed(tmp_path: Path) -> None:
+    import torch
+
+    _, p1_root, p1_run_id = make_p1(tmp_path)
+    source = resolve_active_derivative(p1_run_id, runtime_root=p1_root)
+    runtime_root = tmp_path / "private-p2"
+    runtime_root.mkdir(mode=0o700)
+    output_path, output_sha = _write_pcm16_mono(
+        runtime_root / "outputs/deepfilternet-source.wav",
+        torch.zeros((1, 20_000), dtype=torch.float32),
+        16_000,
+    )
+    duration = float(source["derived_audio"]["output_duration_seconds"])
+    result = {
+        "method_id": "deepfilternet",
+        "status": "success",
+        "reason_code": None,
+        "attempted": True,
+        "denominator": 1,
+        "readiness": {"authorization": "verified_acquisition"},
+        "output_artifact_id": "p2-deepfilternet-" + output_sha[:24],
+        "output_sha256": output_sha,
+        "output_path": str(output_path),
+        "timestamp_map": [{
+            "source_start_seconds": 0.0,
+            "source_end_seconds": duration,
+            "output_start_seconds": 0.0,
+            "output_end_seconds": duration,
+        }],
+        "speech_regions": None,
+        "overlap_regions": [],
+        "speaker_change_regions": [],
+        "warnings": [],
+        "abstention_reasons": [],
+    }
+    assert output_path.stem == output_sha
+    assert _validate_method_result(
+        result, source, runtime_root=runtime_root
+    )["output_sha256"] == output_sha
+    output_path.write_bytes(output_path.read_bytes() + b"tamper")
+    with pytest.raises(SpeechPreparationError, match="SHA-256 binding"):
+        _validate_method_result(result, source, runtime_root=runtime_root)
 
 
 def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
@@ -254,16 +311,8 @@ def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
     assert plan["will_process_audio"] is False
     assert plan["will_read_calibration_or_evaluation"] is False
 
-    with pytest.raises(SpeechPreparationError, match="requires token"):
-        apply_comparison(
-            p1_run_id,
-            approval_token="",
-            p1_runtime_root=p1_root,
-            runtime_root=p2_root,
-        )
     applied = apply_comparison(
         p1_run_id,
-        approval_token=f"{APPLY_TOKEN}:{plan['run_id']}",
         p1_runtime_root=p1_root,
         runtime_root=p2_root,
     )
@@ -317,13 +366,8 @@ def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
             runtime_root=p2_root,
         )
 
-    with pytest.raises(SpeechPreparationError, match="requires token"):
-        rollback_comparison(
-            plan["run_id"], approval_token="", runtime_root=p2_root
-        )
     rollback = rollback_comparison(
         plan["run_id"],
-        approval_token=f"{ROLLBACK_TOKEN}:{plan['run_id']}",
         runtime_root=p2_root,
     )
     assert rollback["status"] == "success"
