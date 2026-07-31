@@ -36,6 +36,7 @@ RUN_MANIFEST_SCHEMA = "transcribe-audio.audio-derivative-run.v1"
 APPLY_RECEIPT_SCHEMA = "transcribe-audio.audio-derivative-apply-receipt.v1"
 REPLAY_RECEIPT_SCHEMA = "transcribe-audio.audio-derivative-replay-receipt.v1"
 ROLLBACK_RECEIPT_SCHEMA = "transcribe-audio.audio-derivative-rollback-receipt.v1"
+LINEAGE_RECEIPT_SCHEMA = "transcribe-audio.audio-derivative-lineage.v1"
 APPLY_TOKEN = "APPLY_AUDIO_DERIVATIVE"
 ROLLBACK_TOKEN = "ROLLBACK_AUDIO_DERIVATIVE"
 DEFAULT_RUNTIME_ROOT = Path(
@@ -917,6 +918,72 @@ def resolve_active_derivative(
         "recipe_sha256": manifest["recipe_sha256"],
         "derived_audio_sha256": manifest["derived_audio_sha256"],
         "audio_quality_sha256": manifest["audio_quality_sha256"],
+    }
+
+
+def resolve_derivative_lineage_receipt(
+    run_id: str,
+    *,
+    replay_receipt_sha256: str,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Validate a prior full P1 replay receipt without reopening audio bytes.
+
+    This is a metadata lineage seam for reference registration. A later audio
+    consumer must still call :func:`resolve_active_derivative` before using the
+    derivative.
+    """
+    if not SHA256_RE.fullmatch(replay_receipt_sha256):
+        raise AudioDerivativeError("P1 lineage replay receipt hash is invalid.")
+    root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    paths = _runtime_paths(root, run_id)
+    for path in (
+        paths["manifest"],
+        paths["apply_receipt"],
+        paths["replay_receipt_active"],
+    ):
+        _require_private_file(path, paths["root"])
+    if paths["rollback_receipt"].exists():
+        raise AudioDerivativeError("A rolled-back P1 derivative is not lineage eligible.")
+    if _sha256_file(paths["replay_receipt_active"]) != replay_receipt_sha256:
+        raise AudioDerivativeError("P1 lineage replay receipt hash mismatch.")
+    replay = _read_object(paths["replay_receipt_active"])
+    manifest = _read_object(paths["manifest"])
+    apply_receipt = _read_object(paths["apply_receipt"])
+    manifest_sha = _sha256_file(paths["manifest"])
+    if (
+        replay.get("schema_version") != REPLAY_RECEIPT_SCHEMA
+        or replay.get("run_id") != run_id
+        or replay.get("status") != "verified_active"
+        or replay.get("active") is not True
+        or replay.get("manifest_path") != str(paths["manifest"])
+        or replay.get("manifest_sha256") != manifest_sha
+        or replay.get("source_unchanged") is not True
+        or replay.get("will_perform_external_write") is not False
+        or apply_receipt.get("run_id") != run_id
+        or apply_receipt.get("manifest_sha256") != manifest_sha
+        or manifest.get("run_id") != run_id
+    ):
+        raise AudioDerivativeError("P1 lineage receipt binding mismatch.")
+    source = manifest.get("source") or {}
+    derived = manifest.get("derived_audio") or {}
+    return {
+        "schema_version": LINEAGE_RECEIPT_SCHEMA,
+        "authority": "p1_audio_derivative_replay",
+        "run_id": run_id,
+        "runtime_root": str(paths["root"]),
+        "replay_receipt_path": str(paths["replay_receipt_active"]),
+        "replay_receipt_sha256": replay_receipt_sha256,
+        "manifest_path": str(paths["manifest"]),
+        "manifest_sha256": manifest_sha,
+        "source_blob_id": source.get("source_blob_id"),
+        "source_sha256": source.get("sha256"),
+        "artifact_sha256": derived.get("output_sha256"),
+        "source_duration_seconds": derived.get("source_duration_seconds"),
+        "audio_quality_sha256": manifest.get("audio_quality_sha256"),
+        "timestamp_map_sha256": _canonical_hash(derived.get("timestamp_map")),
+        "validation_status": "verified_active_metadata_receipt",
+        "will_read_audio": False,
     }
 
 

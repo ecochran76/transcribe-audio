@@ -17,7 +17,9 @@ from acoustic_audio_derivatives import (
     dry_run,
     replay_derivative,
     resolve_active_derivative,
+    resolve_derivative_lineage_receipt,
     rollback_derivative,
+    sha256_file,
 )
 
 
@@ -154,6 +156,13 @@ def test_apply_replay_and_rollback_are_content_addressed_and_non_destructive(
     resolved = resolve_active_derivative(plan["run_id"], runtime_root=runtime)
     assert resolved["artifact_sha256"] == derived["output_sha256"]
     assert resolved["manifest_sha256"] == applied["manifest_sha256"]
+    lineage = resolve_derivative_lineage_receipt(
+        plan["run_id"],
+        replay_receipt_sha256=sha256_file(Path(replay["replay_receipt_path"])),
+        runtime_root=runtime,
+    )
+    assert lineage["validation_status"] == "verified_active_metadata_receipt"
+    assert lineage["will_read_audio"] is False
 
     with pytest.raises(AudioDerivativeError, match="approval token"):
         rollback_derivative(plan["run_id"], runtime_root=runtime, approval_token="")
@@ -176,6 +185,12 @@ def test_apply_replay_and_rollback_are_content_addressed_and_non_destructive(
     assert rolled_back_replay["active"] is False
     with pytest.raises(AudioDerivativeError, match="not consumable"):
         resolve_active_derivative(plan["run_id"], runtime_root=runtime)
+    with pytest.raises(AudioDerivativeError, match="not lineage eligible"):
+        resolve_derivative_lineage_receipt(
+            plan["run_id"],
+            replay_receipt_sha256=lineage["replay_receipt_sha256"],
+            runtime_root=runtime,
+        )
     with pytest.raises(AudioDerivativeError, match="cannot be reactivated"):
         apply_derivative(source, runtime_root=runtime, approval_token=APPLY_TOKEN)
 

@@ -35,6 +35,7 @@ COMPARISON_SCHEMA = "transcribe-audio.speech-preparation-comparison.v1"
 APPLY_RECEIPT_SCHEMA = "transcribe-audio.speech-preparation-apply.v1"
 REPLAY_SCHEMA = "transcribe-audio.speech-preparation-replay.v1"
 ROLLBACK_SCHEMA = "transcribe-audio.speech-preparation-rollback.v1"
+LINEAGE_SCHEMA = "transcribe-audio.speech-preparation-lineage.v1"
 APPLY_TOKEN = "APPLY_SPEECH_PREPARATION"
 ROLLBACK_TOKEN = "ROLLBACK_SPEECH_PREPARATION"
 DEFAULT_RUNTIME_ROOT = Path(
@@ -855,6 +856,84 @@ def replay_comparison(
         replay_path, receipt, volatile_fields=("replayed_at",)
     )
     return {**stored, "replay_path": str(replay_path)}
+
+
+def resolve_comparison_lineage_receipt(
+    run_id: str,
+    *,
+    method_id: str,
+    replay_receipt_sha256: str,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Validate prior P2 replay metadata without reopening P1/audio bytes."""
+    if method_id not in METHOD_IDS or not re.fullmatch(
+        r"[a-f0-9]{64}", replay_receipt_sha256
+    ):
+        raise SpeechPreparationError("P2 lineage request is invalid.")
+    root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    paths = _paths(root, run_id)
+    for path in (
+        paths["comparison"],
+        paths["apply_receipt"],
+        paths["replay_active"],
+    ):
+        _private_require(path, paths["root"])
+    if paths["rollback"].exists():
+        raise SpeechPreparationError("A rolled-back P2 run is not lineage eligible.")
+    if sha256_file(paths["replay_active"]) != replay_receipt_sha256:
+        raise SpeechPreparationError("P2 lineage replay receipt hash mismatch.")
+    replay = _private_read(paths["replay_active"])
+    comparison = _private_read(paths["comparison"])
+    apply_receipt = _private_read(paths["apply_receipt"])
+    comparison_sha = sha256_file(paths["comparison"])
+    if (
+        replay.get("schema_version") != REPLAY_SCHEMA
+        or replay.get("run_id") != run_id
+        or replay.get("status") != "success"
+        or replay.get("lifecycle_state") != "verified_active"
+        or replay.get("active") is not True
+        or replay.get("comparison_path") != str(paths["comparison"])
+        or replay.get("comparison_sha256") != comparison_sha
+        or replay.get("will_perform_external_write") is not False
+        or apply_receipt.get("schema_version") != APPLY_RECEIPT_SCHEMA
+        or apply_receipt.get("run_id") != run_id
+        or apply_receipt.get("status") != "success"
+        or apply_receipt.get("lifecycle_state") != "applied"
+        or apply_receipt.get("comparison_sha256") != comparison_sha
+        or comparison.get("run_id") != run_id
+    ):
+        raise SpeechPreparationError("P2 lineage receipt binding mismatch.")
+    result = next(
+        (
+            item
+            for item in comparison.get("method_results") or []
+            if isinstance(item, Mapping) and item.get("method_id") == method_id
+        ),
+        None,
+    )
+    if result is None or result.get("status") != "success":
+        raise SpeechPreparationError("P2 lineage method is not successful.")
+    source = comparison.get("p1_source") or {}
+    return {
+        "schema_version": LINEAGE_SCHEMA,
+        "authority": "p2_speech_preparation_replay",
+        "run_id": run_id,
+        "runtime_root": str(paths["root"]),
+        "method_id": method_id,
+        "replay_receipt_path": str(paths["replay_active"]),
+        "replay_receipt_sha256": replay_receipt_sha256,
+        "comparison_path": str(paths["comparison"]),
+        "comparison_sha256": comparison_sha,
+        "method_result_sha256": canonical_artifact_hash(result),
+        "source_blob_id": source.get("source_blob_id"),
+        "source_sha256": source.get("source_sha256"),
+        "source_duration_seconds": (source.get("derived_audio") or {}).get(
+            "source_duration_seconds"
+        ),
+        "audio_quality_sha256": source.get("audio_quality_sha256"),
+        "validation_status": "verified_active_metadata_receipt",
+        "will_read_audio": False,
+    }
 
 
 def rollback_comparison(

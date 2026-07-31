@@ -211,7 +211,7 @@ timing errors.
 
 ### P3 | Biometric reference library
 
-State: OPEN via Plan 0041.
+State: CLOSED via Plan 0041.
 
 Register only biometric-purpose-approved speaker-segment references with exact
 provenance. Support multiple sessions per opaque person reference and preserve
@@ -219,6 +219,11 @@ session/device/acoustic variation metadata. Add reviewed create, supersede,
 withdraw, and delete operations with audits, CAS, descendant invalidation, and
 restrictive permissions. Do not create embeddings or scoring-eligible profiles
 in P3.
+
+Closed at synthetic maturity `2 - Shadow`: the private reference-only
+authority, mandatory lineage/test-fixture split, immutable lifecycle replay,
+action-specific approvals, deletion tombstones, and independently anchored P4
+descendant invalidation passed terminal review. No real enrollment occurred.
 
 ### P4 | Verification and calibration
 

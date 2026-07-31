@@ -1,6 +1,6 @@
 # Plan 0041 | Plan 0037 P3 biometric reference library
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -77,17 +77,21 @@ replay, concurrency/adversarial tests, privacy proof, and independent review.
 
 ## Current State
 
-P0 froze `biometric_profile.v1` as a model-materialized restricted object: all
-non-deleted profiles require model/preprocessing revisions plus a hashed
-private embedding reference, and `active` means scoring-eligible. That schema
-cannot truthfully represent P3 reference-only registration. No separate
-biometric approval/source-reference schema, immutable generation/head store,
-CAS, resolver, or P3-to-P4 invalidation contract exists.
+The P3 reference-only mechanism is closed at maturity `2 - Shadow` through
+`acoustic_biometric_references.py`. It provides private immutable source
+manifests, biometric-purpose approvals, deterministic action-specific tokens,
+SQLite CAS lifecycle state, exact generation/event/apply replay, withdrawal-
+before-delete, tombstones, and P4 descendant registration/invalidation. P1/P2
+production lineage is mandatory; explicit synthetic fixture authority is
+test-only. Reference objects expose materialization eligibility only and never
+contain embeddings, model outputs, or scoring eligibility.
 
-Existing reviewed speaker/contact assignments establish semantic identity
-evidence only. They lack biometric-specific purpose/consent, complete source
-hashes, exact segment bounds, and acoustic lineage and therefore cannot be
-silently promoted into this library.
+The terminal read-only audit passed after coordinated manifest/tombstone,
+inventory-deletion, receipt-publication interruption, filesystem, lineage,
+token, and independent-P4-authority probes. No real speaker source was
+registered. Existing semantic speaker/contact confirmations remain invalid as
+biometric enrollment authority, and P4 remains the sole owner of materialized
+model profiles and scoring.
 
 Graphiti discovery was healthy and found only advisory Plan 0025 contextual
 speaker-preprocessing facts; those confirm model identity output is
@@ -119,8 +123,9 @@ audio, embeddings, or model asset was inspected.
 - Every segment must be finite, monotonic, positive-duration, bounded by the
   declared source duration, and bound to exact source/recording/conversation
   IDs and hashes. Duplicate or cross-person source use fails closed.
-- P1/P2 lineage, when present, is consumed only as an atomically returned
-  validated host object/receipt. P3 does not reopen media or provider objects.
+- Production sources require P1/P2 lineage consumed only as an atomically
+  returned validated host object/receipt. P3 does not reopen media or provider
+  objects. Synthetic fixtures require an explicit test-only authority object.
 - Dedicated private root containment, `0700` directories, `0600` files,
   non-symlink/non-hard-linked files, canonical hashes, lock ownership, and CAS
   are mandatory. Drift or ambiguity changes no active state.
@@ -192,6 +197,22 @@ repair-and-rerun cycle follows each review; a remaining blocker keeps P3 open.
 - Active planning-contract audit, `python -m py_compile`, `git diff --check`,
   and full repository suite.
 - Reconcile `/root/p1_review_final` terminal report.
+
+Closeout evidence:
+
+- 61 focused P0/P1/P2/P3 and acoustic-identity contract tests passed.
+- 477 repository-wide tests passed.
+- `python -m py_compile` and `git diff --check` passed.
+- Persistent synthetic lifecycle smoke passed at
+  `~/.local/state/transcribe-audio/plan-0037/p3-smoke-final-v2/`: create,
+  materialize/register/promote, supersede/invalidate, withdraw/invalidate,
+  delete/tombstone, and replay. Its 37 files are `0600` and seven governed
+  directories are `0700`.
+- Read-only reviewer `/root/p1_review_final` returned terminal `PASS` with no
+  unresolved P3 privacy, lineage, lifecycle, immutable-history, or P4
+  descendant-authority blocker.
+- No P0/private corpus audio, real source, model, embedding, or provider was
+  read, created, downloaded, or invoked.
 
 ## Terminal condition
 

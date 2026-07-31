@@ -14,6 +14,7 @@ from acoustic_audio_derivatives import (
     apply_derivative,
     dry_run as p1_dry_run,
     resolve_active_derivative,
+    sha256_file,
 )
 from acoustic_speech_preparation import (
     APPLY_TOKEN,
@@ -25,6 +26,7 @@ from acoustic_speech_preparation import (
     dry_run,
     readiness_matrix,
     replay_comparison,
+    resolve_comparison_lineage_receipt,
     rollback_comparison,
 )
 
@@ -190,6 +192,21 @@ def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
     assert active["status"] == "success"
     assert active["lifecycle_state"] == "verified_active"
     assert active["active"] is True
+    lineage = resolve_comparison_lineage_receipt(
+        plan["run_id"],
+        method_id="no_enhancement",
+        replay_receipt_sha256=sha256_file(Path(active["replay_path"])),
+        runtime_root=p2_root,
+    )
+    assert lineage["validation_status"] == "verified_active_metadata_receipt"
+    assert lineage["will_read_audio"] is False
+    with pytest.raises(SpeechPreparationError, match="not successful"):
+        resolve_comparison_lineage_receipt(
+            plan["run_id"],
+            method_id="silero_vad",
+            replay_receipt_sha256=lineage["replay_receipt_sha256"],
+            runtime_root=p2_root,
+        )
 
     with pytest.raises(SpeechPreparationError, match="requires token"):
         rollback_comparison(
@@ -214,6 +231,13 @@ def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
     inactive = replay_comparison(plan["run_id"], runtime_root=p2_root)
     assert inactive["active"] is False
     assert inactive["lifecycle_state"] == "verified_rolled_back"
+    with pytest.raises(SpeechPreparationError, match="not lineage eligible"):
+        resolve_comparison_lineage_receipt(
+            plan["run_id"],
+            method_id="no_enhancement",
+            replay_receipt_sha256=lineage["replay_receipt_sha256"],
+            runtime_root=p2_root,
+        )
     with pytest.raises(SpeechPreparationError, match="cannot be reactivated"):
         apply_comparison(
             p1_run_id,

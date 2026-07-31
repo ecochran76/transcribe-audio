@@ -2,6 +2,58 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 253 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`,
+version 2
+
+Packet: P3 | Biometric reference library
+
+State transition: `OPEN/Plan-0037-P3 -> CLOSED/Plan-0037-P3`.
+
+- Added `acoustic_biometric_references.py`, a private reference-only authority
+  that stores opaque identities, exact original-time source segments,
+  biometric-purpose approvals, immutable generations/events, source claims,
+  action-specific approval tokens, CAS heads, and minimized deletion
+  tombstones without reading audio or creating scoring profiles.
+- Added metadata-only P1/P2 lineage resolvers. Production sources must bind
+  replay-validated source hash, original duration, quality evidence, and
+  derivative/comparison receipts; synthetic inputs require explicit test-only
+  fixture authority and cannot enter production mode.
+- Added immutable run-local source manifests, staged-before-commit and
+  authoritative-after-commit receipt publication with recovery, append-only
+  inventory checks, exact schema replay, coordinated manifest/tombstone tamper
+  detection, and filesystem-read-only public eligibility queries.
+- Added an independent P4 authority contract for materialization, promotion,
+  and invalidation receipts. Withdrawal is required before deleting a profile
+  with descendants, and deletion blocks until every invalidation is
+  acknowledged.
+- Kept the P3/P4 boundary exact: P3 exposes only
+  `eligible_for_materialization`; P4 exclusively owns embeddings, dispersion,
+  calibration, scoring, and `biometric_profile.v1`.
+
+Validation and review:
+
+- 61 focused acoustic P0/P1/P2/P3 and identity-contract tests passed.
+- The full repository suite passed with 477 tests.
+- `python -m py_compile` and `git diff --check` passed.
+- Persistent synthetic smoke root:
+  `~/.local/state/transcribe-audio/plan-0037/p3-smoke-final-v2/`; create,
+  register/promote, supersede/invalidate, withdraw/invalidate,
+  delete/tombstone, and replay passed. All 37 files are `0600`; all seven
+  governed directories are `0700`.
+- Reused read-only reviewer `/root/p1_review_final` returned terminal `PASS`
+  after three bounded repair audits. No private corpus/audio/model/embedding
+  asset was accessed and no real source was enrolled.
+
+Next:
+
+- Keep P4 blocked until P2 supplies an approved successful preparation method
+  and acquisition/development-cohort gates are explicitly satisfied. Advance
+  the next independent Plan 0037 lane only if its dependencies do not cross
+  those gates.
+
 ## Turn 252 | 2026-07-31
 
 Plan:
