@@ -185,6 +185,8 @@ usable-duration conditions. Keep all source and evaluation artifacts private.
 
 ### P1 | Audio derivatives and quality
 
+State: CLOSED via Plan 0039. P2 is next.
+
 Create a deep module that decodes audio, records channel policy, computes
 quality measures, and writes content-addressed derived artifacts. Preserve an
 exact timestamp map to the original recording. Provide deterministic dry-run,

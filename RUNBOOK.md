@@ -2,6 +2,64 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 250 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0039-2026-07-31-plan-0037-p1-audio-derivatives-quality.md`,
+version 1
+
+Packet: P1 | Audio derivatives and quality
+
+State transition: `OPEN/Plan-0037-P1 -> CLOSED/Plan-0037-P1`.
+
+- Added a private audio-derivative module with source blob/hash binding,
+  resolved `ffmpeg`/`ffprobe` paths and full versions, a canonical no-shell
+  decode recipe, mono-only policy, 16 kHz signed-16 PCM output, and bounded
+  execution.
+- Added no-clobber content-addressed publication, full source-to-output
+  timestamp coverage, deterministic peak/RMS/DC/clipping/exact-zero-silence
+  measures, and explicit `usable_speech_not_assessed_until_p2` abstention.
+- Dry-run, apply, replay, and rollback now enforce exact tokens, immutable
+  evidence bindings, source preservation, runtime containment, symlink
+  rejection, `0600` files, `0700` directories, idempotence, and revocation.
+  Rollback deletes nothing and a revoked run cannot reactivate.
+- Kept VAD, enhancement, diarization, biometric models, enrollment, frozen
+  corpus processing, App Intelligence, and provider writes outside P1.
+
+Terminal synthetic smoke:
+
+- Root:
+  `/home/ecochran76/.local/state/transcribe-audio/plan-0037/p1-smoke-terminal`.
+- Run: `audio-run-7895c2d83afd287f79855eaa`; manifest SHA-256:
+  `696b02837b9c12877263dab493661cc668ab73c6bc6742ac97664bca3f147299`.
+- Source/output SHA-256:
+  `6eb50df72cf53112487c47897be623c1a867fa4aef8b6855ffb74b614f174d32`
+  and
+  `4c1a1a10f5ccc84fbb302bece43de92db4c71c02ef93c0d10ddce7e87bad05fe`.
+- Apply, repeated apply, active replay, rollback, repeated rollback, and
+  inactive replay passed. The map was 2.0 seconds to 2.0 seconds with zero
+  drift. The source stayed unchanged; the retained run is inactive.
+- All 11 retained files are `0600`; all 7 directories are `0700`.
+
+Validation and review:
+
+- 30 focused contract/audio-derivative tests passed.
+- 146 joined artifact/store, evaluation, identity-preparation, and workflow
+  tests passed.
+- Full suite: 446 passed.
+- Active planning audit and `git diff --check` passed.
+- Graphiti terminal readback was healthy and returned only advisory generic
+  repo-planning facts; current repo authorities and runtime evidence controlled.
+- Read-only reviewer `/root/p1_review_final` returned PASS after independent
+  synthetic-smoke replay and adversarial permission, tamper, reuse, and
+  rollback checks. No frozen private corpus material was inspected.
+
+Next:
+
+- Derive and execute Plan 0037 P2 for bounded VAD, enhancement, and
+  diarization-preparation comparison without processing the frozen corpus by
+  default.
+
 ## Turn 249 | 2026-07-31
 
 Plans:
