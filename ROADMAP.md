@@ -418,8 +418,10 @@ full timestamp identity maps, and fail-closed lifecycle receipts. Plan 0040
 P2B now has a reviewed host seam and no-enhancement baseline; its real Silero,
 DeepFilterNet, RNNoise, pyannote, and development-cohort comparisons remain
 blocked behind acquisition and human gates, so usable speech and acoustic
-conditions remain unassessed pending P2. No calibrated
-verification model, durable enrollment library, or historical reprocessing
+conditions remain unassessed pending P2. Plan 0041 P3 is open for a distinct
+operator-approved reference-only authority; model-specific profile
+materialization remains P4. No calibrated verification model, durable
+reference library, or historical reprocessing
 workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
 gold reviews.
 
@@ -429,6 +431,7 @@ Plans:
 - `docs/dev/plans/0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md`
 - `docs/dev/plans/0039-2026-07-31-plan-0037-p1-audio-derivatives-quality.md`
 - `docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`
+- `docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`
 
 Research:
 

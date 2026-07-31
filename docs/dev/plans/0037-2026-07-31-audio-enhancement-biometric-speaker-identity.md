@@ -132,10 +132,14 @@ The original blob remains authoritative. Each derived track records its source
 hash, recipe, model revisions, parameters, timestamps, output hash, and
 creation audit. Timestamp maps must preserve citations to the original audio.
 
-Store biometric profiles under the private user-scoped runtime root. Files and
-database rows must use restrictive permissions. A profile records confirmed
-source segments, embedding model and preprocessing revisions, quality,
-session diversity, aggregate representation, dispersion, and lifecycle audit.
+Store reference registrations and materialized biometric profiles under
+separate private user-scoped runtime roots. P3 reference generations record
+biometric-purpose approval, confirmed source segments, quality, session
+diversity, lifecycle, and descendant invalidation without embeddings or
+scoring eligibility. P4 profiles bind an immutable P3 generation and add exact
+embedding model/preprocessing revisions, private aggregate representation,
+dispersion, calibration eligibility, and lifecycle audit. Files and database
+rows use restrictive permissions.
 
 Portable sidecars may store derived scores, confidence bands, evidence IDs,
 model revisions, quality summaries, and reference-profile IDs. They must not
@@ -156,14 +160,15 @@ inside it.
 | P0 | Freeze contracts and evaluation corpus | None | plan, schemas, private manifests, tests | Reviewed storage, privacy, benchmark, and model-license inventory |
 | P1 | Build immutable audio-derivative and quality module | P0 | focused audio module, artifact schema, tests | Original-to-derived replay and timestamp mapping pass |
 | P2 | Add VAD, enhancement, and diarization preparation | P1 | internal adapters and tests | No-enhancement, Silero, DeepFilterNet, RNNoise, and diarization comparison receipt |
-| P3 | Add private biometric enrollment library | P0, P1 | user-scoped store module, migrations, review interfaces, tests | Reviewed enrollment, supersession, withdrawal, deletion, and permissions pass |
-| P4 | Run verification model bake-off and calibration | P2, P3 | model adapters, evaluation runner, private results | One selected or rejected model decision with exact metrics |
+| P3 | Add private biometric reference authority | P0, P1 | user-scoped reference store, approval/lifecycle interfaces, tests | Reviewed reference registration, supersession, withdrawal, deletion, CAS, and permissions pass |
+| P4 | Materialize profiles and run verification calibration | P2, P3 | model adapters, profile materializer, evaluation runner, private results | One selected or rejected model decision with exact metrics |
 | P5 | Integrate bounded acoustic evidence | P4 | speaker preprocessing and workflow modules, sidecar schema, tests | Host validation, abstention, and no-raw-biometric prompt proof pass |
 | P6 | Reprocess a staged historical cohort | P5 | reprocessing workflow and private manifests | Dry run, reviewed apply, idempotent replay, and rollback pass |
 | P7 | Measure identity effect and resume context path | P6 | evaluation artifacts and planning authorities | Blind comparison decides accept, refine, reject, or stop |
 
 P2 model comparisons can run independently after P1, but P4 is the join.
-P3 owns biometric authority and must complete before any named-person scoring.
+P3 owns reference authority; P4 alone owns embeddings, scoring profiles, and
+calibrated named-person scoring. P3 must complete before P4 materialization.
 No parallel work may share live enrollment or reprocessing write surfaces.
 
 ## Packet details
@@ -206,14 +211,19 @@ timing errors.
 
 ### P3 | Biometric reference library
 
-Enroll only operator-confirmed speaker segments with provenance. Support
-multiple sessions per person and retain within-person variation rather than
-one unexplained centroid. Add reviewed create, supersede, withdraw, and delete
-operations with audits and restrictive permissions.
+State: OPEN via Plan 0041.
+
+Register only biometric-purpose-approved speaker-segment references with exact
+provenance. Support multiple sessions per opaque person reference and preserve
+session/device/acoustic variation metadata. Add reviewed create, supersede,
+withdraw, and delete operations with audits, CAS, descendant invalidation, and
+restrictive permissions. Do not create embeddings or scoring-eligible profiles
+in P3.
 
 ### P4 | Verification and calibration
 
-Benchmark SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and one WeSpeaker ResNet or
+Materialize model-specific profiles from immutable eligible P3 reference
+generations. Benchmark SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and one WeSpeaker ResNet or
 ECAPA checkpoint. Add NVIDIA TitaNet only if the first comparison leaves a
 specific quality or deployment question unanswered.
 

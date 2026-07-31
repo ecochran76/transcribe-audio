@@ -2,6 +2,46 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 252 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`,
+version 2
+
+Packet: P3 | Biometric reference library
+
+State transition: `NOT-STARTED/Plan-0037-P3 -> OPEN/Plan-0037-P3`.
+
+- Opened P3 after the pushed P2B checkpoint because P3 depends on P0/P1 and
+  can advance without crossing P2 model-acquisition or pyannote human gates.
+- Scoped P3 to a restricted user-scoped reference store and synthetic
+  lifecycle proof. No P0 corpus audio, real source registration, embeddings,
+  named-person
+  scoring, model acquisition, or external write is authorized.
+- The design audit found the frozen P0 `biometric_profile.v1` cannot represent
+  reference-only state: every non-deleted object requires model/preprocessing
+  revisions and a private embedding, while active means scoring-eligible.
+- Revised Plan 0041 to version 2 with a distinct
+  `biometric-reference-profile.v1` authority. P3 owns biometric-purpose
+  approval, source references, immutable generations, CAS, lifecycle, and P4
+  descendant invalidation; P4 alone owns embeddings, dispersion,
+  materialized scoring profiles, and calibration.
+- Graphiti runtime and MCP were healthy. Repo group `transcribe_audio_main`
+  returned advisory Plan 0025 facts that model speaker output is human-review
+  only; current Plan 0037, P0 contracts, source, and tests control.
+- CodeGraph showed the frozen scoring-profile validator and confirmed that no
+  distinct reference schema, durable generation/head store, biometric-purpose
+  approval, CAS, resolver, or P3-to-P4 invalidation contract exists.
+- Reused read-only reviewer `/root/p1_review_final` for one P3 design report
+  and the later terminal audit. The primary owns every edit and synthetic
+  private artifact.
+
+Next:
+
+- Implement the private synthetic reference create/replay/supersede/withdraw/
+  delete lifecycle, descendant invalidation contract, CAS, and adversarial
+  tests.
+
 ## Turn 251 | 2026-07-31
 
 Plan:
