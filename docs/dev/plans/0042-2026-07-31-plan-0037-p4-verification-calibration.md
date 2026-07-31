@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 4
+Plan Version: 5
 
 Parent: Plan 0037 P4
 
@@ -330,3 +330,39 @@ State: CLOSED with a truthful blocker; real enrollment apply remains gated.
 - P4D development remains dependency-blocked until an exact reviewed real
   enrollment manifest names approved P3 generations and an explicit biometric
   enrollment apply authority permits audio access and profile materialization.
+
+## P4C candidate-proposal checkpoint
+
+State: CLOSED with a truthful blocker; exact timestamp candidates cannot be
+proposed until current transcript artifacts receive operator review.
+
+- Added a content-addressed, metadata-only
+  `transcribe-audio.biometric-enrollment-candidate-proposal.v1` builder and
+  semantic replay. It consumes the exact frozen development split/P0 corpus,
+  the hash-verified P2 v5 joined receipt, replay-validated no-enhancement
+  lineage, transcript artifacts that exactly match the frozen reviewed hashes,
+  frozen operator-gold person rows, and Pyannote Community-1
+  speech/overlap/change metadata.
+- Candidate windows are selected without opening audio: transcript millisecond
+  bounds are intersected with P2 speech regions, overlap and speaker-change
+  regions are removed, windows are bounded to 0.75-15 seconds and three per
+  conversation after every same-person label is grouped, and candidates
+  require at least two conversations. Existing gold supplies candidate
+  identity evidence only; the proposal explicitly sets biometric authorization
+  false and requires a separate exact apply manifest.
+- Live semantic replay excluded two of the three selected recordings because
+  their current transcript hashes differ from the artifacts reviewed for the
+  frozen operator gold. The one exact reviewed/current recording cannot supply
+  a multi-session candidate, so the proposal is `blocked` with zero candidates.
+  Canonical proposal SHA-256 is
+  `9bf0bcc08b2855ffaa1413d61d8015af4ed529ed712e8c6c7334f3b3b43bf2ce`;
+  the private artifact is `0600`. No transcript text, audio, name/email,
+  embedding/vector, P3 mutation, model inference, trial, or external write was
+  persisted or performed.
+- The next human evidence gate is operator review of the two changed current
+  transcript artifacts, including speaker labels and timestamp structure.
+  Candidate/source-set approval remains a later distinct biometric-purpose
+  decision. The canonical P3 store remains absent and P4D remains blocked.
+- Validation: 61 focused P3/P4 tests and 528 full repository tests passed;
+  `py_compile` and `git diff --check` passed. Independent checkpoint audit is
+  pending.

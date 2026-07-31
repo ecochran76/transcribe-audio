@@ -2,6 +2,44 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 260 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 5
+
+Packet: P4C | Metadata-only candidate enrollment proposal
+
+State transition: `OPEN/Plan-0037-P4C-CANDIDATES -> CLOSED/Plan-0037-P4C-CANDIDATES`.
+
+- Replayed the exact frozen development split/P0 manifest, P2 v5 joined
+  receipt, no-enhancement lineage, frozen reviewed/current transcript artifact
+  hashes, operator-gold person rows, and Pyannote speech/overlap/change metadata
+  without opening audio or retaining transcript text.
+- Added a deterministic private candidate-proposal contract. Windows are
+  development-only, non-overlapped, outside speaker-change regions, 0.75-15
+  seconds, capped at three per person/conversation after all labels are grouped,
+  and require at least two conversations per candidate. P3 source-set
+  validation replays every proposed production lineage receipt.
+- Live proposal SHA-256
+  `9bf0bcc08b2855ffaa1413d61d8015af4ed529ed712e8c6c7334f3b3b43bf2ce`
+  is truthfully `blocked`: two of three selected current transcript artifacts
+  differ from their frozen operator-reviewed hashes, and the one exact record
+  cannot supply a multi-session candidate. The `0600` artifact is explicitly
+  non-authorizing and contains zero candidates, transcript text, raw biometric
+  values, or enrollment audio.
+- No P3 store/reference, profile, embedding, model inference, trial,
+  calibration/evaluation read, or external write occurred.
+- Validation: 61 focused P3/P4 tests and 528 full repository tests passed;
+  compilation and diff checks passed. Read-only checkpoint audit is pending.
+
+Next:
+
+- Independently audit and commit/push the candidate proposal. The next human
+  evidence gate is review of the two changed current transcript artifacts;
+  exact candidate/source-set approval remains a later biometric-purpose gate.
+  Calibration and evaluation remain sealed.
+
 ## Turn 259 | 2026-07-31
 
 Plan:

@@ -13,10 +13,12 @@ from acoustic_verification import (
     AcousticVerificationError,
     FakeVerificationAdapter,
     adapter_registry,
+    build_real_enrollment_candidate_proposal,
     build_real_enrollment_preview,
     cosine_score,
     dry_run_model_acquisition,
     replay_model_acquisition,
+    replay_real_enrollment_candidate_proposal,
     replay_real_enrollment_preview,
     materialize_profile,
     delete_profile,
@@ -122,6 +124,212 @@ def split_authority(
         conversation_set_sha,
     )
     return policy_path, parent
+
+
+def candidate_proposal_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    same_subject: bool = True,
+    multiple_labels_same_subject: bool = False,
+    reviewed_matches_current: bool = True,
+) -> tuple[Path, Path, Path]:
+    records = []
+    selected = []
+    lineage_by_run = {}
+    for index in (1, 2):
+        recording_id = f"recording-00{index}"
+        conversation_id = f"conversation-00{index}"
+        run_id = f"speech-prep-test-{index:03d}"
+        transcript_path = tmp_path / "transcripts" / f"{recording_id}.json"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.parent.chmod(0o700)
+        transcript = {
+            "schema_version": 2,
+            "recording_id": recording_id,
+            "conversation_id": conversation_id,
+            "utterances": [
+                {"speaker": "A", "start": 1000, "end": 3000},
+                {"speaker": "A", "start": 4000, "end": 6000},
+                {"speaker": "A", "start": 7000, "end": 9000},
+                *(
+                    [
+                        {"speaker": "B", "start": 1500, "end": 3500},
+                        {"speaker": "B", "start": 4500, "end": 6500},
+                        {"speaker": "B", "start": 9250, "end": 10000},
+                    ]
+                    if multiple_labels_same_subject
+                    else []
+                ),
+            ],
+        }
+        transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+        transcript_path.chmod(0o600)
+        transcript_sha = hashlib.sha256(transcript_path.read_bytes()).hexdigest()
+        subject = "subject-review-001" if same_subject else f"subject-review-00{index}"
+        record = {
+            "recording_id": recording_id,
+            "conversation_id": conversation_id,
+            "split": "development",
+            "conditions": {
+                "channel": "mono",
+                "device": "synthetic-metadata",
+                "noise": "low",
+                "overlap": "none",
+                "telephone_bandwidth": "false",
+                "usable_duration_band": "short",
+            },
+            "transcript_lineage": {
+                "current_artifact_path": str(transcript_path),
+                "current_artifact_sha256": transcript_sha,
+                "reviewed_artifact_sha256": (
+                    transcript_sha if reviewed_matches_current else "0" * 64
+                ),
+            },
+            "operator_gold": {
+                "gold_id": f"gold-00{index}",
+                "prediction_visibility": "sealed",
+                "review_method": "synthetic-test",
+                "reviewed_at": "2026-07-31T12:00:00Z",
+                "same_person_label_groups": [],
+                "speaker_truth": [
+                    {
+                        "outcome": "person",
+                        "speaker_label": "A",
+                        "subject_id": subject,
+                    },
+                    *(
+                        [
+                            {
+                                "outcome": "person",
+                                "speaker_label": "B",
+                                "subject_id": subject,
+                            }
+                        ]
+                        if multiple_labels_same_subject
+                        else []
+                    ),
+                ],
+            },
+        }
+        records.append(record)
+        comparison_path = (
+            tmp_path / "p2" / f"unit-{index}" / "runs" / run_id / "comparison.json"
+        )
+        comparison_path.parent.mkdir(parents=True, exist_ok=True)
+        comparison_path.parent.chmod(0o700)
+        comparison = {
+            "method_results": [
+                {
+                    "method_id": "pyannote_community_1",
+                    "status": "success",
+                    "speech_regions": [{"start_seconds": 0.0, "end_seconds": 10.0}],
+                    "overlap_regions": [],
+                    "speaker_change_regions": [],
+                }
+            ]
+        }
+        comparison_path.write_text(json.dumps(comparison), encoding="utf-8")
+        comparison_path.chmod(0o600)
+        comparison_sha = hashlib.sha256(comparison_path.read_bytes()).hexdigest()
+        replay_sha = ("a" if index == 1 else "b") * 64
+        selected.append(
+            {
+                "recording_id": recording_id,
+                "split": "development",
+                "comparison_path": str(comparison_path),
+                "comparison_sha256": comparison_sha,
+                "p2_run_id": run_id,
+                "replay_sha256": replay_sha,
+            }
+        )
+        lineage_by_run[run_id] = {
+            "schema_version": "transcribe-audio.speech-preparation-lineage.v1",
+            "authority": "p2_speech_preparation_replay",
+            "run_id": run_id,
+            "runtime_root": str(comparison_path.parents[2]),
+            "method_id": "no_enhancement",
+            "replay_receipt_path": str(comparison_path.parents[2] / "replay.json"),
+            "replay_receipt_sha256": replay_sha,
+            "comparison_path": str(comparison_path),
+            "comparison_sha256": comparison_sha,
+            "method_result_sha256": ("c" if index == 1 else "d") * 64,
+            "source_blob_id": f"source-blob-00{index}",
+            "source_sha256": ("e" if index == 1 else "f") * 64,
+            "source_duration_seconds": 20.0,
+            "audio_quality_sha256": ("1" if index == 1 else "2") * 64,
+            "validation_status": "verified_active_metadata_receipt",
+            "will_read_audio": False,
+        }
+    parent = tmp_path / "candidate-parent.json"
+    parent.write_text(json.dumps({"recordings": records}), encoding="utf-8")
+    parent.chmod(0o600)
+    parent_sha = hashlib.sha256(parent.read_bytes()).hexdigest()
+    record_set_sha = verification.canonical_artifact_hash(records)
+    conversation_set_sha = verification.canonical_artifact_hash(
+        sorted(record["conversation_id"] for record in records)
+    )
+    policy = {
+        "schema_version": "transcribe-audio.verification-split-access-policy.v1",
+        "parent_corpus_manifest_sha256": parent_sha,
+        "splits": {
+            "development": {
+                "recording_count": 2,
+                "conversation_count": 2,
+                "record_set_sha256": record_set_sha,
+                "conversation_set_sha256": conversation_set_sha,
+                "authorization_state": "authorized_by_operator_blanket_2026-07-31",
+            }
+        },
+    }
+    policy_path = tmp_path / "candidate-policy.json"
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+    joined = {
+        "schema_version": "transcribe-audio.speech-preparation-development-comparison.v2",
+        "status": "success",
+        "corpus_manifest_sha256": parent_sha,
+        "selected_recordings": selected,
+        "will_run_biometrics": False,
+        "will_read_calibration_or_evaluation": False,
+        "will_perform_external_write": False,
+    }
+    joined_path = tmp_path / "joined-development.json"
+    joined_path.write_text(json.dumps(joined), encoding="utf-8")
+    joined_path.chmod(0o600)
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_SPLIT_ACCESS_POLICY_SHA256",
+        hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(
+        verification, "EXPECTED_PARENT_CORPUS_MANIFEST_SHA256", parent_sha
+    )
+    monkeypatch.setattr(
+        verification, "EXPECTED_DEVELOPMENT_RECORD_SET_SHA256", record_set_sha
+    )
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256",
+        conversation_set_sha,
+    )
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256",
+        hashlib.sha256(joined_path.read_bytes()).hexdigest(),
+    )
+
+    def fake_lineage(run_id: str, **kwargs) -> dict:
+        expected = lineage_by_run[run_id]
+        assert kwargs["method_id"] == "no_enhancement"
+        assert kwargs["replay_receipt_sha256"] == expected["replay_receipt_sha256"]
+        return dict(expected)
+
+    monkeypatch.setattr(verification, "resolve_comparison_lineage_receipt", fake_lineage)
+    monkeypatch.setattr(
+        "acoustic_biometric_references.resolve_comparison_lineage_receipt",
+        fake_lineage,
+    )
+    return policy_path, parent, joined_path
 
 
 def test_real_enrollment_preview_persists_truthful_no_store_blocker(
@@ -301,6 +509,168 @@ def test_real_enrollment_preview_replay_rejects_forged_reason_semantics(
         replay_real_enrollment_preview(
             forged_sha, runtime_root=root, split_policy_path=policy,
             parent_corpus_manifest_path=parent,
+        )
+
+
+def test_candidate_enrollment_proposal_is_exact_private_and_non_authorizing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(monkeypatch, tmp_path)
+    root = tmp_path / "p4"
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    )
+
+    assert proposal["status"] == "ready_for_operator_review"
+    assert proposal["biometric_enrollment_authorized"] is False
+    assert proposal["proposal_only"] is True
+    assert proposal["denominators"] == {
+        "selected_development_recordings": 2,
+        "reviewed_artifact_lineage_exclusions": 0,
+        "eligible_reviewed_artifact_recordings": 2,
+        "person_rows_considered": 2,
+        "candidate_people": 1,
+        "candidate_sessions": 2,
+        "candidate_windows": 6,
+    }
+    candidate = proposal["candidates"][0]
+    assert candidate["person_ref_id"] == "subject-review-001"
+    assert candidate["session_count"] == 2
+    assert candidate["window_count"] == 6
+    assert candidate["operator_decision_required"] is True
+    assert all(
+        source["lineage"]["will_read_audio"] is False
+        for source in candidate["proposed_sources"]
+    )
+    assert replay_real_enrollment_candidate_proposal(
+        proposal["proposal_sha256"],
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    ) == proposal
+    assert stat.S_IMODE(Path(proposal["private_proposal_path"]).stat().st_mode) == 0o600
+
+
+def test_candidate_enrollment_proposal_caps_multiple_labels_per_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(
+        monkeypatch, tmp_path, multiple_labels_same_subject=True
+    )
+    root = tmp_path / "p4"
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    )
+    candidate = proposal["candidates"][0]
+    assert candidate["window_count"] == 6
+    for session_id in {item["session_id"] for item in candidate["proposed_sources"]}:
+        session_sources = [
+            item for item in candidate["proposed_sources"]
+            if item["session_id"] == session_id
+        ]
+        assert len(session_sources) == 3
+        assert all(
+            left["end_seconds"] <= right["start_seconds"]
+            or right["end_seconds"] <= left["start_seconds"]
+            for index, left in enumerate(session_sources)
+            for right in session_sources[index + 1:]
+        )
+    assert replay_real_enrollment_candidate_proposal(
+        proposal["proposal_sha256"],
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    ) == proposal
+
+
+def test_candidate_enrollment_proposal_blocks_reviewed_artifact_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(
+        monkeypatch, tmp_path, reviewed_matches_current=False
+    )
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=tmp_path / "p4",
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    )
+    assert proposal["status"] == "blocked"
+    assert proposal["reason_codes"] == [
+        "reviewed_artifact_lineage_drift",
+        "no_multi_session_clean_candidates",
+    ]
+    assert proposal["denominators"]["reviewed_artifact_lineage_exclusions"] == 2
+    assert proposal["denominators"]["eligible_reviewed_artifact_recordings"] == 0
+    assert proposal["candidates"] == []
+
+
+def test_candidate_enrollment_proposal_blocks_single_session_people(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(
+        monkeypatch, tmp_path, same_subject=False
+    )
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=tmp_path / "p4",
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    )
+    assert proposal["status"] == "blocked"
+    assert proposal["reason_codes"] == ["no_multi_session_clean_candidates"]
+    assert proposal["candidates"] == []
+
+
+def test_candidate_enrollment_proposal_replay_rejects_source_or_receipt_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(monkeypatch, tmp_path)
+    root = tmp_path / "p4"
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+    )
+    forged = {
+        key: value for key, value in proposal.items()
+        if key not in {"proposal_sha256", "private_proposal_path"}
+    }
+    forged["biometric_enrollment_authorized"] = True
+    forged_sha = verification.canonical_artifact_hash(forged)
+    verification.write_immutable_private_json(
+        root / "enrollment-proposals" / f"{forged_sha}.json", forged
+    )
+    with pytest.raises(AcousticVerificationError, match="proposal replay"):
+        replay_real_enrollment_candidate_proposal(
+            forged_sha,
+            runtime_root=root,
+            split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+            development_comparison_receipt_path=joined,
+        )
+
+    transcript_path = next((tmp_path / "transcripts").glob("*.json"))
+    transcript_path.write_text(
+        transcript_path.read_text(encoding="utf-8") + " ", encoding="utf-8"
+    )
+    transcript_path.chmod(0o600)
+    with pytest.raises(AcousticVerificationError, match="Transcript artifact hash"):
+        replay_real_enrollment_candidate_proposal(
+            proposal["proposal_sha256"],
+            runtime_root=root,
+            split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+            development_comparison_receipt_path=joined,
         )
 
 

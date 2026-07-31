@@ -39,6 +39,11 @@ from acoustic_biometric_references import (
     register_descendant,
     request_descendant_invalidation,
     resolve_eligible_reference,
+    source_set_sha256,
+)
+from acoustic_speech_preparation import (
+    SpeechPreparationError,
+    resolve_comparison_lineage_receipt,
 )
 
 
@@ -757,6 +762,16 @@ EXPECTED_DEVELOPMENT_RECORD_SET_SHA256 = (
 EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256 = (
     "b767b9b1e5167c1b13a01fb0e1c4add4dd1323e983e1df8708e5e9dcd379436c"
 )
+ENROLLMENT_CANDIDATE_PROPOSAL_SCHEMA = (
+    "transcribe-audio.biometric-enrollment-candidate-proposal.v1"
+)
+DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT = Path(
+    "~/.local/state/transcribe-audio/plan-0037/speech-preparation/"
+    "development-comparison-20260731-v5/development-comparison.json"
+)
+EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256 = (
+    "0b3c68a31cbf7bc7f80d5302a52c8c7630414ca198cef78223b63baedbfd0ac3"
+)
 _PREVIEW_REASON_CODES = {
     "p3_reference_store_unavailable",
     "no_requested_people",
@@ -840,6 +855,7 @@ def _development_split_authority(
         raise AcousticVerificationError("Development split membership drifted.")
     return {
         "recording_conversation_pairs": set(zip(recording_ids, conversation_ids)),
+        "development_records": selected,
         "split_access_policy_sha256": EXPECTED_SPLIT_ACCESS_POLICY_SHA256,
         "parent_corpus_manifest_sha256": EXPECTED_PARENT_CORPUS_MANIFEST_SHA256,
         "development_record_set_sha256": EXPECTED_DEVELOPMENT_RECORD_SET_SHA256,
@@ -1196,6 +1212,493 @@ def replay_real_enrollment_preview(
         **preview,
         "preview_sha256": preview_sha256,
         "private_preview_path": str(path),
+    }
+
+
+def _subtract_intervals(
+    intervals: Sequence[tuple[float, float]],
+    blocked: Sequence[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    result: list[tuple[float, float]] = []
+    for start, end in intervals:
+        parts = [(start, end)]
+        for blocked_start, blocked_end in blocked:
+            retained: list[tuple[float, float]] = []
+            for part_start, part_end in parts:
+                if blocked_end <= part_start or blocked_start >= part_end:
+                    retained.append((part_start, part_end))
+                    continue
+                if part_start < blocked_start:
+                    retained.append((part_start, blocked_start))
+                if blocked_end < part_end:
+                    retained.append((blocked_end, part_end))
+            parts = retained
+        result.extend(parts)
+    return result
+
+
+def _candidate_windows(
+    utterances: Any,
+    *,
+    speaker_label: Any,
+    speech_regions: Any,
+    blocked_regions: Any,
+) -> list[tuple[float, float]]:
+    if not isinstance(utterances, list) or not isinstance(speaker_label, str):
+        raise AcousticVerificationError("Candidate transcript metadata is invalid.")
+    if not isinstance(speech_regions, list) or not isinstance(blocked_regions, list):
+        raise AcousticVerificationError("Candidate preparation regions are invalid.")
+    speech = [
+        (float(item["start_seconds"]), float(item["end_seconds"]))
+        for item in speech_regions
+        if isinstance(item, Mapping)
+    ]
+    blocked = [
+        (float(item["start_seconds"]), float(item["end_seconds"]))
+        for item in blocked_regions
+        if isinstance(item, Mapping)
+    ]
+    if not speech or any(
+        not math.isfinite(value) or start < 0 or end <= start
+        for start, end in (*speech, *blocked)
+        for value in (start, end)
+    ):
+        raise AcousticVerificationError("Candidate preparation regions are invalid.")
+    spans: list[tuple[float, float]] = []
+    for utterance in utterances:
+        if not isinstance(utterance, Mapping) or utterance.get("speaker") != speaker_label:
+            continue
+        try:
+            if isinstance(utterance.get("start"), bool) or isinstance(
+                utterance.get("end"), bool
+            ):
+                raise TypeError
+            start = float(utterance["start"]) / 1000.0
+            end = float(utterance["end"]) / 1000.0
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AcousticVerificationError(
+                "Candidate utterance timestamps are invalid."
+            ) from exc
+        if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+            raise AcousticVerificationError("Candidate utterance timestamps are invalid.")
+        intersections = [
+            (max(start, speech_start), min(end, speech_end))
+            for speech_start, speech_end in speech
+            if max(start, speech_start) < min(end, speech_end)
+        ]
+        for clean_start, clean_end in _subtract_intervals(intersections, blocked):
+            if clean_end - clean_start >= 0.75:
+                spans.append((clean_start, min(clean_end, clean_start + 15.0)))
+    selected: list[tuple[float, float]] = []
+    for start, end in sorted(spans, key=lambda item: (-(item[1] - item[0]), item[0])):
+        if any(start < other_end and end > other_start for other_start, other_end in selected):
+            continue
+        selected.append((round(start, 6), round(end, 6)))
+        if len(selected) == 3:
+            break
+    return selected
+
+
+def _cap_candidate_sources_per_session(
+    sources: Sequence[Mapping[str, Any]],
+    *,
+    maximum_windows: int = 3,
+) -> list[dict[str, Any]]:
+    """Deduplicate and cap clean windows after all labels map to one person."""
+    by_session: dict[str, list[dict[str, Any]]] = {}
+    for source in sources:
+        session_id = str(source.get("session_id") or "")
+        if not session_id:
+            raise AcousticVerificationError("Candidate source session is invalid.")
+        by_session.setdefault(session_id, []).append(dict(source))
+    retained: list[dict[str, Any]] = []
+    for session_id in sorted(by_session):
+        selected: list[dict[str, Any]] = []
+        seen_reference_ids: set[str] = set()
+        ordered = sorted(
+            by_session[session_id],
+            key=lambda item: (
+                -(float(item["end_seconds"]) - float(item["start_seconds"])),
+                float(item["start_seconds"]),
+                float(item["end_seconds"]),
+                str(item["reference_id"]),
+            ),
+        )
+        for source in ordered:
+            reference_id = str(source.get("reference_id") or "")
+            start = float(source["start_seconds"])
+            end = float(source["end_seconds"])
+            if reference_id in seen_reference_ids:
+                continue
+            if any(
+                start < float(other["end_seconds"])
+                and end > float(other["start_seconds"])
+                for other in selected
+            ):
+                continue
+            seen_reference_ids.add(reference_id)
+            selected.append(source)
+            if len(selected) == maximum_windows:
+                break
+        if len(selected) > maximum_windows:
+            raise AcousticVerificationError("Candidate session window cap failed.")
+        retained.extend(selected)
+    return sorted(retained, key=lambda item: str(item["reference_id"]))
+
+
+def _candidate_proposal_payload(
+    *,
+    split_policy_path: Path,
+    parent_corpus_manifest_path: Path,
+    development_comparison_receipt_path: Path,
+) -> dict[str, Any]:
+    split_authority = _development_split_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    development_records = split_authority["development_records"]
+    record_by_id = {str(item["recording_id"]): item for item in development_records}
+    joined_path = development_comparison_receipt_path.expanduser().absolute()
+    require_private_file(joined_path, joined_path.parent)
+    if sha256_file(joined_path) != EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256:
+        raise AcousticVerificationError(
+            "Development comparison receipt hash is invalid."
+        )
+    joined = read_private_object(joined_path)
+    selected_recordings = joined.get("selected_recordings")
+    if (
+        joined.get("schema_version")
+        != "transcribe-audio.speech-preparation-development-comparison.v2"
+        or joined.get("status") != "success"
+        or joined.get("corpus_manifest_sha256")
+        != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256
+        or joined.get("will_run_biometrics") is not False
+        or joined.get("will_read_calibration_or_evaluation") is not False
+        or joined.get("will_perform_external_write") is not False
+        or not isinstance(selected_recordings, list)
+        or not selected_recordings
+    ):
+        raise AcousticVerificationError("Development comparison receipt is invalid.")
+    subject_sources: dict[str, list[dict[str, Any]]] = {}
+    subject_evidence: dict[str, list[dict[str, Any]]] = {}
+    lineage_exclusions: list[dict[str, str]] = []
+    person_rows_considered = 0
+    for selected in selected_recordings:
+        if not isinstance(selected, Mapping) or selected.get("split") != "development":
+            raise AcousticVerificationError("Selected preparation recording is invalid.")
+        recording_id = str(selected.get("recording_id", ""))
+        record = record_by_id.get(recording_id)
+        if record is None:
+            raise AcousticVerificationError(
+                "Selected preparation recording is outside development."
+            )
+        comparison_path = Path(str(selected.get("comparison_path", ""))).expanduser().absolute()
+        require_private_file(comparison_path, comparison_path.parent)
+        if sha256_file(comparison_path) != selected.get("comparison_sha256"):
+            raise AcousticVerificationError("Preparation comparison hash is invalid.")
+        comparison = read_private_object(comparison_path)
+        pyannote = next(
+            (
+                item for item in comparison.get("method_results") or []
+                if isinstance(item, Mapping)
+                and item.get("method_id") == "pyannote_community_1"
+            ),
+            None,
+        )
+        if pyannote is None or pyannote.get("status") != "success":
+            raise AcousticVerificationError(
+                "Pyannote preparation evidence is unavailable."
+            )
+        try:
+            lineage = resolve_comparison_lineage_receipt(
+                str(selected.get("p2_run_id", "")),
+                method_id="no_enhancement",
+                replay_receipt_sha256=str(selected.get("replay_sha256", "")),
+                runtime_root=comparison_path.parents[2],
+            )
+        except SpeechPreparationError as exc:
+            raise AcousticVerificationError(
+                "No-enhancement preparation lineage is invalid."
+            ) from exc
+        transcript_lineage = record.get("transcript_lineage")
+        if not isinstance(transcript_lineage, Mapping):
+            raise AcousticVerificationError("Transcript lineage is unavailable.")
+        transcript_path = Path(
+            str(transcript_lineage.get("current_artifact_path", ""))
+        ).expanduser().absolute()
+        require_private_file(transcript_path, transcript_path.parent)
+        transcript_sha = sha256_file(transcript_path)
+        if transcript_sha != transcript_lineage.get("current_artifact_sha256"):
+            raise AcousticVerificationError("Transcript artifact hash is invalid.")
+        reviewed_artifact_sha256 = str(
+            transcript_lineage.get("reviewed_artifact_sha256") or ""
+        )
+        if (
+            not SHA256_RE.fullmatch(reviewed_artifact_sha256)
+            or transcript_sha != reviewed_artifact_sha256
+        ):
+            lineage_exclusions.append(
+                {
+                    "recording_id": recording_id,
+                    "reason": "reviewed_artifact_not_current",
+                    "reviewed_artifact_sha256": reviewed_artifact_sha256,
+                    "current_artifact_sha256": transcript_sha,
+                }
+            )
+            continue
+        transcript = read_private_object(transcript_path)
+        if (
+            transcript.get("schema_version") != 2
+            or transcript.get("recording_id") != recording_id
+            or transcript.get("conversation_id") != record.get("conversation_id")
+            or not isinstance(transcript.get("utterances"), list)
+        ):
+            raise AcousticVerificationError("Transcript metadata binding is invalid.")
+        gold = record.get("operator_gold")
+        if not isinstance(gold, Mapping) or not isinstance(gold.get("speaker_truth"), list):
+            raise AcousticVerificationError("Operator gold metadata is invalid.")
+        conditions = record.get("conditions")
+        if not isinstance(conditions, Mapping):
+            raise AcousticVerificationError("Recording conditions are invalid.")
+        blocked_regions = [
+            *(pyannote.get("overlap_regions") or []),
+            *(pyannote.get("speaker_change_regions") or []),
+        ]
+        for truth in gold["speaker_truth"]:
+            if (
+                not isinstance(truth, Mapping)
+                or truth.get("outcome") != "person"
+                or not isinstance(truth.get("subject_id"), str)
+            ):
+                continue
+            person_ref_id = str(truth["subject_id"])
+            if not _OPAQUE_ID_RE.fullmatch(person_ref_id):
+                raise AcousticVerificationError("Gold subject ID is not opaque.")
+            person_rows_considered += 1
+            windows = _candidate_windows(
+                transcript["utterances"],
+                speaker_label=truth.get("speaker_label"),
+                speech_regions=pyannote.get("speech_regions"),
+                blocked_regions=blocked_regions,
+            )
+            if not windows:
+                continue
+            speaker_label_id = "speaker-label-" + canonical_artifact_hash(
+                {"recording_id": recording_id, "speaker_label": truth.get("speaker_label")}
+            )[:20]
+            sources = subject_sources.setdefault(person_ref_id, [])
+            for start, end in windows:
+                reference_id = "reference-" + canonical_artifact_hash(
+                    {
+                        "person_ref_id": person_ref_id,
+                        "recording_id": recording_id,
+                        "start_seconds": start,
+                        "end_seconds": end,
+                    }
+                )[:24]
+                acoustic_conditions = [
+                    f"{key}:{conditions[key]}" for key in sorted(conditions)
+                ]
+                source = {
+                    "reference_id": reference_id,
+                    "source_blob_id": lineage["source_blob_id"],
+                    "source_sha256": lineage["source_sha256"],
+                    "recording_id": recording_id,
+                    "conversation_id": record["conversation_id"],
+                    "speaker_label_id": speaker_label_id,
+                    "session_id": record["conversation_id"],
+                    "start_seconds": start,
+                    "end_seconds": end,
+                    "source_duration_seconds": lineage["source_duration_seconds"],
+                    "quality_evidence": {
+                        "evidence_id": "quality-" + lineage["audio_quality_sha256"][:24],
+                        "sha256": lineage["audio_quality_sha256"],
+                    },
+                    "device_class": str(conditions.get("device") or "unspecified"),
+                    "acoustic_conditions": acoustic_conditions,
+                    "lineage": lineage,
+                }
+                sources.append(source)
+            subject_evidence.setdefault(person_ref_id, []).append(
+                {
+                    "recording_id": recording_id,
+                    "conversation_id": record["conversation_id"],
+                    "operator_gold_sha256": canonical_artifact_hash(dict(gold)),
+                    "selected_truth_sha256": canonical_artifact_hash(dict(truth)),
+                    "transcript_artifact_sha256": transcript_sha,
+                    "p2_comparison_sha256": selected["comparison_sha256"],
+                    "pyannote_result_sha256": canonical_artifact_hash(dict(pyannote)),
+                    "selected_reference_ids": [source["reference_id"] for source in sources
+                                               if source["recording_id"] == recording_id],
+                }
+            )
+    candidates: list[dict[str, Any]] = []
+    for person_ref_id, sources in sorted(subject_sources.items()):
+        normalized_sources = _cap_candidate_sources_per_session(sources)
+        sessions = sorted({source["session_id"] for source in normalized_sources})
+        if len(sessions) < 2:
+            continue
+        if any(
+            sum(1 for source in normalized_sources if source["session_id"] == session_id)
+            > 3
+            for session_id in sessions
+        ):
+            raise AcousticVerificationError("Candidate session window cap failed.")
+        selected_reference_ids = {
+            str(source["reference_id"]) for source in normalized_sources
+        }
+        selection_evidence = []
+        for evidence in subject_evidence[person_ref_id]:
+            retained_ids = sorted(
+                set(evidence["selected_reference_ids"]) & selected_reference_ids
+            )
+            if retained_ids:
+                selection_evidence.append(
+                    {**evidence, "selected_reference_ids": retained_ids}
+                )
+        source_hash = source_set_sha256(normalized_sources, test_mode=False)
+        total_seconds = round(
+            sum(
+                float(source["end_seconds"]) - float(source["start_seconds"])
+                for source in normalized_sources
+            ),
+            6,
+        )
+        candidates.append(
+            {
+                "person_ref_id": person_ref_id,
+                "proposed_p3_profile_id": "reference-profile-" + canonical_artifact_hash(
+                    {"person_ref_id": person_ref_id, "source_set_sha256": source_hash}
+                )[:24],
+                "proposed_source_set_sha256": source_hash,
+                "session_count": len(sessions),
+                "window_count": len(normalized_sources),
+                "total_selected_seconds": total_seconds,
+                "proposed_sources": normalized_sources,
+                "selection_evidence": sorted(
+                    selection_evidence, key=lambda item: item["recording_id"]
+                ),
+                "operator_decision_required": True,
+            }
+        )
+    reason_codes = []
+    if lineage_exclusions:
+        reason_codes.append("reviewed_artifact_lineage_drift")
+    if not candidates:
+        reason_codes.append("no_multi_session_clean_candidates")
+    proposal = {
+        "schema_version": ENROLLMENT_CANDIDATE_PROPOSAL_SCHEMA,
+        "status": "ready_for_operator_review" if candidates else "blocked",
+        "reason_codes": reason_codes,
+        "intended_split": "development",
+        "proposal_only": True,
+        "biometric_enrollment_authorized": False,
+        "exact_apply_manifest_required": True,
+        "split_access_policy_sha256": split_authority["split_access_policy_sha256"],
+        "parent_corpus_manifest_sha256": split_authority[
+            "parent_corpus_manifest_sha256"
+        ],
+        "development_record_set_sha256": split_authority[
+            "development_record_set_sha256"
+        ],
+        "development_conversation_set_sha256": split_authority[
+            "development_conversation_set_sha256"
+        ],
+        "development_comparison_receipt_sha256": (
+            EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256
+        ),
+        "selection_contract": {
+            "source_scope": "three_recording_p2_development_slice",
+            "speaker_identity_source": "frozen_operator_gold_person_rows",
+            "timestamp_source": (
+                "current_artifact_exactly_matches_frozen_reviewed_artifact"
+            ),
+            "speech_filter": "p2_pyannote_community_1_speech_regions",
+            "excluded_regions": ["overlap", "speaker_change"],
+            "minimum_window_seconds": 0.75,
+            "maximum_window_seconds": 15.0,
+            "maximum_windows_per_session": 3,
+            "minimum_sessions_per_candidate": 2,
+            "p3_lineage_method": "no_enhancement",
+        },
+        "denominators": {
+            "selected_development_recordings": len(selected_recordings),
+            "reviewed_artifact_lineage_exclusions": len(lineage_exclusions),
+            "eligible_reviewed_artifact_recordings": (
+                len(selected_recordings) - len(lineage_exclusions)
+            ),
+            "person_rows_considered": person_rows_considered,
+            "candidate_people": len(candidates),
+            "candidate_sessions": sum(item["session_count"] for item in candidates),
+            "candidate_windows": sum(item["window_count"] for item in candidates),
+        },
+        "lineage_exclusions": sorted(
+            lineage_exclusions, key=lambda item: item["recording_id"]
+        ),
+        "candidates": candidates,
+        "will_read_audio": False,
+        "will_materialize_embeddings": False,
+        "will_register_references": False,
+        "will_run_trials": False,
+        "will_perform_external_write": False,
+        "contains_transcript_text": False,
+        "contains_raw_biometric_values": False,
+    }
+    if _contains_forbidden_private_key(proposal):
+        raise AcousticVerificationError("Enrollment proposal contains forbidden data.")
+    return proposal
+
+
+def build_real_enrollment_candidate_proposal(
+    *,
+    runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    development_comparison_receipt_path: Path = DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT,
+) -> dict[str, Any]:
+    """Persist a private metadata-only candidate packet for operator review."""
+    proposal = _candidate_proposal_payload(
+        split_policy_path=split_policy_path,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+        development_comparison_receipt_path=development_comparison_receipt_path,
+    )
+    root = runtime_root.expanduser().absolute()
+    proposal_sha = canonical_artifact_hash(proposal)
+    path = root / "enrollment-proposals" / f"{proposal_sha}.json"
+    ensure_private_tree(root, path.parent)
+    write_immutable_private_json(path, proposal)
+    return {
+        **proposal,
+        "proposal_sha256": proposal_sha,
+        "private_proposal_path": str(path),
+    }
+
+
+def replay_real_enrollment_candidate_proposal(
+    proposal_sha256: str,
+    *,
+    runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    development_comparison_receipt_path: Path = DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT,
+) -> dict[str, Any]:
+    """Recompute all metadata selection semantics and replay one exact proposal."""
+    if not SHA256_RE.fullmatch(str(proposal_sha256)):
+        raise AcousticVerificationError("Enrollment proposal hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "enrollment-proposals" / f"{proposal_sha256}.json"
+    require_private_file(path, root)
+    stored = read_private_object(path)
+    expected = _candidate_proposal_payload(
+        split_policy_path=split_policy_path,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+        development_comparison_receipt_path=development_comparison_receipt_path,
+    )
+    if canonical_artifact_hash(stored) != proposal_sha256 or stored != expected:
+        raise AcousticVerificationError("Enrollment proposal replay is invalid.")
+    return {
+        **stored,
+        "proposal_sha256": proposal_sha256,
+        "private_proposal_path": str(path),
     }
 
 
