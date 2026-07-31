@@ -294,3 +294,39 @@ State: CLOSED; the read-only checkpoint re-audit passed and P4C preview is next.
   replay, the synthetic-only P4B gate, immutable metadata coverage, and
   deterministic invalidation retry semantics all satisfied the repaired
   acceptance criteria.
+
+## P4C preview checkpoint
+
+State: CLOSED with a truthful blocker; real enrollment apply remains gated.
+
+- Added a private, content-addressed
+  `transcribe-audio.biometric-enrollment-preview.v1` builder and replay seam.
+  A ready preview is development-only and must bind requested opaque people,
+  exact replay-eligible production P3 profile/generation/source-set/approval
+  hashes, every source-segment and lineage-receipt hash, and all three pinned
+  model revisions. It also replays the exact frozen split-policy and parent-P0
+  manifest hashes and proves every recording/conversation pair is a member of
+  the hashed development set.
+- Synthetic P3 fixture authority, missing production lineage, duplicate or
+  non-opaque people, and calibration/evaluation scope fail closed. Preview and
+  replay set every audio, embedding, registration, trial, and external-write
+  flag false; they cannot invoke the P4B synthetic materializer or create an
+  apply authority.
+- The live no-audio preview found no canonical P3 reference store and no
+  requested opaque people. It therefore persisted `status=blocked` with
+  `p3_reference_store_unavailable` and `no_requested_people`, SHA-256
+  `30b6f33fb280daa8020fc79fcec4e82fe6c2a8930fc920399f31b0f13ff1e1a3`,
+  under the private P4 runtime. No smoke-only P3 reference was promoted into
+  real enrollment.
+- Build and replay share one strict semantic validator. Forged split labels,
+  model inventories, status/reason combinations, P3 unit/source shapes, and
+  out-of-development recording/conversation pairs fail even when their forged
+  JSON is itself content-addressed.
+- Validation: 56 focused P3/P4 tests and 523 full repository tests passed;
+  `py_compile` and `git diff --check` passed.
+- The independent read-only checkpoint re-audit returned `PASS` after split
+  membership, strict semantic replay, and exact reason/fact consistency were
+  verified.
+- P4D development remains dependency-blocked until an exact reviewed real
+  enrollment manifest names approved P3 generations and an explicit biometric
+  enrollment apply authority permits audio access and profile materialization.

@@ -427,7 +427,9 @@ SpeechBrain ECAPA, WeSpeaker CAM++, and WeSpeaker ResNet34 acquisition,
 model-specific profile materialization, held-out calibration, and sealed
 evaluation. P4A model/code/terms acquisition and P4B offline adapters plus
 synthetic private profile lifecycle are closed; P4C exact real-enrollment
-preview is next. No calibrated
+preview is closed with a truthful blocker because no canonical real P3
+reference store or requested approved people exist. P4C apply and P4D remain
+gated on an exact reviewed biometric-enrollment manifest and apply authority. No calibrated
 verification model, real enrolled reference library, or historical reprocessing
 workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
 gold reviews.

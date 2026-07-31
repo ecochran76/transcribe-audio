@@ -2,6 +2,40 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 259 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 4
+
+Packet: P4C | No-audio real-enrollment preview
+
+State transition: `OPEN/Plan-0037-P4C-PREVIEW -> CLOSED/Plan-0037-P4C-PREVIEW`
+with a persisted blocked outcome.
+
+- Added a private content-addressed enrollment-preview and replay contract. A
+  ready development preview binds exact P3 generation/source-set/approval,
+  segment/lineage hashes, opaque identifiers, all three model revisions, and
+  the exact frozen split/P0-manifest hashes. Every recording/conversation pair
+  must prove membership in the hashed development set. Build and replay use
+  one strict semantic validator; synthetic fixtures, forged content-addressed
+  payloads, and calibration/evaluation scope fail closed.
+- Live readback found no canonical P3 reference database and no requested
+  approved opaque people. Persisted the truthful no-audio blocker at SHA-256
+  `30b6f33fb280daa8020fc79fcec4e82fe6c2a8930fc920399f31b0f13ff1e1a3`.
+  No corpus audio, model inference, profile materialization, reference
+  registration, trial, calibration, evaluation, or external write occurred.
+- Validation: 56 focused P3/P4 tests and 523 full repository tests passed;
+  compilation and diff checks passed. The read-only checkpoint re-audit
+  returned `PASS` after the split-membership, semantic-replay, and exact
+  reason/fact repairs.
+
+Next:
+
+- Review and commit/push the P4C preview checkpoint. P4C apply and P4D stay
+  gated until real sources have explicit P3 biometric-purpose approval and an
+  exact reviewed enrollment manifest/apply authority is supplied.
+
 ## Turn 258 | 2026-07-31
 
 Plan:

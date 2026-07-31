@@ -13,9 +13,11 @@ from acoustic_verification import (
     AcousticVerificationError,
     FakeVerificationAdapter,
     adapter_registry,
+    build_real_enrollment_preview,
     cosine_score,
     dry_run_model_acquisition,
     replay_model_acquisition,
+    replay_real_enrollment_preview,
     materialize_profile,
     delete_profile,
     replay_profile,
@@ -23,6 +25,283 @@ from acoustic_verification import (
     supersede_profile,
     withdraw_profile,
 )
+
+
+def production_reference() -> dict:
+    approval = {
+        "schema_version": "transcribe-audio.biometric-reference-approval.v1",
+        "approval_id": "biometric-approval-001",
+        "reviewer_ref_id": "reviewer-ref-001",
+        "reviewed_at": "2026-07-31T12:00:00Z",
+        "purpose": "biometric_reference_create",
+        "scope": {"profile_id": "reference-profile-001"},
+    }
+    return {
+        "profile_id": "reference-profile-001",
+        "person_ref_id": "person-ref-001",
+        "generation_id": "reference-generation-001",
+        "generation_sha256": "a" * 64,
+        "materialization_contract": "stage_then_register_then_promote",
+        "reference": {
+            "synthetic_test_only": False,
+            "source_set_sha256": "b" * 64,
+            "approval": approval,
+            "sources": [
+                {
+                    "reference_id": "reference-segment-001",
+                    "source_sha256": "c" * 64,
+                    "recording_id": "recording-001",
+                    "conversation_id": "conversation-001",
+                    "speaker_label_id": "speaker-label-001",
+                    "session_id": "session-001",
+                    "start_seconds": 1.0,
+                    "end_seconds": 3.0,
+                    "source_key": "d" * 64,
+                    "quality_evidence": {"sha256": "e" * 64},
+                    "lineage": {
+                        "authority": "p2_speech_preparation_replay",
+                        "replay_receipt_sha256": "f" * 64,
+                    },
+                }
+            ],
+        },
+    }
+
+
+def split_authority(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> tuple[Path, Path]:
+    parent = tmp_path / "parent-corpus.json"
+    recordings = [
+        {
+            "recording_id": "recording-001",
+            "conversation_id": "conversation-001",
+            "split": "development",
+        },
+        {
+            "recording_id": "recording-002",
+            "conversation_id": "conversation-002",
+            "split": "calibration",
+        },
+    ]
+    parent.write_text(json.dumps({"recordings": recordings}), encoding="utf-8")
+    parent.chmod(0o600)
+    parent_sha = hashlib.sha256(parent.read_bytes()).hexdigest()
+    record_set_sha = verification.canonical_artifact_hash(recordings[:1])
+    conversation_set_sha = verification.canonical_artifact_hash(
+        ["conversation-001"]
+    )
+    policy = {
+        "schema_version": "transcribe-audio.verification-split-access-policy.v1",
+        "parent_corpus_manifest_sha256": parent_sha,
+        "splits": {
+            "development": {
+                "recording_count": 1,
+                "conversation_count": 1,
+                "record_set_sha256": record_set_sha,
+                "conversation_set_sha256": conversation_set_sha,
+                "authorization_state": "authorized_by_operator_blanket_2026-07-31",
+            }
+        },
+    }
+    policy_path = tmp_path / "split-policy.json"
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+    monkeypatch.setattr(
+        verification, "EXPECTED_SPLIT_ACCESS_POLICY_SHA256",
+        hashlib.sha256(policy_path.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(
+        verification, "EXPECTED_PARENT_CORPUS_MANIFEST_SHA256", parent_sha
+    )
+    monkeypatch.setattr(
+        verification, "EXPECTED_DEVELOPMENT_RECORD_SET_SHA256", record_set_sha
+    )
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256",
+        conversation_set_sha,
+    )
+    return policy_path, parent
+
+
+def test_real_enrollment_preview_persists_truthful_no_store_blocker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    root = tmp_path / "p4"
+    preview = build_real_enrollment_preview(
+        [], runtime_root=root, p3_runtime_root=tmp_path / "missing-p3",
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+
+    assert preview["status"] == "blocked"
+    assert preview["reason_codes"] == [
+        "no_requested_people",
+        "p3_reference_store_unavailable",
+    ]
+    assert preview["enrollment_units"] == []
+    assert preview["real_biometric_enrollment_authorized"] is False
+    assert replay_real_enrollment_preview(
+        preview["preview_sha256"], runtime_root=root,
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    ) == preview
+    assert stat.S_IMODE(Path(preview["private_preview_path"]).stat().st_mode) == 0o600
+
+
+def test_real_enrollment_preview_binds_exact_production_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    p3_root = tmp_path / "p3"
+    p3_root.mkdir()
+    (p3_root / "references.sqlite3").touch()
+    monkeypatch.setattr(
+        verification,
+        "resolve_eligible_reference",
+        lambda *args, **kwargs: production_reference(),
+    )
+
+    preview = build_real_enrollment_preview(
+        ["person-ref-001"], runtime_root=tmp_path / "p4", p3_runtime_root=p3_root,
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+
+    assert preview["status"] == "ready_for_review"
+    assert preview["reason_codes"] == []
+    assert [item["candidate_id"] for item in preview["models"]] == [
+        "speechbrain_ecapa_tdnn",
+        "wespeaker_campplus",
+        "wespeaker_resnet34",
+    ]
+    unit = preview["enrollment_units"][0]
+    assert unit["p3_generation_sha256"] == "a" * 64
+    assert unit["p3_source_set_sha256"] == "b" * 64
+    assert unit["source_segments"][0]["segment_sha256"] == "d" * 64
+    assert unit["source_segments"][0]["lineage_replay_receipt_sha256"] == "f" * 64
+    assert preview["will_read_audio"] is False
+    assert preview["will_materialize_embeddings"] is False
+    assert preview["acquisition_manifest_sha256"] == (
+        "6470ecc8591fd8a40f8d788ba9a3edddc37a508cc54d47800037ab594b957ebe"
+    )
+
+
+def test_real_enrollment_preview_rejects_synthetic_and_non_development_scope(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    p3_root = tmp_path / "p3"
+    p3_root.mkdir()
+    (p3_root / "references.sqlite3").touch()
+    synthetic = production_reference()
+    synthetic["reference"]["synthetic_test_only"] = True
+    synthetic["reference"]["sources"][0]["fixture_authority"] = {}
+    monkeypatch.setattr(
+        verification, "resolve_eligible_reference", lambda *args, **kwargs: synthetic
+    )
+
+    preview = build_real_enrollment_preview(
+        ["person-ref-001"], runtime_root=tmp_path / "p4", p3_runtime_root=p3_root,
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+    assert preview["status"] == "blocked"
+    assert preview["reason_codes"] == ["no_replay_eligible_real_p3_generation"]
+    with pytest.raises(AcousticVerificationError, match="development split"):
+        build_real_enrollment_preview(
+            [],
+            runtime_root=tmp_path / "p4",
+            p3_runtime_root=p3_root,
+            intended_split="calibration",
+            split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+        )
+
+
+def test_real_enrollment_preview_rejects_non_development_membership(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    p3_root = tmp_path / "p3"
+    p3_root.mkdir()
+    (p3_root / "references.sqlite3").touch()
+    reference = production_reference()
+    reference["reference"]["sources"][0]["recording_id"] = "recording-002"
+    reference["reference"]["sources"][0]["conversation_id"] = "conversation-002"
+    monkeypatch.setattr(
+        verification, "resolve_eligible_reference", lambda *args, **kwargs: reference
+    )
+    preview = build_real_enrollment_preview(
+        ["person-ref-001"], runtime_root=tmp_path / "p4", p3_runtime_root=p3_root,
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+    assert preview["status"] == "blocked"
+    assert preview["reason_codes"] == ["no_replay_eligible_real_p3_generation"]
+
+
+@pytest.mark.parametrize("mutation", ["split", "models", "status", "source"])
+def test_real_enrollment_preview_replay_rejects_forged_semantics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mutation: str
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    p3_root = tmp_path / "p3"
+    p3_root.mkdir()
+    (p3_root / "references.sqlite3").touch()
+    monkeypatch.setattr(
+        verification,
+        "resolve_eligible_reference",
+        lambda *args, **kwargs: production_reference(),
+    )
+    root = tmp_path / "p4"
+    preview = build_real_enrollment_preview(
+        ["person-ref-001"], runtime_root=root, p3_runtime_root=p3_root,
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+    forged = {
+        key: value for key, value in preview.items()
+        if key not in {"preview_sha256", "private_preview_path"}
+    }
+    if mutation == "split":
+        forged["intended_split"] = "calibration"
+    elif mutation == "models":
+        forged["models"] = forged["models"][:2]
+    elif mutation == "status":
+        forged["status"] = "blocked"
+    else:
+        forged["enrollment_units"][0]["source_segments"][0][
+            "recording_id"
+        ] = "recording-002"
+    forged_sha = verification.canonical_artifact_hash(forged)
+    forged_path = root / "enrollment-previews" / f"{forged_sha}.json"
+    verification.write_immutable_private_json(forged_path, forged)
+    with pytest.raises(AcousticVerificationError, match="[Ee]nrollment"):
+        replay_real_enrollment_preview(
+            forged_sha, runtime_root=root, split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+        )
+
+
+def test_real_enrollment_preview_replay_rejects_forged_reason_semantics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent = split_authority(monkeypatch, tmp_path)
+    root = tmp_path / "p4"
+    preview = build_real_enrollment_preview(
+        [], runtime_root=root, p3_runtime_root=tmp_path / "missing-p3",
+        split_policy_path=policy, parent_corpus_manifest_path=parent,
+    )
+    forged = {
+        key: value for key, value in preview.items()
+        if key not in {"preview_sha256", "private_preview_path"}
+    }
+    forged["reason_codes"] = ["no_replay_eligible_real_p3_generation"]
+    forged_sha = verification.canonical_artifact_hash(forged)
+    verification.write_immutable_private_json(
+        root / "enrollment-previews" / f"{forged_sha}.json", forged
+    )
+    with pytest.raises(AcousticVerificationError, match="reasons"):
+        replay_real_enrollment_preview(
+            forged_sha, runtime_root=root, split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+        )
 
 
 def test_model_acquisition_dry_run_is_immutable_and_side_effect_free(

@@ -29,6 +29,7 @@ from acoustic_audio_derivatives import (
     write_immutable_private_json,
 )
 from acoustic_biometric_references import (
+    BiometricReferenceError,
     INVALIDATION_SCHEMA,
     MATERIALIZATION_SCHEMA,
     PROMOTION_SCHEMA,
@@ -733,6 +734,469 @@ PROFILE_SCHEMA = "transcribe-audio.biometric-profile.v1"
 PROFILE_MANIFEST_SCHEMA = "transcribe-audio.biometric-profile-manifest.v1"
 PROFILE_LIFECYCLE_SCHEMA = "transcribe-audio.biometric-profile-lifecycle.v1"
 TRIAL_SCHEMA = "transcribe-audio.verification-trial.v1"
+ENROLLMENT_PREVIEW_SCHEMA = (
+    "transcribe-audio.biometric-enrollment-preview.v1"
+)
+_OPAQUE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
+DEFAULT_SPLIT_ACCESS_POLICY = Path(__file__).parent / (
+    "docs/dev/fixtures/plan-0037-p4/split-access-policy.json"
+)
+DEFAULT_PARENT_CORPUS_MANIFEST = Path(
+    "~/.local/state/transcribe-audio/plan-0037/corpora/"
+    "acoustic-corpus-1f93d1405f82676420571e1b/manifest.json"
+)
+EXPECTED_SPLIT_ACCESS_POLICY_SHA256 = (
+    "41808c1b654b20ea8b395f65757db0ffc9f1a79862b31a6a2770268be1083467"
+)
+EXPECTED_PARENT_CORPUS_MANIFEST_SHA256 = (
+    "73f0e04aab0274ddfeaa7f6b1567ecb135eebc0a0d6e5818cb3bd2ee5535dabf"
+)
+EXPECTED_DEVELOPMENT_RECORD_SET_SHA256 = (
+    "1326728c26dafcda41d3883ca25569dba928ee52d5e481348fac1773e4547f5e"
+)
+EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256 = (
+    "b767b9b1e5167c1b13a01fb0e1c4add4dd1323e983e1df8708e5e9dcd379436c"
+)
+_PREVIEW_REASON_CODES = {
+    "p3_reference_store_unavailable",
+    "no_requested_people",
+    "no_replay_eligible_real_p3_generation",
+}
+_SOURCE_BINDING_KEYS = {
+    "reference_id", "source_sha256", "recording_id", "conversation_id",
+    "speaker_label_id", "session_id", "start_seconds", "end_seconds",
+    "segment_sha256", "quality_evidence_sha256", "lineage_authority",
+    "lineage_replay_receipt_sha256",
+}
+_UNIT_KEYS = {
+    "person_ref_id", "p3_profile_id", "p3_generation_id",
+    "p3_generation_sha256", "p3_source_set_sha256", "p3_approval_id",
+    "p3_approval_sha256", "source_segments",
+}
+_PREVIEW_KEYS = {
+    "schema_version", "status", "reason_codes", "intended_split",
+    "requested_person_ref_ids", "p3_store_present", "enrollment_units",
+    "models", "acquisition_manifest_sha256", "acquisition_spec_sha256",
+    "split_access_policy_sha256", "parent_corpus_manifest_sha256",
+    "development_record_set_sha256", "development_conversation_set_sha256",
+    "exact_apply_authority_required", "real_biometric_enrollment_authorized",
+    "will_read_audio", "will_materialize_embeddings",
+    "will_register_references", "will_run_trials",
+    "will_perform_external_write", "contains_raw_biometric_values",
+}
+
+
+def _development_split_authority(
+    split_policy_path: Path, parent_corpus_manifest_path: Path
+) -> dict[str, Any]:
+    policy_path = split_policy_path.expanduser().absolute()
+    parent_path = parent_corpus_manifest_path.expanduser().absolute()
+    if policy_path.is_symlink() or not policy_path.is_file():
+        raise AcousticVerificationError("Split access policy is unavailable.")
+    if sha256_file(policy_path) != EXPECTED_SPLIT_ACCESS_POLICY_SHA256:
+        raise AcousticVerificationError("Split access policy hash is invalid.")
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcousticVerificationError("Split access policy is unreadable.") from exc
+    require_private_file(parent_path, parent_path.parent)
+    if sha256_file(parent_path) != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256:
+        raise AcousticVerificationError("Parent corpus manifest hash is invalid.")
+    parent = read_private_object(parent_path)
+    if not isinstance(policy, Mapping) or not isinstance(parent, Mapping):
+        raise AcousticVerificationError("Split authority shape is invalid.")
+    development = policy.get("splits", {}).get("development")
+    recordings = parent.get("recordings") if isinstance(parent, Mapping) else None
+    if (
+        policy.get("schema_version")
+        != "transcribe-audio.verification-split-access-policy.v1"
+        or policy.get("parent_corpus_manifest_sha256")
+        != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256
+        or not isinstance(development, Mapping)
+        or development.get("authorization_state")
+        != "authorized_by_operator_blanket_2026-07-31"
+        or development.get("record_set_sha256")
+        != EXPECTED_DEVELOPMENT_RECORD_SET_SHA256
+        or development.get("conversation_set_sha256")
+        != EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256
+        or not isinstance(recordings, list)
+    ):
+        raise AcousticVerificationError("Development split authority is invalid.")
+    selected = [
+        item for item in recordings
+        if isinstance(item, Mapping) and item.get("split") == "development"
+    ]
+    recording_ids = [str(item.get("recording_id", "")) for item in selected]
+    conversation_ids = [str(item.get("conversation_id", "")) for item in selected]
+    if (
+        len(selected) != development.get("recording_count")
+        or len(set(recording_ids)) != len(recording_ids)
+        or len(set(conversation_ids)) != development.get("conversation_count")
+        or canonical_artifact_hash(selected)
+        != EXPECTED_DEVELOPMENT_RECORD_SET_SHA256
+        or canonical_artifact_hash(sorted(conversation_ids))
+        != EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256
+    ):
+        raise AcousticVerificationError("Development split membership drifted.")
+    return {
+        "recording_conversation_pairs": set(zip(recording_ids, conversation_ids)),
+        "split_access_policy_sha256": EXPECTED_SPLIT_ACCESS_POLICY_SHA256,
+        "parent_corpus_manifest_sha256": EXPECTED_PARENT_CORPUS_MANIFEST_SHA256,
+        "development_record_set_sha256": EXPECTED_DEVELOPMENT_RECORD_SET_SHA256,
+        "development_conversation_set_sha256": (
+            EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256
+        ),
+    }
+
+
+def _validate_enrollment_preview(
+    value: Any, *, split_authority: Mapping[str, Any]
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _PREVIEW_KEYS:
+        raise AcousticVerificationError("Enrollment preview shape is invalid.")
+    expected_models = [
+        {"candidate_id": key, "revision_sha": candidate["revision_sha"]}
+        for key, candidate in EXPECTED_CANDIDATES.items()
+    ]
+    if (
+        value.get("schema_version") != ENROLLMENT_PREVIEW_SCHEMA
+        or value.get("intended_split") != "development"
+        or value.get("models") != expected_models
+        or value.get("acquisition_manifest_sha256")
+        != EXPECTED_ACQUISITION_MANIFEST_SHA256
+        or value.get("acquisition_spec_sha256")
+        != EXPECTED_ACQUISITION_SPEC_SHA256
+        or any(value.get(key) != split_authority[key] for key in (
+            "split_access_policy_sha256", "parent_corpus_manifest_sha256",
+            "development_record_set_sha256",
+            "development_conversation_set_sha256",
+        ))
+        or value.get("exact_apply_authority_required") is not True
+        or value.get("real_biometric_enrollment_authorized") is not False
+        or value.get("contains_raw_biometric_values") is not False
+        or any(value.get(field) is not False for field in SIDE_EFFECT_FIELDS[3:])
+    ):
+        raise AcousticVerificationError("Enrollment preview authority is invalid.")
+    requested = value.get("requested_person_ref_ids")
+    reasons = value.get("reason_codes")
+    units = value.get("enrollment_units")
+    if (
+        not isinstance(requested, list)
+        or any(not isinstance(item, str) for item in requested)
+        or requested != sorted(requested)
+        or len(set(requested)) != len(requested)
+        or any(not _OPAQUE_ID_RE.fullmatch(item) for item in requested)
+        or not isinstance(reasons, list)
+        or any(not isinstance(reason, str) for reason in reasons)
+        or reasons != sorted(reasons)
+        or len(set(reasons)) != len(reasons)
+        or any(reason not in _PREVIEW_REASON_CODES for reason in reasons)
+        or not isinstance(units, list)
+        or not isinstance(value.get("p3_store_present"), bool)
+    ):
+        raise AcousticVerificationError("Enrollment preview status inputs are invalid.")
+    if value.get("status") == "ready_for_review":
+        if reasons or not requested or len(units) != len(requested) or not value["p3_store_present"]:
+            raise AcousticVerificationError("Ready enrollment preview is inconsistent.")
+    elif value.get("status") == "blocked":
+        if not reasons or units:
+            raise AcousticVerificationError("Blocked enrollment preview is inconsistent.")
+    else:
+        raise AcousticVerificationError("Enrollment preview status is invalid.")
+    expected_reasons: set[str] = set()
+    if not requested:
+        expected_reasons.add("no_requested_people")
+    if value["p3_store_present"] is False:
+        expected_reasons.add("p3_reference_store_unavailable")
+    if requested and value.get("status") == "blocked":
+        expected_reasons.add("no_replay_eligible_real_p3_generation")
+    if reasons != sorted(expected_reasons):
+        raise AcousticVerificationError(
+            "Enrollment preview reasons do not match its facts."
+        )
+    unit_people: list[str] = []
+    allowed_pairs = split_authority["recording_conversation_pairs"]
+    for unit in units:
+        if not isinstance(unit, Mapping) or set(unit) != _UNIT_KEYS:
+            raise AcousticVerificationError("Enrollment unit shape is invalid.")
+        for field in ("person_ref_id", "p3_profile_id", "p3_generation_id", "p3_approval_id"):
+            if not _OPAQUE_ID_RE.fullmatch(str(unit.get(field, ""))):
+                raise AcousticVerificationError("Enrollment unit ID is invalid.")
+        for field in ("p3_generation_sha256", "p3_source_set_sha256", "p3_approval_sha256"):
+            if not SHA256_RE.fullmatch(str(unit.get(field, ""))):
+                raise AcousticVerificationError("Enrollment unit hash is invalid.")
+        unit_people.append(str(unit["person_ref_id"]))
+        segments = unit.get("source_segments")
+        if not isinstance(segments, list) or not segments:
+            raise AcousticVerificationError("Enrollment unit sources are invalid.")
+        for segment in segments:
+            if not isinstance(segment, Mapping) or set(segment) != _SOURCE_BINDING_KEYS:
+                raise AcousticVerificationError("Enrollment source shape is invalid.")
+            for field in ("reference_id", "recording_id", "conversation_id", "speaker_label_id", "session_id"):
+                if not _OPAQUE_ID_RE.fullmatch(str(segment.get(field, ""))):
+                    raise AcousticVerificationError("Enrollment source ID is invalid.")
+            for field in ("source_sha256", "segment_sha256", "quality_evidence_sha256", "lineage_replay_receipt_sha256"):
+                if not SHA256_RE.fullmatch(str(segment.get(field, ""))):
+                    raise AcousticVerificationError("Enrollment source hash is invalid.")
+            try:
+                if isinstance(segment["start_seconds"], bool) or isinstance(
+                    segment["end_seconds"], bool
+                ):
+                    raise TypeError
+                start = float(segment["start_seconds"])
+                end = float(segment["end_seconds"])
+            except (TypeError, ValueError) as exc:
+                raise AcousticVerificationError("Enrollment source bounds are invalid.") from exc
+            if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+                raise AcousticVerificationError("Enrollment source bounds are invalid.")
+            if segment.get("lineage_authority") not in {
+                "p1_audio_derivative_replay", "p2_speech_preparation_replay"
+            }:
+                raise AcousticVerificationError("Enrollment lineage authority is invalid.")
+            if (segment["recording_id"], segment["conversation_id"]) not in allowed_pairs:
+                raise AcousticVerificationError(
+                    "Enrollment source is outside the development split."
+                )
+    if value.get("status") == "ready_for_review" and sorted(unit_people) != requested:
+        raise AcousticVerificationError("Enrollment unit people do not match request.")
+    return value
+
+
+def _enrollment_source_binding(source: Any) -> dict[str, Any]:
+    if not isinstance(source, Mapping):
+        raise AcousticVerificationError("P3 enrollment source is invalid.")
+    if source.get("fixture_authority") is not None:
+        raise AcousticVerificationError(
+            "Synthetic references cannot enter real enrollment preview."
+        )
+    lineage = source.get("lineage")
+    if not isinstance(lineage, Mapping):
+        raise AcousticVerificationError(
+            "Real enrollment preview requires production P1/P2 lineage."
+        )
+    required = {
+        "reference_id",
+        "source_sha256",
+        "recording_id",
+        "conversation_id",
+        "speaker_label_id",
+        "session_id",
+        "start_seconds",
+        "end_seconds",
+        "source_key",
+        "quality_evidence",
+    }
+    if not required.issubset(source):
+        raise AcousticVerificationError("P3 enrollment source binding is incomplete.")
+    quality = source.get("quality_evidence")
+    if not isinstance(quality, Mapping):
+        raise AcousticVerificationError("P3 enrollment quality binding is invalid.")
+    for field in ("source_sha256", "source_key"):
+        if not SHA256_RE.fullmatch(str(source.get(field, ""))):
+            raise AcousticVerificationError("P3 enrollment source hash is invalid.")
+    quality_sha = str(quality.get("sha256", ""))
+    if not SHA256_RE.fullmatch(quality_sha):
+        raise AcousticVerificationError("P3 enrollment quality hash is invalid.")
+    for field in (
+        "reference_id",
+        "recording_id",
+        "conversation_id",
+        "speaker_label_id",
+        "session_id",
+    ):
+        if not _OPAQUE_ID_RE.fullmatch(str(source.get(field, ""))):
+            raise AcousticVerificationError("P3 enrollment source ID is invalid.")
+    return {
+        "reference_id": source["reference_id"],
+        "source_sha256": source["source_sha256"],
+        "recording_id": source["recording_id"],
+        "conversation_id": source["conversation_id"],
+        "speaker_label_id": source["speaker_label_id"],
+        "session_id": source["session_id"],
+        "start_seconds": source["start_seconds"],
+        "end_seconds": source["end_seconds"],
+        "segment_sha256": source["source_key"],
+        "quality_evidence_sha256": quality_sha,
+        "lineage_authority": lineage.get("authority"),
+        "lineage_replay_receipt_sha256": lineage.get("replay_receipt_sha256"),
+    }
+
+
+def build_real_enrollment_preview(
+    requested_person_ref_ids: Sequence[str],
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    intended_split: str = "development",
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Persist a private no-audio preview; never authorize or apply enrollment."""
+    if intended_split != "development":
+        raise AcousticVerificationError(
+            "Real enrollment preview is limited to the authorized development split."
+        )
+    if isinstance(requested_person_ref_ids, (str, bytes)):
+        raise AcousticVerificationError(
+            "Enrollment person references must be a sequence of opaque IDs."
+        )
+    requested = [str(value) for value in requested_person_ref_ids]
+    if any(not _OPAQUE_ID_RE.fullmatch(value) for value in requested):
+        raise AcousticVerificationError("Enrollment person references must be opaque.")
+    if len(set(requested)) != len(requested):
+        raise AcousticVerificationError("Enrollment person references must be unique.")
+    requested.sort()
+    split_authority = _development_split_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    p3_root = p3_runtime_root.expanduser().absolute()
+    p3_store_present = (p3_root / "references.sqlite3").is_file()
+    blockers: list[dict[str, str]] = []
+    units: list[dict[str, Any]] = []
+    if not p3_store_present:
+        blockers.append({"reason_code": "p3_reference_store_unavailable"})
+    if not requested:
+        blockers.append({"reason_code": "no_requested_people"})
+    for person_ref_id in requested:
+        try:
+            resolved = resolve_eligible_reference(
+                person_ref_id, runtime_root=p3_root
+            )
+            if (
+                resolved.get("person_ref_id") != person_ref_id
+                or resolved.get("materialization_contract")
+                != "stage_then_register_then_promote"
+            ):
+                raise AcousticVerificationError(
+                    "P3 enrollment resolution binding is invalid."
+                )
+            reference = resolved.get("reference")
+            if not isinstance(reference, Mapping):
+                raise AcousticVerificationError("P3 reference manifest is invalid.")
+            if reference.get("synthetic_test_only") is not False:
+                raise AcousticVerificationError(
+                    "Synthetic references cannot enter real enrollment preview."
+                )
+            approval = reference.get("approval")
+            sources = reference.get("sources")
+            if not isinstance(approval, Mapping) or not isinstance(sources, list):
+                raise AcousticVerificationError(
+                    "P3 approval or source bindings are unavailable."
+                )
+            approval_id = str(approval.get("approval_id", ""))
+            if not _OPAQUE_ID_RE.fullmatch(approval_id):
+                raise AcousticVerificationError("P3 enrollment approval is invalid.")
+            source_segments = [
+                _enrollment_source_binding(source) for source in sources
+            ]
+            if any(
+                (segment["recording_id"], segment["conversation_id"])
+                not in split_authority["recording_conversation_pairs"]
+                for segment in source_segments
+            ):
+                raise AcousticVerificationError(
+                    "Enrollment source is outside the development split."
+                )
+            units.append(
+                {
+                    "person_ref_id": person_ref_id,
+                    "p3_profile_id": resolved["profile_id"],
+                    "p3_generation_id": resolved["generation_id"],
+                    "p3_generation_sha256": resolved["generation_sha256"],
+                    "p3_source_set_sha256": reference["source_set_sha256"],
+                    "p3_approval_id": approval_id,
+                    "p3_approval_sha256": canonical_artifact_hash(dict(approval)),
+                    "source_segments": source_segments,
+                }
+            )
+        except (AcousticVerificationError, BiometricReferenceError):
+            blockers.append(
+                {
+                    "person_ref_id": person_ref_id,
+                    "reason_code": "no_replay_eligible_real_p3_generation",
+                }
+            )
+    if blockers:
+        units = []
+    models = [
+        {
+            "candidate_id": candidate_id,
+            "revision_sha": candidate["revision_sha"],
+        }
+        for candidate_id, candidate in EXPECTED_CANDIDATES.items()
+    ]
+    preview = {
+        "schema_version": ENROLLMENT_PREVIEW_SCHEMA,
+        "status": "ready_for_review" if units else "blocked",
+        "reason_codes": sorted(
+            {blocker["reason_code"] for blocker in blockers}
+        ),
+        "intended_split": intended_split,
+        "requested_person_ref_ids": requested,
+        "p3_store_present": p3_store_present,
+        "enrollment_units": units,
+        "models": models,
+        "acquisition_manifest_sha256": EXPECTED_ACQUISITION_MANIFEST_SHA256,
+        "acquisition_spec_sha256": EXPECTED_ACQUISITION_SPEC_SHA256,
+        "split_access_policy_sha256": split_authority[
+            "split_access_policy_sha256"
+        ],
+        "parent_corpus_manifest_sha256": split_authority[
+            "parent_corpus_manifest_sha256"
+        ],
+        "development_record_set_sha256": split_authority[
+            "development_record_set_sha256"
+        ],
+        "development_conversation_set_sha256": split_authority[
+            "development_conversation_set_sha256"
+        ],
+        "exact_apply_authority_required": True,
+        "real_biometric_enrollment_authorized": False,
+        "will_read_audio": False,
+        "will_materialize_embeddings": False,
+        "will_register_references": False,
+        "will_run_trials": False,
+        "will_perform_external_write": False,
+        "contains_raw_biometric_values": False,
+    }
+    _validate_enrollment_preview(preview, split_authority=split_authority)
+    root = runtime_root.expanduser().absolute()
+    preview_sha = canonical_artifact_hash(preview)
+    path = root / "enrollment-previews" / f"{preview_sha}.json"
+    ensure_private_tree(root, path.parent)
+    write_immutable_private_json(path, preview)
+    return {
+        **preview,
+        "preview_sha256": preview_sha,
+        "private_preview_path": str(path),
+    }
+
+
+def replay_real_enrollment_preview(
+    preview_sha256: str,
+    *,
+    runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Replay one exact private P4C preview without resolving or opening media."""
+    if not SHA256_RE.fullmatch(str(preview_sha256)):
+        raise AcousticVerificationError("Enrollment preview hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "enrollment-previews" / f"{preview_sha256}.json"
+    require_private_file(path, root)
+    preview = read_private_object(path)
+    split_authority = _development_split_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    if canonical_artifact_hash(preview) != preview_sha256:
+        raise AcousticVerificationError("Enrollment preview replay is invalid.")
+    _validate_enrollment_preview(preview, split_authority=split_authority)
+    return {
+        **preview,
+        "preview_sha256": preview_sha256,
+        "private_preview_path": str(path),
+    }
 
 
 def _profile_database(root: Path) -> sqlite3.Connection:
