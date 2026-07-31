@@ -91,6 +91,19 @@ aggregate comparison truthfully remains
 successful no-enhancement method and four blocked real methods. P2C-P2E and
 the parent P2 remain open.
 
+P2C now has a terminally reviewed no-download acquisition planner and an exact
+repo-owned open-candidate spec. Silero VAD `6.2.1`, DeepFilterNet `0.5.6`,
+DeepFilterLib `0.5.6`, DeepFilterNet3, and signed RNNoise `v0.2` source/tag
+identities are pinned to official URLs, revisions, sizes, and SHA-256 values
+where upstream publishes them. The two artifacts without official SHA-256
+must be hashed and content-addressed immediately after an authorized download
+and before build/use. The planner records that Python 3.12 requires a local
+DeepFilterLib source build, excludes pyannote terms/contact sharing and all
+audio/model execution, writes only a private immutable blocked dry run, and
+requires replay to supply its originally reviewed byte hash. No apply or
+download path is enabled; P2C remains blocked on explicit operator
+authorization.
+
 Graphiti was healthy at P2 opening but returned only advisory older
 speaker-preprocessing facts. Current repo plans, installed-package readbacks,
 the P0 inventory, and hashed runtime assets control.
@@ -104,6 +117,15 @@ replay proof, and all 15 files/10 directories at `0600`/`0700`. Read-only
 reviewer `/root/p1_review_final` returned P2B PASS after adversarial timing,
 readiness, privacy, tamper, and lifecycle review. No model download,
 environment installation, or private corpus access occurred.
+
+P2C planner checkpoint evidence: 66 focused acoustic tests and 482
+full-repository tests pass. The persisted plan is
+`acquire-open-585ef49febe61caf5a3d99b1`, SHA-256
+`d4b2a4c800b10cd8604b4e2f73ac553a097652f0bc1271ff27def5628c9ac836`,
+under the private P2 runtime root. Read-only reviewer
+`/root/p1_review_final` returned terminal planner `PASS` after official
+metadata, scope-exclusion, spec-drift, timestamp-tamper, serialization-tamper,
+permission, and no-side-effect review.
 
 ## Authorization and fail-closed gates
 

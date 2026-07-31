@@ -23,9 +23,11 @@ from acoustic_speech_preparation import (
     FakePreparationAdapter,
     SpeechPreparationError,
     apply_comparison,
+    dry_run_open_candidate_acquisition,
     dry_run,
     readiness_matrix,
     replay_comparison,
+    replay_open_candidate_acquisition,
     resolve_comparison_lineage_receipt,
     rollback_comparison,
 )
@@ -71,6 +73,113 @@ def synthetic_readiness() -> dict[str, dict[str, object]]:
         "reason": None,
     }
     return matrix
+
+
+def test_open_candidate_acquisition_dry_run_is_immutable_and_no_download(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "p2c"
+    before = readiness_matrix()
+    plan = dry_run_open_candidate_acquisition(runtime_root=root)
+    assert plan["status"] == "blocked"
+    assert plan["reason_code"] == "operator_authorization_required"
+    assert plan["required_approval_token"] == (
+        f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{plan['run_id']}:"
+        f"{plan['dry_run_sha256']}"
+    )
+    assert plan["spec"]["authorization_scope"] == (
+        "download_install_build_open_candidates_only"
+    )
+    assert [item["candidate_id"] for item in plan["spec"]["candidates"]] == [
+        "silero_vad",
+        "deepfilternet",
+        "rnnoise",
+    ]
+    assert plan["host"]["deepfilterlib_cp312_wheel_available"] is False
+    for field in (
+        "will_download",
+        "will_install",
+        "will_build",
+        "will_read_audio",
+        "will_accept_terms",
+        "will_share_contact_information",
+        "will_perform_external_write",
+    ):
+        assert plan[field] is False
+    assert readiness_matrix() == before
+    replay = replay_open_candidate_acquisition(
+        plan["run_id"],
+        expected_dry_run_sha256=plan["dry_run_sha256"],
+        runtime_root=root,
+    )
+    assert replay["dry_run_sha256"] == plan["dry_run_sha256"]
+    assert replay["required_approval_token"] == plan["required_approval_token"]
+    for path in root.rglob("*"):
+        expected = 0o700 if path.is_dir() else 0o600
+        assert stat.S_IMODE(path.stat().st_mode) == expected
+
+
+def test_open_candidate_acquisition_replay_rejects_spec_drift(tmp_path: Path) -> None:
+    source = (
+        Path(__file__).parents[1]
+        / "docs/dev/fixtures/plan-0037-p2/open-candidate-acquisition-plan.json"
+    )
+    spec = tmp_path / "acquisition.json"
+    spec.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    root = tmp_path / "p2c"
+    plan = dry_run_open_candidate_acquisition(
+        runtime_root=root, spec_path=spec
+    )
+    payload = json.loads(spec.read_text(encoding="utf-8"))
+    payload["candidates"][0]["revision"] = "changed"
+    spec.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SpeechPreparationError, match="spec drifted"):
+        replay_open_candidate_acquisition(
+            plan["run_id"],
+            expected_dry_run_sha256=plan["dry_run_sha256"],
+            runtime_root=root,
+        )
+
+
+@pytest.mark.parametrize("tamper", ["created_at", "serialization"])
+def test_open_candidate_acquisition_replay_requires_reviewed_plan_hash(
+    tmp_path: Path, tamper: str
+) -> None:
+    root = tmp_path / "p2c"
+    plan = dry_run_open_candidate_acquisition(runtime_root=root)
+    path = Path(plan["dry_run_path"])
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if tamper == "created_at":
+        payload["created_at"] = "2099-01-01T00:00:00Z"
+        replacement = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    else:
+        replacement = json.dumps(payload, indent=4, sort_keys=False)
+    path.write_text(replacement + "\n", encoding="utf-8")
+    with pytest.raises(SpeechPreparationError, match="dry-run hash mismatch"):
+        replay_open_candidate_acquisition(
+            plan["run_id"],
+            expected_dry_run_sha256=plan["dry_run_sha256"],
+            runtime_root=root,
+        )
+
+
+def test_open_candidate_acquisition_rejects_gated_candidate_injection(
+    tmp_path: Path,
+) -> None:
+    source = (
+        Path(__file__).parents[1]
+        / "docs/dev/fixtures/plan-0037-p2/open-candidate-acquisition-plan.json"
+    )
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["candidates"].append(
+        {**payload["candidates"][0], "candidate_id": "pyannote_community_1"}
+    )
+    spec = tmp_path / "acquisition.json"
+    spec.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SpeechPreparationError, match="incomplete or unordered"):
+        dry_run_open_candidate_acquisition(
+            runtime_root=tmp_path / "p2c", spec_path=spec
+        )
 
 
 def method_readiness(method_id: str) -> dict[str, dict[str, object]]:

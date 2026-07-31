@@ -11,6 +11,7 @@ import argparse
 import importlib.metadata
 import json
 import math
+import platform
 import re
 import shutil
 from pathlib import Path
@@ -36,6 +37,8 @@ APPLY_RECEIPT_SCHEMA = "transcribe-audio.speech-preparation-apply.v1"
 REPLAY_SCHEMA = "transcribe-audio.speech-preparation-replay.v1"
 ROLLBACK_SCHEMA = "transcribe-audio.speech-preparation-rollback.v1"
 LINEAGE_SCHEMA = "transcribe-audio.speech-preparation-lineage.v1"
+ACQUISITION_SPEC_SCHEMA = "transcribe-audio.open-candidate-acquisition-spec.v1"
+ACQUISITION_PLAN_SCHEMA = "transcribe-audio.open-candidate-acquisition-plan.v1"
 APPLY_TOKEN = "APPLY_SPEECH_PREPARATION"
 ROLLBACK_TOKEN = "ROLLBACK_SPEECH_PREPARATION"
 DEFAULT_RUNTIME_ROOT = Path(
@@ -53,6 +56,11 @@ EXPECTED_PACKAGES = {
     "deepfilternet": ("deepfilternet", "0.5.6"),
     "pyannote_community_1": ("pyannote-audio", "4.0.4"),
 }
+DEFAULT_ACQUISITION_SPEC = (
+    Path(__file__).parent
+    / "docs/dev/fixtures/plan-0037-p2/open-candidate-acquisition-plan.json"
+)
+OPEN_CANDIDATE_IDS = ("silero_vad", "deepfilternet", "rnnoise")
 
 
 class SpeechPreparationError(ValueError):
@@ -240,6 +248,312 @@ def readiness_matrix() -> dict[str, dict[str, Any]]:
         ),
     }
     return matrix
+
+
+def _validate_open_candidate_spec(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise SpeechPreparationError("Open-candidate acquisition spec is invalid.")
+    spec = dict(value)
+    if set(spec) != {
+        "schema_version",
+        "reviewed_at",
+        "authorization_scope",
+        "excludes",
+        "candidates",
+        "hash_policy",
+    } or spec["schema_version"] != ACQUISITION_SPEC_SCHEMA:
+        raise SpeechPreparationError("Open-candidate acquisition spec shape is invalid.")
+    if spec["authorization_scope"] != "download_install_build_open_candidates_only":
+        raise SpeechPreparationError("Open-candidate authorization scope is invalid.")
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", str(spec.get("reviewed_at"))):
+        raise SpeechPreparationError("Open-candidate review date is invalid.")
+    required_exclusions = {
+        "pyannote_terms_acceptance",
+        "contact_information_sharing",
+        "private_audio_read",
+        "development_cohort_apply",
+        "biometric_enrollment_or_scoring",
+    }
+    if set(spec.get("excludes") or []) != required_exclusions:
+        raise SpeechPreparationError("Open-candidate exclusions are incomplete.")
+    candidates = spec.get("candidates")
+    if not isinstance(candidates, list) or tuple(
+        candidate.get("candidate_id")
+        for candidate in candidates
+        if isinstance(candidate, Mapping)
+    ) != OPEN_CANDIDATE_IDS:
+        raise SpeechPreparationError("Open-candidate inventory is incomplete or unordered.")
+    for candidate in candidates:
+        required = {
+            "candidate_id",
+            "license_expression",
+            "revision",
+            "source_commit",
+            "install_strategy",
+            "python_312_compatibility",
+            "artifacts",
+            "terms_sources",
+        }
+        allowed = required | {"signed_tag_object"}
+        if set(candidate) - allowed or not required.issubset(candidate):
+            raise SpeechPreparationError("Open-candidate entry shape is invalid.")
+        if any(
+            not isinstance(candidate[field], str) or not candidate[field]
+            for field in (
+                "license_expression",
+                "revision",
+                "install_strategy",
+                "python_312_compatibility",
+            )
+        ):
+            raise SpeechPreparationError("Open-candidate metadata is incomplete.")
+        if not re.fullmatch(r"[a-f0-9]{40}", str(candidate["source_commit"])):
+            raise SpeechPreparationError("Open-candidate source commit is invalid.")
+        if "signed_tag_object" in candidate and not re.fullmatch(
+            r"[a-f0-9]{40}", str(candidate["signed_tag_object"])
+        ):
+            raise SpeechPreparationError("Open-candidate tag object is invalid.")
+        if not isinstance(candidate["terms_sources"], list) or not all(
+            isinstance(url, str) and url.startswith("https://")
+            for url in candidate["terms_sources"]
+        ):
+            raise SpeechPreparationError("Open-candidate terms sources are invalid.")
+        artifacts = candidate.get("artifacts")
+        if not isinstance(artifacts, list) or not artifacts:
+            raise SpeechPreparationError("Open-candidate artifacts are missing.")
+        for artifact in artifacts:
+            required_artifact = {
+                "artifact_id",
+                "filename",
+                "size_bytes",
+                "sha256",
+                "url",
+            }
+            if (
+                not isinstance(artifact, Mapping)
+                or set(artifact) - (required_artifact | {"git_blob_sha1"})
+                or not required_artifact.issubset(artifact)
+                or not isinstance(artifact["size_bytes"], int)
+                or artifact["size_bytes"] <= 0
+                or not str(artifact["url"]).startswith("https://")
+                or (
+                    artifact["sha256"] is not None
+                    and not re.fullmatch(r"[a-f0-9]{64}", str(artifact["sha256"]))
+                )
+                or (
+                    "git_blob_sha1" in artifact
+                    and not re.fullmatch(
+                        r"[a-f0-9]{40}", str(artifact["git_blob_sha1"])
+                    )
+                )
+            ):
+                raise SpeechPreparationError("Open-candidate artifact is invalid.")
+    artifact_ids = {
+        candidate["candidate_id"]: tuple(
+            artifact["artifact_id"] for artifact in candidate["artifacts"]
+        )
+        for candidate in candidates
+    }
+    if artifact_ids != {
+        "silero_vad": ("silero-vad-wheel",),
+        "deepfilternet": (
+            "deepfilternet-wheel",
+            "deepfilterlib-sdist",
+            "deepfilternet3-model",
+        ),
+        "rnnoise": ("rnnoise-release-source",),
+    }:
+        raise SpeechPreparationError("Open-candidate artifact inventory is invalid.")
+    missing_sha_ids = {
+        artifact["artifact_id"]
+        for candidate in candidates
+        for artifact in candidate["artifacts"]
+        if artifact["sha256"] is None
+    }
+    if missing_sha_ids != {"deepfilternet3-model", "rnnoise-release-source"}:
+        raise SpeechPreparationError("Open-candidate pre-download hash coverage is invalid.")
+    expected_hash_policy = {
+        "known_sha256_must_match_before_install": True,
+        "missing_official_sha256_must_be_computed_after_download": True,
+        "all_downloads_must_be_content_addressed_before_build_or_use": True,
+        "hash_mismatch_fails_closed": True,
+    }
+    if spec.get("hash_policy") != expected_hash_policy:
+        raise SpeechPreparationError("Open-candidate hash policy is invalid.")
+    return spec
+
+
+def _acquisition_paths(root: Path, run_id: str) -> dict[str, Path]:
+    if not re.fullmatch(r"acquire-open-[a-f0-9]{24}", run_id):
+        raise SpeechPreparationError("Open-candidate acquisition run ID is invalid.")
+    selected = root.expanduser().absolute()
+    run_dir = selected / "acquisition-plans" / run_id
+    return {
+        "root": selected,
+        "run_dir": run_dir,
+        "dry_run": run_dir / "dry-run.json",
+    }
+
+
+def _acquisition_host_snapshot() -> dict[str, Any]:
+    return {
+        "python_version": platform.python_version(),
+        "machine": platform.machine(),
+        "installed_distributions": {
+            method_id: _package_version(distribution)
+            for method_id, (distribution, _) in EXPECTED_PACKAGES.items()
+            if method_id in {"silero_vad", "deepfilternet"}
+        },
+        "executables": {
+            name: str(Path(path).resolve()) if (path := shutil.which(name)) else None
+            for name in (
+                "cargo",
+                "rustc",
+                "cmake",
+                "autoconf",
+                "automake",
+                "libtool",
+                "pkg-config",
+                "deepFilter",
+                "rnnoise_demo",
+            )
+        },
+        "deepfilterlib_cp312_wheel_available": False,
+    }
+
+
+def dry_run_open_candidate_acquisition(
+    *,
+    runtime_root: Optional[Path] = None,
+    spec_path: Path = DEFAULT_ACQUISITION_SPEC,
+) -> dict[str, Any]:
+    """Persist an immutable no-download P2C acquisition plan."""
+    selected_spec = spec_path.expanduser().absolute()
+    if selected_spec.is_symlink() or not selected_spec.is_file():
+        raise SpeechPreparationError("Open-candidate acquisition spec is unavailable.")
+    try:
+        spec = _validate_open_candidate_spec(
+            json.loads(selected_spec.read_text(encoding="utf-8"))
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SpeechPreparationError("Open-candidate acquisition spec is unreadable.") from exc
+    spec_sha = sha256_file(selected_spec)
+    host = _acquisition_host_snapshot()
+    identity = {
+        "spec_path": str(selected_spec),
+        "spec_sha256": spec_sha,
+        "host": host,
+    }
+    run_id = "acquire-open-" + canonical_artifact_hash(identity)[:24]
+    paths = _acquisition_paths(runtime_root or DEFAULT_RUNTIME_ROOT, run_id)
+    plan = {
+        "schema_version": ACQUISITION_PLAN_SCHEMA,
+        "run_id": run_id,
+        "status": "blocked",
+        "reason_code": "operator_authorization_required",
+        "spec_path": str(selected_spec),
+        "spec_sha256": spec_sha,
+        "spec": spec,
+        "host": host,
+        "runtime_root": str(paths["root"]),
+        "will_download": False,
+        "will_install": False,
+        "will_build": False,
+        "will_read_audio": False,
+        "will_accept_terms": False,
+        "will_share_contact_information": False,
+        "will_perform_external_write": False,
+        "created_at": utc_now(),
+    }
+    ensure_private_tree(paths["root"], paths["run_dir"])
+    stored = _private_write(paths["dry_run"], plan, volatile_fields=("created_at",))
+    plan_sha = sha256_file(paths["dry_run"])
+    return {
+        **stored,
+        "dry_run_path": str(paths["dry_run"]),
+        "dry_run_sha256": plan_sha,
+        "required_approval_token": (
+            f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{run_id}:{plan_sha}"
+        ),
+    }
+
+
+def replay_open_candidate_acquisition(
+    run_id: str,
+    *,
+    expected_dry_run_sha256: str,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Replay a P2C plan without downloading, installing, or probing audio."""
+    paths = _acquisition_paths(runtime_root or DEFAULT_RUNTIME_ROOT, run_id)
+    _private_require(paths["dry_run"], paths["root"])
+    if (
+        not re.fullmatch(r"[a-f0-9]{64}", expected_dry_run_sha256)
+        or sha256_file(paths["dry_run"]) != expected_dry_run_sha256
+    ):
+        raise SpeechPreparationError(
+            "Open-candidate acquisition dry-run hash mismatch."
+        )
+    plan = _private_read(paths["dry_run"])
+    if (
+        set(plan)
+        != {
+            "schema_version", "run_id", "status", "reason_code", "spec_path",
+            "spec_sha256", "spec", "host", "runtime_root", "will_download",
+            "will_install", "will_build", "will_read_audio", "will_accept_terms",
+            "will_share_contact_information", "will_perform_external_write",
+            "created_at",
+        }
+        or plan["schema_version"] != ACQUISITION_PLAN_SCHEMA
+        or plan["run_id"] != run_id
+        or plan["status"] != "blocked"
+        or plan["reason_code"] != "operator_authorization_required"
+        or plan["runtime_root"] != str(paths["root"])
+        or any(
+            plan[field] is not False
+            for field in (
+                "will_download", "will_install", "will_build", "will_read_audio",
+                "will_accept_terms", "will_share_contact_information",
+                "will_perform_external_write",
+            )
+        )
+    ):
+        raise SpeechPreparationError("Open-candidate acquisition plan is invalid.")
+    spec_path = Path(str(plan["spec_path"]))
+    if (
+        spec_path.is_symlink()
+        or not spec_path.is_file()
+        or sha256_file(spec_path) != plan["spec_sha256"]
+        or _validate_open_candidate_spec(plan["spec"])
+        != json.loads(spec_path.read_text(encoding="utf-8"))
+    ):
+        raise SpeechPreparationError("Open-candidate acquisition spec drifted.")
+    identity = {
+        "spec_path": str(spec_path),
+        "spec_sha256": plan["spec_sha256"],
+        "host": plan["host"],
+    }
+    if run_id != "acquire-open-" + canonical_artifact_hash(identity)[:24]:
+        raise SpeechPreparationError("Open-candidate acquisition identity is invalid.")
+    plan_sha = expected_dry_run_sha256
+    return {
+        "schema_version": ACQUISITION_PLAN_SCHEMA,
+        "run_id": run_id,
+        "status": "blocked",
+        "reason_code": "operator_authorization_required",
+        "spec_sha256": plan["spec_sha256"],
+        "dry_run_path": str(paths["dry_run"]),
+        "dry_run_sha256": plan_sha,
+        "required_approval_token": (
+            f"AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:{run_id}:{plan_sha}"
+        ),
+        "will_download": False,
+        "will_install": False,
+        "will_build": False,
+        "will_read_audio": False,
+        "will_perform_external_write": False,
+        "replayed_at": utc_now(),
+    }
 
 
 def _paths(runtime_root: Path, run_id: str) -> dict[str, Path]:

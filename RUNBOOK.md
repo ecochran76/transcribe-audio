@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 254 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`,
+version 1
+
+Packet: P2C | Open-candidate acquisition planning
+
+State transition: `OPEN/Plan-0037-P2 -> OPEN/Plan-0037-P2`.
+
+- Added the exact open-candidate acquisition spec at
+  `docs/dev/fixtures/plan-0037-p2/open-candidate-acquisition-plan.json` for
+  Silero VAD `6.2.1`, DeepFilterNet/DeepFilterLib `0.5.6`, DeepFilterNet3, and
+  signed RNNoise `v0.2`.
+- Bound official package URLs, versions, sizes, SHA-256 values, source commits,
+  RNNoise signed tag identity, licenses, and terms sources. DeepFilterNet3 and
+  RNNoise source lack upstream SHA-256 values, so the spec requires computing
+  and content-addressing them after authorized download and before build/use.
+- Recorded the live Python 3.12 compatibility constraint: DeepFilterLib has no
+  CPython 3.12 wheel at `0.5.6`, while the host has the Rust/native build tool
+  chain needed for an explicitly authorized private source build.
+- Added immutable private dry-run/replay functions. They exclude pyannote
+  terms acceptance, contact sharing, private audio, development-cohort apply,
+  and biometrics; every mutation flag is false. Replay requires the originally
+  reviewed byte-level plan SHA-256 before returning the same approval token.
+- Persisted and replayed plan `acquire-open-585ef49febe61caf5a3d99b1`, SHA-256
+  `d4b2a4c800b10cd8604b4e2f73ac553a097652f0bc1271ff27def5628c9ac836`,
+  under the private P2 runtime root. No package/model/source archive was
+  downloaded, installed, built, or loaded.
+
+Validation and review:
+
+- 66 focused acoustic P1/P2/P3 and identity-contract tests passed.
+- The full repository suite passed with 482 tests.
+- `python -m py_compile` and `git diff --check` passed.
+- Read-only reviewer `/root/p1_review_final` returned terminal planner `PASS`
+  after official-metadata, exclusion, permission, spec-drift, timestamp-tamper,
+  serialization-tamper, and no-side-effect review.
+- Graphiti was healthy but returned no useful P2C recall; current plans,
+  installed-state readbacks, official package/release metadata, and the new
+  repo fixture controlled.
+
+Next:
+
+- Await the exact persisted
+  `AUTHORIZE_P2C_OPEN_MODEL_ACQUISITION:<run-id>:<dry-run-sha256>` token before
+  implementing or executing downloads/builds. Pyannote and development-cohort
+  apply remain separate later gates.
+
 ## Turn 253 | 2026-07-31
 
 Plan:

@@ -1,0 +1,100 @@
+{
+  "schema_version": "transcribe-audio.open-candidate-acquisition-spec.v1",
+  "reviewed_at": "2026-07-31",
+  "authorization_scope": "download_install_build_open_candidates_only",
+  "excludes": [
+    "pyannote_terms_acceptance",
+    "contact_information_sharing",
+    "private_audio_read",
+    "development_cohort_apply",
+    "biometric_enrollment_or_scoring"
+  ],
+  "candidates": [
+    {
+      "candidate_id": "silero_vad",
+      "license_expression": "MIT",
+      "revision": "6.2.1",
+      "source_commit": "7e30209a3e901f9842f81b225f3e93d8199902b1",
+      "install_strategy": "hash_pinned_wheel",
+      "python_312_compatibility": "universal_wheel_available",
+      "artifacts": [
+        {
+          "artifact_id": "silero-vad-wheel",
+          "filename": "silero_vad-6.2.1-py3-none-any.whl",
+          "size_bytes": 9146242,
+          "sha256": "09de93c4d874bb19c53e62a47dd38be5f163cedad2b5599583231f2a84ef79cb",
+          "url": "https://files.pythonhosted.org/packages/0b/2b/48566f29a8b53d856ceb1994f209122749b3fda0a733a07e82047257de7a/silero_vad-6.2.1-py3-none-any.whl"
+        }
+      ],
+      "terms_sources": [
+        "https://github.com/snakers4/silero-vad/blob/v6.2.1/LICENSE",
+        "https://pypi.org/project/silero-vad/6.2.1/"
+      ]
+    },
+    {
+      "candidate_id": "deepfilternet",
+      "license_expression": "MIT OR Apache-2.0",
+      "revision": "0.5.6",
+      "source_commit": "978576aa8400552a4ce9730838c635aa30db5e61",
+      "install_strategy": "hash_pinned_python_wheel_plus_source_built_native_dependency",
+      "python_312_compatibility": "deepfilterlib_requires_local_source_build",
+      "artifacts": [
+        {
+          "artifact_id": "deepfilternet-wheel",
+          "filename": "deepfilternet-0.5.6-py3-none-any.whl",
+          "size_bytes": 113208,
+          "sha256": "99f5688d954fcfa8f853bf8bb8c3b2a59e4f9dc5d95643c9e6a32053234ba7c6",
+          "url": "https://files.pythonhosted.org/packages/70/71/2edcc970c4dc689c301ea83e89a169fde08d6af0dfb26b14009ab27ee105/deepfilternet-0.5.6-py3-none-any.whl"
+        },
+        {
+          "artifact_id": "deepfilterlib-sdist",
+          "filename": "DeepFilterLib-0.5.6.tar.gz",
+          "size_bytes": 112915,
+          "sha256": "38fa2334c5b19385ca1f747ca9636f8016119005b3a12046d56ddc054a3807e5",
+          "url": "https://files.pythonhosted.org/packages/61/ca/c85f5796b6ab4974b105b82ad29e1addd83040ca498d658dc0587739fa6f/DeepFilterLib-0.5.6.tar.gz"
+        },
+        {
+          "artifact_id": "deepfilternet3-model",
+          "filename": "DeepFilterNet3.zip",
+          "size_bytes": 7986207,
+          "sha256": null,
+          "git_blob_sha1": "ea53bac00d064378451d0201d573f44f05f1d746",
+          "url": "https://raw.githubusercontent.com/Rikorose/DeepFilterNet/v0.5.6/models/DeepFilterNet3.zip"
+        }
+      ],
+      "terms_sources": [
+        "https://github.com/Rikorose/DeepFilterNet/blob/v0.5.6/LICENSE-MIT",
+        "https://github.com/Rikorose/DeepFilterNet/blob/v0.5.6/LICENSE-APACHE",
+        "https://pypi.org/project/deepfilternet/0.5.6/"
+      ]
+    },
+    {
+      "candidate_id": "rnnoise",
+      "license_expression": "BSD-3-Clause",
+      "revision": "v0.2",
+      "source_commit": "904a876dce1f9ab8860c0a5000ed151f9f6eef58",
+      "signed_tag_object": "c9137adac37fe21ede831f8a0aa31c17560c01e7",
+      "install_strategy": "private_source_build_no_system_install",
+      "python_312_compatibility": "not_applicable_native_executable",
+      "artifacts": [
+        {
+          "artifact_id": "rnnoise-release-source",
+          "filename": "rnnoise-0.2.tar.gz",
+          "size_bytes": 2294308,
+          "sha256": null,
+          "url": "https://github.com/xiph/rnnoise/releases/download/v0.2/rnnoise-0.2.tar.gz"
+        }
+      ],
+      "terms_sources": [
+        "https://github.com/xiph/rnnoise/blob/v0.2/COPYING",
+        "https://github.com/xiph/rnnoise/releases/tag/v0.2"
+      ]
+    }
+  ],
+  "hash_policy": {
+    "known_sha256_must_match_before_install": true,
+    "missing_official_sha256_must_be_computed_after_download": true,
+    "all_downloads_must_be_content_addressed_before_build_or_use": true,
+    "hash_mismatch_fails_closed": true
+  }
+}
