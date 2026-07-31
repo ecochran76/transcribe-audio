@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import mimetypes
+import os
 import re
 import shutil
 import sqlite3
@@ -514,8 +515,10 @@ def artifact_store_path(root: Path, doc_id: str, source_path: Path) -> Path:
 
 def connect(path: Optional[Path] = None) -> sqlite3.Connection:
     root = store_dir(path)
-    root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(root, 0o700)
     con = sqlite3.connect(db_path(root))
+    os.chmod(db_path(root), 0o600)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con
@@ -657,9 +660,14 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
     artifact_hash = sha256_file(resolved)
     blob_id = stable_id(role, artifact_hash)
     stored_path = blob_store_path(root, blob_id, resolved)
-    stored_path.parent.mkdir(parents=True, exist_ok=True)
+    blob_root = root / "blobs"
+    blob_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(blob_root, 0o700)
+    stored_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(stored_path.parent, 0o700)
     if not stored_path.exists() or sha256_file(stored_path) != artifact_hash:
         shutil.copy2(resolved, stored_path)
+    os.chmod(stored_path, 0o600)
     return {
         "id": blob_id,
         "role": role,
@@ -1065,9 +1073,14 @@ def ingest_artifact(
     generated_at = artifact_time(payload)
     doc_id = stable_id(kind, str(source_path), artifact_hash)
     stored_path = artifact_store_path(store_root, doc_id, source_path)
-    stored_path.parent.mkdir(parents=True, exist_ok=True)
+    artifacts_root = store_root / "artifacts"
+    artifacts_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(artifacts_root, 0o700)
+    stored_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(stored_path.parent, 0o700)
     if not stored_path.exists() or sha256_bytes(stored_path.read_bytes()) != artifact_hash:
         shutil.copy2(source_path, stored_path)
+    os.chmod(stored_path, 0o600)
     metadata = metadata_for_artifact(kind, payload)
     media_blob = prepare_blob(store_root, media_path_for_payload(payload)) if kind == "transcript" else {}
     if media_blob:

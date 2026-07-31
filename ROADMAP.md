@@ -411,17 +411,18 @@ Definition of Done:
 
 State: OPEN
 
-Current State: Plan 0037 is the immediate speaker-identity critical path.
-Source recordings already exist as private blobs, and a review-only WavLM
-prototype showed that acoustics can support identity and detect diarization
-labels split across one person. No production acoustic evidence schema,
-calibrated verification model, durable enrollment library, or historical
-reprocessing workflow exists yet. Plan 0036 remains sealed and paused at five
-of ten current gold reviews.
+Current State: Plan 0037 is the immediate speaker-identity critical path. P0
+closed through Plan 0038 with six versioned contracts, persistent private
+transcript-store modes, a model/checkpoint license inventory, and a frozen
+24-recording conversation-disjoint corpus. Acoustic conditions remain
+unassessed pending P1/P2. No calibrated verification model, durable enrollment
+library, or historical reprocessing workflow exists yet. Plan 0036 remains
+sealed and paused at five of ten current gold reviews.
 
 Plans:
 
 - `docs/dev/plans/0037-2026-07-31-audio-enhancement-biometric-speaker-identity.md`
+- `docs/dev/plans/0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md`
 
 Research:
 

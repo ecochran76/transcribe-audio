@@ -1,0 +1,103 @@
+{
+  "schema_version": "transcribe-audio.acoustic-model-license-inventory.v1",
+  "reviewed_at": "2026-07-31",
+  "promotion_policy": {
+    "acquisition_requires_pinned_revision": true,
+    "acquisition_requires_sha256": true,
+    "checkpoint_terms_review_required": true,
+    "unresolved_terms_fail_closed": true
+  },
+  "candidates": [
+    {
+      "candidate_id": "wespeaker",
+      "role": "speaker_verification",
+      "code_license": "Apache-2.0",
+      "code_source": "https://github.com/wenet-e2e/wespeaker",
+      "checkpoint_candidates": ["CAM++", "ResNet34", "ECAPA512"],
+      "checkpoint_terms": "Dataset-dependent; the project states VoxCeleb checkpoints follow CC-BY-4.0.",
+      "checkpoint_terms_source": "https://github.com/wenet-e2e/wespeaker/blob/master/docs/pretrained.md",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Select exact checkpoint, verify its training-dataset terms, pin revision, and record SHA-256."
+    },
+    {
+      "candidate_id": "speechbrain-ecapa-tdnn",
+      "role": "speaker_verification_baseline",
+      "code_license": "Apache-2.0",
+      "code_source": "https://github.com/speechbrain/speechbrain",
+      "checkpoint_candidates": ["speechbrain/spkrec-ecapa-voxceleb"],
+      "checkpoint_terms": "Model card declares Apache-2.0; VoxCeleb training-data terms remain a separate provenance review item.",
+      "checkpoint_terms_source": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Pin an immutable model revision, record every checkpoint hash, and confirm training-data use terms."
+    },
+    {
+      "candidate_id": "pyannote-community-1",
+      "role": "diarization_preparation",
+      "code_license": "MIT",
+      "code_source": "https://github.com/pyannote/pyannote-audio",
+      "checkpoint_candidates": ["pyannote/speaker-diarization-community-1"],
+      "checkpoint_terms": "CC-BY-4.0 checkpoint with gated access requiring acceptance of user conditions and contact-information sharing.",
+      "checkpoint_terms_source": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Operator must accept the checkpoint conditions; then pin the revision and hashes without storing access tokens in the repo."
+    },
+    {
+      "candidate_id": "silero-vad",
+      "role": "voice_activity_detection",
+      "code_license": "MIT",
+      "code_source": "https://github.com/snakers4/silero-vad",
+      "checkpoint_candidates": ["silero_vad ONNX"],
+      "checkpoint_terms": "The silero-vad repository and its distributed VAD assets are published under the repository MIT license.",
+      "checkpoint_terms_source": "https://github.com/snakers4/silero-vad/blob/master/LICENSE",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Select version, pin the exact ONNX asset, and record SHA-256."
+    },
+    {
+      "candidate_id": "deepfilternet",
+      "role": "speech_enhancement",
+      "code_license": "MIT OR Apache-2.0",
+      "code_source": "https://github.com/Rikorose/DeepFilterNet",
+      "checkpoint_candidates": ["DeepFilterNet3"],
+      "checkpoint_terms": "Repository offers MIT or Apache-2.0; exact packaged-model provenance must be checked at acquisition.",
+      "checkpoint_terms_source": "https://github.com/Rikorose/DeepFilterNet",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Pin package/model revision, verify packaged-model terms, and record SHA-256."
+    },
+    {
+      "candidate_id": "rnnoise",
+      "role": "speech_enhancement_baseline",
+      "code_license": "BSD-3-Clause",
+      "code_source": "https://github.com/xiph/rnnoise",
+      "checkpoint_candidates": ["upstream RNNoise model data"],
+      "checkpoint_terms": "Upstream repository is BSD-3-Clause; build-time model assets still require exact revision and hash inventory.",
+      "checkpoint_terms_source": "https://github.com/xiph/rnnoise",
+      "acquisition_status": "not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Pin the source/model-data revision and record downloaded asset hashes."
+    },
+    {
+      "candidate_id": "nvidia-titanet",
+      "role": "deferred_speaker_verification",
+      "code_license": "Apache-2.0",
+      "code_source": "https://github.com/NVIDIA-NeMo/NeMo",
+      "checkpoint_candidates": ["TitaNet"],
+      "checkpoint_terms": "Deferred; exact checkpoint and model-card terms have not been selected.",
+      "checkpoint_terms_source": "https://docs.nvidia.com/nemo-framework/user-guide/latest/nemotoolkit/asr/speaker_recognition/models.html",
+      "acquisition_status": "deferred_not_acquired",
+      "revision": null,
+      "sha256": null,
+      "promotion_blocker": "Do not acquire unless P4 records a specific unanswered deployment or quality question, then review exact checkpoint terms."
+    }
+  ]
+}

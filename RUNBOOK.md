@@ -2,6 +2,79 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 249 | 2026-07-31
+
+Plans:
+
+- `docs/dev/plans/0037-2026-07-31-audio-enhancement-biometric-speaker-identity.md`,
+  P0 closed; P1 next.
+- `docs/dev/plans/0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md`,
+  version 1, closed.
+
+State transition: `OPEN/Plan-0037-P0 -> CLOSED/Plan-0037-P0`.
+
+P0 contract and privacy freeze:
+
+- Added six versioned acoustic artifact contracts. Portable artifacts reject
+  recursive embedding/vector/audio payloads; biometric lifecycle, timestamp
+  mapping, verification split, and reprocessing approval/non-overwrite rules
+  fail closed.
+- Added a seven-candidate code/checkpoint inventory. All dependencies and
+  checkpoints remain unacquired, and exact revisions, hashes, dataset terms,
+  and gated-access conditions remain promotion blockers.
+- Found that the user-scoped transcript store contradicted the prior private
+  blob premise: selected blobs were `0755`/`0777`, the root was `0755`, and the
+  database was `0644`. Hardened the complete store to `0700` directories and
+  `0600` files and made those modes persistent for new database, artifact, and
+  blob writes.
+- Bound corpus gold paths to the campaign gold directory and matched schema,
+  gold/document/campaign/manifest identities, chronological rank, reviewed
+  artifact hash, current transcript lineage, and immutable source-blob hash.
+
+Private corpus:
+
+- Corpus: `acoustic-corpus-1f93d1405f82676420571e1b`.
+- Denominators: 24 recordings, 24 conversations, 35 pseudonymous subjects,
+  105 labels, 293 feasible same-person pairs, and 2,042 feasible
+  different-person pairs.
+- Splits: 16 development, 3 calibration, and 5 evaluation recordings; no
+  conversation crosses a split.
+- Manifest SHA-256:
+  `73f0e04aab0274ddfeaa7f6b1567ecb135eebc0a0d6e5818cb3bd2ee5535dabf`.
+- Manifest and freeze receipt are `0600`; scoped directories are `0700`.
+  Unchanged replay returned the same corpus identity and receipt.
+- Acoustic conditions are explicit `unassessed_until_p1` or
+  `unassessed_until_p2`; the corpus is not eligible for model promotion.
+
+Delegation:
+
+- Spawned read-only reviewer `/root/p0_audit`. The first pass found contract,
+  privacy, idempotence, and benchmark gaps. The terminal pass found gold
+  provenance, reprocessing binding, and planning-wiring blockers. The primary
+  agent repaired and tested each finding before closure.
+
+Validation:
+
+- 39 focused contract/corpus/store tests passed.
+- 122 transcript-artifact, speaker-evaluation, identity-preprocessing, and
+  workflow regressions passed.
+- Full suite: 423 passed in 28.15 seconds.
+- Graphiti discovery returned no facts because FalkorDB on `127.0.0.1:6389`
+  was down; repo authorities and live readbacks controlled.
+- No acoustic model ran, no Plan 0036 prediction was revealed, no biometric
+  enrollment occurred, and no external write occurred.
+
+Branch:
+
+- Created `plan-0037-campaign` from synchronized commit `8b4a1b1` so the branch
+  scope matches the active campaign.
+
+Next:
+
+- Derive and execute Plan 0037 P1 for immutable audio derivatives, quality
+  measurement, exact timestamp maps, and dry-run/apply/replay/rollback
+  receipts.
+
 ## Turn 248 | 2026-07-31
 
 Plans:

@@ -1,0 +1,31 @@
+{
+  "catalog_version": "transcribe-audio.acoustic-contract-catalog.v1",
+  "artifacts": {
+    "derived_audio": {
+      "privacy_class": "private_audio",
+      "schema_version": "transcribe-audio.derived-audio.v1"
+    },
+    "audio_quality": {
+      "privacy_class": "portable_derived_metadata",
+      "schema_version": "transcribe-audio.audio-quality.v1"
+    },
+    "biometric_profile": {
+      "privacy_class": "restricted_biometric",
+      "schema_version": "transcribe-audio.biometric-profile.v1"
+    },
+    "verification_trial_manifest": {
+      "privacy_class": "private_evaluation",
+      "schema_version": "transcribe-audio.verification-trial-manifest.v1"
+    },
+    "acoustic_evidence_bundle": {
+      "privacy_class": "portable_bounded_evidence",
+      "schema_version": "transcribe-audio.acoustic-evidence-bundle.v1"
+    },
+    "reprocessing_manifest": {
+      "privacy_class": "private_operation",
+      "schema_version": "transcribe-audio.acoustic-reprocessing-manifest.v1"
+    }
+  },
+  "authority": "acoustic_identity_contracts.contract_catalog",
+  "note": "This redacted index is documentation; executable required-field and privacy validation remains authoritative in acoustic_identity_contracts.py."
+}

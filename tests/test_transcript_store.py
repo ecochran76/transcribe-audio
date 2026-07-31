@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import sqlite3
 import sys
 from pathlib import Path
@@ -97,6 +98,35 @@ def test_store_init_creates_database(tmp_path: Path) -> None:
         transcript_store.init_db(con)
 
     assert (tmp_path / "transcripts.sqlite3").exists()
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o700
+    assert stat.S_IMODE((tmp_path / "transcripts.sqlite3").stat().st_mode) == 0o600
+
+
+def test_ingest_keeps_stored_artifact_and_source_blob_private(
+    tmp_path: Path,
+) -> None:
+    source_audio = tmp_path / "source-call.m4a"
+    source_audio.write_bytes(b"private audio")
+    source_audio.chmod(0o777)
+    payload = timestamped_transcript_payload()
+    payload["working_media_path"] = str(source_audio)
+    source_artifact = write_json(
+        tmp_path / "private.transcript.json",
+        payload,
+    )
+    source_artifact.chmod(0o777)
+
+    result = transcript_store.ingest_artifact(source_artifact, root=tmp_path / "store")
+    with transcript_store.connect(tmp_path / "store") as con:
+        blob = con.execute(
+            "SELECT stored_path FROM blobs ORDER BY id LIMIT 1"
+        ).fetchone()
+
+    assert stat.S_IMODE(Path(result.stored_path).stat().st_mode) == 0o600
+    assert blob is not None
+    assert stat.S_IMODE(Path(blob["stored_path"]).stat().st_mode) == 0o600
+    assert stat.S_IMODE((tmp_path / "store" / "artifacts").stat().st_mode) == 0o700
+    assert stat.S_IMODE((tmp_path / "store" / "blobs").stat().st_mode) == 0o700
 
 
 def test_ollama_embedding_provider_uses_api_embed(monkeypatch) -> None:

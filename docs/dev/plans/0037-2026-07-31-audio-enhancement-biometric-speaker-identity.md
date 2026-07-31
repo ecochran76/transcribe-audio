@@ -72,11 +72,18 @@ identity authority:
 
 ## Current state
 
-The service already stores source recordings as private blobs and retains
-diarized transcript artifacts. The host builds a bounded speaker clue packet
-from transcript, calendar, contact, relationship, GWS, and Odollo evidence.
-App Intelligence proposes identities only from prepared candidates and cited
-evidence.
+P0 is closed through
+[Plan 0038](0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md).
+Six versioned artifact contracts, a fail-closed model/license inventory, and a
+private 24-recording conversation-disjoint corpus are frozen. The complete
+user-scoped transcript store now uses `0700` directories and `0600` files,
+including persistent enforcement for future artifacts and blobs. Acoustic
+condition fields remain explicitly unassessed pending P1/P2; no model,
+enrollment, prediction reveal, or App Intelligence integration has run.
+
+The host continues to build a bounded speaker clue packet from transcript,
+calendar, contact, relationship, GWS, and Odollo evidence. App Intelligence
+proposes identities only from prepared candidates and cited evidence.
 
 A review-only experiment used WavLM Base Plus embeddings and cosine similarity
 over short windows. It supplied useful supporting evidence, including evidence
@@ -164,6 +171,8 @@ No parallel work may share live enrollment or reprocessing write surfaces.
 Each packet produces one bounded outcome on the campaign's critical path.
 
 ### P0 | Contracts and evaluation corpus
+
+State: CLOSED via Plan 0038.
 
 Define versioned schemas for derived audio, quality, enrollment profiles,
 verification trials, acoustic evidence, and reprocessing manifests. Inventory
