@@ -2,6 +2,73 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 251 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`,
+version 1
+
+Packet: P2 | Speech preparation comparison
+
+State transition: `CLOSED/Plan-0037-P1 -> OPEN/Plan-0037-P2`.
+
+- Opened a bounded P2 packet for internal no-enhancement, Silero VAD,
+  DeepFilterNet, RNNoise, and pyannote preparation adapters plus replayable
+  private comparison evidence.
+- Frozen calibration/evaluation recordings, biometric enrollment/verification,
+  historical reprocessing, default-pipeline changes, App Intelligence, and
+  external writes remain outside P2.
+- Current venv readback has PyTorch 2.11.0, torchaudio 2.11.0, onnxruntime
+  1.24.4, and pyannote.audio 4.0.4. Silero/DeepFilterNet packages and an RNNoise
+  executable are absent.
+- The P0 inventory says all P2 model assets are unacquired. Existing incomplete
+  pyannote cache fragments are not acquisition or authorization evidence;
+  Community-1 remains behind an explicit human terms/contact-sharing gate.
+- Graphiti was healthy but returned only advisory older preprocessing facts.
+  Current plans, inventory, installed state, hashes, and receipts control.
+- Reused read-only reviewer `/root/p1_review_final` for P2 design and terminal
+  audit; the primary owns all edits, downloads, and private processing.
+
+P2B checkpoint:
+
+- Added `acoustic_speech_preparation.py` with a normalized five-method
+  readiness matrix and stable no-enhancement, fake-test, dry-run, apply,
+  replay, and rollback interfaces.
+- Bound P2 plans and receipts to replay-verified P1 manifests, artifacts,
+  timestamp maps, readiness assets, acquisition-manifest hashes, adapter
+  identities, and run-specific approval tokens.
+- Kept lifecycle status separate from comparison outcome: apply records
+  `success/applied`, while the comparison remains
+  `blocked/required_real_comparisons_not_run` with denominator
+  `methods=5, attempted=1, success=1, failure=0, blocked=4`.
+- Enforced private immutable artifacts, finite and role-specific timing proof,
+  forbidden portable payload families, test-only fake adapters, tamper-aware
+  replay, idempotence, and non-destructive revocation.
+- Added a public P1 active-derivative resolver whose manifest is returned by
+  the same replay operation that validates it, avoiding a validation/reopen
+  race.
+
+Validation and review:
+
+- 40 focused P0/P1/P2 tests passed; the full repository suite passed with 456
+  tests.
+- Final synthetic smoke root:
+  `~/.local/state/transcribe-audio/plan-0037/p2b-smoke-final`; P1 run
+  `audio-run-b37e04a6706ef0ab4e3099ea`; P2 run
+  `speech-prep-f312247c2ba9a601ac38a9a8`.
+- First apply, idempotent apply, active replay, rollback, and inactive replay
+  passed. All 15 files are `0600`; all 10 directories are `0700`.
+- Read-only reviewer `/root/p1_review_final` returned terminal P2B PASS after
+  independent adversarial timing, readiness, privacy, and lifecycle probes.
+- No model was downloaded or installed and no P0 private corpus recording was
+  read. P2 remains open.
+
+Next:
+
+- Persist and push this truthful P2B checkpoint. Then advance an independent
+  Plan 0037 lane while P2C open-model acquisition and P2D pyannote execution
+  remain behind their explicit approval gates.
+
 ## Turn 250 | 2026-07-31
 
 Plan:

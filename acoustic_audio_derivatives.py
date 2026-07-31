@@ -779,6 +779,7 @@ def replay_derivative(
     run_id: str,
     *,
     runtime_root: Optional[Path] = None,
+    include_validated_manifest: bool = False,
 ) -> dict[str, Any]:
     root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser()
     paths = _runtime_paths(root, run_id)
@@ -876,7 +877,10 @@ def replay_derivative(
     stored = _write_immutable_json(
         replay_path, receipt, volatile_fields=("replayed_at",)
     )
-    return {**stored, "replay_receipt_path": str(replay_path)}
+    result = {**stored, "replay_receipt_path": str(replay_path)}
+    if include_validated_manifest:
+        result["validated_manifest"] = manifest
+    return result
 
 
 def derivative_is_active(
@@ -884,6 +888,78 @@ def derivative_is_active(
 ) -> bool:
     """Resolve authoritative eligibility only after a complete replay."""
     return bool(replay_derivative(run_id, runtime_root=runtime_root)["active"])
+
+
+def resolve_active_derivative(
+    run_id: str, *, runtime_root: Optional[Path] = None
+) -> dict[str, Any]:
+    """Return a fully replay-validated P1 input reference for host consumers."""
+    root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    replay = replay_derivative(
+        run_id, runtime_root=root, include_validated_manifest=True
+    )
+    if replay["active"] is not True:
+        raise AudioDerivativeError("A rolled-back derivative is not consumable.")
+    paths = _runtime_paths(root, run_id)
+    manifest = replay["validated_manifest"]
+    return {
+        "run_id": run_id,
+        "runtime_root": str(paths["root"]),
+        "manifest_path": str(paths["manifest"]),
+        "manifest_sha256": replay["manifest_sha256"],
+        "source_blob_id": manifest["source"]["source_blob_id"],
+        "source_sha256": manifest["source"]["sha256"],
+        "artifact_path": manifest["artifact_path"],
+        "artifact_sha256": manifest["derived_audio"]["output_sha256"],
+        "derived_audio": manifest["derived_audio"],
+        "audio_quality": manifest["audio_quality"],
+        "effective_recipe": manifest["effective_recipe"],
+        "recipe_sha256": manifest["recipe_sha256"],
+        "derived_audio_sha256": manifest["derived_audio_sha256"],
+        "audio_quality_sha256": manifest["audio_quality_sha256"],
+    }
+
+
+def canonical_artifact_hash(value: Any) -> str:
+    """Return the canonical JSON SHA-256 used by private runtime identities."""
+    return _canonical_hash(value)
+
+
+def sha256_file(path: Path) -> str:
+    """Hash a file for a private evidence binding."""
+    return _sha256_file(path)
+
+
+def utc_now() -> str:
+    """Return the canonical UTC audit timestamp."""
+    return _utc_now()
+
+
+def ensure_private_tree(root: Path, leaf: Path) -> None:
+    """Create or validate a 0700 private directory tree."""
+    _ensure_private_tree(root, leaf)
+
+
+def require_private_file(path: Path, root: Path) -> None:
+    """Require a contained, non-symlinked 0600 private file."""
+    _require_private_file(path, root)
+
+
+def read_private_object(path: Path) -> dict[str, Any]:
+    """Read a regular JSON evidence object."""
+    return _read_object(path)
+
+
+def write_immutable_private_json(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    volatile_fields: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Write or replay a no-clobber 0600 JSON evidence object."""
+    return _write_immutable_json(
+        path, payload, volatile_fields=volatile_fields
+    )
 
 
 def rollback_derivative(

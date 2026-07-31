@@ -16,6 +16,7 @@ from acoustic_audio_derivatives import (
     apply_derivative,
     dry_run,
     replay_derivative,
+    resolve_active_derivative,
     rollback_derivative,
 )
 
@@ -150,6 +151,9 @@ def test_apply_replay_and_rollback_are_content_addressed_and_non_destructive(
     assert replay["status"] == "verified_active"
     assert replay["active"] is True
     assert replay["artifact_sha256"] == derived["output_sha256"]
+    resolved = resolve_active_derivative(plan["run_id"], runtime_root=runtime)
+    assert resolved["artifact_sha256"] == derived["output_sha256"]
+    assert resolved["manifest_sha256"] == applied["manifest_sha256"]
 
     with pytest.raises(AudioDerivativeError, match="approval token"):
         rollback_derivative(plan["run_id"], runtime_root=runtime, approval_token="")
@@ -170,6 +174,8 @@ def test_apply_replay_and_rollback_are_content_addressed_and_non_destructive(
     rolled_back_replay = replay_derivative(plan["run_id"], runtime_root=runtime)
     assert rolled_back_replay["status"] == "verified_rolled_back"
     assert rolled_back_replay["active"] is False
+    with pytest.raises(AudioDerivativeError, match="not consumable"):
+        resolve_active_derivative(plan["run_id"], runtime_root=runtime)
     with pytest.raises(AudioDerivativeError, match="cannot be reactivated"):
         apply_derivative(source, runtime_root=runtime, approval_token=APPLY_TOKEN)
 

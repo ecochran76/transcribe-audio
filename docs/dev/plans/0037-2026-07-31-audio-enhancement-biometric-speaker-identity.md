@@ -194,6 +194,8 @@ apply, replay, and rollback receipts.
 
 ### P2 | Speech preparation
 
+State: OPEN via Plan 0040.
+
 Use Silero VAD as the initial speech detector. Compare no enhancement,
 DeepFilterNet, and RNNoise. Evaluate pyannote Community-1 for diarization,
 overlap, and speaker-change preparation.

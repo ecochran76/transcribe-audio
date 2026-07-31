@@ -414,8 +414,11 @@ State: OPEN
 Current State: Plan 0037 is the immediate speaker-identity critical path. P0
 closed through Plan 0038, and P1 closed through Plan 0039 with immutable,
 content-addressed PCM derivatives, deterministic signal-quality evidence,
-full timestamp identity maps, and fail-closed lifecycle receipts. Usable speech
-and acoustic conditions remain unassessed pending P2. No calibrated
+full timestamp identity maps, and fail-closed lifecycle receipts. Plan 0040
+P2B now has a reviewed host seam and no-enhancement baseline; its real Silero,
+DeepFilterNet, RNNoise, pyannote, and development-cohort comparisons remain
+blocked behind acquisition and human gates, so usable speech and acoustic
+conditions remain unassessed pending P2. No calibrated
 verification model, durable enrollment library, or historical reprocessing
 workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
 gold reviews.
@@ -425,6 +428,7 @@ Plans:
 - `docs/dev/plans/0037-2026-07-31-audio-enhancement-biometric-speaker-identity.md`
 - `docs/dev/plans/0038-2026-07-31-plan-0037-p0-contract-evaluation-freeze.md`
 - `docs/dev/plans/0039-2026-07-31-plan-0037-p1-audio-derivatives-quality.md`
+- `docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`
 
 Research:
 
