@@ -23,6 +23,7 @@ from acoustic_biometric_references import (
     descendant_is_eligible,
     dry_run as _dry_run,
     register_descendant,
+    request_descendant_invalidation,
     replay_reference,
     resolve_eligible_reference,
     source_set_sha256,
@@ -274,6 +275,54 @@ def transition(
         expected_generation_id=replay["head_generation_id"],
         suffix=suffix,
     )
+
+
+def test_p4_can_request_descendant_invalidation(tmp_path: Path) -> None:
+    root = tmp_path / "references"
+    _, created = create_profile(root)
+    resolved = resolve_eligible_reference(created["person_ref_id"], runtime_root=root)
+    descendant_id = "materialized-profile-p4-withdraw"
+    artifact_sha256 = "e" * 64
+    materialization = materialization_receipt(
+        resolved, descendant_id, artifact_sha256
+    )
+    authority_path, authority_root = p4_anchor(root, materialization)
+    registered = register_descendant(
+        resolved["profile_id"],
+        resolved["generation_id"],
+        descendant_id,
+        artifact_sha256,
+        materialization_receipt=materialization,
+        authority_receipt_path=authority_path,
+        p4_authority_root=authority_root,
+        approval_token=registration_token(
+            resolved, descendant_id, artifact_sha256
+        ),
+        runtime_root=root,
+    )
+    promote_descendant(root, registered)
+    assert descendant_is_eligible(descendant_id, runtime_root=root)
+
+    requested = request_descendant_invalidation(
+        descendant_id,
+        reason="p4_profile_withdrawn",
+        approval_token=(
+            f"INVALIDATE_BIOMETRIC_DESCENDANT:{descendant_id}:"
+            f"{artifact_sha256}:p4_profile_withdrawn"
+        ),
+        runtime_root=root,
+    )
+
+    assert requested["state"] == "invalidation_pending"
+    assert requested["required_acknowledgment_token"] == (
+        f"ACK_BIOMETRIC_DESCENDANT_INVALIDATION:{descendant_id}:"
+        f"{artifact_sha256}:p4_profile_withdrawn"
+    )
+    assert descendant_is_eligible(descendant_id, runtime_root=root) is False
+    invalidate_descendant(
+        root, descendant_id, artifact_sha256, "p4_profile_withdrawn"
+    )
+    assert descendant_is_eligible(descendant_id, runtime_root=root) is False
 
 
 def test_synthetic_reference_lifecycle_and_descendant_revocation(

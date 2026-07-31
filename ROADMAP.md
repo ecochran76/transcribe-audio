@@ -425,8 +425,9 @@ immutable lifecycle replay, mandatory production lineage, and independently
 anchored P4 descendant invalidation. Plan 0042 P4 is open for exact
 SpeechBrain ECAPA, WeSpeaker CAM++, and WeSpeaker ResNet34 acquisition,
 model-specific profile materialization, held-out calibration, and sealed
-evaluation. P4A model/code/terms acquisition is hash-verified and closed; P4B
-host adapters and synthetic profile lifecycle are next. No calibrated
+evaluation. P4A model/code/terms acquisition and P4B offline adapters plus
+synthetic private profile lifecycle are closed; P4C exact real-enrollment
+preview is next. No calibrated
 verification model, real enrolled reference library, or historical reprocessing
 workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
 gold reviews.

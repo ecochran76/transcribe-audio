@@ -4,14 +4,15 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 3
+Plan Version: 4
 
 Parent: Plan 0037 P4
 
 Owner: primary agent
 
 Expected Write Surface: one focused acoustic-verification module and tests,
-one pinned acquisition fixture, Plan 0037, `ROADMAP.md`, and `RUNBOOK.md`;
+one narrow P3 descendant-invalidation request seam, one pinned acquisition
+fixture, Plan 0037, `ROADMAP.md`, and `RUNBOOK.md`;
 private models, profiles, trials, and receipts only under
 `~/.local/state/transcribe-audio/plan-0037/verification-calibration/`.
 
@@ -128,6 +129,12 @@ runtime. The exact acquisition authority is
 Its reviewed v1 SHA-256 is
 `c6cc78b265eed77b5b52637765dc3cde07a74e99b1ef7fde6328a15ae1345c1c`.
 
+P4B now has three offline, lazy host adapters; deterministic fake-model
+materialization/scoring; a private model-specific profile store; P3 descendant
+registration/promotion/invalidation; and staged, active, superseded, withdrawn,
+and deleted lifecycle replay. Real adapters have run only on generated
+synthetic waveforms. No real reference generation or corpus audio was opened.
+
 Graphiti was healthy at opening. Its only current P4-specific recall is the
 source-backed P2 closeout directing Plan 0037 to the next bounded
 downstream/profile packet; current repo and runtime evidence control.
@@ -242,3 +249,48 @@ State: CLOSED; P4B is next.
   12 acquired files passed size/hash and `0600` readback under `0700`
   directories. SpeechBrain and ONNX Runtime imports passed. No audio read,
   enrollment, profile, embedding, trial, calibration, or evaluation occurred.
+
+## P4B checkpoint
+
+State: CLOSED; the read-only checkpoint re-audit passed and P4C preview is next.
+
+- SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and WeSpeaker ResNet34 implement one
+  host adapter contract. Load is lazy and SpeechBrain overrides its upstream
+  remote `pretrained_path`, so an `HF_HUB_OFFLINE=1` synthetic smoke loaded all
+  three acquired snapshots and returned finite L2-normalized vectors of 192,
+  512, and 256 dimensions. Immediately before construction, every adapter
+  replays the exact P4A manifest/spec/false-gate/runtime bindings and verifies
+  every candidate file's path, size, and SHA-256.
+- Private profiles bind the replay-validated P3 profile/generation/hash, exact
+  model and preprocessing revisions, window/session counts, dispersion, and a
+  `0600` aggregate under a `0700` tree. Portable profile/trial receipts contain
+  hashes and opaque IDs, never raw vectors, tensors, names, email, transcript
+  text, or waveform content.
+- P4B materialization is mechanically synthetic-only: every P3 source must
+  carry the synthetic-fixture authority and preprocessing must exactly match
+  `{method_id: synthetic_raw, revision: <opaque>}`. Real P3 generations cannot
+  reach this API; P4C remains responsible for a separate manifest-authorized
+  real-enrollment entry point.
+- Materialization is ordered `stage -> P3 register -> P3 promote -> P4 active`.
+  Scoring replays the current content-addressed P4 lifecycle receipt and checks
+  live P3 descendant eligibility both before and after model execution.
+- Added the narrow P3 request needed for P4-owned invalidation without changing
+  an otherwise eligible parent reference. Supersede and withdraw disable P4
+  first, then request and acknowledge P3 invalidation. Delete requires that
+  acknowledgment, verifies the descendant remains ineligible, removes private
+  aggregate bytes, and retains only a non-biometric tombstone and audit hashes.
+- The immutable profile manifest binds P3 lineage, model/preprocessing,
+  artifact path/hash, vector dimension, counts, dispersion, window hashes, and
+  opaque sessions. Lifecycle receipts bind that manifest hash. Transition
+  retries reuse the persisted lifecycle receipt and P3's original request time,
+  making withdraw/supersede and partial-ack recovery deterministic.
+- Real P3/P4 synthetic smoke activated and scored all three acquired adapters:
+  SpeechBrain `0.892918`, CAM++ `0.994622`, ResNet34 `0.995596`. These synthetic
+  scores prove execution and lifecycle wiring only; they are not quality,
+  threshold, enrollment, or identity evidence.
+- Validation: 47 focused P3/P4 tests, 101 joined acoustic tests, 514 full tests,
+  offline three-adapter smoke, `py_compile`, and `git diff --check` passed.
+- The independent read-only checkpoint re-audit returned `PASS`: exact P4A
+  replay, the synthetic-only P4B gate, immutable metadata coverage, and
+  deterministic invalidation retry semantics all satisfied the repaired
+  acceptance criteria.

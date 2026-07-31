@@ -2662,6 +2662,84 @@ def acknowledge_descendant_promotion(
     return {**receipt, "idempotent_replay": False}
 
 
+def request_descendant_invalidation(
+    descendant_id: str,
+    *,
+    reason: str,
+    approval_token: str,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Let P4 disable one descendant without changing its eligible P3 parent."""
+    selected = _require_opaque_id(descendant_id, "descendant_id")
+    selected_reason = _require_opaque_id(reason, "invalidation reason")
+    root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    with _connection(root, create=True) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            row = connection.execute(
+                "SELECT * FROM descendants WHERE descendant_id = ?", (selected,)
+            ).fetchone()
+            if row is None:
+                raise BiometricReferenceError("Descendant registration does not exist.")
+            required = (
+                f"INVALIDATE_BIOMETRIC_DESCENDANT:{selected}:"
+                f"{row['artifact_sha256']}:{selected_reason}"
+            )
+            if approval_token != required:
+                raise BiometricReferenceError(
+                    f"Descendant invalidation requires token {required}."
+                )
+            if row["state"] in {"invalidation_pending", "invalidated"}:
+                if row["invalidation_reason"] != selected_reason:
+                    raise BiometricReferenceError(
+                        "Descendant invalidation reason conflicts."
+                    )
+                connection.execute("COMMIT")
+                return {
+                    "descendant_id": selected,
+                    "artifact_sha256": row["artifact_sha256"],
+                    "state": row["state"],
+                    "reason": selected_reason,
+                    "requested_at": row["invalidated_at"],
+                    "required_acknowledgment_token": (
+                        f"ACK_BIOMETRIC_DESCENDANT_INVALIDATION:{selected}:"
+                        f"{row['artifact_sha256']}:{selected_reason}"
+                    ),
+                    "idempotent_replay": True,
+                }
+            if row["state"] not in {"staged", "eligible"}:
+                raise BiometricReferenceError("Descendant cannot be invalidated.")
+            requested_at = utc_now()
+            updated = connection.execute(
+                """
+                UPDATE descendants SET state = 'invalidation_pending',
+                invalidated_at = ?, invalidation_reason = ?
+                WHERE descendant_id = ? AND state IN ('staged', 'eligible')
+                """,
+                (requested_at, selected_reason, selected),
+            )
+            if updated.rowcount != 1:
+                raise BiometricReferenceError(
+                    "Descendant invalidation changed concurrently."
+                )
+            connection.execute("COMMIT")
+        except Exception:
+            _rollback_if_active(connection)
+            raise
+    return {
+        "descendant_id": selected,
+        "artifact_sha256": row["artifact_sha256"],
+        "state": "invalidation_pending",
+        "reason": selected_reason,
+        "requested_at": requested_at,
+        "required_acknowledgment_token": (
+            f"ACK_BIOMETRIC_DESCENDANT_INVALIDATION:{selected}:"
+            f"{row['artifact_sha256']}:{selected_reason}"
+        ),
+        "idempotent_replay": False,
+    }
+
+
 def acknowledge_descendant_invalidation(
     descendant_id: str,
     invalidation_receipt: Mapping[str, Any],

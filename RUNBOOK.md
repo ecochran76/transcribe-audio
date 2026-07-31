@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 258 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 4
+
+Packet: P4B | Host adapters and synthetic profile lifecycle
+
+State transition: `OPEN/Plan-0037-P4B -> CLOSED/Plan-0037-P4B`.
+
+- Added one lazy host adapter contract for the exact acquired SpeechBrain
+  ECAPA-TDNN, WeSpeaker CAM++, and WeSpeaker ResNet34 snapshots plus a
+  deterministic fake adapter. Waveforms and vectors must be finite, bounded,
+  dimensionally exact, and L2-normalized; short, silent, unavailable-model,
+  OOM, and malformed inputs fail closed.
+- Made SpeechBrain loading fully local by overriding the upstream YAML's remote
+  pretrained path. `HF_HUB_OFFLINE=1` synthetic smoke loaded all three real
+  adapters and returned 192/512/256-dimensional normalized vectors.
+- Added private profile materialization bound to a replay-eligible P3 generation,
+  exact model/preprocessing revisions, opaque sessions, window hashes, counts,
+  and dispersion. The aggregate is a `0600` binary under `0700`; raw vectors,
+  waveforms, names, email, and transcript text are excluded from receipts.
+- Enforced `stage -> P3 register -> P3 promote -> P4 active`. Added a narrow P3
+  descendant-invalidation request so P4 supersede/withdraw can disable scoring
+  first and then complete P3 request/ack. Delete verifies ineligibility, removes
+  private bytes, and retains only a non-biometric tombstone.
+- Scoring validates immutable lifecycle evidence and the private artifact hash,
+  then checks both P4 state and live P3 eligibility before and after inference.
+  Normal replay is idempotent; blob/state tamper and mid-score revocation fail.
+- The first P4B checkpoint audit returned `REFINE` on four exact gaps. Repaired
+  them by replaying the exact P4A manifest and file hashes before every model
+  load; making the public P4B materializer synthetic-fixture-only; adding an
+  immutable full profile manifest and six metadata-tamper cases; and deriving
+  withdraw/supersede acknowledgment receipts deterministically for replay and
+  partial-failure recovery. Real-P3 retry smoke passed.
+- Joined synthetic P3/P4 smoke ran all three real adapters without real audio:
+  SpeechBrain score `0.892918`, CAM++ `0.994622`, ResNet34 `0.995596`. These are
+  execution-only synthetic values and do not establish thresholds or quality.
+- Validation: 47 focused P3/P4 tests, 101 joined acoustic tests, and 514 full
+  tests passed; compilation and diff checks passed. The read-only checkpoint
+  re-audit returned `PASS` on all four repaired blockers.
+
+Next:
+
+- Commit/push the reconciled P4B slice, then build P4C's no-audio exact
+  real-enrollment preview. Do not access real source audio or
+  materialize a real profile until that separately reviewed manifest is
+  explicitly authorized.
+
 ## Turn 257 | 2026-07-31
 
 Plan:
