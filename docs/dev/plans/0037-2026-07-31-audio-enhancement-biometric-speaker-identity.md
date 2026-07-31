@@ -1,0 +1,295 @@
+# Plan 0037 | Audio enhancement and biometric speaker identity
+
+State: OPEN
+
+Lane: P10
+
+Plan Version: 1
+
+Execution Mode: high-level campaign plan with bounded implementation packets
+
+Critical-Path Owner: primary agent
+
+## Vision alignment
+
+This plan makes source audio reusable evidence for speaker identity. It adds
+versioned speech cleanup, calibrated speaker verification, and a private
+biometric reference library before context-assisted identity resumes.
+
+Current maturity: `1 — Experimental` for acoustic speaker identity.
+
+Target maturity: `2 — Shadow` after local blind comparison, followed by an
+evidence-backed decision about advancement toward `3 — Operational`.
+
+Measurable vision effect: increase correct and safely abstained speaker
+assignments while reducing false high-confidence identity support. Preserve
+the original evidence so later models can replay every recording.
+
+Evidence gate: no acoustic result enters the default App Intelligence packet
+until a blind local evaluation proves its calibration, false-acceptance,
+abstention, and diarization-label grouping behavior.
+
+## Scope
+
+This campaign covers the complete local acoustic-evidence path:
+
+- Preserve immutable original audio and create content-addressed derived audio.
+- Add voice activity detection and non-destructive silence exclusion.
+- Evaluate noise suppression and speech enhancement without assuming that
+  cleaner-sounding audio improves identity evidence.
+- Produce quality-scored, timestamp-preserving speaker windows.
+- Compare purpose-built speaker-verification models on operator-confirmed
+  local recordings.
+- Add a private, provenance-backed biometric speaker-reference library.
+- Calibrate open-set speaker verification and explicit abstention.
+- Detect diarization labels that likely represent the same person.
+- Feed bounded acoustic evidence into the existing host-prepared speaker clue
+  packet before App Intelligence reasoning.
+- Reprocess eligible historical audio through a dry-run-first, versioned,
+  resumable workflow.
+- Preserve Plan 0036 and resume its remaining gold review only after this
+  acoustic foundation reaches the agreed gate.
+
+## Non-goals
+
+The campaign does not expand voice evidence into authentication or unattended
+identity authority:
+
+- No destructive replacement or rewriting of original audio.
+- No identity enrollment from calendar membership, transcript inference, or
+  an unreviewed model proposal.
+- No use as authentication, authorization, liveness proof, fraud proof, or
+  synthetic-audio detection.
+- No claim that a voice match alone establishes identity.
+- No raw biometric embeddings in portable transcript sidecars, prompts,
+  Graphiti, email, Drive, Odollo, or external providers.
+- No unattended bulk enrollment or historical reprocessing before a reviewed
+  manifest and explicit apply gate exist.
+- No automatic speaker confirmation until a later unseen evaluation satisfies
+  the existing confidence and review policy.
+- No reveal of the sealed Plan 0036 predictions during this plan's model or
+  threshold development.
+
+## Current state
+
+The service already stores source recordings as private blobs and retains
+diarized transcript artifacts. The host builds a bounded speaker clue packet
+from transcript, calendar, contact, relationship, GWS, and Odollo evidence.
+App Intelligence proposes identities only from prepared candidates and cited
+evidence.
+
+A review-only experiment used WavLM Base Plus embeddings and cosine similarity
+over short windows. It supplied useful supporting evidence, including evidence
+that diarization can split one person across labels. It did not provide
+speaker-verification training, calibrated probabilities, durable enrollment,
+or an abstention contract.
+
+The research authority is
+[Acoustic processing and speaker verification research](../notes/2026-07-31-acoustic-processing-and-speaker-verification-research.md).
+
+Plan 0036 is paused after five of ten current gold reviews. Its superseding
+baseline remains complete and sealed. No prediction body has been read, and
+no comparison has been revealed.
+
+## Architecture
+
+Add one deep `AcousticIdentityAnalyzer` module at the host-prepared evidence
+seam. Its interface accepts source audio, diarized turns, eligible enrolled
+people, and policy. It returns an `AcousticEvidenceBundle` without selecting a
+final identity.
+
+The implementation owns these internal steps:
+
+```text
+immutable source audio
+  -> decode and channel policy
+  -> voice activity and quality analysis
+  -> optional versioned enhancement
+  -> diarization and clean-window preparation
+  -> speaker embeddings and enrollment comparison
+  -> normalization, calibration, and abstention
+  -> same-person label evidence
+  -> bounded AcousticEvidenceBundle
+  -> host-prepared App Intelligence clue packet
+```
+
+Model adapters are internal seams. Start with at least two real adapters so
+model variation is justified: SpeechBrain ECAPA-TDNN and WeSpeaker. Keep a
+deterministic fake adapter for interface-level tests. Treat pyannote, Silero,
+DeepFilterNet, and RNNoise as internal processing implementations rather than
+types exposed to callers.
+
+## Storage and privacy contract
+
+The original blob remains authoritative. Each derived track records its source
+hash, recipe, model revisions, parameters, timestamps, output hash, and
+creation audit. Timestamp maps must preserve citations to the original audio.
+
+Store biometric profiles under the private user-scoped runtime root. Files and
+database rows must use restrictive permissions. A profile records confirmed
+source segments, embedding model and preprocessing revisions, quality,
+session diversity, aggregate representation, dispersion, and lifecycle audit.
+
+Portable sidecars may store derived scores, confidence bands, evidence IDs,
+model revisions, quality summaries, and reference-profile IDs. They must not
+store raw embeddings or unrestricted enrollment audio. Model prompts receive
+only the bounded evidence bundle.
+
+Support explicit profile supersession, withdrawal, and deletion. A deleted or
+withdrawn profile must stop contributing to future evidence while historical
+audits retain non-biometric references needed to explain past decisions.
+
+## Work graph
+
+The campaign has one serialized critical path with bounded comparison work
+inside it.
+
+| Packet | Outcome | Dependency | Expected write surface | Terminal condition |
+| --- | --- | --- | --- | --- |
+| P0 | Freeze contracts and evaluation corpus | None | plan, schemas, private manifests, tests | Reviewed storage, privacy, benchmark, and model-license inventory |
+| P1 | Build immutable audio-derivative and quality module | P0 | focused audio module, artifact schema, tests | Original-to-derived replay and timestamp mapping pass |
+| P2 | Add VAD, enhancement, and diarization preparation | P1 | internal adapters and tests | No-enhancement, Silero, DeepFilterNet, RNNoise, and diarization comparison receipt |
+| P3 | Add private biometric enrollment library | P0, P1 | user-scoped store module, migrations, review interfaces, tests | Reviewed enrollment, supersession, withdrawal, deletion, and permissions pass |
+| P4 | Run verification model bake-off and calibration | P2, P3 | model adapters, evaluation runner, private results | One selected or rejected model decision with exact metrics |
+| P5 | Integrate bounded acoustic evidence | P4 | speaker preprocessing and workflow modules, sidecar schema, tests | Host validation, abstention, and no-raw-biometric prompt proof pass |
+| P6 | Reprocess a staged historical cohort | P5 | reprocessing workflow and private manifests | Dry run, reviewed apply, idempotent replay, and rollback pass |
+| P7 | Measure identity effect and resume context path | P6 | evaluation artifacts and planning authorities | Blind comparison decides accept, refine, reject, or stop |
+
+P2 model comparisons can run independently after P1, but P4 is the join.
+P3 owns biometric authority and must complete before any named-person scoring.
+No parallel work may share live enrollment or reprocessing write surfaces.
+
+## Packet details
+
+Each packet produces one bounded outcome on the campaign's critical path.
+
+### P0 | Contracts and evaluation corpus
+
+Define versioned schemas for derived audio, quality, enrollment profiles,
+verification trials, acoustic evidence, and reprocessing manifests. Inventory
+code and checkpoint licenses. Select operator-confirmed source recordings
+without reading Plan 0036 predictions.
+
+Split trials by conversation, not by window. Include same-person and
+different-person pairs across telephone, room, device, noise, overlap, and
+usable-duration conditions. Keep all source and evaluation artifacts private.
+
+### P1 | Audio derivatives and quality
+
+Create a deep module that decodes audio, records channel policy, computes
+quality measures, and writes content-addressed derived artifacts. Preserve an
+exact timestamp map to the original recording. Provide deterministic dry-run,
+apply, replay, and rollback receipts.
+
+### P2 | Speech preparation
+
+Use Silero VAD as the initial speech detector. Compare no enhancement,
+DeepFilterNet, and RNNoise. Evaluate pyannote Community-1 for diarization,
+overlap, and speaker-change preparation.
+
+Measure downstream transcription, diarization, and verification behavior.
+Reject enhancement configurations that sound cleaner but increase identity or
+timing errors.
+
+### P3 | Biometric reference library
+
+Enroll only operator-confirmed speaker segments with provenance. Support
+multiple sessions per person and retain within-person variation rather than
+one unexplained centroid. Add reviewed create, supersede, withdraw, and delete
+operations with audits and restrictive permissions.
+
+### P4 | Verification and calibration
+
+Benchmark SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and one WeSpeaker ResNet or
+ECAPA checkpoint. Add NVIDIA TitaNet only if the first comparison leaves a
+specific quality or deployment question unanswered.
+
+Compare raw and enhanced audio, multiple aggregation strategies, candidate
+margin, score normalization, and quality-aware calibration. Select operating
+thresholds from local held-out trials. Do not reuse public benchmark thresholds
+as confidence values.
+
+### P5 | Pipeline integration
+
+Add `AcousticEvidenceBundle` to host-prepared identity evidence. Require cited
+acoustic evidence IDs and prepared candidate IDs. Keep final scoring and
+confidence host-owned. Acoustic evidence may support, contradict, or abstain;
+it may not create an unprepared person.
+
+Use within-recording similarity to propose same-person diarization-label
+groups. Preserve mixed and unresolved labels rather than forcing merges.
+
+### P6 | Historical reprocessing
+
+Inventory eligible audio and report missing, corrupt, unsupported, already
+processed, and policy-excluded items. Prepare a small reviewed cohort before
+larger batches. Bind every result to source hash, recipe revision, model
+revision, and previous artifact lineage.
+
+Reprocessing must be resumable and idempotent. It must never overwrite the
+original transcript or audio. New derived artifacts remain distinguishable
+from the historical production result.
+
+### P7 | Outcome measurement and continuation
+
+Measure the complete acoustic path on an unseen chronological cohort. Report
+speaker accuracy, false acceptance, false rejection, abstention, calibration,
+same-person label grouping, transcription change, diarization change, and
+coverage.
+
+After P7, resume the paused gold-review authority or create an explicit
+successor evaluation if the changed review method would invalidate the old
+comparison. Continue context-assisted speaker identity only after that
+decision is recorded.
+
+## Acceptance criteria
+
+The campaign must satisfy all of these conditions before closure:
+
+- Original audio remains immutable and independently addressable.
+- Derived tracks are content-addressed, reproducible, timestamp-aligned, and
+  versioned by complete processing recipe.
+- Silence exclusion, enhancement, and diarization preparation report quality
+  and abstention reasons.
+- At least two purpose-built speaker-verification models are compared on the
+  same private, conversation-separated trial set.
+- Thresholds and confidence bands are calibrated on held-out local evidence.
+- Biometric enrollment requires operator-confirmed provenance and supports
+  supersession, withdrawal, and deletion.
+- Raw embeddings remain in private user-scoped storage and never enter model
+  prompts or portable sidecars.
+- Acoustic evidence can identify likely split diarization labels without
+  forcing ambiguous merges.
+- App Intelligence receives only host-prepared candidate and evidence IDs.
+- Historical reprocessing is dry-run-first, approval-gated, resumable,
+  idempotent, and non-destructive.
+- A blind evaluation records exact denominators and a terminal decision before
+  the acoustic path becomes default.
+
+## Validation
+
+Validation covers module behavior, private runtime safety, and measured
+identity outcomes:
+
+- Interface-level tests with deterministic fake audio and model adapters.
+- Golden artifact and schema tests for source hashes, timestamp maps, recipes,
+  permissions, and replay.
+- Corrupt, silent, clipped, overlapped, short, multi-channel, and unsupported
+  audio tests.
+- Enrollment provenance, withdrawal, deletion, tenant/user isolation, and
+  no-prompt-leak tests.
+- Model license and checkpoint hash inventory.
+- Private blind evaluation with frozen trial manifests and prediction-excluded
+  gold.
+- Manual audio smoke on short clips for each promoted processing path.
+- Joined transcription, calendar, watcher, artifact, speaker-preprocessing,
+  store, API, and planning audits.
+
+## Definition of done
+
+Plan 0037 is done when versioned audio cleanup and a private biometric library
+are integrated as bounded host evidence, eligible historical audio can be
+reprocessed safely, and an unseen evaluation supports an explicit accept,
+refine, reject, or stop decision. Completion does not enable automatic speaker
+confirmation unless the existing authority and confidence gates separately
+approve it.

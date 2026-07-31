@@ -2,6 +2,66 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 248 | 2026-07-31
+
+Plans:
+
+- `docs/dev/plans/0036-2026-07-30-literal-fts-blind-speaker-rerun.md`,
+  version 1, checkpointed.
+- `docs/dev/plans/0037-2026-07-31-audio-enhancement-biometric-speaker-identity.md`,
+  version 1, opened.
+
+State transition: `OPEN/Plan-0036-P3 -> PAUSED-CHECKPOINT/Plan-0036-P3` and
+`unplanned acoustic prototype -> OPEN/Plan-0037-P0`.
+
+Plan 0036 checkpoint:
+
+- Recorded current gold for chronological ranks 25 through 29: five of ten
+  cases in the sealed superseding baseline.
+- The rank-29 gold ID is
+  `bb899562-58cb-49b0-b5fd-b292ccb20e6c`. It records the operator-confirmed
+  six-label mapping and wrong calendar association without exposing the sealed
+  prediction.
+- The next untouched review is rank 30, document
+  `fd6d03afd42775704dc6`.
+- Campaign status reports `gold_content_included=false`,
+  `will_execute_app_intelligence=false`, and
+  `will_perform_external_write=false`.
+- Current gold artifacts remain private mode `0600`. The baseline remains
+  complete and sealed. No prediction body was read, and no comparison was
+  revealed.
+- The operator paused the remaining five reviews before conversation 6.
+
+Acoustic research and plan:
+
+- Added a durable research note covering Silero VAD, DeepFilterNet, RNNoise,
+  pyannote.audio, SpeechBrain ECAPA-TDNN, WeSpeaker, and NVIDIA TitaNet.
+- Selected a host-owned `AcousticIdentityAnalyzer` direction. It returns
+  bounded evidence and keeps model adapters, preprocessing, calibration, and
+  biometric storage behind one deep interface.
+- Required immutable original audio, versioned timestamp-aligned derivatives,
+  local calibration, explicit abstention, and private raw embeddings.
+- Opened Plan 0037 for contracts, audio derivatives, speech preparation,
+  biometric enrollment, model bake-off, pipeline integration, historical
+  reprocessing, and blind outcome measurement.
+- Added P10 to the roadmap as the immediate dependency before context-assisted
+  speaker identity continues.
+
+Validation:
+
+- Live campaign readback over `127.0.0.1:18876` confirmed the next review and
+  excluded gold content.
+- Verified private gold artifact permissions.
+- Graphiti discovery was unavailable because FalkorDB on `127.0.0.1:6389`
+  was down. Repo plans, runtime readbacks, and private artifacts remained the
+  authority.
+
+Next:
+
+- Execute Plan 0037 P0. Freeze the schemas, private evaluation corpus,
+  checkpoint-license inventory, privacy contract, and promotion metrics before
+  adding processing dependencies or enrolling biometric references.
+
 ## Turn 247 | 2026-07-30
 
 Plan:

@@ -346,9 +346,12 @@ Milestone Focus:
   independent-review and outcome-scoring gates. It permits no prompt,
   retrieval-policy, confidence, or candidate change. The pushed repair is
   served and its linked replacement baseline completed all ten blind
-  predictions with zero infrastructure retries. Independent operator gold is
-  now the active gate; prediction bodies remain sealed until all ten reviews
-  exist.
+  predictions with zero infrastructure retries. Independent operator gold
+  reached five of ten current reviews and is checkpointed at chronological
+  rank 30. The operator paused further review while Plan 0037 develops
+  acoustic preprocessing and biometric speaker evidence. Prediction bodies
+  remain sealed until all ten reviews exist. Resumption must record whether
+  the changed review method requires a successor evaluation.
 - Next P09/P05 work should dogfood the configured identity sources over more
   recordings, tune contact-source quality, and keep external deposition apply
   gated until identity/context warnings have a reviewed resolution path.
@@ -403,3 +406,47 @@ Definition of Done:
 - Login and scoped artifact sharing reuse the `previews` design contract.
 - Human review workflows cover speaker/contact assignment, context acquisition, deposition, and memory harvest.
 - Intelligence management includes `codex app-server` as the supervised App Intelligence control plane for persistent, branchable, replayable agent runs, while `codex exec` remains the stateless leaf-job path.
+
+## P10 | Acoustic Processing And Biometric Speaker Identity
+
+State: OPEN
+
+Current State: Plan 0037 is the immediate speaker-identity critical path.
+Source recordings already exist as private blobs, and a review-only WavLM
+prototype showed that acoustics can support identity and detect diarization
+labels split across one person. No production acoustic evidence schema,
+calibrated verification model, durable enrollment library, or historical
+reprocessing workflow exists yet. Plan 0036 remains sealed and paused at five
+of ten current gold reviews.
+
+Plans:
+
+- `docs/dev/plans/0037-2026-07-31-audio-enhancement-biometric-speaker-identity.md`
+
+Research:
+
+- `docs/dev/notes/2026-07-31-acoustic-processing-and-speaker-verification-research.md`
+
+Vision Outcome:
+
+- Preserve immutable source audio while deriving reproducible speech-cleanup
+  artifacts.
+- Use calibrated biometric speaker evidence to improve correct identity,
+  abstention, and same-person diarization-label grouping.
+- Reprocess historical audio before returning to context-assisted speaker
+  identity and full contextual readouts.
+
+Definition of Done:
+
+- Versioned voice activity, enhancement, quality, and diarization preparation
+  produce timestamp-aligned derived artifacts without changing originals.
+- A private, provenance-backed biometric library supports reviewed enrollment,
+  supersession, withdrawal, and deletion.
+- At least two purpose-built speaker-verification models are compared and
+  calibrated on conversation-separated local evidence.
+- App Intelligence receives bounded acoustic evidence rather than raw audio or
+  embeddings.
+- Historical reprocessing is dry-run-first, approval-gated, resumable,
+  idempotent, and independently auditable.
+- An unseen evaluation records a terminal decision before the acoustic path
+  becomes default or automatic speaker confirmation is reconsidered.

@@ -83,7 +83,28 @@ All baseline and prediction artifacts are private mode `0600`. The gold-index
 hash remains
 `6560591461573bf08d50dd110c031d56f287ea570563b9ae0bfdae691d48d3d8`;
 no gold or prediction body was read, no prediction was revealed, and no
-external write occurred. P3 independent operator review is the active packet.
+external write occurred. P3 independent operator review reached five of ten
+current gold records before the operator paused it.
+
+P3 is checkpointed after chronological ranks 25 through 29. Their current gold
+IDs are:
+
+- rank 25: `6e54efbc-3991-4505-894f-8749fe136a3c`;
+- rank 26: `8d4ceca5-de7b-4a1d-bd2e-569446024e8e`;
+- rank 27: `4926a8e4-7652-4030-8f6f-42da1a675afd`;
+- rank 28: `ac613d1c-5c87-4b49-9317-3ba0341db99c`;
+- rank 29: `bb899562-58cb-49b0-b5fd-b292ccb20e6c`.
+
+The next untouched case is rank 30, document
+`fd6d03afd42775704dc6`. Prediction bodies remain sealed, reveal remains
+forbidden, and the superseding baseline is unchanged. Private gold artifacts
+remain mode `0600`; tracked docs do not duplicate their speaker mappings.
+
+Plan 0037 is the operator-prioritized dependency before this review resumes.
+It will develop non-destructive audio cleanup, calibrated speaker verification,
+and a private biometric reference library. Resumption must first decide
+whether the improved acoustic review method can complete this historical gold
+set or requires an explicit successor evaluation.
 
 ## Authority and bounds
 
@@ -177,6 +198,8 @@ Terminal condition:
 Owner: operator for gold; primary agent for packets, reveal, and scoring
 
 Dependency: complete P2
+
+Status: paused after 5/10 current gold reviews pending Plan 0037.
 
 Outcome:
 
