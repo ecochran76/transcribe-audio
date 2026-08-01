@@ -4,14 +4,15 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0045 P4E2 capture-device provenance refinement
 
 Owner: primary agent
 
-Expected Write Surface: `acoustic_source_device_metadata.py`, focused tests,
-this plan, Plan 0045, Plan 0046, `ROADMAP.md`, and `RUNBOOK.md`; immutable
+Expected Write Surface: `acoustic_source_device_metadata.py`,
+`acoustic_generation2_authority.py`, focused tests, this plan, Plan 0045,
+Plan 0046, `ROADMAP.md`, and `RUNBOOK.md`; immutable
 private source-metadata manifests and receipts only beneath the existing
 user-scoped Plan 0037 device-provenance campaign.
 
@@ -53,6 +54,15 @@ composite authority merge those facts without modifying Plan 0045 history.
 - Replay every source byte and allowlisted tag before consuming the supplement.
 - Extend composite preview/apply/replay so direct operator facts take
   precedence and source metadata fills only otherwise-missing recordings.
+- Accept a sparse direct-operator supplement for exactly cases 2 and 4 because
+  the operator confirmed both used the same webcam microphone. Bind a reviewed
+  opaque device ID at apply time; keep the raw label and attestor private.
+  Do not advance the original sequential Plan 0045 ledger or manufacture facts
+  for cases 1, 3, 5, 6, and 7.
+- Allow generation-2 pre-reveal validation to consume the augmented composite
+  only when it proves exactly seven authoritative rows: two direct-operator
+  observations, five manufacturer-metadata observations, zero missing rows,
+  and at least two distinct opaque devices.
 
 ## Non-goals
 
@@ -98,3 +108,21 @@ State: CLOSED; composite-consumption unit remains OPEN.
   `0600` manifest/receipt modes. This evidence does not clear the terminal
   gate: cases 2 and 4 remain unavailable and the five observed rows identify
   only one distinct device.
+
+## Operator and composite amendment
+
+State: IMPLEMENTED; independent review and production apply remain OPEN.
+
+- The operator confirmed that cases 2 and 4 were captured through the same
+  webcam microphone. The raw device label is not committed to source or
+  portable receipts.
+- A sparse exact-two operator authority binds those facts to the frozen cases,
+  source hashes, campaign manifest/state, attestor, reviewed opaque device ID,
+  and append-only private manifest.
+- The augmented composite accepts operator facts only where the source
+  manufacturer tag was absent. Its expected evidence partition is `2 direct +
+  5 source metadata = 7`, with two distinct opaque device IDs and zero missing
+  recordings. All non-device Plan 0044 condition fields remain byte-derived
+  predecessor values and may not change.
+- Generation-2 binding recognizes the new manifest/replay schemas and requires
+  the exact `2 / 5 / 7` partition before treating the composite as passing.

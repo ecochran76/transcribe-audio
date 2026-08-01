@@ -18,6 +18,7 @@ from typing import Any, Mapping, Sequence
 
 import acoustic_audio_derivatives as audio_derivatives
 import acoustic_device_provenance as device_provenance
+import acoustic_source_device_metadata as source_device_metadata
 import acoustic_speech_preparation as speech_preparation
 import acoustic_successor_conditions as successor_conditions
 import acoustic_verification as verification
@@ -174,7 +175,7 @@ def _condition_safe_projection(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _composite_safe_projection(value: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    projected = {
         key: value.get(key)
         for key in (
             "schema_version",
@@ -193,6 +194,21 @@ def _composite_safe_projection(value: Mapping[str, Any]) -> dict[str, Any]:
             "will_perform_external_write",
         )
     }
+    if value.get("schema_version") in {
+        source_device_metadata.AUGMENTED_COMPOSITE_PLAN_SCHEMA,
+        source_device_metadata.AUGMENTED_COMPOSITE_MANIFEST_SCHEMA,
+    }:
+        projected.update(
+            {
+                key: value.get(key)
+                for key in (
+                    "authoritative_device_evidence_count",
+                    "direct_operator_observed_count",
+                    "source_metadata_observed_count",
+                )
+            }
+        )
+    return projected
 
 
 def replay_historical_condition_campaign(
@@ -515,6 +531,25 @@ def _composite_binding(
     coverage = composite_replay.get("condition_coverage")
     fields = coverage.get("fields") if isinstance(coverage, Mapping) else None
     device = fields.get("device") if isinstance(fields, Mapping) else None
+    augmented = (
+        composite_manifest.get("schema_version")
+        == source_device_metadata.AUGMENTED_COMPOSITE_MANIFEST_SCHEMA
+    )
+    plan_schema = (
+        source_device_metadata.AUGMENTED_COMPOSITE_PLAN_SCHEMA
+        if augmented
+        else device_provenance.COMPOSITE_SCHEMA
+    )
+    manifest_schema = (
+        source_device_metadata.AUGMENTED_COMPOSITE_MANIFEST_SCHEMA
+        if augmented
+        else device_provenance.COMPOSITE_MANIFEST_SCHEMA
+    )
+    replay_schema = (
+        source_device_metadata.AUGMENTED_COMPOSITE_REPLAY_SCHEMA
+        if augmented
+        else device_provenance.COMPOSITE_RECEIPT_SCHEMA
+    )
     content_body = {
         key: value
         for key, value in composite_manifest.items()
@@ -525,26 +560,95 @@ def _composite_binding(
             "status",
         }
     }
-    content_body["schema_version"] = device_provenance.COMPOSITE_SCHEMA
+    content_body["schema_version"] = plan_schema
     recomputed_content_sha256 = _canonical_hash(content_body)
+    evidence_counts_valid = (
+        composite_manifest.get("authoritative_device_evidence_count") == 7
+        and composite_manifest.get("direct_operator_observed_count") == 2
+        and composite_manifest.get("source_metadata_observed_count") == 5
+        if augmented
+        else composite_manifest.get("latest_attestation_count") == 7
+        and composite_manifest.get("direct_observed_attestation_count") == 7
+    )
+    augmented_evidence_valid = True
+    if augmented:
+        evidence = composite_manifest.get("evidence")
+        augmented_evidence_valid = isinstance(evidence, list) and len(evidence) == 7
+        if augmented_evidence_valid:
+            positions = []
+            recording_ids = set()
+            source_sha256s = set()
+            device_ids = set()
+            basis_positions: dict[str, list[int]] = {
+                "direct_operator_knowledge": [],
+                "source_embedded_manufacturer_hardware_model": [],
+            }
+            for item in evidence:
+                if not isinstance(item, Mapping):
+                    augmented_evidence_valid = False
+                    break
+                position = item.get("position")
+                recording_id = str(item.get("recording_id") or "")
+                source_sha256 = str(item.get("source_sha256") or "")
+                device_id = str(item.get("device_id") or "")
+                evidence_sha256 = str(item.get("evidence_sha256") or "")
+                basis = str(item.get("evidence_basis") or "")
+                if (
+                    set(item)
+                    != {
+                        "position",
+                        "recording_id",
+                        "source_sha256",
+                        "device_id",
+                        "evidence_basis",
+                        "evidence_sha256",
+                    }
+                    or not isinstance(position, int)
+                    or not verification._OPAQUE_ID_RE.fullmatch(recording_id)
+                    or not SHA256_RE.fullmatch(source_sha256)
+                    or not verification._OPAQUE_ID_RE.fullmatch(device_id)
+                    or not SHA256_RE.fullmatch(evidence_sha256)
+                    or basis not in basis_positions
+                ):
+                    augmented_evidence_valid = False
+                    break
+                positions.append(position)
+                recording_ids.add(recording_id)
+                source_sha256s.add(source_sha256)
+                device_ids.add(device_id)
+                basis_positions[basis].append(position)
+            augmented_evidence_valid = augmented_evidence_valid and (
+                positions == list(range(1, 8))
+                and len(recording_ids) == 7
+                and len(source_sha256s) == 7
+                and basis_positions["direct_operator_knowledge"] == [2, 4]
+                and basis_positions[
+                    "source_embedded_manufacturer_hardware_model"
+                ]
+                == [1, 3, 5, 6, 7]
+                and sorted(device_ids) == device.get("observed_values")
+                if isinstance(device, Mapping)
+                else False
+            )
+    expected_prefix = "augmented-composite-" if augmented else "composite-conditions-"
     if (
         composite_manifest.get("schema_version")
-        != device_provenance.COMPOSITE_MANIFEST_SCHEMA
+        != manifest_schema
         or composite_manifest.get("status") != "complete"
         or composite_manifest.get("condition_manifest_sha256")
         != EXPECTED_CONDITION_MANIFEST_SHA256
         or composite_manifest.get("condition_content_sha256")
         != EXPECTED_CONDITION_CONTENT_SHA256
         or composite_manifest.get("recordings") != 7
-        or composite_manifest.get("latest_attestation_count") != 7
-        or composite_manifest.get("direct_observed_attestation_count") != 7
+        or not evidence_counts_valid
+        or not augmented_evidence_valid
         or composite_manifest.get("condition_coverage") != coverage
         or composite_manifest.get("will_run_models") is not False
         or composite_manifest.get("will_run_biometrics") is not False
         or composite_manifest.get("will_reveal_evaluation") is not False
         or composite_manifest.get("will_perform_external_write") is not False
         or composite_replay.get("schema_version")
-        != device_provenance.COMPOSITE_RECEIPT_SCHEMA
+        != replay_schema
         or composite_replay.get("full_body_match") is not True
         or composite_replay.get("will_perform_external_write") is not False
         or composite_manifest.get("content_sha256")
@@ -571,19 +675,26 @@ def _composite_binding(
         or composite_manifest.get("composite_id")
         != composite_replay.get("composite_id")
         or composite_manifest.get("composite_id")
-        != f"composite-conditions-{recomputed_content_sha256[:24]}"
+        != f"{expected_prefix}{recomputed_content_sha256[:24]}"
     ):
         raise Generation2AuthorityError("Composite condition binding changed.")
-    return {
+    common = {
         "composite_id": _safe_opaque_id(
             composite_replay.get("composite_id"), "Composite ID"
         ),
         "content_sha256": composite_replay["content_sha256"],
         "manifest_sha256": composite_replay["manifest_sha256"],
         "condition_coverage": dict(coverage),
-        "direct_observed_attestation_count": 7,
         "minimum_distinct_device_count": 2,
     }
+    if augmented:
+        return {
+            **common,
+            "authoritative_device_evidence_count": 7,
+            "direct_operator_observed_count": 2,
+            "source_metadata_observed_count": 5,
+        }
+    return {**common, "direct_observed_attestation_count": 7}
 
 
 def _calibration_binding(

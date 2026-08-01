@@ -4,7 +4,7 @@ State: OPEN — Units A through C closed; Unit D blocked on Plan 0045
 
 Lane: P10
 
-Plan Version: 2
+Plan Version: 3
 
 Parent: Plan 0043 P4E2-D
 
@@ -39,8 +39,9 @@ while the reviewed evaluation-split seam has module SHA-256
 Every other reconstructed authority field matches. The archived module was not
 mutated; the successor module added the explicit `evaluation` later-split mode.
 
-Plan 0045 is concurrently collecting seven direct physical-device
-attestations. Its composite condition authority is a hard predecessor of any
+Plans 0045 and 0047 now provide a replayed partition of two direct-operator and
+five source-embedded manufacturer hardware-model observations. Their augmented
+composite condition authority is a hard predecessor of any
 production generation-2 authority apply, reveal, audio access, model execution,
 or scoring.
 
@@ -65,7 +66,7 @@ or scoring.
   and permits no scoring; after authorized reveal and immutable window freeze,
   a mandatory child authority must bind the exact trial IDs and denominators
   before any model or score execution. The child cannot change any parent rule.
-- Keep production apply unavailable until Plan 0045 produces a passing,
+- Keep production apply unavailable until Plan 0047 produces a passing,
   independently reviewed composite condition authority.
 
 ## Non-goals
@@ -89,11 +90,11 @@ or scoring.
 | A replay seam | primary | archived calibration chain plus reviewed P2 seam | exact compatibility replay passes and adversarial drift fails |
 | B authority implementation | primary | A plus frozen successor authorities | deterministic no-write generation-2 preview/replay tests pass |
 | C independent audit | existing read-only reviewer | A and B | `PASS`, or one bounded repair and re-audit |
-| D production freeze | primary | C plus passing Plan 0045 composite and clean pushed commit | private authority applies and replays without reveal |
+| D production freeze | primary | C plus passing Plan 0047 augmented composite and clean pushed commit | private authority applies and replays without reveal |
 
 Units A and B may proceed without operator device facts because they use only
 fixtures or already-persisted calibration evidence. Unit D is serialized behind
-Plan 0045. Active-agent concurrency is at most two; the primary owns writes and
+Plan 0047. Active-agent concurrency is at most two; the primary owns writes and
 the existing reviewer performs read-only audit.
 
 ## Gates and stop conditions
@@ -108,8 +109,9 @@ the existing reviewer performs read-only audit.
 - Any additional authority drift, current-module drift, missing stage,
   descendant/profile ineligibility, score/trial drift, threshold drift, or
   nonprivate path stops replay.
-- Production generation-2 apply requires seven nonmissing direct device
-  attestations, at least two opaque physical-device IDs, a replayed composite
+- Production generation-2 apply requires seven nonmissing authoritative device
+  rows partitioned exactly as two direct-operator and five manufacturer-source
+  observations, at least two opaque physical-device IDs, a replayed composite
   condition authority, independent audit `PASS`, clean pushed commit, and an
   evaluation split that remains sealed.
 - The pre-reveal envelope must set model execution, scoring, terminal metrics,
@@ -160,7 +162,8 @@ State: CLOSED; Units B through D remain `not_run`.
   `git diff --check` passed.
 - Unit B may implement the no-write generation-2 authority preview against
   fixture and replayed predecessor summaries. Production apply remains blocked
-  on Plan 0045's seven direct attestations and passing composite authority.
+  until Plan 0047's exact augmented composite passes and is independently
+  reviewed.
 
 ## Unit B and Unit C close checkpoint
 
@@ -191,7 +194,7 @@ State: CLOSED; Unit D remains `not_run` behind the Plan 0045 composite gate.
   Twenty-two focused tests, 56 joined predecessor tests, and all 607 repository
   tests passed; compilation, production historical replay, and
   `git diff --check` passed.
-- Unit D must not apply until Plan 0045 freezes and replays seven nonmissing
-  direct attestations with at least two opaque devices, the Unit B commit is
-  clean and pushed, and the production preview receives independent review.
+- Unit D must not apply until Plan 0047 freezes and replays its exact `2 direct
+  + 5 source metadata` composite with at least two opaque devices, the Unit B
+  commit is clean and pushed, and the production preview receives independent review.
   Evaluation reveal and terminal execution remain `not_run`.
