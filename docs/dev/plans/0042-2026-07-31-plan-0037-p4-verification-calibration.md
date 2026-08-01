@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 5
+Plan Version: 6
 
 Parent: Plan 0037 P4
 
@@ -333,16 +333,21 @@ State: CLOSED with a truthful blocker; real enrollment apply remains gated.
 
 ## P4C candidate-proposal checkpoint
 
-State: CLOSED with a truthful blocker; exact timestamp candidates cannot be
-proposed until current transcript artifacts receive operator review.
+State: CLOSED; exact private candidates are ready for operator review while
+real enrollment apply remains gated.
 
 - Added a content-addressed, metadata-only
-  `transcribe-audio.biometric-enrollment-candidate-proposal.v1` builder and
+  `transcribe-audio.biometric-enrollment-candidate-proposal.v2` builder and
   semantic replay. It consumes the exact frozen development split/P0 corpus,
   the hash-verified P2 v5 joined receipt, replay-validated no-enhancement
-  lineage, transcript artifacts that exactly match the frozen reviewed hashes,
-  frozen operator-gold person rows, and Pyannote Community-1
-  speech/overlap/change metadata.
+  lineage, frozen operator-gold person rows, and Pyannote Community-1
+  speech/overlap/change metadata. Timestamp candidates come from either the
+  exact reviewed artifact or a committed metadata-only continuity authority
+  at SHA-256
+  `4c952608568edea918265f0851e89f4abfec2f41ac3faf590aaca20cb10da868`.
+  That authority independently binds the frozen campaign, blind prediction,
+  completed run ledger, prompt, status, and clue packet before field-for-field
+  matching against the current artifact.
 - Candidate windows are selected without opening audio: transcript millisecond
   bounds are intersected with P2 speech regions, overlap and speaker-change
   regions are removed, windows are bounded to 0.75-15 seconds and three per
@@ -350,19 +355,20 @@ proposed until current transcript artifacts receive operator review.
   require at least two conversations. Existing gold supplies candidate
   identity evidence only; the proposal explicitly sets biometric authorization
   false and requires a separate exact apply manifest.
-- Live semantic replay excluded two of the three selected recordings because
-  their current transcript hashes differ from the artifacts reviewed for the
-  frozen operator gold. The one exact reviewed/current recording cannot supply
-  a multi-session candidate, so the proposal is `blocked` with zero candidates.
+- Live semantic replay recovered the two raw-file hash drifts through the
+  committed reviewed-clue authority. All three recordings are eligible and the
+  proposal is `ready_for_operator_review` with two opaque candidate people,
+  five sessions, 15 windows, and 180.755531 selected seconds.
   Canonical proposal SHA-256 is
-  `9bf0bcc08b2855ffaa1413d61d8015af4ed529ed712e8c6c7334f3b3b43bf2ce`;
+  `aaec42150a2cc9f81212b7d965682a220202a71af3ad203fae0d7f122c6583a4`;
   the private artifact is `0600`. No transcript text, audio, name/email,
   embedding/vector, P3 mutation, model inference, trial, or external write was
   persisted or performed.
-- The next human evidence gate is operator review of the two changed current
-  transcript artifacts, including speaker labels and timestamp structure.
-  Candidate/source-set approval remains a later distinct biometric-purpose
-  decision. The canonical P3 store remains absent and P4D remains blocked.
-- Validation: 61 focused P3/P4 tests and 528 full repository tests passed;
-  `py_compile` and `git diff --check` passed. Independent checkpoint audit is
-  pending.
+- The next human evidence gate is review of the exact opaque candidate and
+  source-set hashes for biometric enrollment. The canonical P3 store remains
+  absent and P4D remains blocked until that distinct approval and apply packet.
+- Validation: 62 focused P3/P4 tests and 529 full repository tests passed;
+  `py_compile` and `git diff --check` passed. Negative coverage rejects
+  pre-build clue-packet, blind-prediction, and run-ledger drift plus post-build
+  replay drift. Independent checkpoint re-audit returned `PASS` and reproduced
+  the focused/full validation and exact live replay.

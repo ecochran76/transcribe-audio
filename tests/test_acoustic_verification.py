@@ -133,6 +133,7 @@ def candidate_proposal_authority(
     same_subject: bool = True,
     multiple_labels_same_subject: bool = False,
     reviewed_matches_current: bool = True,
+    include_source_campaign: bool = False,
 ) -> tuple[Path, Path, Path]:
     records = []
     selected = []
@@ -262,7 +263,16 @@ def candidate_proposal_authority(
             "will_read_audio": False,
         }
     parent = tmp_path / "candidate-parent.json"
-    parent.write_text(json.dumps({"recordings": records}), encoding="utf-8")
+    parent_payload = {"recordings": records}
+    if include_source_campaign:
+        parent_payload["source_campaign"] = {
+            "campaign_id": "campaign-test-continuity-0001",
+            "authority_hashes": {
+                "campaign_manifest_sha256": "3" * 64,
+                "gold_index_sha256": "4" * 64,
+            },
+        }
+    parent.write_text(json.dumps(parent_payload), encoding="utf-8")
     parent.chmod(0o600)
     parent_sha = hashlib.sha256(parent.read_bytes()).hexdigest()
     record_set_sha = verification.canonical_artifact_hash(records)
@@ -611,6 +621,336 @@ def test_candidate_enrollment_proposal_blocks_reviewed_artifact_drift(
     assert proposal["denominators"]["reviewed_artifact_lineage_exclusions"] == 2
     assert proposal["denominators"]["eligible_reviewed_artifact_recordings"] == 0
     assert proposal["candidates"] == []
+
+
+def test_candidate_enrollment_proposal_recovers_reviewed_clue_continuity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    policy, parent, joined = candidate_proposal_authority(
+        monkeypatch,
+        tmp_path,
+        reviewed_matches_current=False,
+        include_source_campaign=True,
+    )
+    parent_payload = json.loads(parent.read_text(encoding="utf-8"))
+    campaign_id = parent_payload["source_campaign"]["campaign_id"]
+    campaign_root = tmp_path / "campaigns"
+    runs_root = tmp_path / "runs"
+    campaign_root.mkdir(mode=0o700)
+    runs_root.mkdir(mode=0o700)
+    packet_paths = []
+    prediction_paths = []
+    events_paths = []
+    authority_entries = []
+    for index, record in enumerate(parent_payload["recordings"], start=1):
+        document_id = f"document-00{index}"
+        record["document_id"] = document_id
+        transcript_path = Path(record["transcript_lineage"]["current_artifact_path"])
+        transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
+        run_id = f"20260731T12000{index}Z-speaker-preprocessing-test{index}"
+        packet = {
+            "schema_version": "transcribe-audio.speaker-clue-discovery-packet.v1",
+            "task": "speaker_clue_discovery",
+            "conversation": {
+                "conversation_id": record["conversation_id"],
+                "recording_ids": [record["recording_id"]],
+                "title": "Synthetic",
+            },
+            "speakers": [
+                {
+                    "speaker_label": "A",
+                    "utterance_clues": [
+                        {
+                            "utterance_id": f"utterance-{ordinal}",
+                            "start": utterance["start"],
+                            "end": utterance["end"],
+                            "text": str(utterance.get("text") or "")[:1_200],
+                        }
+                        for ordinal, utterance in enumerate(
+                            transcript["utterances"], start=1
+                        )
+                    ],
+                }
+            ],
+        }
+        packet_path = (
+            runs_root
+            / run_id
+            / "artifacts/speaker-preprocessing/clue_discovery.input.json"
+        )
+        packet_path.parent.mkdir(parents=True, mode=0o700)
+        for ancestor in (
+            packet_path.parent,
+            packet_path.parent.parent,
+            packet_path.parent.parent.parent,
+        ):
+            ancestor.chmod(0o700)
+        packet_path.write_text(json.dumps(packet), encoding="utf-8")
+        packet_path.chmod(0o600)
+        packet_paths.append(packet_path)
+        run_root = runs_root / run_id
+        run_path = run_root / "run.json"
+        run_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "transcribe-audio.app-intelligence-run.v1",
+                    "run_id": run_id,
+                    "document_id": document_id,
+                    "workflow": "speaker_preprocessing",
+                }
+            ),
+            encoding="utf-8",
+        )
+        events_path = run_root / "events.jsonl"
+        events_path.write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "event_type": "model_turn_status_captured",
+                    "payload": {"completed": True, "status": "completed"},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        events_paths.append(events_path)
+        prompt_text = (
+            "Inspect this clue packet:\n"
+            + json.dumps(packet, sort_keys=True, ensure_ascii=False)
+        )
+        prompt_text_path = run_root / "prompt.txt"
+        prompt_text_path.write_text(prompt_text, encoding="utf-8")
+        prompt_packet_path = run_root / "prompt.json"
+        prompt_packet_path.write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "task": "speaker_clue_discovery",
+                    "document": {"id": document_id},
+                    "prompt_text": prompt_text,
+                }
+            ),
+            encoding="utf-8",
+        )
+        status_path = run_root / "status.json"
+        status_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": (
+                        "transcribe-audio.app-intelligence-model-turn-status.v1"
+                    ),
+                    "run_id": run_id,
+                    "status": "completed",
+                    "completed": True,
+                    "will_execute_structured_decision": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        for witness_path in (
+            run_path,
+            events_path,
+            prompt_text_path,
+            prompt_packet_path,
+            status_path,
+        ):
+            witness_path.chmod(0o600)
+        prediction = {
+            "schema_version": "transcribe-audio.speaker-evaluation-blind-prediction.v1",
+            "campaign_id": campaign_id,
+            "baseline_id": "baseline-test-0001",
+            "document_id": document_id,
+            "artifact_sha256": record["transcript_lineage"]["reviewed_artifact_sha256"],
+            "captured_at": f"2026-07-31T12:00:0{index}Z",
+            "prediction_visibility": "blind",
+            "gold_content_included": False,
+            "will_read_gold_records": False,
+            "will_perform_external_write": False,
+            "run_references": {"clue_discovery_run_id": run_id},
+        }
+        prediction_path = (
+            campaign_root
+            / campaign_id
+            / "baselines/baseline-test-0001/predictions"
+            / document_id
+            / f"prediction-{index}.json"
+        )
+        prediction_path.parent.mkdir(parents=True, mode=0o700)
+        current = prediction_path.parent
+        while current != campaign_root:
+            current.chmod(0o700)
+            current = current.parent
+        prediction_path.write_text(json.dumps(prediction), encoding="utf-8")
+        prediction_path.chmod(0o600)
+        prediction_paths.append(prediction_path)
+        authority_entries.append(
+            {
+                "document_id": document_id,
+                "recording_id": record["recording_id"],
+                "conversation_id": record["conversation_id"],
+                "reviewed_artifact_sha256": record["transcript_lineage"][
+                    "reviewed_artifact_sha256"
+                ],
+                "blind_prediction_relative_path": str(
+                    prediction_path.relative_to(campaign_root / campaign_id)
+                ),
+                "blind_prediction_sha256": hashlib.sha256(
+                    prediction_path.read_bytes()
+                ).hexdigest(),
+                "clue_discovery_run_id": run_id,
+                "clue_packet_relative_path": str(packet_path.relative_to(run_root)),
+                "clue_packet_sha256": hashlib.sha256(
+                    packet_path.read_bytes()
+                ).hexdigest(),
+                "run_json_sha256": hashlib.sha256(run_path.read_bytes()).hexdigest(),
+                "events_jsonl_sha256": hashlib.sha256(
+                    events_path.read_bytes()
+                ).hexdigest(),
+                "prompt_packet_relative_path": str(
+                    prompt_packet_path.relative_to(run_root)
+                ),
+                "prompt_packet_sha256": hashlib.sha256(
+                    prompt_packet_path.read_bytes()
+                ).hexdigest(),
+                "prompt_text_relative_path": str(
+                    prompt_text_path.relative_to(run_root)
+                ),
+                "prompt_text_sha256": hashlib.sha256(
+                    prompt_text_path.read_bytes()
+                ).hexdigest(),
+                "status_relative_path": str(status_path.relative_to(run_root)),
+                "status_sha256": hashlib.sha256(
+                    status_path.read_bytes()
+                ).hexdigest(),
+            }
+        )
+    authority_path = tmp_path / "reviewed-clue-authority.json"
+    authority_path.write_text(
+        json.dumps(
+            {
+                "schema_version": (
+                    "transcribe-audio.reviewed-clue-continuity-authority.v1"
+                ),
+                "campaign_id": campaign_id,
+                "campaign_manifest_sha256": "3" * 64,
+                "gold_index_sha256": "4" * 64,
+                "contains_transcript_text": False,
+                "will_read_audio": False,
+                "will_authorize_biometric_enrollment": False,
+                "entries": authority_entries,
+            }
+        ),
+        encoding="utf-8",
+    )
+    authority_path.chmod(0o600)
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_REVIEWED_CLUE_CONTINUITY_AUTHORITY_SHA256",
+        hashlib.sha256(authority_path.read_bytes()).hexdigest(),
+    )
+    parent.write_text(json.dumps(parent_payload), encoding="utf-8")
+    parent.chmod(0o600)
+    parent_sha = hashlib.sha256(parent.read_bytes()).hexdigest()
+    records = parent_payload["recordings"]
+    monkeypatch.setattr(verification, "EXPECTED_PARENT_CORPUS_MANIFEST_SHA256", parent_sha)
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_DEVELOPMENT_RECORD_SET_SHA256",
+        verification.canonical_artifact_hash(records),
+    )
+    policy_payload = json.loads(policy.read_text(encoding="utf-8"))
+    policy_payload["parent_corpus_manifest_sha256"] = parent_sha
+    policy_payload["splits"]["development"]["record_set_sha256"] = (
+        verification.canonical_artifact_hash(records)
+    )
+    policy.write_text(json.dumps(policy_payload), encoding="utf-8")
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_SPLIT_ACCESS_POLICY_SHA256",
+        hashlib.sha256(policy.read_bytes()).hexdigest(),
+    )
+    joined_payload = json.loads(joined.read_text(encoding="utf-8"))
+    joined_payload["corpus_manifest_sha256"] = parent_sha
+    joined.write_text(json.dumps(joined_payload), encoding="utf-8")
+    joined.chmod(0o600)
+    monkeypatch.setattr(
+        verification,
+        "EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256",
+        hashlib.sha256(joined.read_bytes()).hexdigest(),
+    )
+
+    root = tmp_path / "p4"
+    proposal = build_real_enrollment_candidate_proposal(
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+        campaign_root=campaign_root,
+        app_intelligence_runs_root=runs_root,
+        reviewed_clue_continuity_authority_path=authority_path,
+    )
+    assert proposal["status"] == "ready_for_operator_review"
+    assert proposal["reason_codes"] == []
+    assert proposal["denominators"]["reviewed_artifact_lineage_exclusions"] == 0
+    assert proposal["denominators"]["eligible_reviewed_artifact_recordings"] == 2
+    assert proposal["denominators"]["candidate_people"] == 1
+    assert {
+        evidence["reviewed_clue_continuity"]["mode"]
+        for evidence in proposal["candidates"][0]["selection_evidence"]
+    } == {"committed_reviewed_clue_authority"}
+    assert replay_real_enrollment_candidate_proposal(
+        proposal["proposal_sha256"],
+        runtime_root=root,
+        split_policy_path=policy,
+        parent_corpus_manifest_path=parent,
+        development_comparison_receipt_path=joined,
+        campaign_root=campaign_root,
+        app_intelligence_runs_root=runs_root,
+        reviewed_clue_continuity_authority_path=authority_path,
+    ) == proposal
+
+    for case, witness_path in (
+        ("packet-sha-mismatch", packet_paths[0]),
+        ("prediction-drift", prediction_paths[0]),
+        ("run-ledger-drift", events_paths[0]),
+    ):
+        original = witness_path.read_bytes()
+        witness_path.write_bytes(original + b" ")
+        witness_path.chmod(0o600)
+        blocked = build_real_enrollment_candidate_proposal(
+            runtime_root=tmp_path / case,
+            split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+            development_comparison_receipt_path=joined,
+            campaign_root=campaign_root,
+            app_intelligence_runs_root=runs_root,
+            reviewed_clue_continuity_authority_path=authority_path,
+        )
+        assert blocked["status"] == "blocked"
+        assert blocked["reason_codes"] == [
+            "reviewed_artifact_lineage_drift",
+            "no_multi_session_clean_candidates",
+        ]
+        assert blocked["denominators"]["reviewed_artifact_lineage_exclusions"] == 1
+        assert blocked["candidates"] == []
+        witness_path.write_bytes(original)
+        witness_path.chmod(0o600)
+
+    packet = json.loads(packet_paths[0].read_text(encoding="utf-8"))
+    packet["speakers"][0]["utterance_clues"][0]["start"] += 1
+    packet_paths[0].write_text(json.dumps(packet), encoding="utf-8")
+    packet_paths[0].chmod(0o600)
+    with pytest.raises(AcousticVerificationError, match="proposal replay"):
+        replay_real_enrollment_candidate_proposal(
+            proposal["proposal_sha256"],
+            runtime_root=root,
+            split_policy_path=policy,
+            parent_corpus_manifest_path=parent,
+            development_comparison_receipt_path=joined,
+            campaign_root=campaign_root,
+            app_intelligence_runs_root=runs_root,
+            reviewed_clue_continuity_authority_path=authority_path,
+        )
 
 
 def test_candidate_enrollment_proposal_blocks_single_session_people(

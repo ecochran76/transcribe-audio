@@ -7,6 +7,7 @@ P4 work may apply under the operator's bounded acquisition grant.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -763,7 +764,19 @@ EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256 = (
     "b767b9b1e5167c1b13a01fb0e1c4add4dd1323e983e1df8708e5e9dcd379436c"
 )
 ENROLLMENT_CANDIDATE_PROPOSAL_SCHEMA = (
-    "transcribe-audio.biometric-enrollment-candidate-proposal.v1"
+    "transcribe-audio.biometric-enrollment-candidate-proposal.v2"
+)
+DEFAULT_SPEAKER_EVALUATION_CAMPAIGN_ROOT = Path(
+    "~/.local/state/transcribe-audio/speaker-evaluation-campaigns"
+)
+DEFAULT_APP_INTELLIGENCE_RUNS_ROOT = Path(
+    "~/.local/state/transcribe-audio/app-intelligence-runs"
+)
+DEFAULT_REVIEWED_CLUE_CONTINUITY_AUTHORITY = Path(__file__).parent / (
+    "docs/dev/fixtures/plan-0037-p4/reviewed-clue-continuity-authority.json"
+)
+EXPECTED_REVIEWED_CLUE_CONTINUITY_AUTHORITY_SHA256 = (
+    "4c952608568edea918265f0851e89f4abfec2f41ac3faf590aaca20cb10da868"
 )
 DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT = Path(
     "~/.local/state/transcribe-audio/plan-0037/speech-preparation/"
@@ -856,6 +869,7 @@ def _development_split_authority(
     return {
         "recording_conversation_pairs": set(zip(recording_ids, conversation_ids)),
         "development_records": selected,
+        "source_campaign": parent.get("source_campaign"),
         "split_access_policy_sha256": EXPECTED_SPLIT_ACCESS_POLICY_SHA256,
         "parent_corpus_manifest_sha256": EXPECTED_PARENT_CORPUS_MANIFEST_SHA256,
         "development_record_set_sha256": EXPECTED_DEVELOPMENT_RECORD_SET_SHA256,
@@ -1346,16 +1360,309 @@ def _cap_candidate_sources_per_session(
     return sorted(retained, key=lambda item: str(item["reference_id"]))
 
 
+def _bounded_existing_file(path: Path, root: Path) -> Path:
+    """Resolve an existing regular file without trusting an escaping path."""
+    try:
+        resolved_root = root.expanduser().resolve(strict=True)
+        resolved = path.expanduser().resolve(strict=True)
+        resolved.relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise AcousticVerificationError("Continuity witness path is invalid.") from exc
+    if not resolved.is_file():
+        raise AcousticVerificationError("Continuity witness is not a regular file.")
+    return resolved
+
+
+def _reviewed_clue_authority(
+    path: Path,
+    *,
+    source_campaign: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    selected = path.expanduser().absolute()
+    if sha256_file(selected) != EXPECTED_REVIEWED_CLUE_CONTINUITY_AUTHORITY_SHA256:
+        raise AcousticVerificationError("Reviewed clue authority hash is invalid.")
+    try:
+        authority = json.loads(selected.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcousticVerificationError(
+            "Reviewed clue authority is unreadable."
+        ) from exc
+    authority_hashes = source_campaign.get("authority_hashes")
+    entries = authority.get("entries")
+    if (
+        authority.get("schema_version")
+        != "transcribe-audio.reviewed-clue-continuity-authority.v1"
+        or authority.get("campaign_id") != source_campaign.get("campaign_id")
+        or not isinstance(authority_hashes, Mapping)
+        or authority.get("campaign_manifest_sha256")
+        != authority_hashes.get("campaign_manifest_sha256")
+        or authority.get("gold_index_sha256")
+        != authority_hashes.get("gold_index_sha256")
+        or authority.get("contains_transcript_text") is not False
+        or authority.get("will_read_audio") is not False
+        or authority.get("will_authorize_biometric_enrollment") is not False
+        or not isinstance(entries, list)
+    ):
+        raise AcousticVerificationError("Reviewed clue authority is invalid.")
+    by_document: dict[str, Mapping[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise AcousticVerificationError("Reviewed clue authority entry is invalid.")
+        document_id = str(entry.get("document_id") or "")
+        hashes = [
+            entry.get(key)
+            for key in (
+                "blind_prediction_sha256",
+                "clue_packet_sha256",
+                "events_jsonl_sha256",
+                "prompt_packet_sha256",
+                "prompt_text_sha256",
+                "reviewed_artifact_sha256",
+                "run_json_sha256",
+                "status_sha256",
+            )
+        ]
+        if (
+            not document_id
+            or document_id in by_document
+            or any(not SHA256_RE.fullmatch(str(value or "")) for value in hashes)
+        ):
+            raise AcousticVerificationError("Reviewed clue authority entry is invalid.")
+        by_document[document_id] = entry
+    return by_document
+
+
+def _authority_bound_file(
+    root: Path,
+    relative_path: Any,
+    expected_sha256: Any,
+) -> Path:
+    if not isinstance(relative_path, str) or not SHA256_RE.fullmatch(
+        str(expected_sha256 or "")
+    ):
+        raise AcousticVerificationError("Continuity authority file binding is invalid.")
+    path = _bounded_existing_file(root / relative_path, root)
+    if sha256_file(path) != expected_sha256:
+        raise AcousticVerificationError("Continuity authority file hash drifted.")
+    return path
+
+
+def _reviewed_clue_continuity(
+    *,
+    record: Mapping[str, Any],
+    transcript: Mapping[str, Any],
+    reviewed_artifact_sha256: str,
+    campaign_id: str,
+    authority_entry: Mapping[str, Any],
+    campaign_root: Path,
+    app_intelligence_runs_root: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]] | None:
+    """Resolve a committed reviewed-hash witness and exact current clue matches."""
+    document_id = str(record.get("document_id") or "")
+    recording_id = str(record.get("recording_id") or "")
+    conversation_id = str(record.get("conversation_id") or "")
+    clue_run_id = str(authority_entry.get("clue_discovery_run_id") or "")
+    if (
+        not document_id
+        or not campaign_id
+        or authority_entry.get("document_id") != document_id
+        or authority_entry.get("recording_id") != recording_id
+        or authority_entry.get("conversation_id") != conversation_id
+        or authority_entry.get("reviewed_artifact_sha256")
+        != reviewed_artifact_sha256
+        or not clue_run_id
+    ):
+        return None
+    selected_campaign_root = campaign_root.expanduser().absolute()
+    campaign_dir = selected_campaign_root / campaign_id
+    selected_runs_root = app_intelligence_runs_root.expanduser().absolute()
+    try:
+        prediction_path = _authority_bound_file(
+            campaign_dir,
+            authority_entry.get("blind_prediction_relative_path"),
+            authority_entry.get("blind_prediction_sha256"),
+        )
+        run_root = _bounded_existing_file(
+            selected_runs_root / clue_run_id / "run.json", selected_runs_root
+        ).parent
+        run_path = _authority_bound_file(
+            run_root, "run.json", authority_entry.get("run_json_sha256")
+        )
+        events_path = _authority_bound_file(
+            run_root, "events.jsonl", authority_entry.get("events_jsonl_sha256")
+        )
+        packet_path = _authority_bound_file(
+            run_root,
+            authority_entry.get("clue_packet_relative_path"),
+            authority_entry.get("clue_packet_sha256"),
+        )
+        prompt_packet_path = _authority_bound_file(
+            run_root,
+            authority_entry.get("prompt_packet_relative_path"),
+            authority_entry.get("prompt_packet_sha256"),
+        )
+        prompt_text_path = _authority_bound_file(
+            run_root,
+            authority_entry.get("prompt_text_relative_path"),
+            authority_entry.get("prompt_text_sha256"),
+        )
+        status_path = _authority_bound_file(
+            run_root,
+            authority_entry.get("status_relative_path"),
+            authority_entry.get("status_sha256"),
+        )
+    except AcousticVerificationError:
+        return None
+    prediction = read_private_object(prediction_path)
+    run = read_private_object(run_path)
+    packet = read_private_object(packet_path)
+    prompt_packet = read_private_object(prompt_packet_path)
+    status = read_private_object(status_path)
+    try:
+        events = [
+            json.loads(line)
+            for line in events_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except (OSError, json.JSONDecodeError):
+        return None
+    if (
+        prediction.get("schema_version")
+        != "transcribe-audio.speaker-evaluation-blind-prediction.v1"
+        or prediction.get("campaign_id") != campaign_id
+        or prediction.get("document_id") != document_id
+        or prediction.get("artifact_sha256") != reviewed_artifact_sha256
+        or prediction.get("prediction_visibility") != "blind"
+        or prediction.get("gold_content_included") is not False
+        or prediction.get("will_read_gold_records") is not False
+        or prediction.get("will_perform_external_write") is not False
+        or not isinstance(prediction.get("run_references"), Mapping)
+        or prediction["run_references"].get("clue_discovery_run_id") != clue_run_id
+        or run.get("schema_version") != "transcribe-audio.app-intelligence-run.v1"
+        or run.get("run_id") != clue_run_id
+        or run.get("document_id") != document_id
+        or run.get("workflow") != "speaker_preprocessing"
+        or status.get("schema_version")
+        != "transcribe-audio.app-intelligence-model-turn-status.v1"
+        or status.get("run_id") != clue_run_id
+        or status.get("status") != "completed"
+        or status.get("completed") is not True
+        or status.get("will_execute_structured_decision") is not False
+        or not any(
+            isinstance(event, Mapping)
+            and event.get("run_id") == clue_run_id
+            and event.get("event_type") == "model_turn_status_captured"
+            and isinstance(event.get("payload"), Mapping)
+            and event["payload"].get("completed") is True
+            and event["payload"].get("status") == "completed"
+            for event in events
+        )
+        or prompt_packet.get("run_id") != clue_run_id
+        or prompt_packet.get("task") != "speaker_clue_discovery"
+        or not isinstance(prompt_packet.get("document"), Mapping)
+        or prompt_packet["document"].get("id") != document_id
+        or prompt_packet.get("prompt_text") != prompt_text_path.read_text(encoding="utf-8")
+    ):
+        return None
+    utterances = transcript.get("utterances")
+    if not isinstance(utterances, list):
+        return None
+    conversation = packet.get("conversation")
+    speakers = packet.get("speakers")
+    packet_json = json.dumps(packet, sort_keys=True, ensure_ascii=False)
+    if (
+        packet.get("schema_version")
+        != "transcribe-audio.speaker-clue-discovery-packet.v1"
+        or packet.get("task") != "speaker_clue_discovery"
+        or not isinstance(conversation, Mapping)
+        or conversation.get("conversation_id") != conversation_id
+        or recording_id not in (conversation.get("recording_ids") or [])
+        or not isinstance(speakers, list)
+        or packet_json not in str(prompt_packet.get("prompt_text") or "")
+    ):
+        return None
+    matched: list[dict[str, Any]] = []
+    seen_clue_ids: set[str] = set()
+    seen_speaker_labels: set[str] = set()
+    for speaker in speakers:
+        if not isinstance(speaker, Mapping):
+            return None
+        speaker_label = speaker.get("speaker_label")
+        clues = speaker.get("utterance_clues")
+        if (
+            not isinstance(speaker_label, str)
+            or speaker_label in seen_speaker_labels
+            or not isinstance(clues, list)
+        ):
+            return None
+        seen_speaker_labels.add(speaker_label)
+        for clue in clues:
+            if not isinstance(clue, Mapping):
+                return None
+            clue_id = str(clue.get("utterance_id") or "")
+            match = re.fullmatch(r"utterance-([1-9][0-9]*)", clue_id)
+            if match is None or clue_id in seen_clue_ids:
+                return None
+            seen_clue_ids.add(clue_id)
+            ordinal = int(match.group(1))
+            if ordinal > len(utterances) or not isinstance(
+                utterances[ordinal - 1], Mapping
+            ):
+                return None
+            current = utterances[ordinal - 1]
+            current_text = str(current.get("text") or "").strip()[:1_200]
+            if (
+                current.get("speaker") != speaker_label
+                or current.get("start") != clue.get("start")
+                or current.get("end") != clue.get("end")
+                or current_text != str(clue.get("text") or "")
+            ):
+                return None
+            matched.append(dict(current))
+    if not matched:
+        return None
+    clue_projection = [
+        {
+            "speaker": item.get("speaker"),
+            "start": item.get("start"),
+            "end": item.get("end"),
+            "text_sha256": hashlib.sha256(
+                str(item.get("text") or "").strip()[:1_200].encode("utf-8")
+            ).hexdigest(),
+        }
+        for item in matched
+    ]
+    return matched, {
+        "mode": "committed_reviewed_clue_authority",
+        "reviewed_artifact_sha256": reviewed_artifact_sha256,
+        "authority_sha256": EXPECTED_REVIEWED_CLUE_CONTINUITY_AUTHORITY_SHA256,
+        "prediction_sha256": sha256_file(prediction_path),
+        "clue_packet_sha256": sha256_file(packet_path),
+        "clue_projection_sha256": canonical_artifact_hash(clue_projection),
+        "matched_clue_count": len(matched),
+    }
+
+
 def _candidate_proposal_payload(
     *,
     split_policy_path: Path,
     parent_corpus_manifest_path: Path,
     development_comparison_receipt_path: Path,
+    reviewed_clue_continuity_authority_path: Path,
+    campaign_root: Path,
+    app_intelligence_runs_root: Path,
 ) -> dict[str, Any]:
     split_authority = _development_split_authority(
         split_policy_path, parent_corpus_manifest_path
     )
     development_records = split_authority["development_records"]
+    source_campaign = split_authority.get("source_campaign")
+    campaign_id = (
+        str(source_campaign.get("campaign_id") or "")
+        if isinstance(source_campaign, Mapping)
+        else ""
+    )
+    continuity_authority: Optional[dict[str, Mapping[str, Any]]] = None
     record_by_id = {str(item["recording_id"]): item for item in development_records}
     joined_path = development_comparison_receipt_path.expanduser().absolute()
     require_private_file(joined_path, joined_path.parent)
@@ -1432,19 +1739,6 @@ def _candidate_proposal_payload(
         reviewed_artifact_sha256 = str(
             transcript_lineage.get("reviewed_artifact_sha256") or ""
         )
-        if (
-            not SHA256_RE.fullmatch(reviewed_artifact_sha256)
-            or transcript_sha != reviewed_artifact_sha256
-        ):
-            lineage_exclusions.append(
-                {
-                    "recording_id": recording_id,
-                    "reason": "reviewed_artifact_not_current",
-                    "reviewed_artifact_sha256": reviewed_artifact_sha256,
-                    "current_artifact_sha256": transcript_sha,
-                }
-            )
-            continue
         transcript = read_private_object(transcript_path)
         if (
             transcript.get("schema_version") != 2
@@ -1453,6 +1747,52 @@ def _candidate_proposal_payload(
             or not isinstance(transcript.get("utterances"), list)
         ):
             raise AcousticVerificationError("Transcript metadata binding is invalid.")
+        continuity_evidence: dict[str, Any]
+        candidate_utterances = transcript["utterances"]
+        if transcript_sha == reviewed_artifact_sha256:
+            continuity_evidence = {
+                "mode": "exact_reviewed_artifact",
+                "reviewed_artifact_sha256": reviewed_artifact_sha256,
+                "current_artifact_sha256": transcript_sha,
+                "matched_clue_count": len(candidate_utterances),
+            }
+        else:
+            if not isinstance(source_campaign, Mapping):
+                continuity = None
+            else:
+                if continuity_authority is None:
+                    continuity_authority = _reviewed_clue_authority(
+                        reviewed_clue_continuity_authority_path,
+                        source_campaign=source_campaign,
+                    )
+                authority_entry = continuity_authority.get(
+                    str(record.get("document_id") or "")
+                )
+                continuity = (
+                    _reviewed_clue_continuity(
+                        record=record,
+                        transcript=transcript,
+                        reviewed_artifact_sha256=reviewed_artifact_sha256,
+                        campaign_id=campaign_id,
+                        authority_entry=authority_entry,
+                        campaign_root=campaign_root,
+                        app_intelligence_runs_root=app_intelligence_runs_root,
+                    )
+                    if authority_entry is not None
+                    else None
+                )
+            if continuity is None:
+                lineage_exclusions.append(
+                    {
+                        "recording_id": recording_id,
+                        "reason": "reviewed_artifact_continuity_unavailable",
+                        "reviewed_artifact_sha256": reviewed_artifact_sha256,
+                        "current_artifact_sha256": transcript_sha,
+                    }
+                )
+                continue
+            candidate_utterances, continuity_evidence = continuity
+            continuity_evidence["current_artifact_sha256"] = transcript_sha
         gold = record.get("operator_gold")
         if not isinstance(gold, Mapping) or not isinstance(gold.get("speaker_truth"), list):
             raise AcousticVerificationError("Operator gold metadata is invalid.")
@@ -1475,7 +1815,7 @@ def _candidate_proposal_payload(
                 raise AcousticVerificationError("Gold subject ID is not opaque.")
             person_rows_considered += 1
             windows = _candidate_windows(
-                transcript["utterances"],
+                candidate_utterances,
                 speaker_label=truth.get("speaker_label"),
                 speech_regions=pyannote.get("speech_regions"),
                 blocked_regions=blocked_regions,
@@ -1525,6 +1865,7 @@ def _candidate_proposal_payload(
                     "operator_gold_sha256": canonical_artifact_hash(dict(gold)),
                     "selected_truth_sha256": canonical_artifact_hash(dict(truth)),
                     "transcript_artifact_sha256": transcript_sha,
+                    "reviewed_clue_continuity": continuity_evidence,
                     "p2_comparison_sha256": selected["comparison_sha256"],
                     "pyannote_result_sha256": canonical_artifact_hash(dict(pyannote)),
                     "selected_reference_ids": [source["reference_id"] for source in sources
@@ -1610,7 +1951,7 @@ def _candidate_proposal_payload(
             "source_scope": "three_recording_p2_development_slice",
             "speaker_identity_source": "frozen_operator_gold_person_rows",
             "timestamp_source": (
-                "current_artifact_exactly_matches_frozen_reviewed_artifact"
+                "exact_reviewed_artifact_or_committed_reviewed_clue_authority"
             ),
             "speech_filter": "p2_pyannote_community_1_speech_regions",
             "excluded_regions": ["overlap", "speaker_change"],
@@ -1654,12 +1995,22 @@ def build_real_enrollment_candidate_proposal(
     split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
     parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
     development_comparison_receipt_path: Path = DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT,
+    reviewed_clue_continuity_authority_path: Path = (
+        DEFAULT_REVIEWED_CLUE_CONTINUITY_AUTHORITY
+    ),
+    campaign_root: Path = DEFAULT_SPEAKER_EVALUATION_CAMPAIGN_ROOT,
+    app_intelligence_runs_root: Path = DEFAULT_APP_INTELLIGENCE_RUNS_ROOT,
 ) -> dict[str, Any]:
     """Persist a private metadata-only candidate packet for operator review."""
     proposal = _candidate_proposal_payload(
         split_policy_path=split_policy_path,
         parent_corpus_manifest_path=parent_corpus_manifest_path,
         development_comparison_receipt_path=development_comparison_receipt_path,
+        reviewed_clue_continuity_authority_path=(
+            reviewed_clue_continuity_authority_path
+        ),
+        campaign_root=campaign_root,
+        app_intelligence_runs_root=app_intelligence_runs_root,
     )
     root = runtime_root.expanduser().absolute()
     proposal_sha = canonical_artifact_hash(proposal)
@@ -1680,6 +2031,11 @@ def replay_real_enrollment_candidate_proposal(
     split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
     parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
     development_comparison_receipt_path: Path = DEFAULT_DEVELOPMENT_COMPARISON_RECEIPT,
+    reviewed_clue_continuity_authority_path: Path = (
+        DEFAULT_REVIEWED_CLUE_CONTINUITY_AUTHORITY
+    ),
+    campaign_root: Path = DEFAULT_SPEAKER_EVALUATION_CAMPAIGN_ROOT,
+    app_intelligence_runs_root: Path = DEFAULT_APP_INTELLIGENCE_RUNS_ROOT,
 ) -> dict[str, Any]:
     """Recompute all metadata selection semantics and replay one exact proposal."""
     if not SHA256_RE.fullmatch(str(proposal_sha256)):
@@ -1692,6 +2048,11 @@ def replay_real_enrollment_candidate_proposal(
         split_policy_path=split_policy_path,
         parent_corpus_manifest_path=parent_corpus_manifest_path,
         development_comparison_receipt_path=development_comparison_receipt_path,
+        reviewed_clue_continuity_authority_path=(
+            reviewed_clue_continuity_authority_path
+        ),
+        campaign_root=campaign_root,
+        app_intelligence_runs_root=app_intelligence_runs_root,
     )
     if canonical_artifact_hash(stored) != proposal_sha256 or stored != expected:
         raise AcousticVerificationError("Enrollment proposal replay is invalid.")

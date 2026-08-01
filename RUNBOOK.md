@@ -2,6 +2,47 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 261 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 6
+
+Packet: P4C | Reviewed-clue continuity recovery
+
+State transition: `BLOCKED/Plan-0037-P4C-CANDIDATES -> READY_FOR_REVIEW/Plan-0037-P4C-CANDIDATES`.
+
+- Recovered the two raw-file hash drifts without weakening identity evidence.
+  A committed metadata-only continuity authority at SHA-256
+  `4c952608568edea918265f0851e89f4abfec2f41ac3faf590aaca20cb10da868`
+  independently binds the frozen campaign authorities, blind predictions,
+  completed run ledgers, prompts, statuses, and clue-discovery packets.
+  Candidate preparation accepts only
+  clue utterances whose ordinal ID, speaker label, start/end timestamp, and
+  bounded text exactly match the current transcript.
+- Proposal schema v2 persists only witness hashes and clue-projection hashes;
+  no transcript text enters the proposal. Semantic replay recomputes the full
+  witness selection and rejects packet, timestamp, speaker, text, or receipt
+  drift.
+- Live proposal SHA-256
+  `aaec42150a2cc9f81212b7d965682a220202a71af3ad203fae0d7f122c6583a4`
+  is `ready_for_operator_review`: all three selected development recordings,
+  two opaque candidates, five sessions, 15 windows, and 180.755531 selected
+  seconds. The `0600` artifact remains explicitly non-authorizing.
+- No audio, P3 store/reference, profile, embedding, model inference, trial,
+  calibration/evaluation read, or external write occurred.
+- Validation: 62 focused P3/P4 tests and 529 full repository tests passed;
+  compilation and diff checks passed. Tests reject pre-build clue-packet,
+  blind-prediction, and run-ledger drift plus post-build replay drift.
+  Independent checkpoint re-audit returned `PASS` and reproduced the focused
+  and full validation plus the exact live replay.
+
+Next:
+
+- Real P3/P4 apply still requires an exact biometric-purpose decision over the proposed
+  opaque people and source-set hashes; calibration and evaluation remain
+  sealed.
+
 ## Turn 260 | 2026-07-31
 
 Plan:

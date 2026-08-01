@@ -1,0 +1,49 @@
+{
+  "campaign_id": "campaign-9ef07483fd3f65a43c27",
+  "campaign_manifest_sha256": "e387ea4fdd51bf9cfb336cacf918aa782cb8e16b931ba8e022218a3e542e5aa4",
+  "contains_transcript_text": false,
+  "entries": [
+    {
+      "blind_prediction_relative_path": "baselines/baseline-f77e1874-fbfb-4ff3-87fa-9b57e2de197f/predictions/48905ded15415be430db/prediction-eab85054-6bec-4ae6-b270-cfd6c986dce6.json",
+      "blind_prediction_sha256": "4e746d4a669b1fe51590bc2f81c99b2f4ff32428d565ce9993d235c1f6129294",
+      "clue_discovery_run_id": "20260730T195557Z-speaker-preprocessing-1a03f156",
+      "clue_packet_relative_path": "artifacts/speaker-preprocessing/clue_discovery.input.json",
+      "clue_packet_sha256": "59feefd32a61bc12f5d0fd444bd7f98839fc60f4690f23bd170fbc8bc5a77c82",
+      "conversation_id": "65a6c234-55dc-452e-8676-67a9b51c758c",
+      "document_id": "48905ded15415be430db",
+      "events_jsonl_sha256": "2e55f160d227b0080aa777776b3bbfe79280f5abfd56e5e0ed3a270dbe2ce672",
+      "prompt_packet_relative_path": "artifacts/prompt-packets/20260730T195557Z-model-turn-d0f7a4f6.json",
+      "prompt_packet_sha256": "dce69c4775f51a67d818a3c79b243391478207dd5994e6287d27f19e605b6f63",
+      "prompt_text_relative_path": "artifacts/prompt-packets/20260730T195557Z-model-turn-d0f7a4f6.prompt.txt",
+      "prompt_text_sha256": "398b273e6409ac4620dd49fc5247c0293f851175601c80e8f74a6ab57f76e5d9",
+      "recording_id": "fccc4d03-3f9b-488d-81dc-8204c634566d",
+      "reviewed_artifact_sha256": "cecc9886defba813ea7e52f0b178ef328f2c36a05a3d770b64b54bca96f186bf",
+      "run_json_sha256": "0c911a36d5fadd760f7da009b83257c96d135bafffe94611e09efe4623720042",
+      "status_relative_path": "artifacts/model-turn-readouts/019fb499-1eb6-7143-9bc1-ce09b33930a2.status.json",
+      "status_sha256": "b4dfe0c1057275051fbe0df2f01da8cadeae21b33a100599e05782c89b1ddeeb"
+    },
+    {
+      "blind_prediction_relative_path": "baselines/baseline-7c0564e4-8f08-4850-b6c7-35e43f81667e/predictions/87d337ac1e1bb326b8d8/prediction-d78e4698-1279-4be8-ba9d-a726d06a1d7c.json",
+      "blind_prediction_sha256": "d27005804b87dd487deb9742e26a8d23ed0050b78031ac3989fd6d5662e3beed",
+      "clue_discovery_run_id": "20260725T192505Z-speaker-preprocessing-91310678",
+      "clue_packet_relative_path": "artifacts/speaker-preprocessing/clue_discovery.input.json",
+      "clue_packet_sha256": "2dd34e055adab1986cb65a964081a297953b917cc475d9dfb238c9307b81a53a",
+      "conversation_id": "d5df1238-91ab-49f3-937d-55d8a5997453",
+      "document_id": "87d337ac1e1bb326b8d8",
+      "events_jsonl_sha256": "ec7a758bce277bf0c9a08277393e36d82ae08c468376ba11000eb58d93544a0b",
+      "prompt_packet_relative_path": "artifacts/prompt-packets/20260725T192505Z-model-turn-20443b2e.json",
+      "prompt_packet_sha256": "d2af7fcab9780eb52c884101b7f7e562c9179d13855dbbf24d0fd2e65c0ce276",
+      "prompt_text_relative_path": "artifacts/prompt-packets/20260725T192505Z-model-turn-20443b2e.prompt.txt",
+      "prompt_text_sha256": "e01e0b0036680348caa252976b0d1da4104364754194a1f0e1d7cd7bed275489",
+      "recording_id": "675146b4-df77-41be-ab87-3b17770a5079",
+      "reviewed_artifact_sha256": "2d57bd9027a6af6abd10a446b263f1cab7b47b5a0e7645a170b61bf82951317a",
+      "run_json_sha256": "0f8637cc4270abff640f4b5920685003ea3ad31699559f85623910426e730154",
+      "status_relative_path": "artifacts/model-turn-readouts/019f9abd-0b88-75b1-ad53-307536aa205c.status.json",
+      "status_sha256": "adc0dd5f8cbb03ea595985077f7a4c6b742915e12902ea05acc4c6a2112e8bdf"
+    }
+  ],
+  "gold_index_sha256": "1de03fd87fc2211c70fbe660ee164f6ea4e49d6e39d6dfd3c2ed5683fb7834ba",
+  "schema_version": "transcribe-audio.reviewed-clue-continuity-authority.v1",
+  "will_authorize_biometric_enrollment": false,
+  "will_read_audio": false
+}
