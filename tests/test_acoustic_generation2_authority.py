@@ -237,6 +237,20 @@ def _calibration_inputs() -> tuple[dict, dict]:
     return calibration, authority
 
 
+def test_legacy_composite_binding_shape_remains_stable() -> None:
+    manifest, replay = _composite_inputs()
+    binding = generation2._composite_binding(manifest, replay)
+    assert set(binding) == {
+        "composite_id",
+        "content_sha256",
+        "manifest_sha256",
+        "condition_coverage",
+        "direct_observed_attestation_count",
+        "minimum_distinct_device_count",
+    }
+    assert binding["direct_observed_attestation_count"] == 7
+
+
 @pytest.fixture(autouse=True)
 def _synthetic_calibration_authority_constants(
     monkeypatch: pytest.MonkeyPatch,
