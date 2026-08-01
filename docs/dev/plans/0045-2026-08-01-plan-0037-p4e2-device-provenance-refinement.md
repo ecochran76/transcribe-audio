@@ -163,7 +163,7 @@ audits. Review retries are limited to one repair-and-re-audit cycle per unit.
 
 ## Descendant replay continuity repair
 
-State: OPEN pending independent re-audit and clean pushed production replay.
+State: CLOSED; Unit E attestations remain OPEN at case 1.
 
 - Frozen campaign `device-provenance-07f1509cf8657c793777e386` remains the
   sole exact-seven authority. No campaign, cursor, or attestation artifact is
@@ -179,4 +179,9 @@ State: OPEN pending independent re-audit and clean pushed production replay.
   `3f6cbebdd0f945453775b4d065801e88784f11df213f3abe1f0664da900d96c1`.
   Twelve focused tests, 40 joined device/condition/generation-2 tests, and all
   613 repository tests passed; compilation and `git diff --check` passed.
-  Production replay must pass only after the repair commit is clean and pushed.
+  Repair commit `bb975ebe5e46f880cefadf4267d03e2b5d7ede83` is pushed with
+  upstream ahead/behind `0 / 0`.
+- Clean production replay returned full-body equality with one open case and
+  zero initial records. Descendant reapply returned the original campaign, the
+  case reopened idempotently, every private path retained exact `0700`/`0600`
+  mode, and every campaign file retained identical SHA-256 and mtime state.

@@ -2,6 +2,40 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 273 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0045-2026-08-01-plan-0037-p4e2-device-provenance-refinement.md`,
+version 2
+
+Packet: P4E2-R2 | Device-campaign descendant continuity
+
+State transition: `OPEN/P4E2-R1+P4E2-D3 -> OPEN/P4E2-R1-CASE-1+P4E2-D3`.
+
+- A final blocker audit exposed that the frozen exact-seven device campaign
+  rebuilt identity from current `HEAD`, making it stale after reviewed Plan
+  0046 descendant commits even though its frozen module had not changed.
+- Replay now reconstructs the original body with its frozen repository
+  authority while requiring a clean current checkout, ancestor proof, and the
+  exact historical module blob from Git. Descendant reapply reuses the sole
+  campaign for the exact predecessor pair and fails closed on duplicate valid
+  campaigns.
+- One bounded audit repair added ambiguity rejection. Final independent
+  re-audit returned `PASS` on scoped code/test diff SHA-256
+  `3f6cbebdd0f945453775b4d065801e88784f11df213f3abe1f0664da900d96c1`.
+  Twelve focused, 40 joined, and all 613 repository tests passed; compilation
+  and `git diff --check` passed.
+- Repair commit `bb975ebe5e46f880cefadf4267d03e2b5d7ede83` is pushed and
+  upstream-even. Production full-body replay, singleton descendant reapply,
+  exact private modes, and idempotent case-1 reopen passed with unchanged file
+  hashes and mtimes. The campaign still has zero attestations.
+
+Next:
+
+- Record only direct operator knowledge of the physical device for case 1, or
+  record `unavailable` if the operator genuinely does not know. Do not infer
+  from identity, filename, codec, container, path, or blanket authorization.
+
 ## Turn 272 | 2026-08-01
 
 Plan:

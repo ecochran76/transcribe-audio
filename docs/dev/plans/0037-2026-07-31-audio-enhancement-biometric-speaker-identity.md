@@ -105,6 +105,14 @@ model/method selection, App
 Intelligence integration, or historical reprocessing exists. Plan 0036 remains
 sealed and paused after five of ten current gold reviews.
 
+Plan 0045's already-frozen exact-seven device campaign now replays across
+reviewed clean descendant commits without changing its original repository
+binding. Production replay at `bb975ebe5e46f880cefadf4267d03e2b5d7ede83`
+returned full-body equality and idempotently reopened case 1 with zero recorded
+attestations. The next required evidence remains the direct physical-device
+fact for that open case; no identity, filename, codec, or authorization fact
+can substitute for it.
+
 The host continues to build a bounded speaker clue packet from transcript,
 calendar, contact, relationship, GWS, and Odollo evidence. App Intelligence
 proposes identities only from prepared candidates and cited evidence.

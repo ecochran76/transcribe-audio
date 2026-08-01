@@ -404,3 +404,21 @@ State: Plan 0046 Units A through C CLOSED; Plan 0045 and Unit D remain OPEN.
 - Production generation-2 freeze remains `not_run` until Plan 0045 produces a
   passing replayed composite with seven direct nonmissing device attestations
   and at least two distinct opaque devices.
+
+## P4E2-R2 device-campaign continuity checkpoint
+
+State: CLOSED; Plan 0045 Unit E remains OPEN at case 1.
+
+- A final blocker audit found that the frozen device campaign rebuilt identity
+  from current repository `HEAD` and therefore became stale after reviewed
+  Plan 0046 descendant commits. The repair preserves the original campaign
+  body, proves its frozen commit/module from Git history under a clean
+  descendant checkout, and rejects dirty, non-ancestor, historical-module, or
+  duplicate-campaign drift.
+- Independent re-audit returned `PASS`; 12 focused, 40 joined, and all 613
+  repository tests passed. Commit `bb975ebe5e46f880cefadf4267d03e2b5d7ede83`
+  is pushed and upstream-even.
+- Production full-body replay, singleton descendant reapply, and idempotent
+  case-1 reopen passed without changing any campaign file hash or mtime. No
+  device attestation was inferred or written; Unit E still requires the direct
+  physical-device fact for case 1.

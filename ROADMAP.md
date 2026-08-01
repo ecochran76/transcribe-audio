@@ -467,6 +467,11 @@ profile/model, threshold/margin, candidate, trial-child, and terminal-policy
 authorities while permitting no reveal, model execution, scoring, decision, or
 write. Production apply remains `not_run` and blocked on Plan 0045's complete
 passing composite device authority.
+Plan 0045's frozen exact-seven campaign has also been repaired to replay across
+clean reviewed descendant commits without reissuing its original identity.
+Production full-body replay and idempotent case-1 reopen passed at pushed commit
+`bb975ebe5e46f880cefadf4267d03e2b5d7ede83`; zero attestations exist, so the
+direct case-1 physical-device fact remains the next critical-path input.
 No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036
