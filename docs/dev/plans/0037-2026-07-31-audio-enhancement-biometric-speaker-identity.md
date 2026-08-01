@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 2
+Plan Version: 3
 
 Execution Mode: high-level campaign plan with bounded implementation packets
 
@@ -80,11 +80,13 @@ successful attempts; and a synthetic private biometric-reference authority
 with CAS lifecycle and P4 descendant invalidation.
 
 P4 is open through
-[Plan 0042](0042-2026-07-31-plan-0037-p4-verification-calibration.md). No real
-biometric reference, model-specific profile, verification score, calibrated
-threshold, evaluation reveal, App Intelligence integration, or historical
-reprocessing exists. Plan 0036 remains sealed and paused after five of ten
-current gold reviews.
+[Plan 0042](0042-2026-07-31-plan-0037-p4-verification-calibration.md). P4C has
+six active real profiles, P4D development diagnostics are complete, and P4D2
+has frozen nine model-by-method thresholds from 396 held-out calibration
+trials. These are descriptive, conversation-clustered calibration evidence,
+not terminal model selection or generalization evidence. No evaluation reveal,
+App Intelligence integration, or historical reprocessing exists. Plan 0036
+remains sealed and paused after five of ten current gold reviews.
 
 The host continues to build a bounded speaker clue packet from transcript,
 calendar, contact, relationship, GWS, and Odollo evidence. App Intelligence

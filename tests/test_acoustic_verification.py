@@ -2237,3 +2237,100 @@ def test_profile_manifest_detects_metadata_tamper(
         )
     with pytest.raises(AcousticVerificationError, match="manifest binding"):
         replay_profile(profile["profile_id"], runtime_root=root)
+
+
+def _synthetic_calibration_trials() -> list[dict]:
+    trials = []
+    for index, (genuine_score, impostor_score) in enumerate(
+        [(0.90, 0.10), (0.85, 0.15), (0.80, 0.20)]
+    ):
+        for profile_id, expected_match, score in (
+            ("profile-genuine", True, genuine_score),
+            ("profile-impostor", False, impostor_score),
+        ):
+            trials.append(
+                {
+                    "window_id": f"window-{index}",
+                    "conversation_id": f"conversation-{index}",
+                    "profile_id": profile_id,
+                    "expected_match": expected_match,
+                    "open_set_probe": False,
+                    "score": score,
+                    "conditions": {
+                        "channel": "source_1_channel",
+                        "device": "unassessed_until_p1",
+                        "noise": "unassessed_until_p2",
+                        "overlap": "overlap_regions_excluded",
+                        "telephone_bandwidth": "unassessed_until_p1",
+                        "usable_duration_band": "3_to_under_8_seconds",
+                    },
+                }
+            )
+    return trials
+
+
+def test_calibration_threshold_freeze_is_deterministic_and_precommitted() -> None:
+    policy = {
+        "minimum_genuine_trials_per_unit": 3,
+        "minimum_impostor_trials_per_unit": 3,
+        "temperature_candidates": [0.01, 0.05],
+        "condition_slices": [
+            "channel", "device", "noise", "overlap",
+            "telephone_bandwidth", "usable_duration_band",
+        ],
+    }
+    first = verification._freeze_threshold_unit(
+        "model-a", "no_enhancement", _synthetic_calibration_trials(), policy
+    )
+    second = verification._freeze_threshold_unit(
+        "model-a", "no_enhancement", _synthetic_calibration_trials(), policy
+    )
+    assert first == second
+    assert first["status"] == "success"
+    assert first["metrics"]["balanced_error_rate"] == 0.0
+    assert first["metrics"]["missing_denominator_status"] == "success"
+    assert len(first["condition_slices"]) == 6
+    assert first["candidate_margin"]["count"] == 3
+    assert first["open_set_rejection"]["probe_count"] == 0
+
+
+def test_calibration_threshold_freeze_fails_closed_on_missing_class() -> None:
+    trials = [
+        {**item, "expected_match": False}
+        for item in _synthetic_calibration_trials()
+    ]
+    result = verification._freeze_threshold_unit(
+        "model-a",
+        "rnnoise",
+        trials,
+        {
+            "minimum_genuine_trials_per_unit": 3,
+            "minimum_impostor_trials_per_unit": 3,
+            "temperature_candidates": [0.01],
+            "condition_slices": [],
+        },
+    )
+    assert result == {
+        "candidate_id": "model-a",
+        "method_id": "rnnoise",
+        "status": "not_run",
+        "reason_code": "insufficient_class_denominator",
+        "threshold": None,
+        "temperature": None,
+        "metrics": None,
+        "condition_slices": [],
+        "candidate_margin": None,
+        "open_set_rejection": None,
+    }
+
+
+def test_calibration_stage_hash_ignores_only_the_declared_timestamp() -> None:
+    baseline = {"status": "success", "value": 3, "applied_at": "first"}
+    replayed = {**baseline, "applied_at": "second"}
+    forged = {**baseline, "value": 4}
+    assert verification._calibration_stage_identity(
+        baseline, "applied_at"
+    ) == verification._calibration_stage_identity(replayed, "applied_at")
+    assert verification._calibration_stage_identity(
+        baseline, "applied_at"
+    ) != verification._calibration_stage_identity(forged, "applied_at")

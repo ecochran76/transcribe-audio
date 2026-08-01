@@ -1208,7 +1208,28 @@ def _build_plan(
     readiness: Optional[Mapping[str, Mapping[str, Any]]] = None,
     adapters: Optional[Mapping[str, PreparationAdapter]] = None,
     test_mode: bool = False,
+    intended_split: str = "development",
+    split_access_authority_sha256: Optional[str] = None,
 ) -> tuple[dict[str, Any], dict[str, Path]]:
+    if intended_split == "development":
+        if split_access_authority_sha256 is not None:
+            raise SpeechPreparationError(
+                "Development preparation cannot bind a later-split authority."
+            )
+        split_fields: dict[str, Any] = {}
+    elif intended_split == "calibration":
+        if not re.fullmatch(r"[a-f0-9]{64}", str(split_access_authority_sha256 or "")):
+            raise SpeechPreparationError(
+                "Calibration preparation requires an exact split authority."
+            )
+        split_fields = {
+            "intended_split": "calibration",
+            "split_access_authority_sha256": split_access_authority_sha256,
+        }
+    else:
+        raise SpeechPreparationError(
+            "Speech preparation cannot open the requested split."
+        )
     p1_root = (p1_runtime_root or P1_DEFAULT_RUNTIME_ROOT).expanduser().absolute()
     source = _active_p1_source(p1_run_id, p1_root)
     if readiness is not None and not test_mode:
@@ -1238,6 +1259,7 @@ def _build_plan(
         "method_ids": list(METHOD_IDS),
         "synthetic_test_mode": test_mode,
         "adapter_descriptors": adapter_descriptors,
+        **split_fields,
     }
     run_id = f"speech-prep-{canonical_artifact_hash(identity)[:24]}"
     paths = _paths(selected_runtime_root, run_id)
@@ -1266,7 +1288,10 @@ def _build_plan(
         "will_run_biometrics": False,
         "will_perform_external_write": False,
         "created_at": utc_now(),
+        **split_fields,
     }
+    if intended_split == "calibration":
+        plan["will_read_calibration_or_evaluation"] = True
     return plan, paths
 
 
@@ -1278,6 +1303,8 @@ def dry_run(
     readiness: Optional[Mapping[str, Mapping[str, Any]]] = None,
     adapters: Optional[Mapping[str, PreparationAdapter]] = None,
     test_mode: bool = False,
+    intended_split: str = "development",
+    split_access_authority_sha256: Optional[str] = None,
 ) -> dict[str, Any]:
     plan, paths = _build_plan(
         p1_run_id,
@@ -1286,6 +1313,8 @@ def dry_run(
         readiness=readiness,
         adapters=adapters,
         test_mode=test_mode,
+        intended_split=intended_split,
+        split_access_authority_sha256=split_access_authority_sha256,
     )
     ensure_private_tree(paths["root"], paths["run_dir"])
     stored = _private_write(
@@ -1569,6 +1598,8 @@ def apply_comparison(
     readiness: Optional[Mapping[str, Mapping[str, Any]]] = None,
     adapters: Optional[Mapping[str, PreparationAdapter]] = None,
     test_mode: bool = False,
+    intended_split: str = "development",
+    split_access_authority_sha256: Optional[str] = None,
 ) -> dict[str, Any]:
     plan, paths = _build_plan(
         p1_run_id,
@@ -1577,6 +1608,8 @@ def apply_comparison(
         readiness=readiness,
         adapters=adapters,
         test_mode=test_mode,
+        intended_split=intended_split,
+        split_access_authority_sha256=split_access_authority_sha256,
     )
     del approval_token
     ensure_private_tree(paths["root"], paths["run_dir"])
@@ -1678,6 +1711,14 @@ def apply_comparison(
         "will_perform_external_write": False,
         "created_at": created_at,
     }
+    if intended_split == "calibration":
+        comparison.update(
+            {
+                "intended_split": "calibration",
+                "split_access_authority_sha256": split_access_authority_sha256,
+            }
+        )
+        comparison["will_read_calibration_or_evaluation"] = True
     stored = _private_write(paths["comparison"], comparison)
     apply_receipt = {
         "schema_version": APPLY_RECEIPT_SCHEMA,
@@ -1691,6 +1732,14 @@ def apply_comparison(
         "will_perform_external_write": False,
         "applied_at": created_at,
     }
+    if intended_split == "calibration":
+        apply_receipt.update(
+            {
+                "intended_split": "calibration",
+                "split_access_authority_sha256": split_access_authority_sha256,
+                "did_read_calibration_or_evaluation": True,
+            }
+        )
     stored_apply = _private_write(paths["apply_receipt"], apply_receipt)
     return {
         **stored_apply,
@@ -1724,6 +1773,15 @@ def replay_comparison(
         "will_perform_external_write",
         "applied_at",
     }
+    calibration_mode = comparison.get("intended_split") == "calibration"
+    if calibration_mode:
+        expected_apply_keys.update(
+            {
+                "intended_split",
+                "split_access_authority_sha256",
+                "did_read_calibration_or_evaluation",
+            }
+        )
     source = comparison.get("p1_source") or {}
     if (
         set(apply_receipt) != expected_apply_keys
@@ -1739,6 +1797,28 @@ def replay_comparison(
         != source.get("manifest_sha256")
         or apply_receipt.get("will_perform_external_write") is not False
         or apply_receipt.get("applied_at") != comparison.get("created_at")
+        or (
+            calibration_mode
+            and (
+                not re.fullmatch(
+                    r"[a-f0-9]{64}",
+                    str(comparison.get("split_access_authority_sha256") or ""),
+                )
+                or comparison.get("will_read_calibration_or_evaluation") is not True
+                or apply_receipt.get("intended_split") != "calibration"
+                or apply_receipt.get("split_access_authority_sha256")
+                != comparison.get("split_access_authority_sha256")
+                or apply_receipt.get("did_read_calibration_or_evaluation") is not True
+            )
+        )
+        or (
+            not calibration_mode
+            and (
+                comparison.get("intended_split") is not None
+                or comparison.get("split_access_authority_sha256") is not None
+                or comparison.get("will_read_calibration_or_evaluation") is not False
+            )
+        )
     ):
         raise SpeechPreparationError("P2 apply receipt binding mismatch.")
     current = _active_p1_source(
@@ -1792,6 +1872,16 @@ def replay_comparison(
         "will_perform_external_write": False,
         "replayed_at": utc_now(),
     }
+    if calibration_mode:
+        receipt.update(
+            {
+                "intended_split": "calibration",
+                "split_access_authority_sha256": comparison[
+                    "split_access_authority_sha256"
+                ],
+                "did_read_calibration_or_evaluation": True,
+            }
+        )
     stored = _private_write(
         replay_path, receipt, volatile_fields=("replayed_at",)
     )
@@ -1854,7 +1944,7 @@ def resolve_comparison_lineage_receipt(
     if result is None or result.get("status") != "success":
         raise SpeechPreparationError("P2 lineage method is not successful.")
     source = comparison.get("p1_source") or {}
-    return {
+    lineage = {
         "schema_version": LINEAGE_SCHEMA,
         "authority": "p2_speech_preparation_replay",
         "run_id": run_id,
@@ -1874,6 +1964,16 @@ def resolve_comparison_lineage_receipt(
         "validation_status": "verified_active_metadata_receipt",
         "will_read_audio": False,
     }
+    if comparison.get("intended_split") == "calibration":
+        lineage.update(
+            {
+                "intended_split": "calibration",
+                "split_access_authority_sha256": comparison[
+                    "split_access_authority_sha256"
+                ],
+            }
+        )
+    return lineage
 
 
 def rollback_comparison(

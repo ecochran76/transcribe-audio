@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 8
+Plan Version: 9
 
 Parent: Plan 0037 P4
 
@@ -134,8 +134,10 @@ materialization/scoring; a private model-specific profile store; P3 descendant
 registration/promotion/invalidation; and staged, active, superseded, withdrawn,
 and deleted lifecycle replay. P4C now has two exact production P3 reference
 generations and six active real model-specific profiles from the authorized
-development windows. No verification trial or calibration/evaluation evidence
-has been read.
+development windows. P4D development diagnostics and P4D2 held-out calibration
+are now complete. Nine model-by-preparation thresholds are frozen from the
+calibration split; evaluation remains sealed and no terminal model/method
+selection or default integration has occurred.
 
 Graphiti was healthy at opening. Its only current P4-specific recall is the
 source-backed P2 closeout directing Plan 0037 to the next bounded
@@ -447,3 +449,44 @@ authority.
   `py_compile` and `git diff --check` passed. Independent checkpoint re-audit
   returned `PASS` with no remaining code, runtime, privacy, or documentation
   finding.
+
+## P4D2 calibration checkpoint
+
+State: CLOSED; P4E evaluation remains sealed.
+
+- Generation-2 calibration authority SHA-256
+  `0fe6009bef2adfc9c48d87eea7d4ac15c00734ec45376ba3dbba45952e42fae5`
+  binds the verified P4D/P4C chain, frozen calibration sets, P1/P2 and model
+  authorities, six profiles, and exact window, scoring, threshold, and metric
+  policies. The blocked first generation is preserved privately; generation 2
+  explicitly permits only mono identity or stereo arithmetic-average downmix.
+- Split reveal SHA-256
+  `16bb2edfdc3d33fb583dd14edb482a0a7f114eab0556776f6ca84f434d010a7b`
+  proves 3 recordings/3 conversations and disjoint recording, conversation,
+  and source-content sets. Preparation receipt
+  `8dc66610d82dd3545cc11998e7441c172a4d44dd8bd8e3edc4d57ab102397ae9`
+  completed 15/15 offline P1/P2 method attempts.
+- Pre-score window receipt
+  `8798e234ac2aacf57369f4e1e50ca2a1715fb7242c752348fef1f08fa7afd5f9`
+  froze 22 clean windows across 8 opaque person labels and excluded one mixed
+  and one reviewer-unknown label. Pyannote speech intersections exclude
+  overlap/change regions and cap each speaker/conversation at three windows.
+- Score matrix `9bca1c323a4681536dffada1399fe591152c132e9e9073d299531d7ebed6fccb`
+  contains 396/396 finite scores: 81 genuine, 315 impostor, and 234 open-set
+  impostor trials. Structural replay checks Cartesian coverage, opaque gold,
+  live P3/P4 eligibility, identities, and score bounds without model execution.
+- Application `c00df454c799e5afa3993dec01c4f021e9236ced109b9bfcd6a44685a3f6a05b`
+  freezes nine model-by-method thresholds using the precommitted ordering. It
+  includes FAR, FRR, BER, diagnostic EER, Brier, five-bin ECE, margin,
+  open-set rejection, and condition slices with null/`not_run` semantics.
+  Results are descriptive and conversation-clustered, not generalization or
+  terminal model-selection evidence.
+- Replay recomputes every threshold and metric from scores without audio/model
+  execution; repeat apply returns the same hash. Metadata receipts are `0600`,
+  contain no forbidden raw/private payloads, and record evaluation unread. No
+  evaluation artifact exists.
+- Validation: 95 focused tests and 540 full repository tests passed;
+  compilation and `git diff --check` passed. Independent read-only audit
+  returned `PASS` after recomputing all stage identities, exact trial coverage,
+  threshold/metric replay, condition/open-set reporting, permissions, and the
+  evaluation seal.

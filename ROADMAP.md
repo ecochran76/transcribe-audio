@@ -442,8 +442,11 @@ resubstitution diagnostics are complete across all five preparation paths:
 450 logical scores, 225 genuine/225 impostor, and 270 unique
 waveform/model/profile combinations. They are explicitly non-held-out and do
 not support accuracy, threshold, or model-selection claims. P4D2 held-out
-calibration is next under its exact apply authority; evaluation remains sealed. No calibrated
-verification model or historical reprocessing workflow exists yet. Plan 0036
+calibration is complete: 22 pre-score-frozen windows produced 396 trials and
+nine model-by-method thresholds with descriptive error, calibration, margin,
+open-set, and condition-slice evidence. Evaluation remains sealed, so no
+terminal model/method selection, operational accuracy claim, default
+integration, or historical reprocessing workflow exists yet. Plan 0036
 remains sealed and paused at five of ten current gold reviews.
 
 Plans:

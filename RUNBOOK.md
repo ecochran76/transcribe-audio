@@ -2,6 +2,45 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 264 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 9
+
+Packet: P4D2 | Held-out calibration and threshold freeze
+
+State transition: `OPEN/Plan-0037-P4D2 -> CLOSED/Plan-0037-P4D2`.
+
+- Preserved blocked calibration authority generation 1 after stereo source
+  discovery, then built generation-2 authority
+  `0fe6009bef2adfc9c48d87eea7d4ac15c00734ec45376ba3dbba45952e42fae5`
+  with an exact mono/stereo channel policy and unchanged evaluation seal.
+- Prepared all 3 calibration recordings through all 5 P1/P2 methods (15/15),
+  receipt `8dc66610d82dd3545cc11998e7441c172a4d44dd8bd8e3edc4d57ab102397ae9`.
+  Window receipt `8798e234ac2aacf57369f4e1e50ca2a1715fb7242c752348fef1f08fa7afd5f9`
+  froze 22 clean windows across 8 opaque speakers before scoring and excluded
+  mixed/unknown gold.
+- Score matrix `9bca1c323a4681536dffada1399fe591152c132e9e9073d299531d7ebed6fccb`
+  completed 396/396 finite trials: 81 genuine, 315 impostor, and 234 open-set
+  trials across three models and no-enhancement/DeepFilterNet/RNNoise.
+- Threshold application
+  `c00df454c799e5afa3993dec01c4f021e9236ced109b9bfcd6a44685a3f6a05b`
+  froze nine thresholds and descriptive metrics using the authority's exact
+  selection order. Replay recomputed the same thresholds/metrics from scores;
+  repeat apply returned the same hash without audio or model execution.
+- Every current metadata receipt is `0600`, has no forbidden private payload,
+  and records evaluation unread. Evaluation remains sealed and has no artifact.
+- Validation: 95 focused tests and 540 full repository tests passed;
+  compilation and diff checks passed. Independent read-only audit returned
+  `PASS` after recomputing all stage identities, coverage, threshold/metric
+  replay, condition/open-set reporting, permissions, and the evaluation seal.
+
+Next:
+
+- Build the separately exact P4E terminal-evaluation authority. Do not reveal
+  evaluation before its frozen policy and apply receipt replay.
+
 ## Turn 263 | 2026-07-31
 
 Plan:

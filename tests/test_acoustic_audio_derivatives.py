@@ -204,6 +204,39 @@ def test_multichannel_input_fails_closed_without_a_derivative(tmp_path: Path) ->
     assert not (runtime / "artifacts").exists()
 
 
+def test_exact_authority_allows_deterministic_stereo_average_to_mono(
+    tmp_path: Path,
+) -> None:
+    source = write_wav(tmp_path / "stereo.wav", channels=2)
+    runtime = tmp_path / "runtime"
+    with pytest.raises(AudioDerivativeError, match="exact channel-policy authority"):
+        dry_run(
+            source,
+            runtime_root=runtime,
+            channel_policy="stereo_average_to_mono",
+        )
+    authority_sha = "a" * 64
+    plan = dry_run(
+        source,
+        runtime_root=runtime,
+        channel_policy="stereo_average_to_mono",
+        channel_policy_authority_sha256=authority_sha,
+    )
+    applied = apply_derivative(
+        source,
+        runtime_root=runtime,
+        approval_token=APPLY_TOKEN,
+        channel_policy="stereo_average_to_mono",
+        channel_policy_authority_sha256=authority_sha,
+    )
+    parameters = applied["manifest"]["effective_recipe"]["parameters"]
+    assert parameters["channel_policy"] == "stereo_arithmetic_average_to_mono"
+    assert parameters["source_channels"] == 2
+    assert parameters["channel_policy_authority_sha256"] == authority_sha
+    assert applied["manifest"]["audio_quality"]["metrics"]["channels"] == 1
+    assert replay_derivative(plan["run_id"], runtime_root=runtime)["active"] is True
+
+
 @pytest.mark.parametrize(
     ("silence", "clipped", "warning", "abstention"),
     [

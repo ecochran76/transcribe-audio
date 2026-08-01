@@ -21,6 +21,8 @@ import wave
 from pathlib import Path
 from typing import Any, Mapping, Optional, Protocol, Sequence
 
+import acoustic_audio_derivatives as audio_derivatives
+import acoustic_speech_preparation as speech_preparation
 from acoustic_audio_derivatives import (
     canonical_artifact_hash,
     ensure_private_tree,
@@ -757,6 +759,24 @@ DEVELOPMENT_TRIAL_AUTHORITY_SCHEMA = (
 DEVELOPMENT_TRIAL_APPLICATION_SCHEMA = (
     "transcribe-audio.verification-development-trial-application.v1"
 )
+CALIBRATION_APPLY_AUTHORITY_SCHEMA = (
+    "transcribe-audio.verification-calibration-apply-authority.v1"
+)
+CALIBRATION_APPLICATION_SCHEMA = (
+    "transcribe-audio.verification-calibration-application.v1"
+)
+CALIBRATION_SPLIT_REVEAL_SCHEMA = (
+    "transcribe-audio.verification-calibration-split-reveal.v1"
+)
+CALIBRATION_PREPARATION_SCHEMA = (
+    "transcribe-audio.verification-calibration-preparation.v1"
+)
+CALIBRATION_WINDOW_SELECTION_SCHEMA = (
+    "transcribe-audio.verification-calibration-window-selection.v1"
+)
+CALIBRATION_SCORE_MATRIX_SCHEMA = (
+    "transcribe-audio.verification-calibration-score-matrix.v1"
+)
 REAL_ENROLLMENT_AUTHORIZATION_BASIS = "operator_blanket_proceed_2026-07-31"
 REAL_ENROLLMENT_AUTHORIZER_REF_ID = "operator-standing-20260731"
 _OPAQUE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
@@ -778,6 +798,26 @@ EXPECTED_DEVELOPMENT_RECORD_SET_SHA256 = (
 )
 EXPECTED_DEVELOPMENT_CONVERSATION_SET_SHA256 = (
     "b767b9b1e5167c1b13a01fb0e1c4add4dd1323e983e1df8708e5e9dcd379436c"
+)
+EXPECTED_CALIBRATION_RECORD_SET_SHA256 = (
+    "23480f0cbc0a73555a77d94301ca7f135e932250225abe544267c5c0d36ea543"
+)
+EXPECTED_CALIBRATION_CONVERSATION_SET_SHA256 = (
+    "44d844aff33d3ff27986a3102a320db2f7fafcbdcd5a196b4c2909af535cdbc6"
+)
+CALIBRATION_SCORE_METHOD_IDS = (
+    "no_enhancement",
+    "deepfilternet",
+    "rnnoise",
+)
+SUPERSEDED_CALIBRATION_AUTHORITY_SHA256 = (
+    "d5df3aaa0dd61704a42af71bf04beeaae26721401e722024572b419127feb5b3"
+)
+EXPECTED_P2_OPEN_ACQUISITION_MANIFEST_SHA256 = (
+    "fc28406a6c2a8a84763a238940d0cec29a414e1d7952d74d69c9f597fdbe1d13"
+)
+EXPECTED_P2_PYANNOTE_ACQUISITION_MANIFEST_SHA256 = (
+    "b3fd1614b3f233fa0b2e0bece0dfd88aaa9063e6f864b5298a7cf86effdaca10"
 )
 ENROLLMENT_CANDIDATE_PROPOSAL_SCHEMA = (
     "transcribe-audio.biometric-enrollment-candidate-proposal.v2"
@@ -3775,6 +3815,1414 @@ def replay_development_trial_application(
         "application_sha256": application_sha256,
         "private_application_path": str(path),
     }
+
+
+def _calibration_split_metadata_authority(
+    split_policy_path: Path, parent_corpus_manifest_path: Path
+) -> dict[str, Any]:
+    """Validate calibration scope hashes without revealing calibration records."""
+    policy_path = split_policy_path.expanduser().absolute()
+    parent_path = parent_corpus_manifest_path.expanduser().absolute()
+    if policy_path.is_symlink() or not policy_path.is_file():
+        raise AcousticVerificationError("Split access policy is unavailable.")
+    if sha256_file(policy_path) != EXPECTED_SPLIT_ACCESS_POLICY_SHA256:
+        raise AcousticVerificationError("Split access policy hash is invalid.")
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcousticVerificationError("Split access policy is unreadable.") from exc
+    require_private_file(parent_path, parent_path.parent)
+    if sha256_file(parent_path) != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256:
+        raise AcousticVerificationError("Parent corpus manifest hash is invalid.")
+    calibration = policy.get("splits", {}).get("calibration")
+    evaluation = policy.get("splits", {}).get("evaluation")
+    if (
+        policy.get("schema_version")
+        != "transcribe-audio.verification-split-access-policy.v1"
+        or policy.get("parent_corpus_manifest_sha256")
+        != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256
+        or not isinstance(calibration, Mapping)
+        or calibration.get("authorization_state")
+        != "not_authorized_pending_exact_calibration_apply"
+        or calibration.get("recording_count") != 3
+        or calibration.get("conversation_count") != 3
+        or calibration.get("record_set_sha256")
+        != EXPECTED_CALIBRATION_RECORD_SET_SHA256
+        or calibration.get("conversation_set_sha256")
+        != EXPECTED_CALIBRATION_CONVERSATION_SET_SHA256
+        or not isinstance(evaluation, Mapping)
+        or evaluation.get("authorization_state")
+        != "not_authorized_pending_exact_terminal_evaluation_apply"
+    ):
+        raise AcousticVerificationError("Calibration split metadata is invalid.")
+    return {
+        "split_access_policy_sha256": EXPECTED_SPLIT_ACCESS_POLICY_SHA256,
+        "parent_corpus_manifest_sha256": EXPECTED_PARENT_CORPUS_MANIFEST_SHA256,
+        "calibration_record_set_sha256": EXPECTED_CALIBRATION_RECORD_SET_SHA256,
+        "calibration_conversation_set_sha256": (
+            EXPECTED_CALIBRATION_CONVERSATION_SET_SHA256
+        ),
+        "calibration_recording_count": 3,
+        "calibration_conversation_count": 3,
+    }
+
+
+def _calibration_apply_authority_payload(
+    *,
+    development_application: Mapping[str, Any],
+    development_application_sha256: str,
+    development_authority: Mapping[str, Any],
+    split_metadata: Mapping[str, Any],
+    authorized_at: str,
+) -> dict[str, Any]:
+    if (
+        development_application.get("status") != "success"
+        or development_application.get("intended_split") != "development"
+        or development_application.get("did_run_trials") is not True
+        or development_application.get("did_select_threshold") is not False
+        or development_application.get("did_read_calibration_or_evaluation")
+        is not False
+        or development_application.get("contains_biometric_scores") is not True
+    ):
+        raise AcousticVerificationError(
+            "Calibration authority requires a verified development receipt."
+        )
+    profiles = development_authority.get("profiles")
+    if not isinstance(profiles, list) or len(profiles) != 6:
+        raise AcousticVerificationError(
+            "Calibration authority profile inventory is invalid."
+        )
+    threshold_policy = {
+        "unit": "candidate_model_preparation_path",
+        "labels": ["genuine", "impostor"],
+        "threshold_candidates": (
+            "sorted_unique_score_midpoints_plus_negative_one_and_positive_one"
+        ),
+        "temperature_candidates": [0.01, 0.025, 0.05, 0.1, 0.2],
+        "selection_order": [
+            "minimum_brier_score",
+            "minimum_expected_calibration_error_5_equal_width_bins",
+            "minimum_balanced_error_rate",
+            "minimum_absolute_far_minus_frr",
+            "highest_threshold",
+            "lowest_temperature",
+        ],
+        "minimum_genuine_trials_per_unit": 3,
+        "minimum_impostor_trials_per_unit": 3,
+        "score_range": [-1.0, 1.0],
+        "probability_mapping": "sigmoid((score-threshold)/temperature)",
+        "eer_is_diagnostic_only": True,
+        "evaluation_may_not_change_policy": True,
+    }
+    metric_policy = {
+        "classification_rule": "accept_when_score_greater_than_or_equal_to_threshold",
+        "false_acceptance_rate": "false_accepts_divided_by_impostor_trials",
+        "false_rejection_rate": "false_rejects_divided_by_genuine_trials",
+        "balanced_error_rate": "mean(false_acceptance_rate,false_rejection_rate)",
+        "eer_diagnostic": (
+            "candidate_threshold_minimizing_absolute_far_minus_frr_then_"
+            "balanced_error_rate_then_highest_threshold"
+        ),
+        "brier_score": "mean((mapped_probability-binary_label)^2)",
+        "expected_calibration_error": (
+            "sum(bin_count/total*abs(mean_probability-bin_positive_rate))_"
+            "over_5_equal_width_bins"
+        ),
+        "candidate_margin": "highest_profile_score_minus_second_highest_profile_score",
+        "open_set_rejection": (
+            "open_set_probe_rejected_when_all_profile_scores_below_their_"
+            "model_method_thresholds"
+        ),
+        "abstention": (
+            "not_run_without_separately_precommitted_abstention_margin"
+        ),
+        "condition_slices": [
+            "channel", "device", "noise", "overlap",
+            "telephone_bandwidth", "usable_duration_band",
+        ],
+        "missing_denominator": "status_not_run_and_numeric_value_null",
+        "results_are_descriptive": True,
+        "conversation_clustered_non_independent": True,
+        "permits_generalization_claim": False,
+    }
+    aggregation_policy = {
+        "score_unit": "one_clean_window_against_one_fixed_profile",
+        "profile_aggregation": "fixed_enrollment_centroid_only",
+        "score_normalization": "none",
+        "threshold_input": "raw_cosine_score",
+        "same_timestamp_bounds_across_score_methods": True,
+        "method_output_duplicates_are_one_equivalence_class": True,
+        "calibration_may_not_change_profiles_features_or_window_rules": True,
+    }
+    p1_module_path = Path(audio_derivatives.__file__).resolve()
+    p2_module_path = Path(speech_preparation.__file__).resolve()
+    open_manifest_path = (
+        speech_preparation.DEFAULT_OPEN_ACQUISITION_MANIFEST.expanduser().absolute()
+    )
+    pyannote_manifest_path = (
+        speech_preparation.DEFAULT_PYANNOTE_ACQUISITION_MANIFEST.expanduser().absolute()
+    )
+    require_private_file(open_manifest_path, open_manifest_path.parent)
+    require_private_file(pyannote_manifest_path, pyannote_manifest_path.parent)
+    if (
+        sha256_file(open_manifest_path)
+        != EXPECTED_P2_OPEN_ACQUISITION_MANIFEST_SHA256
+        or sha256_file(pyannote_manifest_path)
+        != EXPECTED_P2_PYANNOTE_ACQUISITION_MANIFEST_SHA256
+    ):
+        raise AcousticVerificationError(
+            "Calibration preparation acquisition authority drifted."
+        )
+    authority = {
+        "schema_version": CALIBRATION_APPLY_AUTHORITY_SCHEMA,
+        "status": "authorized",
+        "reason_code": None,
+        "authorization_basis": REAL_ENROLLMENT_AUTHORIZATION_BASIS,
+        "authorized_by_ref_id": REAL_ENROLLMENT_AUTHORIZER_REF_ID,
+        "authorized_at": authorized_at,
+        "authority_generation": 2,
+        "supersedes_authority_sha256": (
+            SUPERSEDED_CALIBRATION_AUTHORITY_SHA256
+        ),
+        "supersession_reason": (
+            "stereo_source_requires_explicit_channel_policy"
+        ),
+        "prior_generation_did_not_run_p2_or_biometric_scoring": True,
+        "intended_split": "calibration",
+        "development_application_sha256": development_application_sha256,
+        "development_authority_sha256": development_application[
+            "authority_sha256"
+        ],
+        "enrollment_application_sha256": development_authority[
+            "enrollment_application_sha256"
+        ],
+        **dict(split_metadata),
+        "preparation_methods": list(METHOD_IDS),
+        "score_methods": list(CALIBRATION_SCORE_METHOD_IDS),
+        "window_selection_methods": ["silero_vad", "pyannote_community_1"],
+        "profiles": [dict(profile) for profile in profiles],
+        "window_policy": {
+            "minimum_seconds": 0.75,
+            "maximum_seconds": 15.0,
+            "maximum_windows_per_speaker_per_conversation": 3,
+            "exclude_mixed_or_unknown_gold": True,
+            "exclude_overlap_and_speaker_change_regions": True,
+            "preserve_original_timestamps": True,
+            "allowed_outcome": "person_with_opaque_subject_id",
+            "pre_score_exclusion_reasons": [
+                "mixed_gold", "unknown_gold", "missing_subject_id",
+                "no_speech_intersection", "overlap_or_change_region",
+                "shorter_than_minimum", "duplicate_or_overlapping_window",
+            ],
+        },
+        "aggregation_policy": aggregation_policy,
+        "threshold_policy": threshold_policy,
+        "metric_policy": metric_policy,
+        "preparation_contract": {
+            "p1_module_sha256": sha256_file(p1_module_path),
+            "p2_module_sha256": sha256_file(p2_module_path),
+            "p2_open_acquisition_manifest_sha256": (
+                EXPECTED_P2_OPEN_ACQUISITION_MANIFEST_SHA256
+            ),
+            "p2_pyannote_acquisition_manifest_sha256": (
+                EXPECTED_P2_PYANNOTE_ACQUISITION_MANIFEST_SHA256
+            ),
+            "pcm_channels": 1,
+            "pcm_sample_rate_hz": 16_000,
+            "pcm_sample_width_bytes": 2,
+            "pcm_compression": "NONE",
+            "channel_policy": {
+                "allowed_source_channels": [1, 2],
+                "mono": "identity",
+                "stereo": (
+                    "arithmetic_average_0.5_left_plus_0.5_right"
+                ),
+                "output_channels": 1,
+                "authority_binding": "this_calibration_authority_sha256",
+                "no_silent_fallback": True,
+            },
+            "no_fallback_method": True,
+        },
+        "will_prepare_calibration_audio": True,
+        "will_read_calibration_gold": True,
+        "will_run_calibration_trials": True,
+        "will_select_and_freeze_thresholds": True,
+        "will_read_evaluation": False,
+        "will_perform_external_write": False,
+        "will_mutate_profiles_or_references": False,
+        "will_enable_default_integration": False,
+        "will_make_terminal_model_or_method_selection": False,
+        "contains_biometric_scores": False,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False,
+    }
+    if _contains_forbidden_private_key(authority):
+        raise AcousticVerificationError(
+            "Calibration authority contains forbidden private data."
+        )
+    return authority
+
+
+def _validate_calibration_apply_authority(
+    value: Any,
+    *,
+    development_application: Mapping[str, Any],
+    development_application_sha256: str,
+    development_authority: Mapping[str, Any],
+    split_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise AcousticVerificationError("Calibration authority is invalid.")
+    authorized_at = str(value.get("authorized_at") or "")
+    expected = _calibration_apply_authority_payload(
+        development_application=development_application,
+        development_application_sha256=development_application_sha256,
+        development_authority=development_authority,
+        split_metadata=split_metadata,
+        authorized_at=authorized_at,
+    )
+    if dict(value) != expected or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", authorized_at
+    ):
+        raise AcousticVerificationError("Calibration authority is invalid.")
+    return dict(value)
+
+
+def build_calibration_apply_authority(
+    development_application_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Create the exact P4D2 authority before revealing calibration records."""
+    root = runtime_root.expanduser().absolute()
+    development = replay_development_trial_application(
+        development_application_sha256,
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+    )
+    development_authority = replay_development_trial_authority(
+        str(development["authority_sha256"]),
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+    )
+    split_metadata = _calibration_split_metadata_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    authority_dir = root / "calibration-authorities"
+    ensure_private_tree(root, authority_dir)
+    matches: list[tuple[Path, dict[str, Any], str]] = []
+    for path in sorted(authority_dir.glob("*.json")):
+        require_private_file(path, root)
+        value = read_private_object(path)
+        if value.get("development_application_sha256") != development_application_sha256:
+            continue
+        _validate_calibration_apply_authority(
+            value,
+            development_application=development,
+            development_application_sha256=development_application_sha256,
+            development_authority=development_authority,
+            split_metadata=split_metadata,
+        )
+        value_sha = canonical_artifact_hash(value)
+        if path.name != f"{value_sha}.json":
+            raise AcousticVerificationError("Calibration authority path is invalid.")
+        matches.append((path, value, value_sha))
+    if len(matches) > 1:
+        raise AcousticVerificationError(
+            "Multiple calibration authorities exist for one development receipt."
+        )
+    if matches:
+        path, authority, authority_sha = matches[0]
+    else:
+        authority = _calibration_apply_authority_payload(
+            development_application=development,
+            development_application_sha256=development_application_sha256,
+            development_authority=development_authority,
+            split_metadata=split_metadata,
+            authorized_at=utc_now(),
+        )
+        authority_sha = canonical_artifact_hash(authority)
+        path = authority_dir / f"{authority_sha}.json"
+        write_immutable_private_json(path, authority)
+    return {
+        **authority,
+        "authority_sha256": authority_sha,
+        "private_authority_path": str(path),
+    }
+
+
+def replay_calibration_apply_authority(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Replay P4D2 authority while evaluation remains sealed."""
+    if not SHA256_RE.fullmatch(str(authority_sha256)):
+        raise AcousticVerificationError("Calibration authority hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "calibration-authorities" / f"{authority_sha256}.json"
+    require_private_file(path, root)
+    authority = read_private_object(path)
+    development_sha = str(authority.get("development_application_sha256") or "")
+    development = replay_development_trial_application(
+        development_sha, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    development_authority = replay_development_trial_authority(
+        str(development["authority_sha256"]),
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+    )
+    split_metadata = _calibration_split_metadata_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    _validate_calibration_apply_authority(
+        authority,
+        development_application=development,
+        development_application_sha256=development_sha,
+        development_authority=development_authority,
+        split_metadata=split_metadata,
+    )
+    if canonical_artifact_hash(authority) != authority_sha256:
+        raise AcousticVerificationError("Calibration authority replay is invalid.")
+    return {
+        **authority,
+        "authority_sha256": authority_sha256,
+        "private_authority_path": str(path),
+    }
+
+
+def _calibration_records_after_authority(
+    authority: Mapping[str, Any], *, parent_corpus_manifest_path: Path
+) -> list[dict[str, Any]]:
+    if authority.get("intended_split") != "calibration":
+        raise AcousticVerificationError("Calibration split authority is invalid.")
+    parent_path = parent_corpus_manifest_path.expanduser().absolute()
+    require_private_file(parent_path, parent_path.parent)
+    if sha256_file(parent_path) != authority.get("parent_corpus_manifest_sha256"):
+        raise AcousticVerificationError("Calibration parent manifest drifted.")
+    parent = read_private_object(parent_path)
+    recordings = parent.get("recordings")
+    if not isinstance(recordings, list):
+        raise AcousticVerificationError("Calibration parent records are invalid.")
+    by_split: dict[str, list[Mapping[str, Any]]] = {
+        split: [
+            record
+            for record in recordings
+            if isinstance(record, Mapping) and record.get("split") == split
+        ]
+        for split in ("development", "calibration", "evaluation")
+    }
+    selected = by_split["calibration"]
+    if (
+        len(selected) != authority.get("calibration_recording_count")
+        or canonical_artifact_hash(selected)
+        != authority.get("calibration_record_set_sha256")
+        or canonical_artifact_hash(
+            sorted(str(record.get("conversation_id") or "") for record in selected)
+        )
+        != authority.get("calibration_conversation_set_sha256")
+    ):
+        raise AcousticVerificationError("Calibration split membership drifted.")
+    for key in ("recording_id", "conversation_id"):
+        split_sets = [
+            {str(record.get(key) or "") for record in by_split[split]}
+            for split in ("development", "calibration", "evaluation")
+        ]
+        if any(
+            split_sets[left] & split_sets[right]
+            for left in range(3)
+            for right in range(left + 1, 3)
+        ):
+            raise AcousticVerificationError(
+                f"Calibration {key} overlaps another split."
+            )
+    source_sets = [
+        {
+            str((record.get("source_blob") or {}).get("sha256") or "")
+            for record in by_split[split]
+            if isinstance(record.get("source_blob"), Mapping)
+        }
+        for split in ("development", "calibration", "evaluation")
+    ]
+    if any(
+        source_sets[left] & source_sets[right]
+        for left in range(3)
+        for right in range(left + 1, 3)
+    ):
+        raise AcousticVerificationError(
+            "Calibration source content overlaps another split."
+        )
+    validated: list[dict[str, Any]] = []
+    for record_value in selected:
+        record = dict(record_value)
+        source = record.get("source_blob")
+        lineage = record.get("transcript_lineage")
+        gold = record.get("operator_gold")
+        if (
+            not isinstance(source, Mapping)
+            or not isinstance(lineage, Mapping)
+            or not isinstance(gold, Mapping)
+            or not isinstance(gold.get("speaker_truth"), list)
+        ):
+            raise AcousticVerificationError("Calibration record evidence is invalid.")
+        source_path = Path(str(source.get("stored_path") or ""))
+        transcript_path = Path(str(lineage.get("current_artifact_path") or ""))
+        require_private_file(source_path, source_path.parent)
+        require_private_file(transcript_path, transcript_path.parent)
+        if (
+            sha256_file(source_path) != source.get("sha256")
+            or source_path.stat().st_size != source.get("bytes")
+            or sha256_file(transcript_path)
+            != lineage.get("current_artifact_sha256")
+        ):
+            raise AcousticVerificationError("Calibration source evidence drifted.")
+        validated.append(record)
+    return validated
+
+
+def reveal_calibration_split(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Reveal only the exact authorized calibration metadata and opaque gold."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256,
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    records = _calibration_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    public_records = []
+    for record in records:
+        source = record["source_blob"]
+        lineage = record["transcript_lineage"]
+        gold = record["operator_gold"]
+        public_records.append(
+            {
+                "recording_id": record["recording_id"],
+                "conversation_id": record["conversation_id"],
+                "source_blob_id": source["blob_id"],
+                "source_sha256": source["sha256"],
+                "source_bytes": source["bytes"],
+                "transcript_artifact_sha256": lineage[
+                    "current_artifact_sha256"
+                ],
+                "gold_id": gold["gold_id"],
+                "speaker_truth": [dict(item) for item in gold["speaker_truth"]],
+                "conditions": dict(record.get("conditions") or {}),
+            }
+        )
+    receipt = {
+        "schema_version": CALIBRATION_SPLIT_REVEAL_SCHEMA,
+        "status": "success",
+        "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "intended_split": "calibration",
+        "record_set_sha256": authority["calibration_record_set_sha256"],
+        "conversation_set_sha256": authority[
+            "calibration_conversation_set_sha256"
+        ],
+        "record_count": len(public_records),
+        "conversation_count": len(
+            {record["conversation_id"] for record in public_records}
+        ),
+        "records": public_records,
+        "development_disjoint": True,
+        "evaluation_disjoint": True,
+        "source_content_disjoint": True,
+        "contains_opaque_gold_labels": True,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_names_or_emails": False,
+        "contains_embeddings_or_vectors": False,
+        "will_read_evaluation": False,
+        "will_perform_external_write": False,
+        "revealed_at": utc_now(),
+    }
+    receipt_sha = canonical_artifact_hash(
+        {key: value for key, value in receipt.items() if key != "revealed_at"}
+    )
+    path = root / "calibration-stages" / authority_sha256 / "split-reveal.json"
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(
+        path, receipt, volatile_fields=("revealed_at",)
+    )
+    return {
+        **stored,
+        "split_reveal_sha256": receipt_sha,
+        "private_split_reveal_path": str(path),
+    }
+
+
+def prepare_calibration_split(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Run exact P1/P2 preparation for all authorized calibration records."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256,
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    reveal = reveal_calibration_split(
+        authority_sha256,
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    path = root / "calibration-stages" / authority_sha256 / "preparation.json"
+    if path.exists():
+        require_private_file(path, root)
+        existing = read_private_object(path)
+        identity = {
+            key: value for key, value in existing.items() if key != "prepared_at"
+        }
+        existing_sha = canonical_artifact_hash(identity)
+        if (
+            existing.get("authority_sha256") != authority_sha256
+            or existing.get("split_reveal_sha256")
+            != reveal["split_reveal_sha256"]
+            or existing.get("status") != "success"
+        ):
+            raise AcousticVerificationError(
+                "Calibration preparation receipt conflicts."
+            )
+        return {
+            **existing,
+            "preparation_sha256": existing_sha,
+            "private_preparation_path": str(path),
+        }
+    records = _calibration_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    p1_root = root / "calibration-preparation" / authority_sha256 / "p1"
+    p2_root = root / "calibration-preparation" / authority_sha256 / "p2"
+    units: list[dict[str, Any]] = []
+    for record in records:
+        source = record["source_blob"]
+        source_path = Path(str(source["stored_path"]))
+        source_sha = str(source["sha256"])
+        source_blob_id = "source-" + source_sha[:24]
+        p1_plan = audio_derivatives.dry_run(
+            source_path,
+            runtime_root=p1_root,
+            source_blob_id=source_blob_id,
+            expected_source_sha256=source_sha,
+            channel_policy="stereo_average_to_mono",
+            channel_policy_authority_sha256=authority_sha256,
+        )
+        p1_applied = audio_derivatives.apply_derivative(
+            source_path,
+            runtime_root=p1_root,
+            approval_token=audio_derivatives.APPLY_TOKEN,
+            source_blob_id=source_blob_id,
+            expected_source_sha256=source_sha,
+            channel_policy="stereo_average_to_mono",
+            channel_policy_authority_sha256=authority_sha256,
+        )
+        p1_replay = audio_derivatives.replay_derivative(
+            p1_plan["run_id"], runtime_root=p1_root
+        )
+        p2_plan = speech_preparation.dry_run(
+            p1_plan["run_id"],
+            p1_runtime_root=p1_root,
+            runtime_root=p2_root,
+            intended_split="calibration",
+            split_access_authority_sha256=authority_sha256,
+        )
+        p2_applied = speech_preparation.apply_comparison(
+            p1_plan["run_id"],
+            p1_runtime_root=p1_root,
+            runtime_root=p2_root,
+            intended_split="calibration",
+            split_access_authority_sha256=authority_sha256,
+        )
+        p2_replay = speech_preparation.replay_comparison(
+            p2_plan["run_id"], runtime_root=p2_root
+        )
+        comparison = p2_applied["comparison"]
+        methods = []
+        for method in comparison.get("method_results") or []:
+            if not isinstance(method, Mapping) or method.get("status") != "success":
+                raise AcousticVerificationError(
+                    "Calibration preparation method did not succeed."
+                )
+            output_path = Path(str(method.get("output_path") or ""))
+            require_private_file(output_path, p2_root if output_path.is_relative_to(p2_root) else output_path.parent)
+            if sha256_file(output_path) != method.get("output_sha256"):
+                raise AcousticVerificationError(
+                    "Calibration preparation output drifted."
+                )
+            methods.append(
+                {
+                    "method_id": method["method_id"],
+                    "method_result_sha256": canonical_artifact_hash(dict(method)),
+                    "output_path": str(output_path),
+                    "output_sha256": method["output_sha256"],
+                    "output_equivalence_class_sha256": method["output_sha256"],
+                    "speech_region_count": len(method.get("speech_regions") or []),
+                    "overlap_region_count": len(method.get("overlap_regions") or []),
+                    "speaker_change_region_count": len(
+                        method.get("speaker_change_regions") or []
+                    ),
+                }
+            )
+        units.append(
+            {
+                "recording_id": record["recording_id"],
+                "conversation_id": record["conversation_id"],
+                "source_sha256": source_sha,
+                "p1_run_id": p1_plan["run_id"],
+                "p1_manifest_sha256": p1_applied["manifest_sha256"],
+                "p1_replay_receipt_sha256": sha256_file(
+                    Path(str(p1_replay["replay_receipt_path"]))
+                ),
+                "p2_run_id": p2_plan["run_id"],
+                "p2_comparison_path": p2_applied["comparison_path"],
+                "p2_comparison_sha256": sha256_file(
+                    Path(str(p2_applied["comparison_path"]))
+                ),
+                "p2_replay_receipt_sha256": sha256_file(
+                    Path(str(p2_replay["replay_path"]))
+                ),
+                "methods": methods,
+            }
+        )
+    receipt = {
+        "schema_version": CALIBRATION_PREPARATION_SCHEMA,
+        "status": "success",
+        "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "split_reveal_sha256": reveal["split_reveal_sha256"],
+        "intended_split": "calibration",
+        "record_count": len(units),
+        "method_attempts": len(units) * len(METHOD_IDS),
+        "method_successes": sum(len(unit["methods"]) for unit in units),
+        "units": units,
+        "did_read_calibration_audio": True,
+        "did_run_p1_p2": True,
+        "did_read_evaluation": False,
+        "did_run_biometrics": False,
+        "did_perform_external_write": False,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_embeddings_or_vectors": False,
+        "prepared_at": utc_now(),
+    }
+    receipt_sha = canonical_artifact_hash(
+        {key: value for key, value in receipt.items() if key != "prepared_at"}
+    )
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(
+        path, receipt, volatile_fields=("prepared_at",)
+    )
+    return {
+        **stored,
+        "preparation_sha256": receipt_sha,
+        "private_preparation_path": str(path),
+    }
+
+
+def _calibration_stage_identity(value: Mapping[str, Any], volatile: str) -> str:
+    return canonical_artifact_hash(
+        {key: item for key, item in value.items() if key != volatile}
+    )
+
+
+def select_calibration_windows(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Freeze opaque calibration windows before any biometric score exists."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    preparation = prepare_calibration_split(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    path = root / "calibration-stages" / authority_sha256 / "window-selection.json"
+    if path.exists():
+        require_private_file(path, root)
+        existing = read_private_object(path)
+        existing_sha = _calibration_stage_identity(existing, "selected_at")
+        if (
+            existing.get("schema_version") != CALIBRATION_WINDOW_SELECTION_SCHEMA
+            or existing.get("status") != "success"
+            or existing.get("authority_sha256") != authority_sha256
+            or existing.get("preparation_sha256") != preparation["preparation_sha256"]
+            or existing.get("did_run_biometrics") is not False
+            or existing.get("did_read_evaluation") is not False
+        ):
+            raise AcousticVerificationError("Calibration window selection conflicts.")
+        return {**existing, "window_selection_sha256": existing_sha,
+                "private_window_selection_path": str(path)}
+    records = _calibration_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    unit_by_recording = {
+        str(unit["recording_id"]): unit for unit in preparation["units"]
+    }
+    windows: list[dict[str, Any]] = []
+    exclusions: list[dict[str, Any]] = []
+    for record in records:
+        recording_id = str(record["recording_id"])
+        unit = unit_by_recording.get(recording_id)
+        if not isinstance(unit, Mapping):
+            raise AcousticVerificationError("Calibration preparation coverage changed.")
+        comparison_path = Path(str(unit["p2_comparison_path"]))
+        require_private_file(comparison_path, comparison_path.parent)
+        if sha256_file(comparison_path) != unit["p2_comparison_sha256"]:
+            raise AcousticVerificationError("Calibration comparison drifted.")
+        comparison = read_private_object(comparison_path)
+        pyannote = next(
+            (item for item in comparison.get("method_results") or []
+             if isinstance(item, Mapping)
+             and item.get("method_id") == "pyannote_community_1"), None,
+        )
+        py_binding = next(
+            (item for item in unit["methods"]
+             if item.get("method_id") == "pyannote_community_1"), None,
+        )
+        if (
+            not isinstance(pyannote, Mapping)
+            or not isinstance(py_binding, Mapping)
+            or pyannote.get("status") != "success"
+            or canonical_artifact_hash(dict(pyannote))
+            != py_binding.get("method_result_sha256")
+        ):
+            raise AcousticVerificationError("Calibration Pyannote binding changed.")
+        transcript_path = Path(str(record["transcript_lineage"]["current_artifact_path"]))
+        require_private_file(transcript_path, transcript_path.parent)
+        if sha256_file(transcript_path) != record["transcript_lineage"]["current_artifact_sha256"]:
+            raise AcousticVerificationError("Calibration transcript artifact drifted.")
+        transcript = read_private_object(transcript_path)
+        blocked = [
+            *list(pyannote.get("overlap_regions") or []),
+            *list(pyannote.get("speaker_change_regions") or []),
+        ]
+        p1_replay = audio_derivatives.replay_derivative(
+            str(unit["p1_run_id"]),
+            runtime_root=(
+                root / "calibration-preparation" / authority_sha256 / "p1"
+            ),
+            include_validated_manifest=True,
+        )
+        source_channels = int(
+            p1_replay["validated_manifest"]["source"]["probe"]["channels"]
+        )
+        if source_channels not in (1, 2):
+            raise AcousticVerificationError(
+                "Calibration source channel binding changed."
+            )
+        conditions = dict(record.get("conditions") or {})
+        conditions["channel"] = f"source_{source_channels}_channel"
+        conditions["overlap"] = "overlap_regions_excluded"
+        for truth in record["operator_gold"]["speaker_truth"]:
+            outcome = str(truth.get("outcome") or "")
+            speaker_ref = str(truth.get("speaker_label") or "")
+            subject_id = truth.get("subject_id")
+            if outcome != "person" or not isinstance(subject_id, str):
+                exclusions.append({
+                    "recording_id": recording_id,
+                    "conversation_id": record["conversation_id"],
+                    "speaker_ref": speaker_ref,
+                    "reason_code": "mixed_gold" if outcome == "mixed" else "unknown_gold",
+                })
+                continue
+            spans = _candidate_windows(
+                transcript.get("utterances"), speaker_label=speaker_ref,
+                speech_regions=pyannote.get("speech_regions"),
+                blocked_regions=blocked,
+            )
+            if not spans:
+                exclusions.append({
+                    "recording_id": recording_id,
+                    "conversation_id": record["conversation_id"],
+                    "speaker_ref": speaker_ref,
+                    "reason_code": "no_speech_intersection",
+                })
+            for start, end in spans:
+                identity = {
+                    "authority_sha256": authority_sha256,
+                    "recording_id": recording_id,
+                    "speaker_ref": speaker_ref,
+                    "subject_id": subject_id,
+                    "start_seconds": start,
+                    "end_seconds": end,
+                }
+                duration = end - start
+                window_conditions = dict(conditions)
+                window_conditions["usable_duration_band"] = (
+                    "0.75_to_under_3_seconds" if duration < 3
+                    else "3_to_under_8_seconds" if duration < 8
+                    else "8_to_15_seconds"
+                )
+                windows.append({
+                    "window_id": "calibration-window-"
+                    + canonical_artifact_hash(identity)[:24],
+                    "recording_id": recording_id,
+                    "conversation_id": record["conversation_id"],
+                    "speaker_ref": speaker_ref,
+                    "subject_id": subject_id,
+                    "start_seconds": start,
+                    "end_seconds": end,
+                    "conditions": window_conditions,
+                    "source_sha256": record["source_blob"]["sha256"],
+                    "transcript_artifact_sha256": record["transcript_lineage"]["current_artifact_sha256"],
+                    "pyannote_method_result_sha256": py_binding["method_result_sha256"],
+                })
+    windows.sort(key=lambda item: item["window_id"])
+    exclusions.sort(key=lambda item: (item["recording_id"], item["speaker_ref"]))
+    if not windows or len({item["window_id"] for item in windows}) != len(windows):
+        raise AcousticVerificationError("Calibration window coverage is invalid.")
+    receipt = {
+        "schema_version": CALIBRATION_WINDOW_SELECTION_SCHEMA,
+        "status": "success", "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "split_reveal_sha256": preparation["split_reveal_sha256"],
+        "preparation_sha256": preparation["preparation_sha256"],
+        "intended_split": "calibration",
+        "selection_method": "operator_gold_intersect_pyannote_speech_minus_overlap_and_change",
+        "maximum_windows_per_speaker_per_conversation": 3,
+        "window_count": len(windows),
+        "included_speaker_count": len({(w["recording_id"], w["speaker_ref"]) for w in windows}),
+        "excluded_speaker_count": len(exclusions),
+        "windows": windows, "exclusions": exclusions,
+        "did_read_calibration_gold": True, "did_run_biometrics": False,
+        "did_read_evaluation": False, "did_perform_external_write": False,
+        "contains_opaque_gold_labels": True, "contains_raw_audio": False,
+        "contains_transcript_text": False, "contains_embeddings_or_vectors": False,
+        "selected_at": utc_now(),
+    }
+    if _contains_forbidden_private_key(receipt):
+        raise AcousticVerificationError("Calibration selection contains forbidden data.")
+    receipt_sha = _calibration_stage_identity(receipt, "selected_at")
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("selected_at",))
+    return {**stored, "window_selection_sha256": receipt_sha,
+            "private_window_selection_path": str(path)}
+
+
+def _calibration_pcm_window(
+    preparation: Mapping[str, Any], window: Mapping[str, Any], method_id: str,
+) -> tuple[float, ...]:
+    unit = next((item for item in preparation["units"]
+                 if item["recording_id"] == window["recording_id"]), None)
+    if not isinstance(unit, Mapping):
+        raise AcousticVerificationError("Calibration PCM unit is unavailable.")
+    comparison_path = Path(str(unit["p2_comparison_path"]))
+    require_private_file(comparison_path, comparison_path.parent)
+    if sha256_file(comparison_path) != unit["p2_comparison_sha256"]:
+        raise AcousticVerificationError("Calibration comparison drifted.")
+    comparison = read_private_object(comparison_path)
+    method = next((item for item in comparison.get("method_results") or []
+                   if isinstance(item, Mapping) and item.get("method_id") == method_id), None)
+    binding = next((item for item in unit["methods"] if item["method_id"] == method_id), None)
+    if (
+        not isinstance(method, Mapping) or not isinstance(binding, Mapping)
+        or method.get("status") != "success"
+        or canonical_artifact_hash(dict(method)) != binding.get("method_result_sha256")
+    ):
+        raise AcousticVerificationError("Calibration score-method binding changed.")
+    pcm_path = Path(str(method["output_path"]))
+    require_private_file(pcm_path, pcm_path.parent)
+    if sha256_file(pcm_path) != method["output_sha256"]:
+        raise AcousticVerificationError("Calibration PCM drifted.")
+    try:
+        with wave.open(str(pcm_path), "rb") as reader:
+            if (reader.getnchannels(), reader.getsampwidth(), reader.getframerate(), reader.getcomptype()) != (1, 2, 16_000, "NONE"):
+                raise AcousticVerificationError("Calibration PCM contract is invalid.")
+            start = round(float(window["start_seconds"]) * 16_000)
+            end = round(float(window["end_seconds"]) * 16_000)
+            if start < 0 or end <= start or end > reader.getnframes():
+                raise AcousticVerificationError("Calibration window is outside PCM.")
+            reader.setpos(start)
+            payload = reader.readframes(end - start)
+    except (EOFError, OSError, wave.Error, TypeError, ValueError) as exc:
+        raise AcousticVerificationError("Calibration PCM is unreadable.") from exc
+    if len(payload) != (end - start) * 2:
+        raise AcousticVerificationError("Calibration PCM window is truncated.")
+    return tuple(value / 32768.0 for value in struct.unpack(f"<{end-start}h", payload))
+
+
+def apply_calibration_scores(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    adapters: Optional[Mapping[str, VerificationAdapter]] = None,
+    test_mode: bool = False,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Run the frozen calibration score matrix without selecting thresholds."""
+    if adapters is not None and not test_mode:
+        raise AcousticVerificationError("Custom calibration adapters are test-only.")
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    preparation = prepare_calibration_split(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    selection = select_calibration_windows(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    path = root / "calibration-stages" / authority_sha256 / "score-matrix.json"
+    if path.exists():
+        require_private_file(path, root)
+        existing = read_private_object(path)
+        existing_sha = _calibration_stage_identity(existing, "scored_at")
+        if (existing.get("status") != "success" or existing.get("authority_sha256") != authority_sha256
+                or existing.get("window_selection_sha256") != selection["window_selection_sha256"]):
+            raise AcousticVerificationError("Calibration score matrix conflicts.")
+        return {**existing, "score_matrix_sha256": existing_sha,
+                "private_score_matrix_path": str(path)}
+    selected_adapters = dict(adapters or adapter_registry())
+    expected_models = {str(p["candidate_id"]): str(p["model_revision"])
+                       for p in authority["profiles"]}
+    if set(selected_adapters) != set(expected_models) or any(
+        selected_adapters[key].revision_sha != revision
+        for key, revision in expected_models.items()
+    ):
+        raise AcousticVerificationError("Calibration model inventory drifted.")
+    profiles_by_model = {candidate_id: [dict(p) for p in authority["profiles"]
+                                        if p["candidate_id"] == candidate_id]
+                         for candidate_id in sorted(expected_models)}
+    known_profile_subjects = {str(p["person_ref_id"]) for p in authority["profiles"]}
+    trials: list[dict[str, Any]] = []
+    for window in selection["windows"]:
+        for method_id in authority["score_methods"]:
+            samples = _calibration_pcm_window(preparation, window, method_id)
+            for candidate_id in sorted(expected_models):
+                adapter = selected_adapters[candidate_id]
+                for profile in profiles_by_model[candidate_id]:
+                    scored = score_profile(
+                        str(profile["profile_id"]), adapter=adapter,
+                        probe_samples=samples, sample_rate=16_000,
+                        runtime_root=root, p3_runtime_root=p3_runtime_root,
+                    )
+                    expected_match = window["subject_id"] == profile["person_ref_id"]
+                    identity = {"authority_sha256": authority_sha256,
+                                "window_id": window["window_id"], "method_id": method_id,
+                                "profile_id": profile["profile_id"],
+                                "score_trial_id": scored["trial_id"]}
+                    trials.append({
+                        "trial_id": "calibration-trial-" + canonical_artifact_hash(identity)[:24],
+                        "status": "success", "reason_code": None,
+                        "window_id": window["window_id"],
+                        "recording_id": window["recording_id"],
+                        "conversation_id": window["conversation_id"],
+                        "probe_subject_id": window["subject_id"],
+                        "profile_person_ref_id": profile["person_ref_id"],
+                        "expected_match": expected_match,
+                        "open_set_probe": window["subject_id"] not in known_profile_subjects,
+                        "method_id": method_id, "profile_id": profile["profile_id"],
+                        "descendant_id": profile["descendant_id"],
+                        "candidate_id": candidate_id, "model_revision": adapter.revision_sha,
+                        "probe_sha256": scored["probe_sha256"],
+                        "score_trial_id": scored["trial_id"], "score": scored["score"],
+                        "conditions": dict(window["conditions"]),
+                        "p4_state_verified_before_and_after": True,
+                        "p3_eligibility_verified_before_and_after": True,
+                        "contains_raw_biometric_values": False,
+                    })
+    trials.sort(key=lambda item: item["trial_id"])
+    expected_count = len(selection["windows"]) * len(authority["score_methods"]) * 6
+    if (len(trials) != expected_count
+            or any(not math.isfinite(float(t["score"])) or not -1 <= float(t["score"]) <= 1 for t in trials)
+            or len({t["trial_id"] for t in trials}) != len(trials)):
+        raise AcousticVerificationError("Calibration score coverage is invalid.")
+    receipt = {
+        "schema_version": CALIBRATION_SCORE_MATRIX_SCHEMA,
+        "status": "success", "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "preparation_sha256": preparation["preparation_sha256"],
+        "window_selection_sha256": selection["window_selection_sha256"],
+        "intended_split": "calibration", "logical_trial_count": len(trials),
+        "genuine_trial_count": sum(t["expected_match"] for t in trials),
+        "impostor_trial_count": sum(not t["expected_match"] for t in trials),
+        "open_set_trial_count": sum(t["open_set_probe"] for t in trials),
+        "trials": trials, "did_run_biometrics": True,
+        "did_select_threshold": False, "did_read_evaluation": False,
+        "did_perform_external_write": False, "contains_biometric_scores": True,
+        "contains_raw_audio": False, "contains_transcript_text": False,
+        "contains_embeddings_or_vectors": False, "contains_raw_biometric_values": False,
+        "scored_at": utc_now(),
+    }
+    receipt_sha = _calibration_stage_identity(receipt, "scored_at")
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("scored_at",))
+    return {**stored, "score_matrix_sha256": receipt_sha,
+            "private_score_matrix_path": str(path)}
+
+
+def replay_calibration_score_matrix(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Structurally replay persisted calibration scores without model execution."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    selection = select_calibration_windows(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    path = root / "calibration-stages" / authority_sha256 / "score-matrix.json"
+    require_private_file(path, root)
+    receipt = read_private_object(path)
+    receipt_sha = _calibration_stage_identity(receipt, "scored_at")
+    profiles = {str(item["profile_id"]): dict(item) for item in authority["profiles"]}
+    windows = {str(item["window_id"]): dict(item) for item in selection["windows"]}
+    for profile in profiles.values():
+        current = replay_profile(str(profile["profile_id"]), runtime_root=root)
+        if ({key: current.get(key) for key in profile} != profile
+                or not descendant_is_eligible(
+                    str(profile["descendant_id"]), runtime_root=p3_runtime_root
+                )):
+            raise AcousticVerificationError(
+                "Calibration profile eligibility changed."
+            )
+    expected = {
+        (window_id, method_id, profile_id)
+        for window_id in windows
+        for method_id in authority["score_methods"]
+        for profile_id in profiles
+    }
+    actual: set[tuple[str, str, str]] = set()
+    for trial in receipt.get("trials") or []:
+        if not isinstance(trial, Mapping):
+            raise AcousticVerificationError("Calibration trial is invalid.")
+        window = windows.get(str(trial.get("window_id") or ""))
+        profile = profiles.get(str(trial.get("profile_id") or ""))
+        score = trial.get("score")
+        if (
+            window is None or profile is None
+            or trial.get("status") != "success"
+            or trial.get("candidate_id") != profile["candidate_id"]
+            or trial.get("model_revision") != profile["model_revision"]
+            or trial.get("descendant_id") != profile["descendant_id"]
+            or trial.get("probe_subject_id") != window["subject_id"]
+            or trial.get("profile_person_ref_id") != profile["person_ref_id"]
+            or trial.get("expected_match")
+            is not (window["subject_id"] == profile["person_ref_id"])
+            or trial.get("open_set_probe")
+            is not (window["subject_id"] not in {p["person_ref_id"] for p in profiles.values()})
+            or isinstance(score, bool) or not isinstance(score, (int, float))
+            or not math.isfinite(float(score)) or not -1 <= float(score) <= 1
+            or trial.get("conditions") != window["conditions"]
+            or trial.get("p4_state_verified_before_and_after") is not True
+            or trial.get("p3_eligibility_verified_before_and_after") is not True
+        ):
+            raise AcousticVerificationError("Calibration trial binding changed.")
+        score_identity = {
+            "profile_id": profile["profile_id"],
+            "descendant_id": profile["descendant_id"],
+            "artifact_sha256": profile["artifact_sha256"],
+            "candidate_id": profile["candidate_id"],
+            "model_revision": profile["model_revision"],
+            "probe_sha256": trial.get("probe_sha256"),
+            "score": score,
+        }
+        if trial.get("score_trial_id") != (
+            "verification-trial-" + canonical_artifact_hash(score_identity)[:24]
+        ):
+            raise AcousticVerificationError(
+                "Calibration score-trial identity changed."
+            )
+        identity = {"authority_sha256": authority_sha256,
+                    "window_id": window["window_id"], "method_id": trial["method_id"],
+                    "profile_id": profile["profile_id"],
+                    "score_trial_id": trial["score_trial_id"]}
+        if trial.get("trial_id") != "calibration-trial-" + canonical_artifact_hash(identity)[:24]:
+            raise AcousticVerificationError("Calibration trial identity changed.")
+        actual.add((str(trial["window_id"]), str(trial["method_id"]), str(trial["profile_id"])))
+    trials = receipt.get("trials")
+    probe_groups: dict[tuple[str, str], set[str]] = {}
+    for trial in trials or []:
+        probe_groups.setdefault(
+            (str(trial["window_id"]), str(trial["method_id"])), set()
+        ).add(str(trial["probe_sha256"]))
+    if (
+        receipt.get("schema_version") != CALIBRATION_SCORE_MATRIX_SCHEMA
+        or receipt.get("status") != "success"
+        or receipt.get("authority_sha256") != authority_sha256
+        or receipt.get("window_selection_sha256") != selection["window_selection_sha256"]
+        or actual != expected or not isinstance(trials, list) or len(actual) != len(trials)
+        or receipt.get("logical_trial_count") != len(trials)
+        or receipt.get("genuine_trial_count") != sum(t["expected_match"] for t in trials)
+        or receipt.get("impostor_trial_count") != sum(not t["expected_match"] for t in trials)
+        or receipt.get("open_set_trial_count") != sum(t["open_set_probe"] for t in trials)
+        or any(len(hashes) != 1 for hashes in probe_groups.values())
+        or receipt.get("did_select_threshold") is not False
+        or receipt.get("did_read_evaluation") is not False
+        or receipt.get("contains_biometric_scores") is not True
+    ):
+        raise AcousticVerificationError("Calibration score matrix replay is invalid.")
+    return {**receipt, "score_matrix_sha256": receipt_sha,
+            "private_score_matrix_path": str(path),
+            "score_replay_mode": "structural_without_audio_or_model_execution"}
+
+
+def _sigmoid_probability(score: float, threshold: float, temperature: float) -> float:
+    value = max(-60.0, min(60.0, (score - threshold) / temperature))
+    return 1.0 / (1.0 + math.exp(-value))
+
+
+def _classification_metrics(
+    trials: Sequence[Mapping[str, Any]], *, threshold: float, temperature: float,
+) -> dict[str, Any]:
+    genuine = [item for item in trials if item["expected_match"] is True]
+    impostor = [item for item in trials if item["expected_match"] is False]
+    false_rejects = sum(float(item["score"]) < threshold for item in genuine)
+    false_accepts = sum(float(item["score"]) >= threshold for item in impostor)
+    far = false_accepts / len(impostor) if impostor else None
+    frr = false_rejects / len(genuine) if genuine else None
+    ber = (far + frr) / 2 if far is not None and frr is not None else None
+    probabilities = [
+        _sigmoid_probability(float(item["score"]), threshold, temperature)
+        for item in trials
+    ]
+    labels = [1.0 if item["expected_match"] else 0.0 for item in trials]
+    brier = (
+        sum((probability - label) ** 2 for probability, label in zip(probabilities, labels))
+        / len(trials) if trials else None
+    )
+    ece = None
+    if trials:
+        total = len(trials)
+        ece_value = 0.0
+        for bin_index in range(5):
+            lower, upper = bin_index / 5, (bin_index + 1) / 5
+            indexes = [index for index, probability in enumerate(probabilities)
+                       if lower <= probability < upper or (bin_index == 4 and probability == 1.0)]
+            if indexes:
+                mean_probability = sum(probabilities[index] for index in indexes) / len(indexes)
+                positive_rate = sum(labels[index] for index in indexes) / len(indexes)
+                ece_value += len(indexes) / total * abs(mean_probability - positive_rate)
+        ece = ece_value
+    return {
+        "trial_count": len(trials), "genuine_trial_count": len(genuine),
+        "impostor_trial_count": len(impostor), "false_accept_count": false_accepts,
+        "false_reject_count": false_rejects, "false_acceptance_rate": far,
+        "false_rejection_rate": frr, "balanced_error_rate": ber,
+        "brier_score": brier, "expected_calibration_error_5_bins": ece,
+        "missing_denominator_status": (
+            "not_run" if far is None or frr is None else "success"
+        ),
+    }
+
+
+def _freeze_threshold_unit(
+    candidate_id: str, method_id: str, trials: Sequence[Mapping[str, Any]],
+    policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    genuine_count = sum(item["expected_match"] is True for item in trials)
+    impostor_count = sum(item["expected_match"] is False for item in trials)
+    if (genuine_count < int(policy["minimum_genuine_trials_per_unit"])
+            or impostor_count < int(policy["minimum_impostor_trials_per_unit"])):
+        return {
+            "candidate_id": candidate_id, "method_id": method_id,
+            "status": "not_run", "reason_code": "insufficient_class_denominator",
+            "threshold": None, "temperature": None, "metrics": None,
+            "condition_slices": [], "candidate_margin": None,
+            "open_set_rejection": None,
+        }
+    scores = sorted({float(item["score"]) for item in trials})
+    thresholds = sorted({-1.0, 1.0, *[(left + right) / 2
+                                     for left, right in zip(scores, scores[1:])]})
+    candidates = []
+    for threshold in thresholds:
+        for temperature in policy["temperature_candidates"]:
+            metrics = _classification_metrics(
+                trials, threshold=threshold, temperature=float(temperature)
+            )
+            candidates.append((
+                (metrics["brier_score"], metrics["expected_calibration_error_5_bins"],
+                 metrics["balanced_error_rate"],
+                 abs(metrics["false_acceptance_rate"] - metrics["false_rejection_rate"]),
+                 -threshold, float(temperature)),
+                threshold, float(temperature), metrics,
+            ))
+    _, threshold, temperature, metrics = min(candidates, key=lambda item: item[0])
+    eer_threshold, eer_metrics = min(
+        ((candidate_threshold,
+          _classification_metrics(trials, threshold=candidate_threshold, temperature=temperature))
+         for candidate_threshold in thresholds),
+        key=lambda item: (
+            abs(item[1]["false_acceptance_rate"] - item[1]["false_rejection_rate"]),
+            item[1]["balanced_error_rate"], -item[0],
+        ),
+    )
+    slices = []
+    for dimension in policy.get("condition_slices", []):
+        values = sorted({str(item.get("conditions", {}).get(dimension, "missing")) for item in trials})
+        for value in values:
+            subset = [item for item in trials
+                      if str(item.get("conditions", {}).get(dimension, "missing")) == value]
+            slices.append({"dimension": dimension, "value": value,
+                           "metrics": _classification_metrics(
+                               subset, threshold=threshold, temperature=temperature)})
+    grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+    for item in trials:
+        grouped.setdefault((str(item["window_id"]), str(item["conversation_id"])), []).append(item)
+    margins = []
+    open_set_groups = []
+    for items in grouped.values():
+        ordered = sorted((float(item["score"]) for item in items), reverse=True)
+        if len(ordered) != 2:
+            raise AcousticVerificationError("Calibration candidate margin coverage changed.")
+        margins.append(ordered[0] - ordered[1])
+        if items[0]["open_set_probe"] is True:
+            open_set_groups.append(all(float(item["score"]) < threshold for item in items))
+    return {
+        "candidate_id": candidate_id, "method_id": method_id,
+        "status": "success", "reason_code": None,
+        "threshold": threshold, "temperature": temperature,
+        "threshold_candidate_count": len(thresholds), "metrics": metrics,
+        "eer_diagnostic": {"threshold": eer_threshold,
+                           "false_acceptance_rate": eer_metrics["false_acceptance_rate"],
+                           "false_rejection_rate": eer_metrics["false_rejection_rate"],
+                           "estimated_equal_error_rate": (eer_metrics["false_acceptance_rate"] + eer_metrics["false_rejection_rate"]) / 2},
+        "condition_slices": slices,
+        "candidate_margin": {"status": "descriptive", "count": len(margins),
+                             "minimum": min(margins), "mean": sum(margins) / len(margins),
+                             "maximum": max(margins)},
+        "open_set_rejection": {
+            "status": "descriptive", "probe_count": len(open_set_groups),
+            "rejected_count": sum(open_set_groups),
+            "rejection_rate": sum(open_set_groups) / len(open_set_groups) if open_set_groups else None,
+        },
+    }
+
+
+def _calibration_threshold_results(
+    authority: Mapping[str, Any], score_matrix: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    policy = {**dict(authority["threshold_policy"]),
+              "condition_slices": authority["metric_policy"]["condition_slices"]}
+    results = []
+    for candidate_id in sorted({str(item["candidate_id"]) for item in authority["profiles"]}):
+        for method_id in authority["score_methods"]:
+            trials = [item for item in score_matrix["trials"]
+                      if item["candidate_id"] == candidate_id and item["method_id"] == method_id]
+            results.append(_freeze_threshold_unit(candidate_id, method_id, trials, policy))
+    return results
+
+
+def apply_calibration_thresholds(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Deterministically freeze calibration-only thresholds and diagnostics."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_calibration_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    scores = replay_calibration_score_matrix(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    results = _calibration_threshold_results(authority, scores)
+    if len(results) != 9 or any(item["status"] != "success" for item in results):
+        raise AcousticVerificationError("Calibration threshold coverage is incomplete.")
+    receipt = {
+        "schema_version": CALIBRATION_APPLICATION_SCHEMA,
+        "status": "success", "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "score_matrix_sha256": scores["score_matrix_sha256"],
+        "intended_split": "calibration", "threshold_unit_count": len(results),
+        "thresholds": results,
+        "selection_objective": list(authority["threshold_policy"]["selection_order"]),
+        "abstention_status": "not_run_without_separately_precommitted_abstention_margin",
+        "results_are_descriptive": True,
+        "conversation_clustered_non_independent": True,
+        "permits_generalization_claim": False,
+        "did_read_calibration_gold": True, "did_run_calibration_trials": True,
+        "did_select_and_freeze_thresholds": True, "did_read_evaluation": False,
+        "did_mutate_profiles_or_references": False,
+        "did_make_terminal_model_or_method_selection": False,
+        "did_enable_default_integration": False, "did_perform_external_write": False,
+        "contains_biometric_scores": True, "contains_frozen_thresholds": True,
+        "contains_raw_audio": False, "contains_transcript_text": False,
+        "contains_names_or_emails": False, "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False, "applied_at": utc_now(),
+    }
+    receipt_sha = _calibration_stage_identity(receipt, "applied_at")
+    path = root / "calibration-applications" / f"{receipt_sha}.json"
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("applied_at",))
+    return {**stored, "application_sha256": receipt_sha,
+            "private_application_path": str(path)}
+
+
+def replay_calibration_thresholds(
+    application_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Recompute thresholds and metrics from persisted scores, never audio."""
+    if not SHA256_RE.fullmatch(str(application_sha256)):
+        raise AcousticVerificationError("Calibration application hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "calibration-applications" / f"{application_sha256}.json"
+    require_private_file(path, root)
+    receipt = read_private_object(path)
+    if _calibration_stage_identity(receipt, "applied_at") != application_sha256:
+        raise AcousticVerificationError("Calibration application identity changed.")
+    authority_sha256 = str(receipt.get("authority_sha256") or "")
+    authority = replay_calibration_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    scores = replay_calibration_score_matrix(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    recomputed = _calibration_threshold_results(authority, scores)
+    if (
+        receipt.get("schema_version") != CALIBRATION_APPLICATION_SCHEMA
+        or receipt.get("status") != "success"
+        or receipt.get("score_matrix_sha256") != scores["score_matrix_sha256"]
+        or receipt.get("thresholds") != recomputed
+        or receipt.get("threshold_unit_count") != 9
+        or receipt.get("did_read_evaluation") is not False
+        or receipt.get("did_mutate_profiles_or_references") is not False
+        or receipt.get("did_make_terminal_model_or_method_selection") is not False
+        or receipt.get("contains_biometric_scores") is not True
+        or receipt.get("contains_frozen_thresholds") is not True
+    ):
+        raise AcousticVerificationError("Calibration threshold replay is invalid.")
+    return {**receipt, "application_sha256": application_sha256,
+            "private_application_path": str(path),
+            "threshold_replay_mode": "recomputed_from_persisted_scores_without_audio"}
 
 
 def materialize_profile(

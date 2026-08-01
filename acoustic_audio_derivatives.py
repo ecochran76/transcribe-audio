@@ -281,8 +281,6 @@ def _probe_audio(source_path: Path, ffprobe_path: str) -> dict[str, Any]:
         raise AudioDerivativeError("Source audio metadata is invalid.") from exc
     if duration <= 0 or sample_rate <= 0 or channels <= 0:
         raise AudioDerivativeError("Source audio is empty or has invalid dimensions.")
-    if channels != 1:
-        raise AudioDerivativeError("P1 supports mono source audio only.")
     return {
         "audio_stream_count": len(streams),
         "selected_audio_stream_index": int(stream.get("index") or 0),
@@ -319,7 +317,35 @@ def _source_identity(source_audio: Path, ffprobe_path: str) -> dict[str, Any]:
     return identity
 
 
-def _recipe(ffmpeg_path: str, ffprobe_path: str) -> dict[str, Any]:
+def _recipe(
+    ffmpeg_path: str,
+    ffprobe_path: str,
+    *,
+    source_channels: int,
+    channel_policy: str,
+    channel_policy_authority_sha256: Optional[str],
+) -> dict[str, Any]:
+    if channel_policy == "mono_only":
+        if source_channels != 1 or channel_policy_authority_sha256 is not None:
+            raise AudioDerivativeError("P1 supports mono source audio only.")
+        channel_arguments: list[str] = []
+    elif channel_policy == "stereo_average_to_mono":
+        if (
+            source_channels not in {1, 2}
+            or not re.fullmatch(
+                r"[a-f0-9]{64}", str(channel_policy_authority_sha256 or "")
+            )
+        ):
+            raise AudioDerivativeError(
+                "Stereo downmix requires an exact channel-policy authority."
+            )
+        channel_arguments = (
+            ["-af", "pan=mono|c0=0.5*c0+0.5*c1"]
+            if source_channels == 2
+            else []
+        )
+    else:
+        raise AudioDerivativeError("P1 channel policy is invalid.")
     decode_arguments = [
         "-nostdin",
         "-hide_banner",
@@ -331,6 +357,7 @@ def _recipe(ffmpeg_path: str, ffprobe_path: str) -> dict[str, Any]:
         "-map",
         "0:a:0",
         "-vn",
+        *channel_arguments,
         "-ac",
         str(TARGET_CHANNELS),
         "-ar",
@@ -371,6 +398,16 @@ def _recipe(ffmpeg_path: str, ffprobe_path: str) -> dict[str, Any]:
         },
         "model_revisions": {},
     }
+    if channel_policy == "stereo_average_to_mono":
+        base["parameters"].update(
+            {
+                "channel_policy": "stereo_arithmetic_average_to_mono",
+                "source_channels": source_channels,
+                "channel_policy_authority_sha256": (
+                    channel_policy_authority_sha256
+                ),
+            }
+        )
     return {**base, "revision": f"audio-recipe-{_canonical_hash(base)[:24]}"}
 
 
@@ -410,6 +447,8 @@ def _build_plan(
     runtime_root: Optional[Path] = None,
     source_blob_id: Optional[str] = None,
     expected_source_sha256: Optional[str] = None,
+    channel_policy: str = "mono_only",
+    channel_policy_authority_sha256: Optional[str] = None,
 ) -> tuple[dict[str, Any], dict[str, Path]]:
     ffmpeg_path = _tool("ffmpeg")
     ffprobe_path = _tool("ffprobe")
@@ -423,7 +462,13 @@ def _build_plan(
     if not SOURCE_BLOB_ID_RE.fullmatch(bound_blob_id):
         raise AudioDerivativeError("Source blob ID is invalid.")
     source["source_blob_id"] = bound_blob_id
-    recipe = _recipe(ffmpeg_path, ffprobe_path)
+    recipe = _recipe(
+        ffmpeg_path,
+        ffprobe_path,
+        source_channels=int(source["probe"]["channels"]),
+        channel_policy=channel_policy,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
+    )
     run_identity = {
         "source_blob_id": bound_blob_id,
         "source_sha256": source["sha256"],
@@ -455,12 +500,16 @@ def dry_run(
     runtime_root: Optional[Path] = None,
     source_blob_id: Optional[str] = None,
     expected_source_sha256: Optional[str] = None,
+    channel_policy: str = "mono_only",
+    channel_policy_authority_sha256: Optional[str] = None,
 ) -> dict[str, Any]:
     plan, paths = _build_plan(
         source_audio,
         runtime_root=runtime_root,
         source_blob_id=source_blob_id,
         expected_source_sha256=expected_source_sha256,
+        channel_policy=channel_policy,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
     )
     _ensure_private_tree(paths["root"], paths["run_dir"])
     stored = _write_immutable_json(
@@ -592,6 +641,8 @@ def apply_derivative(
     approval_token: str,
     source_blob_id: Optional[str] = None,
     expected_source_sha256: Optional[str] = None,
+    channel_policy: str = "mono_only",
+    channel_policy_authority_sha256: Optional[str] = None,
 ) -> dict[str, Any]:
     if approval_token != APPLY_TOKEN:
         raise AudioDerivativeError(f"Apply requires approval token {APPLY_TOKEN}.")
@@ -600,6 +651,8 @@ def apply_derivative(
         runtime_root=runtime_root,
         source_blob_id=source_blob_id,
         expected_source_sha256=expected_source_sha256,
+        channel_policy=channel_policy,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
     )
     _ensure_private_tree(paths["root"], paths["run_dir"])
     if not paths["dry_run"].is_file():
@@ -637,6 +690,9 @@ def apply_derivative(
         live_recipe = _recipe(
             str(plan["recipe"]["decoder_path"]),
             str(plan["recipe"]["probe_path"]),
+            source_channels=int(plan["source"]["probe"]["channels"]),
+            channel_policy=channel_policy,
+            channel_policy_authority_sha256=channel_policy_authority_sha256,
         )
         if live_recipe != plan["recipe"]:
             raise AudioDerivativeError("Audio tool or recipe changed before decode.")
