@@ -2,6 +2,51 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 266 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`,
+version 3
+
+Packet: P4E2-A/P4E2-B | Successor inventory and pre-freeze seam
+
+State transition: `CLOSED/STOP/Plan-0037-P4E -> OPEN/BLOCKED-COHORT/Plan-0037-P4E2`.
+
+- Opened the successor packet without reusing the revealed generation-1
+  cohort. A read-only inventory found 24 latest eligible recordings, all 24
+  overlapping the original P0 corpus, and zero fully disjoint candidates.
+- New operator-confirmed recordings are therefore required before a new cohort,
+  authority, split reveal, audio/model execution, or terminal selection.
+- Proceeding with the authority-independent P2 evaluation seam and a
+  privacy-safe readiness receipt so code hashes can stabilize before any future
+  terminal authority freezes.
+- Added the P2 `evaluation` later-split seam across dry-run, apply, replay, and
+  lineage. It requires an exact 64-hex authority, preserves the actual split in
+  every receipt, keeps development authority-free, and rejects unknown splits.
+  Pre-authority P2 module SHA-256 is
+  `700e10d802a6443eab9d2bb9c6b9a7519cff26021ffec23acbdb767f12bcd595`.
+- Authoritative private readiness receipt SHA-256
+  `cae5de01dd91d7f620b17071dd87dbc4ae991793f07a4257186d18d3e587287d`
+  records 24 overlaps in every identity dimension and zero fully disjoint
+  candidates. It uses metadata only, is `0600` under `0700`, and ran no source-
+  blob/transcript-body read, model, split reveal, or external write.
+- Invalidated first implementation receipt
+  `85769c302b1e6e762d77b8ab809850cb688aa7d10cfa843acd7eb627e7bd010d`
+  as evidence because its reused collector rehashed source blobs while claiming
+  no audio read. It remains non-authoritative audit history and is superseded
+  by the receipt above.
+- Validation: 27 focused tests and 547 full repository tests passed;
+  compilation and `git diff --check` passed.
+- Independent read-only audit returned `PASS` after verifying the metadata-only
+  collector, exact authoritative receipt/module hashes, private modes, guarded
+  no-blob-open test, full suite, compilation, and diff integrity.
+
+Next:
+
+- Commit and push the independently audited truthful checkpoint.
+- Resume cohort freeze only after the governed campaign contains genuinely new
+  document-, recording-, conversation-, and source-disjoint eligible evidence.
+
 ## Turn 265 | 2026-07-31
 
 Plan:

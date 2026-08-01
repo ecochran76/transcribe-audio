@@ -447,8 +447,11 @@ nine model-by-method thresholds with descriptive error, calibration, margin,
 open-set, and condition-slice evidence. P4E generation 1 was revealed under an
 independently reviewed authority but terminally stopped before audio/model
 execution because the bound P2 module lacked an evaluation-split seam. The
-revealed cohort cannot be reused for terminal selection; a new sealed cohort
-and authority generation are required. No terminal model/method selection,
+revealed cohort cannot be reused for terminal selection. Plan 0043 added and
+replay-tested the evaluation seam before any successor authority freeze, then
+persisted a metadata-only readiness receipt proving the campaign has zero fully
+disjoint new candidates. A new sealed cohort and authority generation remain
+required. No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036
 remains sealed and paused at five of ten current gold reviews.
@@ -461,6 +464,7 @@ Plans:
 - `docs/dev/plans/0040-2026-07-31-plan-0037-p2-speech-preparation-comparison.md`
 - `docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`
 - `docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`
+- `docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`
 
 Research:
 

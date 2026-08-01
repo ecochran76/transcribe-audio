@@ -1217,13 +1217,13 @@ def _build_plan(
                 "Development preparation cannot bind a later-split authority."
             )
         split_fields: dict[str, Any] = {}
-    elif intended_split == "calibration":
+    elif intended_split in {"calibration", "evaluation"}:
         if not re.fullmatch(r"[a-f0-9]{64}", str(split_access_authority_sha256 or "")):
             raise SpeechPreparationError(
-                "Calibration preparation requires an exact split authority."
+                "Later-split preparation requires an exact split authority."
             )
         split_fields = {
-            "intended_split": "calibration",
+            "intended_split": intended_split,
             "split_access_authority_sha256": split_access_authority_sha256,
         }
     else:
@@ -1290,7 +1290,7 @@ def _build_plan(
         "created_at": utc_now(),
         **split_fields,
     }
-    if intended_split == "calibration":
+    if intended_split in {"calibration", "evaluation"}:
         plan["will_read_calibration_or_evaluation"] = True
     return plan, paths
 
@@ -1711,10 +1711,10 @@ def apply_comparison(
         "will_perform_external_write": False,
         "created_at": created_at,
     }
-    if intended_split == "calibration":
+    if intended_split in {"calibration", "evaluation"}:
         comparison.update(
             {
-                "intended_split": "calibration",
+                "intended_split": intended_split,
                 "split_access_authority_sha256": split_access_authority_sha256,
             }
         )
@@ -1732,10 +1732,10 @@ def apply_comparison(
         "will_perform_external_write": False,
         "applied_at": created_at,
     }
-    if intended_split == "calibration":
+    if intended_split in {"calibration", "evaluation"}:
         apply_receipt.update(
             {
-                "intended_split": "calibration",
+                "intended_split": intended_split,
                 "split_access_authority_sha256": split_access_authority_sha256,
                 "did_read_calibration_or_evaluation": True,
             }
@@ -1773,8 +1773,9 @@ def replay_comparison(
         "will_perform_external_write",
         "applied_at",
     }
-    calibration_mode = comparison.get("intended_split") == "calibration"
-    if calibration_mode:
+    later_split = comparison.get("intended_split")
+    later_split_mode = later_split in {"calibration", "evaluation"}
+    if later_split_mode:
         expected_apply_keys.update(
             {
                 "intended_split",
@@ -1798,21 +1799,21 @@ def replay_comparison(
         or apply_receipt.get("will_perform_external_write") is not False
         or apply_receipt.get("applied_at") != comparison.get("created_at")
         or (
-            calibration_mode
+            later_split_mode
             and (
                 not re.fullmatch(
                     r"[a-f0-9]{64}",
                     str(comparison.get("split_access_authority_sha256") or ""),
                 )
                 or comparison.get("will_read_calibration_or_evaluation") is not True
-                or apply_receipt.get("intended_split") != "calibration"
+                or apply_receipt.get("intended_split") != later_split
                 or apply_receipt.get("split_access_authority_sha256")
                 != comparison.get("split_access_authority_sha256")
                 or apply_receipt.get("did_read_calibration_or_evaluation") is not True
             )
         )
         or (
-            not calibration_mode
+            not later_split_mode
             and (
                 comparison.get("intended_split") is not None
                 or comparison.get("split_access_authority_sha256") is not None
@@ -1872,10 +1873,10 @@ def replay_comparison(
         "will_perform_external_write": False,
         "replayed_at": utc_now(),
     }
-    if calibration_mode:
+    if later_split_mode:
         receipt.update(
             {
-                "intended_split": "calibration",
+                "intended_split": later_split,
                 "split_access_authority_sha256": comparison[
                     "split_access_authority_sha256"
                 ],
@@ -1964,10 +1965,10 @@ def resolve_comparison_lineage_receipt(
         "validation_status": "verified_active_metadata_receipt",
         "will_read_audio": False,
     }
-    if comparison.get("intended_split") == "calibration":
+    if comparison.get("intended_split") in {"calibration", "evaluation"}:
         lineage.update(
             {
-                "intended_split": "calibration",
+                "intended_split": comparison["intended_split"],
                 "split_access_authority_sha256": comparison[
                     "split_access_authority_sha256"
                 ],

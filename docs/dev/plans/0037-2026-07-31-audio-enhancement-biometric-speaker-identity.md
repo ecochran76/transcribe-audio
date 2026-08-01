@@ -80,13 +80,16 @@ successful attempts; and a synthetic private biometric-reference authority
 with CAS lifecycle and P4 descendant invalidation.
 
 P4 is open through
-[Plan 0042](0042-2026-07-31-plan-0037-p4-verification-calibration.md). P4C has
+[Plan 0043](0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md). P4C has
 six active real profiles, P4D development diagnostics are complete, and P4D2
 has frozen nine model-by-method thresholds from 396 held-out calibration
 trials. P4E generation 1 ended in a terminal `STOP` after reveal but before
 audio/model execution because its authority-bound P2 module lacked the required
 evaluation split seam. That cohort is no longer blind terminal evidence; a new
-sealed cohort/generation is required. No model/method selection, App
+sealed cohort/generation is required. The seam is now implemented and replay-
+tested before any successor authority freeze, but a metadata-only readiness
+receipt proves the governed campaign has zero new fully disjoint candidates.
+No model/method selection, App
 Intelligence integration, or historical reprocessing exists. Plan 0036 remains
 sealed and paused after five of ten current gold reviews.
 

@@ -526,25 +526,26 @@ def test_no_enhancement_lifecycle_is_private_replayable_and_non_destructive(
         assert stat.S_IMODE(path.stat().st_mode) == expected
 
 
-def test_calibration_preparation_requires_and_replays_exact_split_authority(
-    tmp_path: Path,
+@pytest.mark.parametrize("intended_split", ["calibration", "evaluation"])
+def test_later_split_preparation_requires_and_replays_exact_split_authority(
+    tmp_path: Path, intended_split: str,
 ) -> None:
     _, p1_root, p1_run_id = make_p1(tmp_path)
-    p2_root = tmp_path / "p2-calibration"
+    p2_root = tmp_path / f"p2-{intended_split}"
     authority_sha = "a" * 64
     with pytest.raises(SpeechPreparationError, match="exact split authority"):
         dry_run(
             p1_run_id,
             p1_runtime_root=p1_root,
             runtime_root=p2_root,
-            intended_split="calibration",
+            intended_split=intended_split,
         )
     with pytest.raises(SpeechPreparationError, match="cannot open"):
         dry_run(
             p1_run_id,
             p1_runtime_root=p1_root,
-            runtime_root=p2_root,
-            intended_split="evaluation",
+            runtime_root=tmp_path / "p2-unknown",
+            intended_split="holdout",
             split_access_authority_sha256=authority_sha,
         )
 
@@ -552,24 +553,24 @@ def test_calibration_preparation_requires_and_replays_exact_split_authority(
         p1_run_id,
         p1_runtime_root=p1_root,
         runtime_root=p2_root,
-        intended_split="calibration",
+        intended_split=intended_split,
         split_access_authority_sha256=authority_sha,
     )
-    assert plan["intended_split"] == "calibration"
+    assert plan["intended_split"] == intended_split
     assert plan["split_access_authority_sha256"] == authority_sha
     assert plan["will_read_calibration_or_evaluation"] is True
     applied = apply_comparison(
         p1_run_id,
         p1_runtime_root=p1_root,
         runtime_root=p2_root,
-        intended_split="calibration",
+        intended_split=intended_split,
         split_access_authority_sha256=authority_sha,
     )
-    assert applied["intended_split"] == "calibration"
+    assert applied["intended_split"] == intended_split
     assert applied["split_access_authority_sha256"] == authority_sha
     assert applied["did_read_calibration_or_evaluation"] is True
     replayed = replay_comparison(plan["run_id"], runtime_root=p2_root)
-    assert replayed["intended_split"] == "calibration"
+    assert replayed["intended_split"] == intended_split
     assert replayed["split_access_authority_sha256"] == authority_sha
     assert replayed["did_read_calibration_or_evaluation"] is True
     lineage = resolve_comparison_lineage_receipt(
@@ -578,7 +579,7 @@ def test_calibration_preparation_requires_and_replays_exact_split_authority(
         replay_receipt_sha256=sha256_file(Path(replayed["replay_path"])),
         runtime_root=p2_root,
     )
-    assert lineage["intended_split"] == "calibration"
+    assert lineage["intended_split"] == intended_split
     assert lineage["split_access_authority_sha256"] == authority_sha
 
 
