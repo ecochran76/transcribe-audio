@@ -777,6 +777,24 @@ CALIBRATION_WINDOW_SELECTION_SCHEMA = (
 CALIBRATION_SCORE_MATRIX_SCHEMA = (
     "transcribe-audio.verification-calibration-score-matrix.v1"
 )
+EVALUATION_APPLY_AUTHORITY_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-apply-authority.v1"
+)
+EVALUATION_SPLIT_REVEAL_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-split-reveal.v1"
+)
+EVALUATION_PREPARATION_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-preparation.v1"
+)
+EVALUATION_WINDOW_SELECTION_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-window-selection.v1"
+)
+EVALUATION_SCORE_MATRIX_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-score-matrix.v1"
+)
+EVALUATION_APPLICATION_SCHEMA = (
+    "transcribe-audio.verification-terminal-evaluation-application.v1"
+)
 REAL_ENROLLMENT_AUTHORIZATION_BASIS = "operator_blanket_proceed_2026-07-31"
 REAL_ENROLLMENT_AUTHORIZER_REF_ID = "operator-standing-20260731"
 _OPAQUE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
@@ -804,6 +822,24 @@ EXPECTED_CALIBRATION_RECORD_SET_SHA256 = (
 )
 EXPECTED_CALIBRATION_CONVERSATION_SET_SHA256 = (
     "44d844aff33d3ff27986a3102a320db2f7fafcbdcd5a196b4c2909af535cdbc6"
+)
+EXPECTED_EVALUATION_RECORD_SET_SHA256 = (
+    "1ae7dde3b9b627859dd2885ea66be1693ebf1e4c8e9f9a946ed6c20a41000ec0"
+)
+EXPECTED_EVALUATION_CONVERSATION_SET_SHA256 = (
+    "bc2b39a1e1d6dec4665dea98f087a45dd4ecd4e6dc9240b87620ce9d7b58704b"
+)
+DEFAULT_TERMINAL_DECISION_POLICY = Path(__file__).parent / (
+    "docs/dev/fixtures/plan-0037-p4/terminal-decision-policy.json"
+)
+EXPECTED_TERMINAL_DECISION_POLICY_SHA256 = (
+    "98eadfd2a3a55a77d873ff0f3efbf7f2e75e296915d89777c7243a9b7ff373d8"
+)
+EXPECTED_EVALUATION_SPLIT_REVEAL_SHA256 = (
+    "99c28df0d50610523845684878cdeea05428451f3bc63af855011a6b40efa0d9"
+)
+OBSERVED_INCOMPATIBLE_EVALUATION_P2_MODULE_SHA256 = (
+    "96946fcc39cbc77928bd2df5f3944b93fec6359cbcb741859d34b0a26f6e1f22"
 )
 CALIBRATION_SCORE_METHOD_IDS = (
     "no_enhancement",
@@ -5223,6 +5259,718 @@ def replay_calibration_thresholds(
     return {**receipt, "application_sha256": application_sha256,
             "private_application_path": str(path),
             "threshold_replay_mode": "recomputed_from_persisted_scores_without_audio"}
+
+
+def _evaluation_split_metadata_authority(
+    split_policy_path: Path, parent_corpus_manifest_path: Path,
+) -> dict[str, Any]:
+    """Validate evaluation scope metadata without revealing evaluation rows."""
+    policy_path = split_policy_path.expanduser().absolute()
+    parent_path = parent_corpus_manifest_path.expanduser().absolute()
+    if policy_path.is_symlink() or not policy_path.is_file():
+        raise AcousticVerificationError("Split access policy is unavailable.")
+    if sha256_file(policy_path) != EXPECTED_SPLIT_ACCESS_POLICY_SHA256:
+        raise AcousticVerificationError("Split access policy hash is invalid.")
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcousticVerificationError("Split access policy is unreadable.") from exc
+    require_private_file(parent_path, parent_path.parent)
+    if sha256_file(parent_path) != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256:
+        raise AcousticVerificationError("Parent corpus manifest hash is invalid.")
+    evaluation = policy.get("splits", {}).get("evaluation")
+    if (
+        policy.get("schema_version")
+        != "transcribe-audio.verification-split-access-policy.v1"
+        or policy.get("parent_corpus_manifest_sha256")
+        != EXPECTED_PARENT_CORPUS_MANIFEST_SHA256
+        or not isinstance(evaluation, Mapping)
+        or evaluation.get("authorization_state")
+        != "not_authorized_pending_exact_terminal_evaluation_apply"
+        or evaluation.get("recording_count") != 5
+        or evaluation.get("conversation_count") != 5
+        or evaluation.get("record_set_sha256")
+        != EXPECTED_EVALUATION_RECORD_SET_SHA256
+        or evaluation.get("conversation_set_sha256")
+        != EXPECTED_EVALUATION_CONVERSATION_SET_SHA256
+    ):
+        raise AcousticVerificationError("Evaluation split metadata is invalid.")
+    return {
+        "split_access_policy_sha256": EXPECTED_SPLIT_ACCESS_POLICY_SHA256,
+        "parent_corpus_manifest_sha256": EXPECTED_PARENT_CORPUS_MANIFEST_SHA256,
+        "evaluation_record_set_sha256": EXPECTED_EVALUATION_RECORD_SET_SHA256,
+        "evaluation_conversation_set_sha256": EXPECTED_EVALUATION_CONVERSATION_SET_SHA256,
+        "evaluation_recording_count": 5,
+        "evaluation_conversation_count": 5,
+    }
+
+
+def _terminal_decision_policy(path: Path) -> dict[str, Any]:
+    policy_path = path.expanduser().absolute()
+    if policy_path.is_symlink() or not policy_path.is_file():
+        raise AcousticVerificationError("Terminal decision policy is unavailable.")
+    if sha256_file(policy_path) != EXPECTED_TERMINAL_DECISION_POLICY_SHA256:
+        raise AcousticVerificationError("Terminal decision policy hash is invalid.")
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AcousticVerificationError("Terminal decision policy is unreadable.") from exc
+    if (
+        policy.get("schema_version")
+        != "transcribe-audio.verification-terminal-decision-policy.v1"
+        or policy.get("precedence") != ["stop", "reject", "select", "refine"]
+        or policy.get("policy_changes_after_evaluation_unseal")
+        != "forbidden_for_this_evaluation_generation"
+    ):
+        raise AcousticVerificationError("Terminal decision policy is invalid.")
+    return policy
+
+
+def _evaluation_apply_authority_payload(
+    *, calibration_application: Mapping[str, Any],
+    calibration_application_sha256: str,
+    calibration_authority: Mapping[str, Any],
+    split_metadata: Mapping[str, Any], terminal_policy: Mapping[str, Any],
+    authorized_at: str,
+) -> dict[str, Any]:
+    if (
+        calibration_application.get("status") != "success"
+        or calibration_application.get("intended_split") != "calibration"
+        or calibration_application.get("did_select_and_freeze_thresholds") is not True
+        or calibration_application.get("did_read_evaluation") is not False
+        or calibration_application.get("threshold_unit_count") != 9
+        or calibration_application.get("permits_generalization_claim") is not False
+    ):
+        raise AcousticVerificationError(
+            "Evaluation authority requires verified calibration evidence."
+        )
+    frozen_thresholds = [
+        {
+            "candidate_id": item["candidate_id"],
+            "method_id": item["method_id"],
+            "threshold": item["threshold"],
+            "temperature": item["temperature"],
+            "calibration_status": item["status"],
+        }
+        for item in calibration_application["thresholds"]
+    ]
+    p1_path = Path(audio_derivatives.__file__).resolve()
+    p2_path = Path(speech_preparation.__file__).resolve()
+    authority = {
+        "schema_version": EVALUATION_APPLY_AUTHORITY_SCHEMA,
+        "status": "authorized", "reason_code": None,
+        "authority_generation": 1,
+        "canonicalization": "json_sort_keys_compact_utf8",
+        "authorization_basis": REAL_ENROLLMENT_AUTHORIZATION_BASIS,
+        "authorized_by_ref_id": REAL_ENROLLMENT_AUTHORIZER_REF_ID,
+        "authorized_at": authorized_at, "intended_split": "evaluation",
+        "calibration_application_sha256": calibration_application_sha256,
+        "calibration_authority_sha256": calibration_application["authority_sha256"],
+        "calibration_score_matrix_sha256": calibration_application["score_matrix_sha256"],
+        "development_application_sha256": calibration_authority["development_application_sha256"],
+        "development_authority_sha256": calibration_authority["development_authority_sha256"],
+        "enrollment_application_sha256": calibration_authority["enrollment_application_sha256"],
+        **dict(split_metadata),
+        "terminal_decision_policy_sha256": EXPECTED_TERMINAL_DECISION_POLICY_SHA256,
+        "terminal_decision_policy": dict(terminal_policy),
+        "profiles": [dict(item) for item in calibration_authority["profiles"]],
+        "preparation_methods": list(calibration_authority["preparation_methods"]),
+        "score_methods": list(calibration_authority["score_methods"]),
+        "frozen_thresholds": frozen_thresholds,
+        "fixed_abstention_margins": [
+            {"candidate_id": item["candidate_id"], "method_id": item["method_id"],
+             "margin": 0.0, "derivation": "fixed_before_evaluation_not_data_selected"}
+            for item in frozen_thresholds
+        ],
+        "preparation_contract": {
+            "p1_module_sha256": sha256_file(p1_path),
+            "p2_module_sha256": sha256_file(p2_path),
+            "p2_open_acquisition_manifest_sha256": EXPECTED_P2_OPEN_ACQUISITION_MANIFEST_SHA256,
+            "p2_pyannote_acquisition_manifest_sha256": EXPECTED_P2_PYANNOTE_ACQUISITION_MANIFEST_SHA256,
+            "pcm_channels": 1, "pcm_sample_rate_hz": 16_000,
+            "pcm_sample_width_bytes": 2, "pcm_compression": "NONE",
+            "channel_policy": {
+                **dict(calibration_authority["preparation_contract"]["channel_policy"]),
+                "authority_binding": "terminal_evaluation_authority_sha256",
+            },
+            "no_fallback_method": True,
+        },
+        "window_policy": dict(calibration_authority["window_policy"]),
+        "score_aggregation_policy": {
+            "trial_score": "raw_cosine_against_fixed_enrollment_centroid",
+            "window_assignment": (
+                "highest_profile_score_if_at_or_above_frozen_threshold_and_"
+                "uniquely_top_with_fixed_zero_margin_otherwise_abstain"
+            ),
+            "known_person_abstention_denominator": "known_person_probe_windows_only",
+            "label_resolution": (
+                "at_least_one_nonabstained_window_and_all_nonabstained_windows_"
+                "resolve_to_same_profile_person_otherwise_unresolved"
+            ),
+            "ties_abstain_before_tie_break": True,
+            "same_timestamp_bounds_across_score_methods": True,
+            "no_score_or_threshold_normalization_change": True,
+        },
+        "label_grouping_policy": {
+            "unit": "unordered_distinct_speaker_label_pair_within_conversation",
+            "eligible_gold": "person_outcome_with_opaque_subject_id_only",
+            "true_pair": "unordered_pair_expanded_from_operator_gold_same_person_label_groups",
+            "predicted_pair": "both_labels_accept_the_same_profile_person_ref_id",
+            "mixed_or_unknown_gold": "excluded_before_scoring",
+            "precision": "true_predicted_pairs_divided_by_predicted_pairs",
+            "recall": "true_predicted_pairs_divided_by_true_pairs",
+            "missing_denominator": "status_not_run_and_numeric_value_null",
+            "missing_precision_or_recall_denominator": "global_minimum_evidence_stop",
+        },
+        "evaluation_metric_policy": {
+            "trial_metrics": dict(calibration_authority["metric_policy"]),
+            "thresholds_and_temperatures_are_frozen": True,
+            "abstention_rate": "abstained_known_person_windows_divided_by_known_person_windows",
+            "label_unresolved_rate": "unresolved_eligible_labels_divided_by_eligible_labels",
+            "candidate_recall": (
+                "known_person_windows_with_correct_profile_top_scoring_divided_by_"
+                "known_person_windows"
+            ),
+            "candidate_margin": "top_profile_score_minus_second_highest_profile_score",
+            "attempt_accounting": "attempted_success_failed_blocked_reported_separately",
+            "eer_diagnostic": (
+                "frozen_candidate_threshold_and_tie_method_diagnostic_only_"
+                "cannot_change_operational_threshold"
+            ),
+            "enhancement_safety_metrics": [
+                "false_acceptance_rate", "open_set_rejection_rate",
+                "label_group_precision",
+            ],
+            "enhancement_has_no_safety_metric_regression": (
+                "far_not_higher_and_open_set_rejection_and_label_group_precision_"
+                "not_lower_than_same_model_no_enhancement_with_zero_tolerance"
+            ),
+            "byte_identical_method_outputs": (
+                "identical_metrics_and_one_acoustic_evidence_equivalence_class"
+            ),
+            "all_declared_condition_slices_reported": True,
+            "conversation_clustered_non_independent": True,
+        },
+        "minimum_evidence_policy": {
+            **dict(terminal_policy["minimum_evidence"]),
+            "applies_per_model_method_unit": True,
+            "missing_aggregate_decision_denominator": "global_stop",
+            "missing_slice_denominator": "null_not_run",
+            "incomplete_cartesian_or_failed_or_blocked_cell": "global_stop",
+            "nonfinite_score_or_required_metric": "global_stop",
+        },
+        "terminal_resolution_policy": {
+            "unit_precedence": ["stop", "reject", "select", "refine"],
+            "global_integrity_or_minimum_evidence_failure": "stop",
+            "any_terminal_policy_stop_if_condition_or_any_unit_stop": "global_stop_before_candidate_reduction",
+            "global_candidate_resolution": (
+                "select_best_selectable_else_refine_best_refinable_else_reject_when_all_units_reject"
+            ),
+            "winner_tie_break": [
+                "lower_false_acceptance_rate", "lower_abstention_rate",
+                "lower_false_rejection_rate", "simpler_runtime",
+                "lexicographic_candidate_id",
+            ],
+            "simpler_runtime_order": ["no_enhancement", "rnnoise", "deepfilternet"],
+            "simpler_model_runtime_order": [
+                "wespeaker_resnet34", "wespeaker_campplus",
+                "speechbrain_ecapa_tdnn",
+            ],
+            "runtime_cross_product_order": "method_rank_then_model_rank",
+            "evaluation_may_not_change_policy_or_threshold": True,
+        },
+        "will_prepare_evaluation_audio": True, "will_read_evaluation_gold": True,
+        "will_run_evaluation_trials": True, "will_make_terminal_decision": True,
+        "will_select_or_change_thresholds": False,
+        "will_change_temperatures_features_or_window_rules": False,
+        "will_mutate_profiles_or_references": False,
+        "will_enable_default_integration": False,
+        "will_automatically_confirm_identity": False,
+        "will_run_historical_reprocessing": False,
+        "will_create_or_send_prompts": False,
+        "will_change_terminal_policy_after_reveal": False,
+        "will_perform_external_write": False,
+        "contains_biometric_scores": False, "contains_raw_audio": False,
+        "contains_transcript_text": False, "contains_names_or_emails": False,
+        "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False,
+    }
+    if _contains_forbidden_private_key(authority):
+        raise AcousticVerificationError("Evaluation authority contains forbidden data.")
+    return authority
+
+
+def build_evaluation_apply_authority(
+    calibration_application_sha256: str, *, runtime_root: Path,
+    p3_runtime_root: Path, split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    terminal_policy_path: Path = DEFAULT_TERMINAL_DECISION_POLICY,
+) -> dict[str, Any]:
+    """Create the exact terminal-evaluation authority before split reveal."""
+    root = runtime_root.expanduser().absolute()
+    calibration = replay_calibration_thresholds(
+        calibration_application_sha256, runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    calibration_authority = replay_calibration_apply_authority(
+        str(calibration["authority_sha256"]), runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+        split_policy_path=split_policy_path,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    split_metadata = _evaluation_split_metadata_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    terminal_policy = _terminal_decision_policy(terminal_policy_path)
+    directory = root / "evaluation-authorities"
+    ensure_private_tree(root, directory)
+    matches = []
+    for path in sorted(directory.glob("*.json")):
+        require_private_file(path, root)
+        value = read_private_object(path)
+        if value.get("calibration_application_sha256") != calibration_application_sha256:
+            continue
+        expected = _evaluation_apply_authority_payload(
+            calibration_application=calibration,
+            calibration_application_sha256=calibration_application_sha256,
+            calibration_authority=calibration_authority,
+            split_metadata=split_metadata, terminal_policy=terminal_policy,
+            authorized_at=str(value.get("authorized_at") or ""),
+        )
+        if value != expected or canonical_artifact_hash(value) != path.stem:
+            raise AcousticVerificationError("Evaluation authority is invalid.")
+        matches.append((path, value))
+    if len(matches) > 1:
+        raise AcousticVerificationError("Multiple evaluation authorities exist.")
+    if matches:
+        path, authority = matches[0]
+    else:
+        authority = _evaluation_apply_authority_payload(
+            calibration_application=calibration,
+            calibration_application_sha256=calibration_application_sha256,
+            calibration_authority=calibration_authority,
+            split_metadata=split_metadata, terminal_policy=terminal_policy,
+            authorized_at=utc_now(),
+        )
+        path = directory / f"{canonical_artifact_hash(authority)}.json"
+        write_immutable_private_json(path, authority)
+    return {**authority, "authority_sha256": path.stem,
+            "private_authority_path": str(path)}
+
+
+def replay_evaluation_apply_authority(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    terminal_policy_path: Path = DEFAULT_TERMINAL_DECISION_POLICY,
+) -> dict[str, Any]:
+    """Replay terminal-evaluation authority without opening evaluation rows."""
+    if not SHA256_RE.fullmatch(str(authority_sha256)):
+        raise AcousticVerificationError("Evaluation authority hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "evaluation-authorities" / f"{authority_sha256}.json"
+    require_private_file(path, root)
+    authority = read_private_object(path)
+    calibration_sha = str(authority.get("calibration_application_sha256") or "")
+    calibration = replay_calibration_thresholds(
+        calibration_sha, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    calibration_authority = replay_calibration_apply_authority(
+        str(calibration["authority_sha256"]), runtime_root=root,
+        p3_runtime_root=p3_runtime_root, split_policy_path=split_policy_path,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    expected = _evaluation_apply_authority_payload(
+        calibration_application=calibration,
+        calibration_application_sha256=calibration_sha,
+        calibration_authority=calibration_authority,
+        split_metadata=_evaluation_split_metadata_authority(
+            split_policy_path, parent_corpus_manifest_path
+        ),
+        terminal_policy=_terminal_decision_policy(terminal_policy_path),
+        authorized_at=str(authority.get("authorized_at") or ""),
+    )
+    if authority != expected or canonical_artifact_hash(authority) != authority_sha256:
+        raise AcousticVerificationError("Evaluation authority replay is invalid.")
+    return {**authority, "authority_sha256": authority_sha256,
+            "private_authority_path": str(path)}
+
+
+def _evaluation_records_after_authority(
+    authority: Mapping[str, Any], *, parent_corpus_manifest_path: Path,
+) -> list[dict[str, Any]]:
+    if authority.get("intended_split") != "evaluation":
+        raise AcousticVerificationError("Evaluation split authority is invalid.")
+    parent_path = parent_corpus_manifest_path.expanduser().absolute()
+    require_private_file(parent_path, parent_path.parent)
+    if sha256_file(parent_path) != authority.get("parent_corpus_manifest_sha256"):
+        raise AcousticVerificationError("Evaluation parent manifest drifted.")
+    parent = read_private_object(parent_path)
+    recordings = parent.get("recordings")
+    if not isinstance(recordings, list):
+        raise AcousticVerificationError("Evaluation parent records are invalid.")
+    by_split = {
+        split: [record for record in recordings
+                if isinstance(record, Mapping) and record.get("split") == split]
+        for split in ("development", "calibration", "evaluation")
+    }
+    selected = by_split["evaluation"]
+    if (
+        len(selected) != authority.get("evaluation_recording_count")
+        or canonical_artifact_hash(selected) != authority.get("evaluation_record_set_sha256")
+        or canonical_artifact_hash(sorted(str(item.get("conversation_id") or "") for item in selected))
+        != authority.get("evaluation_conversation_set_sha256")
+    ):
+        raise AcousticVerificationError("Evaluation split membership drifted.")
+    for key in ("recording_id", "conversation_id"):
+        sets = [{str(item.get(key) or "") for item in by_split[split]}
+                for split in ("development", "calibration", "evaluation")]
+        if any(sets[left] & sets[right] for left in range(3) for right in range(left + 1, 3)):
+            raise AcousticVerificationError(f"Evaluation {key} overlaps another split.")
+    source_sets = [
+        {str((item.get("source_blob") or {}).get("sha256") or "")
+         for item in by_split[split] if isinstance(item.get("source_blob"), Mapping)}
+        for split in ("development", "calibration", "evaluation")
+    ]
+    if any(source_sets[left] & source_sets[right]
+           for left in range(3) for right in range(left + 1, 3)):
+        raise AcousticVerificationError("Evaluation source content overlaps another split.")
+    validated = []
+    for value in selected:
+        record = dict(value)
+        source = record.get("source_blob")
+        lineage = record.get("transcript_lineage")
+        gold = record.get("operator_gold")
+        if (not isinstance(source, Mapping) or not isinstance(lineage, Mapping)
+                or not isinstance(gold, Mapping)
+                or not isinstance(gold.get("speaker_truth"), list)
+                or not isinstance(gold.get("same_person_label_groups"), list)):
+            raise AcousticVerificationError("Evaluation record evidence is invalid.")
+        source_path = Path(str(source.get("stored_path") or ""))
+        transcript_path = Path(str(lineage.get("current_artifact_path") or ""))
+        require_private_file(source_path, source_path.parent)
+        require_private_file(transcript_path, transcript_path.parent)
+        if (sha256_file(source_path) != source.get("sha256")
+                or source_path.stat().st_size != source.get("bytes")
+                or sha256_file(transcript_path) != lineage.get("current_artifact_sha256")):
+            raise AcousticVerificationError("Evaluation source evidence drifted.")
+        validated.append(record)
+    return validated
+
+
+def reveal_evaluation_split(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Reveal exact evaluation metadata and opaque gold after authority."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_evaluation_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    records = _evaluation_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    public_records = []
+    for record in records:
+        source, lineage, gold = (
+            record["source_blob"], record["transcript_lineage"], record["operator_gold"]
+        )
+        public_records.append({
+            "recording_id": record["recording_id"],
+            "conversation_id": record["conversation_id"],
+            "source_blob_id": source["blob_id"], "source_sha256": source["sha256"],
+            "source_bytes": source["bytes"],
+            "transcript_artifact_sha256": lineage["current_artifact_sha256"],
+            "gold_id": gold["gold_id"],
+            "speaker_truth": [dict(item) for item in gold["speaker_truth"]],
+            "same_person_label_groups": [
+                dict(item) if isinstance(item, Mapping) else list(item)
+                for item in gold["same_person_label_groups"]
+            ],
+            "conditions": dict(record.get("conditions") or {}),
+        })
+    receipt = {
+        "schema_version": EVALUATION_SPLIT_REVEAL_SCHEMA,
+        "status": "success", "reason_code": None,
+        "authority_sha256": authority_sha256, "intended_split": "evaluation",
+        "record_set_sha256": authority["evaluation_record_set_sha256"],
+        "conversation_set_sha256": authority["evaluation_conversation_set_sha256"],
+        "record_count": len(public_records),
+        "conversation_count": len({item["conversation_id"] for item in public_records}),
+        "records": public_records, "development_disjoint": True,
+        "calibration_disjoint": True, "source_content_disjoint": True,
+        "contains_opaque_gold_labels": True, "contains_raw_audio": False,
+        "contains_transcript_text": False, "contains_names_or_emails": False,
+        "contains_embeddings_or_vectors": False,
+        "will_perform_external_write": False, "revealed_at": utc_now(),
+    }
+    receipt_sha = _calibration_stage_identity(receipt, "revealed_at")
+    path = root / "evaluation-stages" / authority_sha256 / "split-reveal.json"
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("revealed_at",))
+    return {**stored, "split_reveal_sha256": receipt_sha,
+            "private_split_reveal_path": str(path)}
+
+
+def prepare_evaluation_split(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Run exact P1/P2 preparation for all authorized evaluation records."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_evaluation_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    reveal = reveal_evaluation_split(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
+        parent_corpus_manifest_path=parent_corpus_manifest_path,
+    )
+    path = root / "evaluation-stages" / authority_sha256 / "preparation.json"
+    if path.exists():
+        require_private_file(path, root)
+        existing = read_private_object(path)
+        existing_sha = _calibration_stage_identity(existing, "prepared_at")
+        if (existing.get("status") != "success"
+                or existing.get("authority_sha256") != authority_sha256
+                or existing.get("split_reveal_sha256") != reveal["split_reveal_sha256"]):
+            raise AcousticVerificationError("Evaluation preparation conflicts.")
+        return {**existing, "preparation_sha256": existing_sha,
+                "private_preparation_path": str(path)}
+    records = _evaluation_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    p1_root = root / "evaluation-preparation" / authority_sha256 / "p1"
+    p2_root = root / "evaluation-preparation" / authority_sha256 / "p2"
+    units = []
+    for record in records:
+        source = record["source_blob"]
+        source_path = Path(str(source["stored_path"]))
+        source_sha = str(source["sha256"])
+        source_blob_id = "source-" + source_sha[:24]
+        p1_plan = audio_derivatives.dry_run(
+            source_path, runtime_root=p1_root, source_blob_id=source_blob_id,
+            expected_source_sha256=source_sha,
+            channel_policy="stereo_average_to_mono",
+            channel_policy_authority_sha256=authority_sha256,
+        )
+        p1_applied = audio_derivatives.apply_derivative(
+            source_path, runtime_root=p1_root,
+            approval_token=audio_derivatives.APPLY_TOKEN,
+            source_blob_id=source_blob_id, expected_source_sha256=source_sha,
+            channel_policy="stereo_average_to_mono",
+            channel_policy_authority_sha256=authority_sha256,
+        )
+        p1_replay = audio_derivatives.replay_derivative(
+            p1_plan["run_id"], runtime_root=p1_root
+        )
+        p2_plan = speech_preparation.dry_run(
+            p1_plan["run_id"], p1_runtime_root=p1_root, runtime_root=p2_root,
+            intended_split="evaluation",
+            split_access_authority_sha256=authority_sha256,
+        )
+        p2_applied = speech_preparation.apply_comparison(
+            p1_plan["run_id"], p1_runtime_root=p1_root, runtime_root=p2_root,
+            intended_split="evaluation",
+            split_access_authority_sha256=authority_sha256,
+        )
+        p2_replay = speech_preparation.replay_comparison(
+            p2_plan["run_id"], runtime_root=p2_root
+        )
+        methods = []
+        for method in p2_applied["comparison"].get("method_results") or []:
+            if not isinstance(method, Mapping) or method.get("status") != "success":
+                raise AcousticVerificationError("Evaluation preparation method failed.")
+            output_path = Path(str(method.get("output_path") or ""))
+            require_private_file(output_path, output_path.parent)
+            if sha256_file(output_path) != method.get("output_sha256"):
+                raise AcousticVerificationError("Evaluation preparation output drifted.")
+            methods.append({
+                "method_id": method["method_id"],
+                "method_result_sha256": canonical_artifact_hash(dict(method)),
+                "output_path": str(output_path),
+                "output_sha256": method["output_sha256"],
+                "output_equivalence_class_sha256": method["output_sha256"],
+                "speech_region_count": len(method.get("speech_regions") or []),
+                "overlap_region_count": len(method.get("overlap_regions") or []),
+                "speaker_change_region_count": len(method.get("speaker_change_regions") or []),
+            })
+        units.append({
+            "recording_id": record["recording_id"],
+            "conversation_id": record["conversation_id"],
+            "source_sha256": source_sha, "p1_run_id": p1_plan["run_id"],
+            "p1_manifest_sha256": p1_applied["manifest_sha256"],
+            "p1_replay_receipt_sha256": sha256_file(Path(str(p1_replay["replay_receipt_path"]))),
+            "p2_run_id": p2_plan["run_id"],
+            "p2_comparison_path": p2_applied["comparison_path"],
+            "p2_comparison_sha256": sha256_file(Path(str(p2_applied["comparison_path"]))),
+            "p2_replay_receipt_sha256": sha256_file(Path(str(p2_replay["replay_path"]))),
+            "methods": methods,
+        })
+    receipt = {
+        "schema_version": EVALUATION_PREPARATION_SCHEMA,
+        "status": "success", "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "split_reveal_sha256": reveal["split_reveal_sha256"],
+        "intended_split": "evaluation", "record_count": len(units),
+        "method_attempts": len(units) * len(METHOD_IDS),
+        "method_successes": sum(len(unit["methods"]) for unit in units),
+        "units": units, "did_read_evaluation_audio": True,
+        "did_run_p1_p2": True, "did_run_biometrics": False,
+        "did_select_or_change_thresholds": False,
+        "did_perform_external_write": False, "contains_raw_audio": False,
+        "contains_transcript_text": False, "contains_names_or_emails": False,
+        "contains_embeddings_or_vectors": False, "prepared_at": utc_now(),
+    }
+    receipt_sha = _calibration_stage_identity(receipt, "prepared_at")
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("prepared_at",))
+    return {**stored, "preparation_sha256": receipt_sha,
+            "private_preparation_path": str(path)}
+
+
+def _evaluation_terminal_stop_payload(
+    *, authority: Mapping[str, Any], authority_sha256: str, stopped_at: str,
+) -> dict[str, Any]:
+    expected_p2 = str(authority["preparation_contract"]["p2_module_sha256"])
+    return {
+        "schema_version": EVALUATION_APPLICATION_SCHEMA,
+        "status": "stopped",
+        "terminal_decision": "stop",
+        "reason_codes": [
+            "split_or_hash_integrity_failure",
+            "required_candidate_or_preparation_path_not_run",
+            "authority_bound_p2_lacks_evaluation_split_seam",
+        ],
+        "authority_sha256": authority_sha256,
+        "split_reveal_sha256": EXPECTED_EVALUATION_SPLIT_REVEAL_SHA256,
+        "terminal_decision_policy_sha256": authority[
+            "terminal_decision_policy_sha256"
+        ],
+        "expected_authority_bound_p2_module_sha256": expected_p2,
+        "observed_incompatible_attempt_p2_module_sha256": (
+            OBSERVED_INCOMPATIBLE_EVALUATION_P2_MODULE_SHA256
+        ),
+        "restored_current_p2_module_sha256": expected_p2,
+        "integrity_failure": (
+            "evaluation_split_was_revealed_before_the_required_p2_evaluation_"
+            "split_seam_was_present_in_the_authority_bound_module"
+        ),
+        "preparation_receipt_count": 0,
+        "window_selection_receipt_count": 0,
+        "score_matrix_receipt_count": 0,
+        "logical_trial_count": 0,
+        "audio_preparation_execution_count": 0,
+        "model_execution_count": 0,
+        "threshold_or_temperature_change_count": 0,
+        "did_read_evaluation_split_metadata_and_opaque_gold": True,
+        "did_read_evaluation_audio": False,
+        "did_run_p1_p2": False,
+        "did_select_windows": False,
+        "did_run_biometrics": False,
+        "did_compute_evaluation_metrics": False,
+        "did_change_thresholds_temperatures_profiles_or_policy": False,
+        "did_make_model_or_method_selection": False,
+        "did_enable_default_integration": False,
+        "did_perform_external_write": False,
+        "evaluation_generation_state": (
+            "terminally_stopped_revealed_not_reusable_for_terminal_selection"
+        ),
+        "required_follow_up": "new_sealed_evaluation_cohort_and_authority_generation",
+        "current_split_future_use": "nonblind_diagnostic_or_refinement_only",
+        "contains_biometric_scores": False,
+        "contains_frozen_thresholds": False,
+        "contains_opaque_gold_labels": False,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_names_or_emails": False,
+        "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False,
+        "stopped_at": stopped_at,
+    }
+
+
+def record_evaluation_terminal_stop(
+    authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Persist the fail-closed terminal decision without reopening evaluation."""
+    root = runtime_root.expanduser().absolute()
+    authority = replay_evaluation_apply_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    split_path = root / "evaluation-stages" / authority_sha256 / "split-reveal.json"
+    require_private_file(split_path, root)
+    for forbidden_stage in ("preparation.json", "window-selection.json", "score-matrix.json"):
+        if (split_path.parent / forbidden_stage).exists():
+            raise AcousticVerificationError(
+                "Evaluation stop evidence conflicts with an executed later stage."
+            )
+    if sha256_file(Path(speech_preparation.__file__).resolve()) != authority[
+        "preparation_contract"
+    ]["p2_module_sha256"]:
+        raise AcousticVerificationError(
+            "Evaluation stop requires the authority-bound P2 module restored."
+        )
+    directory = root / "evaluation-applications"
+    ensure_private_tree(root, directory)
+    matches = []
+    for path in sorted(directory.glob("*.json")):
+        require_private_file(path, root)
+        value = read_private_object(path)
+        if value.get("authority_sha256") != authority_sha256:
+            continue
+        expected = _evaluation_terminal_stop_payload(
+            authority=authority, authority_sha256=authority_sha256,
+            stopped_at=str(value.get("stopped_at") or ""),
+        )
+        if value != expected or _calibration_stage_identity(value, "stopped_at") != path.stem:
+            raise AcousticVerificationError("Evaluation stop receipt is invalid.")
+        matches.append((path, value))
+    if len(matches) > 1:
+        raise AcousticVerificationError("Multiple evaluation terminal decisions exist.")
+    if matches:
+        path, receipt = matches[0]
+    else:
+        receipt = _evaluation_terminal_stop_payload(
+            authority=authority, authority_sha256=authority_sha256,
+            stopped_at=utc_now(),
+        )
+        receipt_sha = _calibration_stage_identity(receipt, "stopped_at")
+        path = directory / f"{receipt_sha}.json"
+        write_immutable_private_json(path, receipt, volatile_fields=("stopped_at",))
+    return {**receipt, "application_sha256": path.stem,
+            "private_application_path": str(path)}
+
+
+def replay_evaluation_terminal_stop(
+    application_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Replay the stop without reading the split receipt body or evaluation."""
+    if not SHA256_RE.fullmatch(str(application_sha256)):
+        raise AcousticVerificationError("Evaluation stop hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "evaluation-applications" / f"{application_sha256}.json"
+    require_private_file(path, root)
+    receipt = read_private_object(path)
+    authority_sha = str(receipt.get("authority_sha256") or "")
+    authority = replay_evaluation_apply_authority(
+        authority_sha, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    split_path = root / "evaluation-stages" / authority_sha / "split-reveal.json"
+    require_private_file(split_path, root)
+    expected = _evaluation_terminal_stop_payload(
+        authority=authority, authority_sha256=authority_sha,
+        stopped_at=str(receipt.get("stopped_at") or ""),
+    )
+    if (receipt != expected
+            or _calibration_stage_identity(receipt, "stopped_at") != application_sha256):
+        raise AcousticVerificationError("Evaluation stop replay is invalid.")
+    return {**receipt, "application_sha256": application_sha256,
+            "private_application_path": str(path),
+            "replay_mode": "metadata_only_without_evaluation_or_split_body_read"}
 
 
 def materialize_profile(

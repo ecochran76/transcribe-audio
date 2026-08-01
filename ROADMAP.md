@@ -444,9 +444,13 @@ waveform/model/profile combinations. They are explicitly non-held-out and do
 not support accuracy, threshold, or model-selection claims. P4D2 held-out
 calibration is complete: 22 pre-score-frozen windows produced 396 trials and
 nine model-by-method thresholds with descriptive error, calibration, margin,
-open-set, and condition-slice evidence. Evaluation remains sealed, so no
-terminal model/method selection, operational accuracy claim, default
-integration, or historical reprocessing workflow exists yet. Plan 0036
+open-set, and condition-slice evidence. P4E generation 1 was revealed under an
+independently reviewed authority but terminally stopped before audio/model
+execution because the bound P2 module lacked an evaluation-split seam. The
+revealed cohort cannot be reused for terminal selection; a new sealed cohort
+and authority generation are required. No terminal model/method selection,
+operational accuracy claim, default integration, or historical reprocessing
+workflow exists yet. Plan 0036
 remains sealed and paused at five of ten current gold reviews.
 
 Plans:

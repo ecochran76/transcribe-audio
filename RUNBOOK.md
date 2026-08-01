@@ -2,6 +2,51 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 265 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 10
+
+Packet: P4E | Terminal evaluation generation 1
+
+State transition: `OPEN/Plan-0037-P4E -> CLOSED/STOP/Plan-0037-P4E`.
+
+- Corrected terminal-evaluation authority
+  `9cb2ae3700846f8137f0c48de4d3aa2133009738b5e8d591f469cb5e8edef485`
+  passed independent pre-reveal review. It binds the complete P4D2 chain,
+  terminal policy, nine frozen thresholds and zero margins, per-unit/global
+  decision semantics, exact runtime order, privacy denials, and five-record
+  evaluation split.
+- Reveal `99c28df0d50610523845684878cdeea05428451f3bc63af855011a6b40efa0d9`
+  confirmed 5/5 disjoint recordings/conversations, 13 eligible opaque person
+  labels, and one same-person label pair.
+- The first preparation call failed before audio access because the frozen P2
+  module did not support `intended_split=evaluation`. The attempted seam changed
+  module SHA from authority-bound `467627bc...` to `96946fcc...`; it was
+  immediately reverted byte-for-byte. Calibration and P4E authorities replay.
+- Per terminal policy and independent review, no post-reveal replacement
+  authority, wrapper, fallback, or calibration mislabel can rehabilitate this
+  generation. Terminal STOP application
+  `3ee5593c52a9193e056f99002fadd86c10b29bf1f84461b196132fc3d1222c41`
+  records integrity failure and the required preparation path not run.
+- Exact execution counts: 0 preparation receipts, 0 selected windows, 0 audio
+  preparation, 0 model executions, 0 trials/scores, and 0 evaluation metrics.
+  Replay and repeat are metadata-only, do not reopen the split receipt body,
+  and return the same decision hash.
+- Validation: 51 focused verification tests and 542 full repository tests
+  passed; compilation and diff checks passed. Independent read-only audit
+  returned `PASS` after exact receipt reconstruction, guarded no-split-body
+  replay, stage-tree checks, and idempotent repeat.
+
+Next:
+
+- Design a successor P4E generation with the evaluation seam present before
+  authority freeze and a genuinely new sealed conversation-disjoint cohort.
+- Treat this revealed cohort only as nonblind diagnostic/refinement evidence.
+- Do not select a model/method, integrate defaults, or resume historical
+  reprocessing from this stopped generation.
+
 ## Turn 264 | 2026-07-31
 
 Plan:

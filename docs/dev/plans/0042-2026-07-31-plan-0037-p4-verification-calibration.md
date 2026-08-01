@@ -1,10 +1,10 @@
 # Plan 0042 | Plan 0037 P4 verification and calibration
 
-State: OPEN
+State: CLOSED — terminal STOP
 
 Lane: P10
 
-Plan Version: 9
+Plan Version: 10
 
 Parent: Plan 0037 P4
 
@@ -135,9 +135,10 @@ registration/promotion/invalidation; and staged, active, superseded, withdrawn,
 and deleted lifecycle replay. P4C now has two exact production P3 reference
 generations and six active real model-specific profiles from the authorized
 development windows. P4D development diagnostics and P4D2 held-out calibration
-are now complete. Nine model-by-preparation thresholds are frozen from the
-calibration split; evaluation remains sealed and no terminal model/method
-selection or default integration has occurred.
+are complete. Nine model-by-preparation thresholds are frozen. P4E evaluation
+generation 1 was authority-revealed but stopped before audio preparation or
+model execution because the authority-bound P2 module lacked an evaluation-
+split seam. No terminal model/method selection or default integration occurred.
 
 Graphiti was healthy at opening. Its only current P4-specific recall is the
 source-backed P2 closeout directing Plan 0037 to the next bounded
@@ -490,3 +491,47 @@ State: CLOSED; P4E evaluation remains sealed.
   returned `PASS` after recomputing all stage identities, exact trial coverage,
   threshold/metric replay, condition/open-set reporting, permissions, and the
   evaluation seal.
+
+## P4E terminal-evaluation checkpoint
+
+State: CLOSED with terminal `STOP`; this revealed evaluation generation is not
+reusable for terminal selection.
+
+- Pre-reveal authority draft `5841392d...` was rejected and preserved outside
+  the active authority glob after review found ambiguous channel binding, stop
+  reduction, and runtime ordering. Corrected authority SHA-256
+  `9cb2ae3700846f8137f0c48de4d3aa2133009738b5e8d591f469cb5e8edef485`
+  bound all nine thresholds, fixed zero margins, exact grouping/minimum-
+  evidence/safety rules, method-first total runtime order, and global stop
+  precedence. Independent review returned `READY_TO_REVEAL`.
+- Split reveal SHA-256
+  `99c28df0d50610523845684878cdeea05428451f3bc63af855011a6b40efa0d9`
+  opened exactly 5 recordings/5 conversations and confirmed disjoint record,
+  conversation, and source-content sets. It exposed 13 eligible opaque person
+  labels and one gold same-person label pair.
+- The first preparation attempt failed before audio access: adding the missing
+  P2 `evaluation` seam changed the authority-bound P2 module SHA-256 from
+  `467627bc3452863c996b81e4aada0b5d62d0b7350064c5adc6132666b8410bdc`
+  to observed incompatible SHA-256
+  `96946fcc39cbc77928bd2df5f3944b93fec6359cbcb741859d34b0a26f6e1f22`.
+  The edit was reverted byte-for-byte, restoring authority replay. No wrapper,
+  fallback, calibration mislabel, or post-reveal replacement authority was
+  used.
+- Terminal STOP receipt SHA-256
+  `3ee5593c52a9193e056f99002fadd86c10b29bf1f84461b196132fc3d1222c41`
+  records `split_or_hash_integrity_failure`,
+  `required_candidate_or_preparation_path_not_run`, and
+  `authority_bound_p2_lacks_evaluation_split_seam`. Counts are exactly zero for
+  preparation receipts, selected windows, audio preparation, model execution,
+  trials, scores, and evaluation metrics.
+- Stop replay is metadata-only and does not open the split receipt body or any
+  evaluation source. Repeat apply returns the same decision hash. This cohort
+  may be used only as explicitly nonblind diagnostic/refinement evidence; a
+  future terminal run requires a genuinely new sealed cohort and authority
+  generation.
+- No model/method was selected, no threshold/profile/policy changed, and no
+  default integration, historical reprocessing, prompt, or external write
+  occurred. Validation: 51 focused verification tests and 542 full repository
+  tests passed; compilation and `git diff --check` passed. Independent
+  read-only audit returned `PASS` after exact receipt reconstruction, guarded
+  no-split-body replay, filesystem stage checks, and idempotent repeat.

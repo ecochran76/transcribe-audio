@@ -2334,3 +2334,216 @@ def test_calibration_stage_hash_ignores_only_the_declared_timestamp() -> None:
     assert verification._calibration_stage_identity(
         baseline, "applied_at"
     ) != verification._calibration_stage_identity(forged, "applied_at")
+
+
+def _evaluation_authority_inputs() -> tuple[dict, dict, dict, dict]:
+    methods = ["no_enhancement", "deepfilternet", "rnnoise"]
+    models = [
+        "speechbrain_ecapa_tdnn", "wespeaker_campplus", "wespeaker_resnet34"
+    ]
+    thresholds = [
+        {
+            "candidate_id": model,
+            "method_id": method,
+            "threshold": 0.5,
+            "temperature": 0.05,
+            "status": "success",
+        }
+        for model in models
+        for method in methods
+    ]
+    profiles = [
+        {
+            "profile_id": f"profile-{model}-{person}",
+            "person_ref_id": f"person-{person}",
+            "candidate_id": model,
+            "model_revision": str(index + 1) * 40,
+            "profile_manifest_sha256": str(index + 2) * 64,
+            "descendant_id": f"descendant-{model}-{person}",
+        }
+        for index, model in enumerate(models)
+        for person in ("a", "b")
+    ]
+    calibration = {
+        "status": "success",
+        "intended_split": "calibration",
+        "did_select_and_freeze_thresholds": True,
+        "did_read_evaluation": False,
+        "threshold_unit_count": 9,
+        "permits_generalization_claim": False,
+        "authority_sha256": "a" * 64,
+        "score_matrix_sha256": "b" * 64,
+        "thresholds": thresholds,
+    }
+    calibration_authority = {
+        "development_application_sha256": "c" * 64,
+        "development_authority_sha256": "d" * 64,
+        "enrollment_application_sha256": "e" * 64,
+        "profiles": profiles,
+        "preparation_methods": list(verification.METHOD_IDS),
+        "score_methods": methods,
+        "preparation_contract": {
+            "channel_policy": {
+                "allowed_source_channels": [1, 2],
+                "mono": "identity",
+                "stereo": "arithmetic_average_0.5_left_plus_0.5_right",
+                "output_channels": 1,
+                "authority_binding": "this_calibration_authority_sha256",
+                "no_silent_fallback": True,
+            }
+        },
+        "window_policy": {
+            "minimum_seconds": 0.75,
+            "maximum_seconds": 15.0,
+            "maximum_windows_per_speaker_per_conversation": 3,
+        },
+        "metric_policy": {
+            "condition_slices": [
+                "channel", "device", "noise", "overlap",
+                "telephone_bandwidth", "usable_duration_band",
+            ]
+        },
+    }
+    split = {
+        "split_access_policy_sha256": "f" * 64,
+        "parent_corpus_manifest_sha256": "1" * 64,
+        "evaluation_record_set_sha256": "2" * 64,
+        "evaluation_conversation_set_sha256": "3" * 64,
+        "evaluation_recording_count": 5,
+        "evaluation_conversation_count": 5,
+    }
+    terminal = {
+        "schema_version": "transcribe-audio.verification-terminal-decision-policy.v1",
+        "precedence": ["stop", "reject", "select", "refine"],
+        "minimum_evidence": {
+            "same_person_trials": 20,
+            "different_person_trials": 100,
+            "open_set_trials": 20,
+            "eligible_evaluation_recordings": 5,
+            "all_declared_condition_slices_reported": True,
+        },
+    }
+    return calibration, calibration_authority, split, terminal
+
+
+def test_evaluation_authority_is_pre_reveal_idempotent_and_semantic(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calibration, calibration_authority, split, terminal = (
+        _evaluation_authority_inputs()
+    )
+    monkeypatch.setattr(
+        verification, "replay_calibration_thresholds",
+        lambda *args, **kwargs: calibration,
+    )
+    monkeypatch.setattr(
+        verification, "replay_calibration_apply_authority",
+        lambda *args, **kwargs: calibration_authority,
+    )
+    monkeypatch.setattr(
+        verification, "_evaluation_split_metadata_authority",
+        lambda *args, **kwargs: split,
+    )
+    monkeypatch.setattr(
+        verification, "_terminal_decision_policy",
+        lambda *args, **kwargs: terminal,
+    )
+    monkeypatch.setattr(
+        verification,
+        "_evaluation_records_after_authority",
+        lambda *args, **kwargs: pytest.fail(
+            "evaluation rows opened before reveal"
+        ),
+    )
+    root = tmp_path / "runtime"
+    first = verification.build_evaluation_apply_authority(
+        "9" * 64, runtime_root=root, p3_runtime_root=tmp_path / "p3"
+    )
+    second = verification.build_evaluation_apply_authority(
+        "9" * 64, runtime_root=root, p3_runtime_root=tmp_path / "p3"
+    )
+    replayed = verification.replay_evaluation_apply_authority(
+        first["authority_sha256"], runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert first["authority_sha256"] == second["authority_sha256"]
+    assert replayed["authority_sha256"] == first["authority_sha256"]
+    assert Path(first["private_authority_path"]).stat().st_mode & 0o777 == 0o600
+    assert first["preparation_contract"]["channel_policy"][
+        "authority_binding"
+    ] == "terminal_evaluation_authority_sha256"
+    resolution = first["terminal_resolution_policy"]
+    assert resolution[
+        "any_terminal_policy_stop_if_condition_or_any_unit_stop"
+    ] == "global_stop_before_candidate_reduction"
+    assert resolution["runtime_cross_product_order"] == (
+        "method_rank_then_model_rank"
+    )
+    assert all(item["margin"] == 0.0 for item in first["fixed_abstention_margins"])
+
+    forged = {
+        key: value
+        for key, value in first.items()
+        if key not in {"authority_sha256", "private_authority_path"}
+    }
+    forged["will_read_evaluation_gold"] = False
+    forged_sha = verification.canonical_artifact_hash(forged)
+    forged_path = root / "evaluation-authorities" / f"{forged_sha}.json"
+    forged_path.write_text(
+        json.dumps(forged, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    forged_path.chmod(0o600)
+    with pytest.raises(AcousticVerificationError, match="replay is invalid"):
+        verification.replay_evaluation_apply_authority(
+            forged_sha, runtime_root=root, p3_runtime_root=tmp_path / "p3"
+        )
+
+
+def test_evaluation_terminal_stop_is_idempotent_without_split_body_read(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    authority_sha = "8" * 64
+    authority = {
+        "preparation_contract": {
+            "p2_module_sha256": verification.sha256_file(
+                Path(verification.speech_preparation.__file__).resolve()
+            )
+        },
+        "terminal_decision_policy_sha256": "7" * 64,
+    }
+    monkeypatch.setattr(
+        verification,
+        "replay_evaluation_apply_authority",
+        lambda *args, **kwargs: authority,
+    )
+    root = tmp_path / "runtime"
+    split_path = (
+        root / "evaluation-stages" / authority_sha / "split-reveal.json"
+    )
+    verification.ensure_private_tree(root, split_path.parent)
+    split_path.write_text("body must remain unopened\n", encoding="utf-8")
+    split_path.chmod(0o600)
+    original_reader = verification.read_private_object
+
+    def guarded_reader(path: Path) -> dict:
+        assert path.name != "split-reveal.json"
+        return original_reader(path)
+
+    monkeypatch.setattr(verification, "read_private_object", guarded_reader)
+    first = verification.record_evaluation_terminal_stop(
+        authority_sha, runtime_root=root, p3_runtime_root=tmp_path / "p3"
+    )
+    second = verification.record_evaluation_terminal_stop(
+        authority_sha, runtime_root=root, p3_runtime_root=tmp_path / "p3"
+    )
+    replayed = verification.replay_evaluation_terminal_stop(
+        first["application_sha256"], runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert first["application_sha256"] == second["application_sha256"]
+    assert replayed["terminal_decision"] == "stop"
+    assert replayed["logical_trial_count"] == 0
+    assert replayed["replay_mode"] == (
+        "metadata_only_without_evaluation_or_split_body_read"
+    )
