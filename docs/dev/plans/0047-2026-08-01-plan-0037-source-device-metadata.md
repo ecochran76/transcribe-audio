@@ -1,6 +1,6 @@
 # Plan 0047 | Plan 0037 source-embedded device metadata supplement
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -111,7 +111,7 @@ State: CLOSED; composite-consumption unit remains OPEN.
 
 ## Operator and composite amendment
 
-State: IMPLEMENTED; independent review and production apply remain OPEN.
+State: CLOSED.
 
 - The operator confirmed that cases 2 and 4 were captured through the same
   webcam microphone. The raw device label is not committed to source or
@@ -126,3 +126,9 @@ State: IMPLEMENTED; independent review and production apply remain OPEN.
   predecessor values and may not change.
 - Generation-2 binding recognizes the new manifest/replay schemas and requires
   the exact `2 / 5 / 7` partition before treating the composite as passing.
+- Independent audit and targeted re-audit returned `PASS`. All 627 repository
+  tests passed. Commits `aa368ab` and `32644df` are pushed and upstream-even.
+- The sparse operator authority and augmented composite applied and replayed
+  full-body with exact `0700` directories and `0600` files. The composite has
+  seven authoritative rows, two distinct devices, zero missing recordings,
+  no blockers, and `terminal_selection_eligible=true`.

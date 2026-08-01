@@ -1,6 +1,6 @@
 # Plan 0046 | Plan 0037 P4E2 generation-2 terminal authority
 
-State: OPEN — Units A through C closed; Unit D blocked on Plan 0045
+State: OPEN — Units A through C closed; Unit D apply/replay implementation in review
 
 Lane: P10
 
@@ -11,8 +11,9 @@ Parent: Plan 0043 P4E2-D
 Owner: primary agent
 
 Expected Write Surface: `acoustic_verification.py`,
-`acoustic_generation2_authority.py`, focused tests, the generation-2 terminal
-policy fixture, this plan, Plans 0037 and 0043, `ROADMAP.md`, and `RUNBOOK.md`;
+`acoustic_generation2_authority.py`, `acoustic_generation2_apply.py`, focused
+tests, the generation-2 terminal policy fixture, this plan, Plans 0037 and
+0043, `ROADMAP.md`, and `RUNBOOK.md`;
 private pre-reveal
 authority artifacts only under the user-scoped Plan 0037 runtime root after
 all predecessor gates pass.
@@ -167,7 +168,7 @@ State: CLOSED; Units B through D remain `not_run`.
 
 ## Unit B and Unit C close checkpoint
 
-State: CLOSED; Unit D remains `not_run` behind the Plan 0045 composite gate.
+State: CLOSED; Unit D apply remains `not_run` behind its implementation review.
 
 - The deterministic generation-2 pre-reveal preview binds the exact successor
   corpus and `3 / 2 / 2` seal, the frozen condition campaign, the full
@@ -198,3 +199,21 @@ State: CLOSED; Unit D remains `not_run` behind the Plan 0045 composite gate.
   + 5 source metadata` composite with at least two opaque devices, the Unit B
   commit is clean and pushed, and the production preview receives independent review.
   Evaluation reveal and terminal execution remain `not_run`.
+
+## Unit D pre-apply checkpoint
+
+State: IMPLEMENTED; independent apply/replay audit remains OPEN.
+
+- Plan 0047 froze and replayed the passing augmented composite with exact
+  `7 total / 2 direct operator / 5 manufacturer source metadata`, two distinct
+  opaque devices, zero missing recordings, and no condition blockers.
+- The exact production preview
+  `generation-2-pre-reveal-b83368b7bca2c5634f98c511`, content SHA-256
+  `b83368b7bca2c5634f98c511844e82d78e87a954e99468a611b23efc5c0ff169`,
+  replayed full-body at clean upstream commit
+  `32644df78dd154cf1a36004d5ceb8c362f42e0c6`. Independent review returned
+  `PASS`.
+- The new immutable reviewed-hash apply/replay seam authorizes only evaluation
+  reveal, offline preparation, and window freeze. Model execution, trial
+  scoring, terminal metrics, and decisions remain forbidden until the exact
+  post-window child authority exists and replays.
