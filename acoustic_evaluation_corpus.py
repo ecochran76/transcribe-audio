@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
 import re
 import sqlite3
 import stat
+import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -34,6 +36,20 @@ CONDITION_FIELDS = (
     "telephone_bandwidth",
     "usable_duration_band",
 )
+SUCCESSOR_CORPUS_SCHEMA_VERSION = (
+    "transcribe-audio.acoustic-evaluation-successor-corpus.v1"
+)
+SUCCESSOR_SPLIT_ALGORITHM = "chronological_rank_quota_3_2_2.v1"
+SUCCESSOR_SPLIT_QUOTAS = {
+    "development": 3,
+    "calibration": 2,
+    "evaluation": 2,
+}
+SUCCESSOR_MIN_RECORDINGS = 7
+SUCCESSOR_MIN_SUBJECTS = 5
+SUCCESSOR_MIN_RECURRENT_SUBJECTS = 2
+SUCCESSOR_MIN_SAME_PERSON_PAIRS = 4
+SUCCESSOR_PRIOR_CORPUS_COUNT = 2
 LEGACY_OPERATOR_REVIEW_METHODS = {"transcript_and_calendar"}
 
 
@@ -102,6 +118,31 @@ def _write_private_json(path: Path, payload: dict[str, Any]) -> Path:
 
 def _sha256_file(path: Path) -> str:
     return transcript_store.sha256_file(path)
+
+
+def _current_repository_authority() -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parent
+    commit_result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    status_result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if commit_result.returncode != 0 or status_result.returncode != 0:
+        raise CorpusError("Successor repository authority is unavailable.")
+    return {
+        "commit": commit_result.stdout.strip(),
+        "clean": not bool(status_result.stdout.strip()),
+        "module_sha256": _sha256_file(Path(__file__).resolve()),
+    }
 
 
 def _latest_gold_records(index: dict[str, Any]) -> list[dict[str, Any]]:
@@ -451,12 +492,255 @@ def _validate_split_integrity(candidates: list[dict[str, Any]]) -> None:
         )
 
 
+def assign_successor_splits(
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Assign the frozen seven-case successor census to chronological quotas."""
+    if len(candidates) != SUCCESSOR_MIN_RECORDINGS:
+        raise CorpusError("Successor corpus requires exactly seven recordings.")
+    ordered = sorted(
+        copy.deepcopy(candidates),
+        key=lambda item: (
+            int(item.get("chronological_rank") or 0),
+            str(item.get("document_id") or ""),
+        ),
+    )
+    ranks = [int(item.get("chronological_rank") or 0) for item in ordered]
+    if any(rank <= 0 for rank in ranks) or len(set(ranks)) != len(ranks):
+        raise CorpusError("Successor chronological ranks must be positive and unique.")
+    assignments = (
+        ("development",) * SUCCESSOR_SPLIT_QUOTAS["development"]
+        + ("calibration",) * SUCCESSOR_SPLIT_QUOTAS["calibration"]
+        + ("evaluation",) * SUCCESSOR_SPLIT_QUOTAS["evaluation"]
+    )
+    for item, split in zip(ordered, assignments, strict=True):
+        item["split"] = split
+    return ordered
+
+
+def _successor_authority(
+    candidates: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    gold_freeze_path: Path,
+    prior_corpus_paths: Iterable[Path],
+    repository_authority: dict[str, Any],
+) -> dict[str, Any]:
+    selected_gold_freeze_path = gold_freeze_path.expanduser().resolve(strict=True)
+    if stat.S_IMODE(selected_gold_freeze_path.stat().st_mode) & 0o077:
+        raise CorpusError("Successor gold freeze is not private.")
+    gold_freeze = _read_object(selected_gold_freeze_path)
+    if selected_gold_freeze_path.parent.name != "freezes":
+        raise CorpusError("Successor gold freeze path is outside its freeze directory.")
+    campaign_dir = selected_gold_freeze_path.parents[1]
+    campaign_manifest_path = campaign_dir / "manifest.json"
+    gold_index_path = campaign_dir / "gold" / "index.json"
+    authority_hashes = metadata.get("authority_hashes") or {}
+    if (
+        _sha256_file(campaign_manifest_path)
+        != authority_hashes.get("campaign_manifest_sha256")
+        or _sha256_file(gold_index_path) != authority_hashes.get("gold_index_sha256")
+    ):
+        raise CorpusError("Successor campaign or gold-index authority drifted.")
+    campaign_manifest = _read_object(campaign_manifest_path)
+    campaign_items = {
+        str(item.get("document_id") or ""): item
+        for item in campaign_manifest.get("items") or []
+        if isinstance(item, dict)
+    }
+    latest_gold = {
+        str(item.get("document_id") or ""): item
+        for item in _latest_gold_records(_read_object(gold_index_path))
+    }
+    expected_documents = [str(item["document_id"]) for item in candidates]
+    expected_gold = [str(item["operator_gold"]["gold_id"]) for item in candidates]
+    if (
+        gold_freeze.get("schema_version")
+        != "transcribe-audio.speaker-evaluation-gold-freeze.v1"
+        or gold_freeze.get("status") != "gold_batch_frozen"
+        or gold_freeze.get("prediction_visibility") != "excluded"
+        or gold_freeze.get("campaign_id") != metadata.get("campaign_id")
+        or gold_freeze.get("manifest_id") != metadata.get("manifest_id")
+        or gold_freeze.get("document_ids") != expected_documents
+        or gold_freeze.get("gold_ids") != expected_gold
+        or int(gold_freeze.get("gold_case_count") or 0) != len(candidates)
+    ):
+        raise CorpusError("Successor gold freeze does not match the selected census.")
+
+    gold_body_authorities = []
+    for candidate in candidates:
+        document_id = str(candidate.get("document_id") or "")
+        campaign_item = campaign_items.get(document_id) or {}
+        record = latest_gold.get(document_id) or {}
+        raw_gold_path = Path(str(record.get("path") or "")).expanduser()
+        try:
+            selected_gold_path = raw_gold_path.resolve(strict=True)
+            selected_gold_path.relative_to((campaign_dir / "gold").resolve(strict=True))
+        except (OSError, ValueError) as exc:
+            raise CorpusError("Successor selected gold body is unavailable.") from exc
+        gold = _read_object(selected_gold_path)
+        gold_body_authorities.append(
+            {
+                "document_id": document_id,
+                "gold_id": str(gold.get("gold_id") or ""),
+                "sha256": _sha256_file(selected_gold_path),
+            }
+        )
+        transcript_lineage = candidate.get("transcript_lineage") or {}
+        transcript_path = Path(
+            str(transcript_lineage.get("current_artifact_path") or "")
+        ).expanduser()
+        source = candidate.get("source_blob") or {}
+        source_path = Path(str(source.get("stored_path") or "")).expanduser()
+        try:
+            transcript_sha256 = _sha256_file(transcript_path.resolve(strict=True))
+            source_sha256 = _sha256_file(source_path.resolve(strict=True))
+        except OSError as exc:
+            raise CorpusError("Successor transcript or source is unavailable.") from exc
+        transcript = _read_object(transcript_path)
+        expected_conditions = {
+            "channel": "unassessed_until_p1",
+            "device": "unassessed_until_p1",
+            "noise": "unassessed_until_p2",
+            "overlap": (
+                "observed_in_diarized_turns"
+                if _has_overlap(transcript)
+                else "not_observed_in_diarized_turns"
+            ),
+            "telephone_bandwidth": "unassessed_until_p1",
+            "usable_duration_band": "unassessed_until_p1",
+        }
+        operator_gold = candidate.get("operator_gold") or {}
+        review_method = str(gold.get("review_method") or "")
+        operator_confirmed = review_method.startswith("operator_") or (
+            review_method in LEGACY_OPERATOR_REVIEW_METHODS
+            and bool(str(gold.get("reviewer") or ""))
+        )
+        if (
+            gold.get("schema_version")
+            != "transcribe-audio.speaker-evaluation-gold.v1"
+            or not operator_confirmed
+            or record.get("gold_id") != operator_gold.get("gold_id")
+            or record.get("disposition") != "eligible_known"
+            or int(record.get("chronological_rank") or 0)
+            != int(candidate.get("chronological_rank") or 0)
+            or record.get("reviewed_at") != operator_gold.get("reviewed_at")
+            or gold.get("gold_id") != record.get("gold_id")
+            or gold.get("campaign_id") != metadata.get("campaign_id")
+            or gold.get("manifest_id") != metadata.get("manifest_id")
+            or gold.get("document_id") != document_id
+            or gold.get("disposition") != "eligible_known"
+            or gold.get("reviewed_at") != record.get("reviewed_at")
+            or int(gold.get("chronological_rank") or 0)
+            != int(candidate.get("chronological_rank") or 0)
+            or gold.get("prediction_visibility") != "excluded"
+            or review_method != operator_gold.get("review_method")
+            or _speaker_truth(gold) != operator_gold.get("speaker_truth")
+            or (gold.get("same_person_label_groups") or [])
+            != operator_gold.get("same_person_label_groups")
+            or int(campaign_item.get("chronological_rank") or 0)
+            != int(candidate.get("chronological_rank") or 0)
+            or gold.get("artifact_sha256") != campaign_item.get("artifact_sha256")
+            or campaign_item.get("artifact_sha256")
+            != transcript_lineage.get("reviewed_artifact_sha256")
+            or transcript_sha256 != transcript_lineage.get("current_artifact_sha256")
+            or transcript.get("conversation_id") != candidate.get("conversation_id")
+            or transcript.get("recording_id") != candidate.get("recording_id")
+            or float(transcript.get("duration_seconds") or 0.0)
+            != float(candidate.get("reported_recording_duration_seconds") or 0.0)
+            or candidate.get("conditions") != expected_conditions
+            or source_sha256 != source.get("sha256")
+        ):
+            raise CorpusError("Successor selected candidate authority drifted.")
+
+    dimensions = {
+        "document_id": {str(item["document_id"]) for item in candidates},
+        "recording_id": {str(item["recording_id"]) for item in candidates},
+        "conversation_id": {str(item["conversation_id"]) for item in candidates},
+        "source_sha256": {
+            str(item["source_blob"]["sha256"]) for item in candidates
+        },
+    }
+    if any(len(values) != len(candidates) for values in dimensions.values()):
+        raise CorpusError("Successor recordings are not pairwise disjoint.")
+
+    selected_prior_paths = sorted(
+        (path.expanduser().resolve(strict=True) for path in prior_corpus_paths),
+        key=str,
+    )
+    if (
+        len(selected_prior_paths) != SUCCESSOR_PRIOR_CORPUS_COUNT
+        or len(set(selected_prior_paths)) != SUCCESSOR_PRIOR_CORPUS_COUNT
+    ):
+        raise CorpusError("Successor corpus requires exactly two prior corpora.")
+    prior_authorities = []
+    for raw_path in selected_prior_paths:
+        if stat.S_IMODE(raw_path.stat().st_mode) & 0o077:
+            raise CorpusError(f"Prior corpus manifest is not private: {raw_path}")
+        prior = _read_object(raw_path)
+        recordings = prior.get("recordings")
+        if not isinstance(recordings, list):
+            raise CorpusError(f"Prior corpus has no recording list: {raw_path}")
+        prior_values = {
+            "document_id": {str(item.get("document_id") or "") for item in recordings},
+            "recording_id": {str(item.get("recording_id") or "") for item in recordings},
+            "conversation_id": {
+                str(item.get("conversation_id") or "") for item in recordings
+            },
+            "source_sha256": {
+                str((item.get("source_blob") or {}).get("sha256") or "")
+                for item in recordings
+            },
+        }
+        overlap = {
+            key: sorted(dimensions[key] & prior_values[key]) for key in dimensions
+        }
+        if any(overlap.values()):
+            raise CorpusError(
+                f"Successor corpus overlaps prior corpus {prior.get('corpus_id')}."
+            )
+        prior_authorities.append(
+            {
+                "corpus_id": str(prior.get("corpus_id") or ""),
+                "manifest_sha256": _sha256_file(raw_path),
+            }
+        )
+    corpus_ids = [item["corpus_id"] for item in prior_authorities]
+    if any(not value for value in corpus_ids) or len(set(corpus_ids)) != len(corpus_ids):
+        raise CorpusError("Prior corpus authorities have invalid identities.")
+
+    current_repository_authority = _current_repository_authority()
+    if (
+        repository_authority != current_repository_authority
+        or current_repository_authority["clean"] is not True
+        or not re.fullmatch(r"[a-f0-9]{40}", current_repository_authority["commit"])
+    ):
+        raise CorpusError("Successor repository authority is incomplete or stale.")
+    return {
+        "gold_freeze": {
+            "freeze_id": str(gold_freeze.get("freeze_id") or ""),
+            "sha256": _sha256_file(selected_gold_freeze_path),
+        },
+        "gold_bodies": gold_body_authorities,
+        "prior_corpora": prior_authorities,
+        "repository": dict(repository_authority),
+        "overlap_counts": {key: 0 for key in dimensions},
+    }
+
+
 def freeze_corpus(
     candidates: list[dict[str, Any]],
     metadata: dict[str, Any],
     *,
     runtime_root: Optional[Path] = None,
     approval_token: str,
+    schema_version: str = CORPUS_SCHEMA_VERSION,
+    split_algorithm: str = "sha256_mod100_60_20_20.v1",
+    authority_bindings: Optional[dict[str, Any]] = None,
+    readiness_requirements: Optional[dict[str, int]] = None,
+    expected_content_sha256: Optional[str] = None,
+    preview_only: bool = False,
+    preview_include_core: bool = False,
 ) -> dict[str, Any]:
     """Write one immutable private manifest and return its receipt."""
     if approval_token != FREEZE_TOKEN:
@@ -532,17 +816,57 @@ def freeze_corpus(
         }
         for split in SPLITS
     }
-    readiness_blockers = [
-        blocker
-        for blocker, failed in (
-            ("one_or_more_splits_empty", any(not split_counts.get(split) for split in SPLITS)),
-            ("no_cross_session_same_person_pairs", same_person_pair_count < 1),
-            ("no_different_person_pairs", different_person_pair_count < 1),
-        )
-        if failed
-    ]
+    recurrent_subject_count = sum(
+        len(sessions) >= 2 for sessions in subject_sessions.values()
+    )
+    if readiness_requirements is None:
+        readiness_blockers = [
+            blocker
+            for blocker, failed in (
+                (
+                    "one_or_more_splits_empty",
+                    any(not split_counts.get(split) for split in SPLITS),
+                ),
+                ("no_cross_session_same_person_pairs", same_person_pair_count < 1),
+                ("no_different_person_pairs", different_person_pair_count < 1),
+            )
+            if failed
+        ]
+    else:
+        requirements = readiness_requirements
+        readiness_blockers = [
+            blocker
+            for blocker, failed in (
+                (
+                    "one_or_more_splits_empty",
+                    any(not split_counts.get(split) for split in SPLITS),
+                ),
+                (
+                    "recording_denominator_below_policy",
+                    len(candidates) < requirements["recordings"],
+                ),
+                (
+                    "conversation_denominator_below_policy",
+                    len(conversation_counts) < requirements["conversations"],
+                ),
+                (
+                    "subject_denominator_below_policy",
+                    len(subject_sessions) < requirements["subjects"],
+                ),
+                (
+                    "recurrent_subject_denominator_below_policy",
+                    recurrent_subject_count < requirements["recurrent_subjects"],
+                ),
+                (
+                    "same_person_pair_denominator_below_policy",
+                    same_person_pair_count < requirements["same_person_pairs"],
+                ),
+                ("no_different_person_pairs", different_person_pair_count < 1),
+            )
+            if failed
+        ]
     core = {
-        "schema_version": CORPUS_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "source_campaign": {
             "campaign_id": metadata.get("campaign_id"),
             "manifest_id": metadata.get("manifest_id"),
@@ -554,7 +878,7 @@ def freeze_corpus(
             "prediction_visibility": "excluded",
             "source_audio": "stored_blob_hash_matched",
             "conversation_split_policy": "conversation_id_disjoint",
-            "split_algorithm": "sha256_mod100_60_20_20.v1",
+            "split_algorithm": split_algorithm,
         },
         "denominators": {
             "recordings": len(candidates),
@@ -607,8 +931,38 @@ def freeze_corpus(
             "p4_model_calibration_not_run",
         ],
     }
+    if readiness_requirements is not None:
+        core["denominators"]["recurrent_subjects"] = recurrent_subject_count
+        core["readiness_requirements"] = dict(readiness_requirements)
+        core["terminal_selection_readiness"] = {
+            "status": "pending_condition_measurement",
+            "blockers": [
+                "p1_channel_device_bandwidth_duration_measurement_not_run",
+                "p2_noise_measurement_not_run",
+            ],
+        }
+    if authority_bindings is not None:
+        core["authority_bindings"] = authority_bindings
     digest = hashlib.sha256(_canonical_bytes(core)).hexdigest()
+    if expected_content_sha256 is not None and expected_content_sha256 != digest:
+        raise CorpusError("Reviewed successor preview content hash is stale.")
     corpus_id = f"acoustic-corpus-{digest[:24]}"
+    if preview_only:
+        preview = {
+            "schema_version": "transcribe-audio.acoustic-corpus-preview.v1",
+            "corpus_id": corpus_id,
+            "content_sha256": digest,
+            "denominators": core["denominators"],
+            "benchmark_readiness": core["benchmark_readiness"],
+            "selection_policy": core["selection_policy"],
+            "authority_bindings": core.get("authority_bindings") or {},
+            "promotion_eligible": False,
+            "will_execute_models": False,
+            "will_perform_external_write": False,
+        }
+        if preview_include_core:
+            preview["_manifest_core"] = core
+        return preview
     manifest = {
         **core,
         "corpus_id": corpus_id,
@@ -656,6 +1010,202 @@ def freeze_corpus(
     if stat.S_IMODE(receipt_path.stat().st_mode) != 0o600:
         raise CorpusError("Frozen corpus receipt mode is not 0600.")
     return {**receipt, "receipt_path": str(receipt_path)}
+
+
+def _successor_inputs(
+    candidates: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    gold_freeze_path: Path,
+    prior_corpus_paths: Iterable[Path],
+    repository_authority: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    assigned = assign_successor_splits(candidates)
+    authority = _successor_authority(
+        assigned,
+        metadata,
+        gold_freeze_path=gold_freeze_path,
+        prior_corpus_paths=prior_corpus_paths,
+        repository_authority=repository_authority,
+    )
+    return assigned, authority
+
+
+def preview_successor_corpus(
+    candidates: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    gold_freeze_path: Path,
+    prior_corpus_paths: Iterable[Path],
+    repository_authority: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the exact generation-2 corpus preview without writing it."""
+    assigned, authority = _successor_inputs(
+        candidates,
+        metadata,
+        gold_freeze_path=gold_freeze_path,
+        prior_corpus_paths=prior_corpus_paths,
+        repository_authority=repository_authority,
+    )
+    return freeze_corpus(
+        assigned,
+        metadata,
+        approval_token=FREEZE_TOKEN,
+        schema_version=SUCCESSOR_CORPUS_SCHEMA_VERSION,
+        split_algorithm=SUCCESSOR_SPLIT_ALGORITHM,
+        authority_bindings=authority,
+        readiness_requirements={
+            "recordings": SUCCESSOR_MIN_RECORDINGS,
+            "conversations": SUCCESSOR_MIN_RECORDINGS,
+            "subjects": SUCCESSOR_MIN_SUBJECTS,
+            "recurrent_subjects": SUCCESSOR_MIN_RECURRENT_SUBJECTS,
+            "same_person_pairs": SUCCESSOR_MIN_SAME_PERSON_PAIRS,
+        },
+        preview_only=True,
+    )
+
+
+def freeze_successor_corpus(
+    candidates: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    gold_freeze_path: Path,
+    prior_corpus_paths: Iterable[Path],
+    repository_authority: dict[str, Any],
+    runtime_root: Optional[Path] = None,
+    expected_content_sha256: str,
+) -> dict[str, Any]:
+    """Apply an independently reviewed successor preview exactly once."""
+    assigned, authority = _successor_inputs(
+        candidates,
+        metadata,
+        gold_freeze_path=gold_freeze_path,
+        prior_corpus_paths=prior_corpus_paths,
+        repository_authority=repository_authority,
+    )
+    preview = freeze_corpus(
+        assigned,
+        metadata,
+        approval_token=FREEZE_TOKEN,
+        schema_version=SUCCESSOR_CORPUS_SCHEMA_VERSION,
+        split_algorithm=SUCCESSOR_SPLIT_ALGORITHM,
+        authority_bindings=authority,
+        readiness_requirements={
+            "recordings": SUCCESSOR_MIN_RECORDINGS,
+            "conversations": SUCCESSOR_MIN_RECORDINGS,
+            "subjects": SUCCESSOR_MIN_SUBJECTS,
+            "recurrent_subjects": SUCCESSOR_MIN_RECURRENT_SUBJECTS,
+            "same_person_pairs": SUCCESSOR_MIN_SAME_PERSON_PAIRS,
+        },
+        expected_content_sha256=expected_content_sha256,
+        preview_only=True,
+    )
+    if preview["benchmark_readiness"]["status"] != "ready_for_p1_measurement":
+        raise CorpusError("Successor evidence-feasibility gates are not satisfied.")
+    receipt = freeze_corpus(
+        assigned,
+        metadata,
+        runtime_root=runtime_root,
+        approval_token=FREEZE_TOKEN,
+        schema_version=SUCCESSOR_CORPUS_SCHEMA_VERSION,
+        split_algorithm=SUCCESSOR_SPLIT_ALGORITHM,
+        authority_bindings=authority,
+        readiness_requirements={
+            "recordings": SUCCESSOR_MIN_RECORDINGS,
+            "conversations": SUCCESSOR_MIN_RECORDINGS,
+            "subjects": SUCCESSOR_MIN_SUBJECTS,
+            "recurrent_subjects": SUCCESSOR_MIN_RECURRENT_SUBJECTS,
+            "same_person_pairs": SUCCESSOR_MIN_SAME_PERSON_PAIRS,
+        },
+        expected_content_sha256=expected_content_sha256,
+    )
+    return receipt
+
+
+def replay_successor_corpus(
+    manifest_path: Path,
+    candidates: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    *,
+    gold_freeze_path: Path,
+    prior_corpus_paths: Iterable[Path],
+    repository_authority: dict[str, Any],
+) -> dict[str, Any]:
+    """Read-only recompute and compare of the complete successor authority."""
+    selected_manifest_path = manifest_path.expanduser().resolve(strict=True)
+    stored = _read_object(selected_manifest_path)
+    assigned, authority = _successor_inputs(
+        candidates,
+        metadata,
+        gold_freeze_path=gold_freeze_path,
+        prior_corpus_paths=prior_corpus_paths,
+        repository_authority=repository_authority,
+    )
+    preview = freeze_corpus(
+        assigned,
+        metadata,
+        approval_token=FREEZE_TOKEN,
+        schema_version=SUCCESSOR_CORPUS_SCHEMA_VERSION,
+        split_algorithm=SUCCESSOR_SPLIT_ALGORITHM,
+        authority_bindings=authority,
+        readiness_requirements={
+            "recordings": SUCCESSOR_MIN_RECORDINGS,
+            "conversations": SUCCESSOR_MIN_RECORDINGS,
+            "subjects": SUCCESSOR_MIN_SUBJECTS,
+            "recurrent_subjects": SUCCESSOR_MIN_RECURRENT_SUBJECTS,
+            "same_person_pairs": SUCCESSOR_MIN_SAME_PERSON_PAIRS,
+        },
+        expected_content_sha256=str(stored.get("content_sha256") or ""),
+        preview_only=True,
+        preview_include_core=True,
+    )
+    expected_manifest = {
+        **preview["_manifest_core"],
+        "corpus_id": preview["corpus_id"],
+        "content_sha256": preview["content_sha256"],
+        "runtime_readback_at_freeze": metadata.get("runtime_readback") or {},
+        "frozen_at": stored.get("frozen_at"),
+    }
+    expected_path = (
+        selected_manifest_path.parents[2]
+        / "corpora"
+        / preview["corpus_id"]
+        / "manifest.json"
+    )
+    if expected_path != selected_manifest_path:
+        raise CorpusError("Successor replay resolved a different manifest path.")
+    if stored != expected_manifest:
+        raise CorpusError("Successor replay manifest body does not match.")
+    if stat.S_IMODE(selected_manifest_path.stat().st_mode) != 0o600:
+        raise CorpusError("Successor replay manifest mode is not 0600.")
+    manifest_sha256 = _sha256_file(selected_manifest_path)
+    receipt_path = selected_manifest_path.parent / "freeze-receipt.json"
+    stored_receipt = _read_object(receipt_path)
+    expected_receipt = {
+        "schema_version": "transcribe-audio.acoustic-corpus-freeze-receipt.v1",
+        "corpus_id": preview["corpus_id"],
+        "manifest_path": str(selected_manifest_path),
+        "manifest_sha256": manifest_sha256,
+        "content_sha256": preview["content_sha256"],
+        "denominators": expected_manifest["denominators"],
+        "prediction_visibility": "excluded",
+        "will_execute_models": False,
+        "will_perform_external_write": False,
+        "mode": "0600",
+    }
+    if stored_receipt != expected_receipt:
+        raise CorpusError("Successor replay freeze receipt does not match.")
+    if stat.S_IMODE(receipt_path.stat().st_mode) != 0o600:
+        raise CorpusError("Successor replay receipt mode is not 0600.")
+    return {
+        "schema_version": "transcribe-audio.acoustic-corpus-replay-receipt.v1",
+        "corpus_id": preview["corpus_id"],
+        "content_sha256": preview["content_sha256"],
+        "manifest_sha256": manifest_sha256,
+        "full_body_match": True,
+        "will_execute_models": False,
+        "will_perform_external_write": False,
+    }
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
