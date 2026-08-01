@@ -2,6 +2,31 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 269 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0044-2026-08-01-plan-0037-p4e2-condition-measurement.md`,
+version 1
+
+Packet: P4E2-D1 | Successor condition measurement
+
+State transition: `CLOSED/P4E2-C2 -> OPEN/P4E2-D1`.
+
+- Opened the bounded condition packet against the exact replayed successor
+  corpus. Graphiti was healthy but returned only older Plan 0037/P2 context;
+  current plan, corpus, source, code, and runtime evidence control.
+- A metadata-only source probe found six mono and one stereo recording, source
+  rates of 16, 22.05, 44.1, and 48 kHz, and multiple encoding profiles.
+  Physical device identity is absent and must not be inferred from encoding.
+- The packet will run exact seven-record P1 and five-method P2 preparation,
+  derive measured noise and usable-duration evidence, and report missing device
+  coverage as a terminal blocker unless genuine source metadata proves it.
+
+Next:
+
+- Implement and independently audit the preview/apply/replay condition
+  orchestrator, then execute it from a clean pushed commit.
+
 ## Turn 268 | 2026-08-01
 
 Plan:

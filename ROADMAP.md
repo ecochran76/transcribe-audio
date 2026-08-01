@@ -469,6 +469,7 @@ Plans:
 - `docs/dev/plans/0041-2026-07-31-plan-0037-p3-biometric-reference-library.md`
 - `docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`
 - `docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`
+- `docs/dev/plans/0044-2026-08-01-plan-0037-p4e2-condition-measurement.md`
 
 Research:
 

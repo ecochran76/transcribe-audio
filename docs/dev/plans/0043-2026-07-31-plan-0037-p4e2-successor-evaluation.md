@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 7
+Plan Version: 8
 
 Parent: Plan 0037 P4
 
@@ -329,7 +329,8 @@ State: P4E2-C2 CLOSED; P4E2-D OPEN.
   114 feasible different-person pairs. Split counts are 3 development, 2
   calibration, and 2 evaluation. Both prior corpus overlap counts remain zero.
 - C2 status is only `ready_for_p1_measurement`; `promotion_eligible=false`.
-  P4E2-D must now measure and bind channel, device, noise, telephone-bandwidth,
-  and usable-duration evidence before constructing the independently reviewed
+  P4E2-D now delegates its bounded condition-measurement packet to Plan 0044,
+  which must measure and bind channel, device, noise, telephone-bandwidth, and
+  usable-duration evidence before constructing the independently reviewed
   generation-2 terminal authority. No biometric score or terminal selection
   has run.
