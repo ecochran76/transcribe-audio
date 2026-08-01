@@ -1,6 +1,6 @@
 # Plan 0046 | Plan 0037 P4E2 generation-2 terminal authority
 
-State: OPEN — Units A through C closed; Unit D apply/replay implementation in review
+State: CLOSED
 
 Lane: P10
 
@@ -216,4 +216,24 @@ State: IMPLEMENTED; independent apply/replay audit remains OPEN.
 - The new immutable reviewed-hash apply/replay seam authorizes only evaluation
   reveal, offline preparation, and window freeze. Model execution, trial
   scoring, terminal metrics, and decisions remain forbidden until the exact
+  post-window child authority exists and replays.
+
+## Unit D close checkpoint
+
+State: CLOSED; evaluation reveal and execution remain `not_run`.
+
+- Independent audit and targeted re-audit returned `PASS` after closing exact
+  manifest-body reconstruction and partial-directory discovery defects.
+  Thirty-nine joined tests and all 630 repository tests passed; compilation
+  and `git diff --check` passed.
+- Apply/replay implementation commit
+  `ed20f8ba3599163d9df044b516b63ef778fcef50` is pushed and upstream-even.
+- Applied authority
+  `generation-2-pre-reveal-authority-e36736a176600d5536c7c668`, content
+  SHA-256 `e36736a176600d5536c7c6688ce00d04165955cf09d69cd67d2bb1b082ef61ad`,
+  binds the independently reviewed preview and replayed full-body with exact
+  `0700` directory and `0600` manifest/receipt modes.
+- Evaluation reveal is now authorized. This apply did not reveal evaluation,
+  prepare audio, freeze windows, run models, score trials, calculate metrics,
+  or decide. Model execution and scoring remain forbidden until the exact
   post-window child authority exists and replays.

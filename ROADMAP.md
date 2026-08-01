@@ -460,14 +460,16 @@ biometric scoring and selection remain `not_run`. Plan 0047 subsequently
 recovered all seven exact frozen sources and froze five allowlisted
 manufacturer hardware-model facts in a separate replayed authority. Cases 2
 and 4 remain unavailable, and the five observed rows represent only one
-distinct device, so the device gate still fails without inference. Plan 0046 Units A through C now replay the exact
-archived calibration authority across the reviewed evaluation-split P2 seam
-and provide an independently audited deterministic generation-2 pre-reveal
-preview. The preview binds the frozen successor, condition, calibration,
-profile/model, threshold/margin, candidate, trial-child, and terminal-policy
-authorities while permitting no reveal, model execution, scoring, decision, or
-write. Production apply remains `not_run` and blocked on Plan 0045's complete
-passing composite device authority.
+distinct device, so the original device gate still failed without inference.
+Plan 0047 subsequently closed that gate with two operator-confirmed webcam rows
+and five manufacturer-metadata rows, yielding seven authoritative rows, two
+distinct opaque devices, and zero missing recordings. Plan 0046 is now closed:
+it replays the archived calibration authority across the reviewed
+evaluation-split P2 seam, freezes an independently audited generation-2
+pre-reveal authority, and authorizes the later evaluation reveal. The apply did
+not reveal evaluation, prepare audio, freeze windows, run models, score trials,
+calculate metrics, or decide. Model execution and scoring remain blocked until
+the exact post-window trial child exists and replays.
 Plan 0045's frozen exact-seven campaign has also been repaired to replay across
 clean reviewed descendant commits without reissuing its original identity.
 Production full-body replay and idempotent case-1 reopen passed at pushed commit

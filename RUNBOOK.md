@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 276 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0046-2026-08-01-plan-0037-p4e2-generation-2-authority.md`,
+version 3
+
+Packet: P4E2-D4 | Generation-2 pre-reveal production freeze
+
+State transition: `OPEN/P4E2-R3-PARTIAL+P4E2-D3 -> CLOSED/P4E2-R3+CLOSED/P4E2-D4`.
+
+- The operator confirmed frozen cases 2 and 4 used the same webcam microphone.
+  A private sparse operator authority preserved exactly those two facts without
+  advancing or fabricating the original sequential ledger. The augmented
+  composite merged them with five source manufacturer facts: `7 / 7`
+  authoritative, `2` distinct devices, `0` missing, no blockers.
+- Independent audit and re-audit closed row-level generation-2 evidence,
+  legacy compatibility, exact apply-manifest reconstruction, and partial
+  authority discovery defects. All 630 tests, compilation, and
+  `git diff --check` passed.
+- Commits `aa368ab`, `32644df`, and `ed20f8b` are pushed and upstream-even.
+  Applied authority
+  `generation-2-pre-reveal-authority-e36736a176600d5536c7c668` replays
+  full-body at reviewed preview content SHA-256
+  `b83368b7bca2c5634f98c511844e82d78e87a954e99468a611b23efc5c0ff169`
+  with exact private modes.
+- Evaluation reveal, offline preparation, and window freeze are authorized but
+  remain `not_run`. Models, scoring, metrics, and terminal decisions remain
+  forbidden until the exact post-window child authority exists and replays.
+
+Next:
+
+- Open a bounded generation-2 evaluation execution packet: reveal only the
+  sealed two-record evaluation split, freeze immutable windows, construct and
+  independently review the exact trial child, then execute the frozen model ×
+  method matrix once.
+
 ## Turn 274 | 2026-08-01
 
 Plan:
