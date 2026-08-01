@@ -2,6 +2,34 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 270 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0045-2026-08-01-plan-0037-p4e2-device-provenance-refinement.md`,
+version 1
+
+Packet: P4E2-R1 | Capture-device provenance refinement
+
+State transition: `CLOSED/TERMINAL-STOP/P4E2-D1 -> OPEN/P4E2-R1`.
+
+- Graphiti is healthy but contains no current Plan 0044 refinement evidence;
+  current repo/runtime authorities control.
+- Read-only inventory of all seven current transcript structures found no
+  device, recorder, microphone, hardware, manufacturer, model, or capture-app
+  fields. Authoritative M4A metadata exposes only generic audio-handler labels;
+  source copies have no extended attributes, and original recorded paths are
+  absent.
+- Opened a bounded exact-seven operator-attestation packet. It will bind the
+  corpus and Plan 0044 condition authority, enforce one-at-a-time hash-chained
+  review, preserve append-only corrections, and accept only direct operator
+  knowledge as physical-device evidence.
+
+Next:
+
+- Implement and independently audit the private attestation authority, commit
+  and push it, freeze/replay the exact campaign, then open the first factual
+  device-provenance case.
+
 ## Turn 269 | 2026-08-01
 
 Plan:

@@ -1,10 +1,10 @@
 # Plan 0043 | Plan 0037 P4E2 successor terminal evaluation
 
-State: OPEN — P4E2 terminal STOP; refinement required
+State: OPEN — P4E2-R1 device provenance refinement
 
 Lane: P10
 
-Plan Version: 9
+Plan Version: 10
 
 Parent: Plan 0037 P4
 
@@ -354,3 +354,17 @@ State: P4E2-D CLOSED with terminal `STOP`; P4E2-E is `not_run`.
   stopped. Encoding profiles cannot satisfy this gate. A later refinement must
   obtain explicit capture-device provenance or freeze a genuinely eligible new
   cohort; it may not reinterpret this result as model failure or `select`.
+
+## P4E2-R1 device provenance refinement opening checkpoint
+
+State: Plan 0045 OPEN; the Plan 0044 terminal `STOP` remains in force.
+
+- Read-only structural, container, extended-attribute, and original-path
+  inventory confirmed that the exact seven recordings have no explicit
+  physical capture-device provenance available to the current runtime.
+- Plan 0045 owns a separate append-only, exact-seven, one-case-at-a-time
+  operator-attestation authority. It preserves the frozen Plan 0044 result and
+  may overlay only directly known physical-device facts.
+- Generation-2 authority construction, evaluation reveal, biometric scoring,
+  and selection remain `not_run` until the composite authority independently
+  proves seven nonmissing direct attestations and at least two distinct devices.

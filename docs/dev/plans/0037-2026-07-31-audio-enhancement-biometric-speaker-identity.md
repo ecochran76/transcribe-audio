@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 5
+Plan Version: 6
 
 Execution Mode: high-level campaign plan with bounded implementation packets
 
@@ -93,7 +93,10 @@ successor corpus. Exact private condition execution completed 7 P1 runs and 35
 P2 method results. Channel, noise, telephone-bandwidth, and usable-duration
 coverage passed, but every recording lacks explicit physical capture-device
 provenance. Plan 0044 therefore closed with terminal `STOP` before generation-2
-authority construction or biometric scoring. No model/method selection, App
+authority construction or biometric scoring. Plan 0045 is open to collect an
+exact-seven, append-only, direct-operator device provenance authority without
+inferring from encoding or rewriting the measured condition evidence. No
+model/method selection, App
 Intelligence integration, or historical reprocessing exists. Plan 0036 remains
 sealed and paused after five of ten current gold reviews.
 
