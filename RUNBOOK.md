@@ -2,6 +2,43 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 267 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`,
+version 5
+
+Packet: P4E2-C1 | Successor operator-review tranche
+
+State transition: `OPEN/BLOCKED-COHORT/Plan-0037-P4E2 -> OPEN/REVIEW-TRANCHE/Plan-0037-P4E2`.
+
+- Verified the parent campaign already freezes all 375 current transcript rows;
+  a new unfiltered campaign would not create new evidence.
+- Its frozen future pool has 236 unreviewed reviewable rows. Seven current rows
+  have durable recording/conversation IDs, accessible sources, current artifact
+  hashes, full prior-corpus disjointness, and pairwise pool disjointness. They
+  cover 18 opaque speaker labels across seven multi-label recordings.
+- The other 229 lack durable identities. P4E2-C1 excludes them without rewriting
+  historical transcript artifacts or inventing grouping semantics.
+- Opened a bounded seven-case successor campaign packet. Selection freezes
+  before review; cases will be presented one at a time; only explicit operator
+  decisions may become prediction-excluded gold.
+- Implemented a private content-addressed identity-scalar projection, exact
+  frozen-parent membership, a non-configurable seven-case selector, reviewed-
+  preview hash binding before first apply, full-body replay, and exact-schema
+  chained cursor receipts. A guard test prevents selector access to transcript
+  payload/text columns, the legacy full-store preview, or transcript artifacts.
+- Validation: 16 campaign tests and 549 full repository tests passed;
+  compilation and `git diff --check` passed. Independent read-only review
+  returned `PASS` after two bounded repair cycles.
+
+Next:
+
+- Implement, independently audit, and apply the deterministic private successor
+  campaign; then present the first case in plain English.
+- After all seven reviews, measure trial feasibility without weakening the
+  terminal policy.
+
 ## Turn 266 | 2026-07-31
 
 Plan:
@@ -43,7 +80,7 @@ State transition: `CLOSED/STOP/Plan-0037-P4E -> OPEN/BLOCKED-COHORT/Plan-0037-P4
 
 Next:
 
-- Commit and push the independently audited truthful checkpoint.
+- Checkpoint `939005c` is committed, pushed, clean, and upstream `0/0`.
 - Resume cohort freeze only after the governed campaign contains genuinely new
   document-, recording-, conversation-, and source-disjoint eligible evidence.
 

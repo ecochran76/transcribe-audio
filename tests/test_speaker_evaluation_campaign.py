@@ -6,13 +6,22 @@ from pathlib import Path
 
 import pytest
 
+import speaker_evaluation_campaign as campaign
 import transcript_store
 from speaker_evaluation_campaign import (
+    APPLY_SUCCESSOR_CAMPAIGN_TOKEN,
+    APPLY_SUCCESSOR_IDENTITY_PROJECTION_TOKEN,
     apply_campaign,
+    apply_successor_campaign,
+    apply_successor_identity_projection,
     capture_blind_prediction,
     freeze_gold_batch,
     main,
+    open_successor_review_case,
     preview_campaign,
+    preview_successor_campaign,
+    preview_successor_identity_projection,
+    replay_successor_campaign,
     replay_speaker_confidence_calibration,
     record_gold_review,
     record_refinement_decision,
@@ -27,6 +36,8 @@ def write_transcript(
     *,
     recording_start: str,
     utterances: list[dict[str, object]],
+    conversation_id: str = "",
+    recording_id: str = "",
 ) -> Path:
     payload = {
         "schema_version": 2,
@@ -43,8 +54,35 @@ def write_transcript(
         "utterances": utterances,
         "event": None,
     }
+    if conversation_id:
+        payload["conversation_id"] = conversation_id
+    if recording_id:
+        payload["recording_id"] = recording_id
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def attach_source_blob(
+    store_root: Path,
+    document_id: str,
+    source_path: Path,
+) -> dict:
+    source_path.write_bytes(b"RIFF" + document_id.encode("utf-8"))
+    blob = transcript_store.prepare_blob(
+        store_root,
+        str(source_path),
+        role="source_recording",
+    )
+    with transcript_store.connect(store_root) as con:
+        transcript_store.init_db(con)
+        transcript_store.upsert_document_blob(
+            con,
+            document_id,
+            blob,
+            now="2026-07-31T00:00:00Z",
+        )
+        con.commit()
+    return blob
 
 
 def test_preview_orders_oldest_first_without_creating_campaign_state(
@@ -298,6 +336,464 @@ def test_apply_campaign_requires_approval_and_writes_private_manifest(
     assert stat.S_IMODE(manifest_path.parent.stat().st_mode) == 0o700
     assert applied["will_execute_app_intelligence"] is False
     assert applied["will_perform_external_write"] is False
+
+
+def successor_campaign_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, Path, Path, str, list[str]]:
+    monkeypatch.setattr(
+        campaign,
+        "_repository_state",
+        lambda: {"commit": "a" * 40, "dirty_tree": False},
+    )
+    store_root = tmp_path / "store"
+    runtime_root = tmp_path / "campaigns"
+    corpus_root = tmp_path / "corpora"
+    document_ids: list[str] = []
+    blobs: list[dict] = []
+    for index in range(1, 9):
+        artifact = write_transcript(
+            tmp_path / f"conversation-{index}.transcript.json",
+            recording_start=f"2024-01-0{index}T10:00:00Z",
+            conversation_id=f"00000000-0000-4000-8000-{index:012d}",
+            recording_id=f"10000000-0000-4000-8000-{index:012d}",
+            utterances=[
+                {
+                    "speaker": "A",
+                    "start": 0,
+                    "end": 1,
+                    "text": f"Opening question {index} with enough context. " * 8,
+                },
+                {
+                    "speaker": "B",
+                    "start": 1,
+                    "end": 2,
+                    "text": f"Detailed response {index} with identifying context. " * 8,
+                },
+            ],
+        )
+        result = transcript_store.ingest_artifact(artifact, root=store_root)
+        document_ids.append(result.id)
+        blobs.append(
+            attach_source_blob(
+                store_root,
+                result.id,
+                tmp_path / f"source-{index}.wav",
+            )
+        )
+    parent = apply_campaign(
+        store_root=store_root,
+        runtime_root=runtime_root,
+        batch_size=1,
+        approval_token="APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST",
+    )
+    parent_dir = runtime_root / parent["campaign_id"]
+    gold_dir = parent_dir / "gold"
+    gold_dir.mkdir(mode=0o700)
+    gold_index = gold_dir / "index.json"
+    gold_index.write_text(
+        json.dumps(
+            {
+                "schema_version": (
+                    "transcribe-audio.speaker-evaluation-gold-index.v1"
+                ),
+                "records": [
+                    {
+                        "gold_id": "prior-gold",
+                        "document_id": document_ids[0],
+                        "chronological_rank": 1,
+                        "disposition": "eligible_known",
+                        "reviewed_at": "2026-07-31T00:00:00Z",
+                        "supersedes_gold_id": "",
+                        "path": "private-prior-gold.json",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    gold_index.chmod(0o600)
+    corpus_dir = corpus_root / ("acoustic-corpus-" + "b" * 24)
+    corpus_dir.mkdir(parents=True, mode=0o700)
+    corpus_manifest = corpus_dir / "manifest.json"
+    corpus_manifest.write_text(
+        json.dumps(
+            {
+                "corpus_id": corpus_dir.name,
+                "recordings": [
+                    {
+                        "document_id": document_ids[0],
+                        "conversation_id": "00000000-0000-4000-8000-000000000001",
+                        "recording_id": "10000000-0000-4000-8000-000000000001",
+                        "source_blob": {"sha256": blobs[0]["sha256"]},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    corpus_manifest.chmod(0o600)
+    identity_preview = preview_successor_identity_projection(
+        parent["campaign_id"],
+        store_root=store_root,
+        runtime_root=runtime_root,
+    )
+    identity = apply_successor_identity_projection(
+        parent["campaign_id"],
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token=APPLY_SUCCESSOR_IDENTITY_PROJECTION_TOKEN,
+        expected_content_sha256=identity_preview["content_sha256"],
+        expected_projection_id=identity_preview["projection_id"],
+    )
+    return (
+        store_root,
+        runtime_root,
+        corpus_root,
+        Path(identity["projection_path"]),
+        parent["campaign_id"],
+        document_ids,
+    )
+
+
+def test_successor_campaign_freezes_full_body_and_replays(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store_root, runtime_root, corpus_root, identity_path, parent_id, document_ids = (
+        successor_campaign_fixture(tmp_path, monkeypatch)
+    )
+    outside_artifact = write_transcript(
+        tmp_path / "outside-parent.transcript.json",
+        recording_start="2024-02-01T10:00:00Z",
+        conversation_id="20000000-0000-4000-8000-000000000001",
+        recording_id="30000000-0000-4000-8000-000000000001",
+        utterances=[
+            {
+                "speaker": "A",
+                "start": 0,
+                "end": 1,
+                "text": "Outside parent opening with enough context. " * 8,
+            },
+            {
+                "speaker": "B",
+                "start": 1,
+                "end": 2,
+                "text": "Outside parent response with enough context. " * 8,
+            },
+        ],
+    )
+    outside = transcript_store.ingest_artifact(outside_artifact, root=store_root)
+    attach_source_blob(store_root, outside.id, tmp_path / "outside-parent.wav")
+
+    real_connect = campaign.connect
+
+    class GuardedConnection:
+        def __init__(self, connection: object) -> None:
+            self.connection = connection
+
+        def __enter__(self) -> GuardedConnection:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            self.connection.close()
+
+        def execute(self, sql: str, parameters: object = ()) -> object:
+            lowered = sql.lower()
+            assert "json_payload" not in lowered
+            assert "text_content" not in lowered
+            return self.connection.execute(sql, parameters)
+
+    monkeypatch.setattr(
+        campaign,
+        "connect",
+        lambda root: GuardedConnection(real_connect(root)),
+    )
+    monkeypatch.setattr(
+        campaign,
+        "preview_campaign",
+        lambda **_kwargs: pytest.fail("selector opened legacy full-store preview"),
+    )
+    monkeypatch.setattr(
+        campaign.transcript_artifact_access,
+        "read_resolved_transcript",
+        lambda *_args, **_kwargs: pytest.fail("selector read transcript artifact"),
+    )
+    with pytest.raises(ValueError, match="exactly 7"):
+        preview_successor_campaign(
+            parent_id,
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+            identity_projection_path=identity_path,
+            batch_size=6,
+        )
+    preview = preview_successor_campaign(
+        parent_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_path,
+        batch_size=7,
+    )
+    assert [item["document_id"] for item in preview["items"]] == document_ids[1:]
+    assert outside.id not in {item["document_id"] for item in preview["items"]}
+    assert preview["summary"]["durable_disjoint_candidate_pool"] == 7
+    assert preview["selection_policy"]["availability_conditioned_census"] is True
+    assert len(preview["selection_authority"]["selector_module_sha256"]) == 64
+    assert len(preview["selection_authority"]["metadata_projection_sha256"]) == 64
+    serialized = json.dumps(preview)
+    assert "Opening question" not in serialized
+    assert "source_stored_path" not in serialized
+
+    with pytest.raises(ValueError, match="exact approval token"):
+        apply_successor_campaign(
+            parent_id,
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+            identity_projection_path=identity_path,
+            batch_size=7,
+            approval_token="wrong",
+            expected_content_sha256=preview["content_sha256"],
+            expected_manifest_id=preview["manifest_id"],
+        )
+    corpus_manifest_path = next(corpus_root.glob("*/manifest.json"))
+    original_corpus_manifest = corpus_manifest_path.read_text(encoding="utf-8")
+    drifted_corpus_manifest = json.loads(original_corpus_manifest)
+    drifted_corpus_manifest["review_note"] = "authority drift"
+    corpus_manifest_path.write_text(
+        json.dumps(drifted_corpus_manifest),
+        encoding="utf-8",
+    )
+    corpus_manifest_path.chmod(0o600)
+    with pytest.raises(ValueError, match="preview drifted"):
+        apply_successor_campaign(
+            parent_id,
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+            identity_projection_path=identity_path,
+            batch_size=7,
+            approval_token=APPLY_SUCCESSOR_CAMPAIGN_TOKEN,
+            expected_content_sha256=preview["content_sha256"],
+            expected_manifest_id=preview["manifest_id"],
+        )
+    corpus_manifest_path.write_text(
+        original_corpus_manifest,
+        encoding="utf-8",
+    )
+    corpus_manifest_path.chmod(0o600)
+    applied = apply_successor_campaign(
+        parent_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_path,
+        batch_size=7,
+        approval_token=APPLY_SUCCESSOR_CAMPAIGN_TOKEN,
+        expected_content_sha256=preview["content_sha256"],
+        expected_manifest_id=preview["manifest_id"],
+    )
+    replayed = replay_successor_campaign(
+        applied["campaign_id"],
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+    )
+    repeated = apply_successor_campaign(
+        parent_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_path,
+        batch_size=7,
+        approval_token=APPLY_SUCCESSOR_CAMPAIGN_TOKEN,
+        expected_content_sha256=preview["content_sha256"],
+        expected_manifest_id=preview["manifest_id"],
+    )
+    manifest_path = Path(applied["manifest_path"])
+    assert replayed["full_body_equal"] is True
+    assert replayed["manifest_sha256"] == applied["manifest_sha256"]
+    assert repeated["manifest_sha256"] == applied["manifest_sha256"]
+    assert stat.S_IMODE(manifest_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(manifest_path.parent.stat().st_mode) == 0o700
+
+    tampered = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tampered["summary"]["selected_recordings"] = 99
+    manifest_path.write_text(json.dumps(tampered), encoding="utf-8")
+    manifest_path.chmod(0o600)
+    with pytest.raises(ValueError, match="full-body replay mismatch"):
+        replay_successor_campaign(
+            applied["campaign_id"],
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+        )
+
+
+def test_successor_review_cursor_enforces_one_at_a_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store_root, runtime_root, corpus_root, identity_path, parent_id, document_ids = (
+        successor_campaign_fixture(tmp_path, monkeypatch)
+    )
+    preview = preview_successor_campaign(
+        parent_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_path,
+        batch_size=7,
+    )
+    applied = apply_successor_campaign(
+        parent_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_path,
+        batch_size=7,
+        approval_token=APPLY_SUCCESSOR_CAMPAIGN_TOKEN,
+        expected_content_sha256=preview["content_sha256"],
+        expected_manifest_id=preview["manifest_id"],
+    )
+    child_id = applied["campaign_id"]
+    with pytest.raises(ValueError, match="cursor"):
+        review_case_packet(
+            child_id,
+            document_ids[1],
+            store_root=store_root,
+            runtime_root=runtime_root,
+        )
+    with pytest.raises(ValueError, match="manifest order"):
+        open_successor_review_case(
+            child_id,
+            document_id=document_ids[2],
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+        )
+    opened = open_successor_review_case(
+        child_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+    )
+    assert opened["packet"]["document_id"] == document_ids[1]
+    assert opened["idempotent_reopen"] is False
+    reopened = open_successor_review_case(
+        child_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+    )
+    assert reopened["idempotent_reopen"] is True
+    open_path = Path(opened["open_receipt"]["receipt_path"])
+    original_open_receipt = open_path.read_text(encoding="utf-8")
+    tampered_open_receipt = json.loads(original_open_receipt)
+    tampered_open_receipt["will_read_gold_body"] = True
+    open_path.write_text(json.dumps(tampered_open_receipt), encoding="utf-8")
+    open_path.chmod(0o600)
+    with pytest.raises(ValueError, match="history binding"):
+        open_successor_review_case(
+            child_id,
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+        )
+    open_path.write_text(original_open_receipt, encoding="utf-8")
+    open_path.chmod(0o600)
+
+    gold_index_path = runtime_root / child_id / "gold" / "index.json"
+    gold_index_path.parent.mkdir(mode=0o700)
+    empty_gold_index = {
+        "schema_version": "transcribe-audio.speaker-evaluation-gold-index.v1",
+        "records": [],
+    }
+    tampered_gold_index = {
+        **empty_gold_index,
+        "records": [
+            {
+                "gold_id": "unattributed",
+                "document_id": "outside-successor-campaign",
+            }
+        ],
+    }
+    gold_index_path.write_text(json.dumps(tampered_gold_index), encoding="utf-8")
+    gold_index_path.chmod(0o600)
+    with pytest.raises(ValueError, match="gold index changed"):
+        open_successor_review_case(
+            child_id,
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+        )
+    gold_index_path.write_text(json.dumps(empty_gold_index), encoding="utf-8")
+    gold_index_path.chmod(0o600)
+    with pytest.raises(ValueError, match="outstanding"):
+        open_successor_review_case(
+            child_id,
+            document_id=document_ids[2],
+            store_root=store_root,
+            runtime_root=runtime_root,
+            corpus_root=corpus_root,
+        )
+    with pytest.raises(ValueError, match="cursor"):
+        record_gold_review(
+            child_id,
+            document_ids[2],
+            {
+                "disposition": "eligible_known",
+                "reviewer": "operator",
+                "review_method": "operator_test",
+            },
+            store_root=store_root,
+            runtime_root=runtime_root,
+            approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+        )
+    first_gold = record_gold_review(
+        child_id,
+        document_ids[1],
+        {
+            "disposition": "eligible_known",
+            "calendar_association": "uncertain",
+            "people": [
+                {"person_ground_truth_id": "person-a"},
+                {"person_ground_truth_id": "person-b"},
+            ],
+            "speaker_outcomes": [
+                {
+                    "speaker_label": "A",
+                    "outcome": "person",
+                    "person_ground_truth_id": "person-a",
+                },
+                {
+                    "speaker_label": "B",
+                    "outcome": "person",
+                    "person_ground_truth_id": "person-b",
+                },
+            ],
+            "same_person_label_groups": [],
+            "reviewer": "operator",
+            "review_method": "operator_test",
+        },
+        store_root=store_root,
+        runtime_root=runtime_root,
+        approval_token="RECORD_SPEAKER_EVALUATION_GOLD",
+    )
+    assert first_gold["prediction_visibility"] == "excluded"
+    second = open_successor_review_case(
+        child_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        corpus_root=corpus_root,
+    )
+    assert second["packet"]["document_id"] == document_ids[2]
+    assert second["open_receipt"]["position"] == 2
+    second_open_path = Path(second["open_receipt"]["receipt_path"])
+    assert stat.S_IMODE(second_open_path.stat().st_mode) == 0o600
 
 
 def test_review_packet_is_private_clue_surface_without_gold(

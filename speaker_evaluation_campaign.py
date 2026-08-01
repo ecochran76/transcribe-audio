@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,7 @@ import intelligence_config
 import provenance_config
 import speaker_identity_preprocess
 import transcript_artifact_access
-from transcript_store import connect, init_db, store_dir
+from transcript_store import connect, init_db, sha256_file, store_dir
 
 MANIFEST_SCHEMA_VERSION = "transcribe-audio.speaker-evaluation-campaign-manifest.v1"
 DEFAULT_CAMPAIGN_ROOT = Path(
@@ -43,6 +44,25 @@ BLIND_BASELINE_SCHEMA_VERSION = (
     "transcribe-audio.speaker-evaluation-blind-baseline.v1"
 )
 APPLY_CAMPAIGN_TOKEN = "APPLY_SPEAKER_EVALUATION_CAMPAIGN_MANIFEST"
+APPLY_SUCCESSOR_CAMPAIGN_TOKEN = (
+    "APPLY_SPEAKER_EVALUATION_SUCCESSOR_CAMPAIGN_MANIFEST"
+)
+APPLY_SUCCESSOR_IDENTITY_PROJECTION_TOKEN = (
+    "APPLY_SPEAKER_EVALUATION_SUCCESSOR_IDENTITY_PROJECTION"
+)
+SUCCESSOR_SELECTION_POLICY = (
+    "plan-0037-p4e2-successor-review-tranche.v1"
+)
+SUCCESSOR_REPLAY_SCHEMA_VERSION = (
+    "transcribe-audio.speaker-evaluation-successor-replay.v1"
+)
+SUCCESSOR_REVIEW_OPEN_SCHEMA_VERSION = (
+    "transcribe-audio.speaker-evaluation-successor-review-open.v1"
+)
+SUCCESSOR_IDENTITY_PROJECTION_SCHEMA_VERSION = (
+    "transcribe-audio.speaker-evaluation-successor-identity-projection.v1"
+)
+SUCCESSOR_BATCH_SIZE = 7
 RECORD_GOLD_TOKEN = "RECORD_SPEAKER_EVALUATION_GOLD"
 FREEZE_GOLD_TOKEN = "FREEZE_SPEAKER_EVALUATION_GOLD_BATCH"
 START_BLIND_BASELINE_TOKEN = "START_SPEAKER_EVALUATION_BLIND_BASELINE"
@@ -83,6 +103,9 @@ SPEAKER_OUTCOMES = {
     "unknown_to_reviewer",
     "insufficient_transcript",
 }
+DEFAULT_PLAN_0037_CORPUS_ROOT = Path(
+    "~/.local/state/transcribe-audio/plan-0037/corpora"
+)
 
 
 def _json_object(value: Any) -> dict[str, Any]:
@@ -278,6 +301,679 @@ def apply_campaign(
     }
 
 
+def _successor_prior_corpus_authority(
+    corpus_root: Path,
+) -> tuple[dict[str, set[str]], list[dict[str, str]]]:
+    selected_root = corpus_root.expanduser().absolute()
+    manifests = sorted(selected_root.glob("acoustic-corpus-*/manifest.json"))
+    if not manifests:
+        raise ValueError("Successor campaign requires a prior frozen corpus.")
+    identities = {
+        "document": set(),
+        "recording": set(),
+        "conversation": set(),
+        "source": set(),
+    }
+    authority: list[dict[str, str]] = []
+    for path in manifests:
+        if path.is_symlink() or stat.S_IMODE(path.stat().st_mode) != 0o600:
+            raise ValueError("Prior corpus manifest is not a private regular file.")
+        manifest = _read_json(path)
+        recordings = manifest.get("recordings")
+        if not isinstance(recordings, list):
+            raise ValueError("Prior corpus recordings are invalid.")
+        for item in recordings:
+            if not isinstance(item, dict):
+                raise ValueError("Prior corpus recording is invalid.")
+            source = item.get("source_blob") or {}
+            values = {
+                "document": str(item.get("document_id") or ""),
+                "recording": str(item.get("recording_id") or ""),
+                "conversation": str(item.get("conversation_id") or ""),
+                "source": str(source.get("sha256") or "")
+                if isinstance(source, dict)
+                else "",
+            }
+            if any(not value for value in values.values()):
+                raise ValueError("Prior corpus identity is incomplete.")
+            for field, value in values.items():
+                identities[field].add(value)
+        authority.append(
+            {
+                "corpus_id": str(manifest.get("corpus_id") or path.parent.name),
+                "manifest_sha256": sha256_file(path),
+            }
+        )
+    return identities, authority
+
+
+def preview_successor_identity_projection(
+    parent_campaign_id: str,
+    *,
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Project only durable identity scalars for the parent's future pool."""
+    selected_store_root = store_dir(store_root).absolute()
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    parent_dir = _campaign_dir(selected_runtime_root, parent_campaign_id)
+    parent_manifest_path = parent_dir / "manifest.json"
+    parent_gold_index_path = parent_dir / "gold" / "index.json"
+    parent_manifest = _campaign_manifest(selected_runtime_root, parent_campaign_id)
+    parent_gold_index = _read_json(parent_gold_index_path)
+    records = parent_gold_index.get("records")
+    items = parent_manifest.get("items")
+    if not isinstance(records, list) or not isinstance(items, list):
+        raise ValueError("Parent campaign authority is invalid.")
+    reviewed_ids = {
+        str(record.get("document_id") or "")
+        for record in records
+        if isinstance(record, dict)
+    }
+    future_items = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and item.get("disposition") == "needs_operator_classification"
+        and str(item.get("document_id") or "") not in reviewed_ids
+    ]
+    document_ids = [str(item.get("document_id") or "") for item in future_items]
+    if not document_ids:
+        raise ValueError("Parent campaign has no unreviewed future pool.")
+    placeholders = ",".join("?" for _ in document_ids)
+    with connect(selected_store_root) as con:
+        rows = con.execute(
+            f"""
+            SELECT id, artifact_sha256,
+                   json_extract(json_payload, '$.conversation_id')
+                       AS conversation_id,
+                   json_extract(json_payload, '$.recording_id')
+                       AS recording_id
+            FROM documents
+            WHERE id IN ({placeholders})
+            ORDER BY id
+            """,
+            document_ids,
+        ).fetchall()
+    by_document = {str(row["id"]): dict(row) for row in rows}
+    projection_items = [
+        {
+            "artifact_sha256": str(
+                by_document.get(document_id, {}).get("artifact_sha256") or ""
+            ),
+            "chronological_rank": int(item.get("chronological_rank") or 0),
+            "conversation_id": str(
+                by_document.get(document_id, {}).get("conversation_id") or ""
+            ),
+            "document_id": document_id,
+            "recording_id": str(
+                by_document.get(document_id, {}).get("recording_id") or ""
+            ),
+        }
+        for item, document_id in zip(future_items, document_ids)
+    ]
+    core = {
+        "schema_version": SUCCESSOR_IDENTITY_PROJECTION_SCHEMA_VERSION,
+        "parent_campaign_id": parent_campaign_id,
+        "parent_manifest_id": str(parent_manifest.get("manifest_id") or ""),
+        "parent_manifest_sha256": sha256_file(parent_manifest_path),
+        "parent_gold_index_sha256": sha256_file(parent_gold_index_path),
+        "selector_module_sha256": sha256_file(Path(__file__)),
+        "repository_state": _repository_state(),
+        "item_count": len(projection_items),
+        "items": projection_items,
+        "selection_input_scope": "json_extract_identity_scalars_only",
+        "contains_transcript_text": False,
+        "contains_source_paths": False,
+        "will_read_transcript_artifacts": False,
+        "will_read_source_audio": False,
+        "will_execute_app_intelligence": False,
+        "will_perform_external_write": False,
+    }
+    content_sha256 = _sha256_json(core)
+    return {
+        **core,
+        "projection_id": f"successor-identity-{content_sha256[:20]}",
+        "content_sha256": content_sha256,
+    }
+
+
+def apply_successor_identity_projection(
+    parent_campaign_id: str,
+    *,
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+    approval_token: str,
+    expected_content_sha256: str,
+    expected_projection_id: str,
+) -> dict[str, Any]:
+    """Persist one reviewed identity-scalar projection as private authority."""
+    if approval_token != APPLY_SUCCESSOR_IDENTITY_PROJECTION_TOKEN:
+        raise ValueError("Identity projection apply requires its exact token.")
+    preview = preview_successor_identity_projection(
+        parent_campaign_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+    )
+    if (
+        preview["content_sha256"] != expected_content_sha256
+        or preview["projection_id"] != expected_projection_id
+    ):
+        raise ValueError("Successor identity projection drifted before apply.")
+    if preview["repository_state"].get("dirty_tree") is not False:
+        raise ValueError("Identity projection requires a clean repository state.")
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    projection_path = (
+        selected_runtime_root
+        / "successor-identity-projections"
+        / f"{preview['projection_id']}.json"
+    )
+    applied = {
+        **preview,
+        "applied_at": _utc_now(),
+        "will_perform_external_write": True,
+    }
+    if projection_path.exists():
+        existing = _read_json(projection_path)
+        left = dict(existing)
+        right = dict(applied)
+        left.pop("applied_at", None)
+        right.pop("applied_at", None)
+        if left != right:
+            raise ValueError("Existing successor identity projection conflicts.")
+        applied = existing
+    else:
+        _write_private_json(projection_path, applied)
+    return {
+        "projection_id": applied["projection_id"],
+        "projection_path": str(projection_path),
+        "projection_sha256": sha256_file(projection_path),
+        "content_sha256": applied["content_sha256"],
+        "item_count": applied["item_count"],
+        "will_perform_external_write": True,
+    }
+
+
+def _successor_source_rows(
+    document_ids: list[str],
+    *,
+    store_root: Path,
+) -> dict[str, dict[str, Any]]:
+    if not document_ids:
+        return {}
+    placeholders = ",".join("?" for _ in document_ids)
+    with connect(store_root) as con:
+        rows = con.execute(
+            f"""
+            SELECT d.id, d.artifact_sha256,
+                   b.id AS source_blob_id, b.sha256 AS source_sha256,
+                   b.stored_path AS source_stored_path
+            FROM documents AS d
+            LEFT JOIN document_blobs AS db
+              ON db.document_id = d.id AND db.role = 'source_recording'
+            LEFT JOIN blobs AS b ON b.id = db.blob_id
+            WHERE d.id IN ({placeholders})
+            ORDER BY d.id, b.id
+            """,
+            document_ids,
+        ).fetchall()
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        document_id = str(row["id"])
+        result.setdefault(document_id, dict(row))
+    return result
+
+
+def preview_successor_campaign(
+    parent_campaign_id: str,
+    *,
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+    corpus_root: Optional[Path] = None,
+    identity_projection_path: Path,
+    batch_size: int = SUCCESSOR_BATCH_SIZE,
+) -> dict[str, Any]:
+    """Freeze the oldest durable, disjoint, unreviewed successor candidates."""
+    if batch_size != SUCCESSOR_BATCH_SIZE:
+        raise ValueError(
+            f"Successor campaign batch_size must be exactly {SUCCESSOR_BATCH_SIZE}."
+        )
+    selected_store_root = store_dir(store_root).absolute()
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    selected_corpus_root = (
+        corpus_root or DEFAULT_PLAN_0037_CORPUS_ROOT
+    ).expanduser().absolute()
+    parent_dir = _campaign_dir(selected_runtime_root, parent_campaign_id)
+    parent_manifest_path = parent_dir / "manifest.json"
+    parent_gold_index_path = parent_dir / "gold" / "index.json"
+    parent_manifest = _campaign_manifest(selected_runtime_root, parent_campaign_id)
+    parent_gold_index = _read_json(parent_gold_index_path)
+    records = parent_gold_index.get("records")
+    if not isinstance(records, list):
+        raise ValueError("Parent campaign gold index is invalid.")
+    latest_reviewed: dict[str, dict[str, Any]] = {}
+    for record in records:
+        if isinstance(record, dict):
+            latest_reviewed[str(record.get("document_id") or "")] = record
+    parent_items = parent_manifest.get("items")
+    if not isinstance(parent_items, list):
+        raise ValueError("Parent campaign manifest items are invalid.")
+    parent_unreviewed_items = [
+        item
+        for item in parent_items
+        if isinstance(item, dict)
+        and item.get("disposition") == "needs_operator_classification"
+        and str(item.get("document_id") or "") not in latest_reviewed
+    ]
+    parent_unreviewed_ids = [
+        str(item.get("document_id") or "") for item in parent_unreviewed_items
+    ]
+    resolved_identity_projection_path = identity_projection_path.expanduser().resolve(
+        strict=True
+    )
+    if stat.S_IMODE(resolved_identity_projection_path.stat().st_mode) != 0o600:
+        raise ValueError("Successor identity projection must be private.")
+    identity_projection = _read_json(resolved_identity_projection_path)
+    identity_items = identity_projection.get("items")
+    if not isinstance(identity_items, list):
+        raise ValueError("Successor identity projection items are invalid.")
+    identity_core = dict(identity_projection)
+    identity_core.pop("applied_at", None)
+    identity_core.pop("content_sha256", None)
+    identity_core.pop("projection_id", None)
+    identity_core["will_perform_external_write"] = False
+    expected_identity_content = _sha256_json(identity_core)
+    if (
+        identity_projection.get("schema_version")
+        != SUCCESSOR_IDENTITY_PROJECTION_SCHEMA_VERSION
+        or identity_projection.get("parent_campaign_id") != parent_campaign_id
+        or identity_projection.get("parent_manifest_id")
+        != parent_manifest.get("manifest_id")
+        or identity_projection.get("parent_manifest_sha256")
+        != sha256_file(parent_manifest_path)
+        or identity_projection.get("parent_gold_index_sha256")
+        != sha256_file(parent_gold_index_path)
+        or identity_projection.get("content_sha256") != expected_identity_content
+        or identity_projection.get("projection_id")
+        != f"successor-identity-{expected_identity_content[:20]}"
+        or [str(item.get("document_id") or "") for item in identity_items]
+        != parent_unreviewed_ids
+    ):
+        raise ValueError("Successor identity projection authority is invalid.")
+    identity_by_document = {
+        str(item.get("document_id") or ""): item
+        for item in identity_items
+        if isinstance(item, dict)
+    }
+    reviewable = parent_unreviewed_items
+    source_rows = _successor_source_rows(
+        parent_unreviewed_ids,
+        store_root=selected_store_root,
+    )
+    prior, prior_authority = _successor_prior_corpus_authority(
+        selected_corpus_root
+    )
+    selected: list[dict[str, Any]] = []
+    metadata_projection: list[dict[str, Any]] = []
+    excluded = Counter()
+    seen_recordings: set[str] = set()
+    seen_conversations: set[str] = set()
+    seen_sources: set[str] = set()
+    blobs_root = (selected_store_root / "blobs").resolve(strict=True)
+    for item in reviewable:
+        document_id = str(item["document_id"])
+        row = source_rows.get(document_id)
+        identity = identity_by_document.get(document_id)
+        if row is None or identity is None:
+            excluded["missing_transcript_store_metadata"] += 1
+            continue
+        conversation_id = str(identity.get("conversation_id") or "")
+        recording_id = str(identity.get("recording_id") or "")
+        source_sha256 = str(row.get("source_sha256") or "")
+        source_blob_id = str(row.get("source_blob_id") or "")
+        source_path = Path(str(row.get("source_stored_path") or "")).expanduser()
+        source_exists = source_path.is_file()
+        source_mode = (
+            stat.S_IMODE(source_path.stat().st_mode) if source_exists else None
+        )
+        metadata_projection.append(
+            {
+                "artifact_sha256": str(row.get("artifact_sha256") or ""),
+                "chronological_rank": int(item["chronological_rank"]),
+                "conversation_id": conversation_id,
+                "document_id": document_id,
+                "manifest_artifact_sha256": str(
+                    item.get("artifact_sha256") or ""
+                ),
+                "recording_id": recording_id,
+                "source_blob_id": source_blob_id,
+                "source_exists": source_exists,
+                "source_mode": source_mode,
+                "source_sha256": source_sha256,
+            }
+        )
+        try:
+            conversation_id = str(UUID(conversation_id))
+            recording_id = str(UUID(recording_id))
+        except (ValueError, AttributeError, TypeError):
+            excluded["missing_durable_identity"] += 1
+            continue
+        if str(row.get("artifact_sha256") or "") != str(
+            identity.get("artifact_sha256") or ""
+        ):
+            excluded["identity_projection_artifact_hash_mismatch"] += 1
+            continue
+        if (
+            not source_blob_id
+            or not re.fullmatch(r"[a-f0-9]{64}", source_sha256)
+        ):
+            excluded["missing_source_blob_metadata"] += 1
+            continue
+        try:
+            resolved_source = source_path.resolve(strict=True)
+            resolved_source.relative_to(blobs_root)
+        except (OSError, ValueError):
+            excluded["source_blob_unavailable_or_unbounded"] += 1
+            continue
+        if stat.S_IMODE(resolved_source.stat().st_mode) != 0o600:
+            excluded["source_blob_not_private"] += 1
+            continue
+        if (
+            document_id in prior["document"]
+            or recording_id in prior["recording"]
+            or conversation_id in prior["conversation"]
+            or source_sha256 in prior["source"]
+        ):
+            excluded["prior_corpus_overlap"] += 1
+            continue
+        if (
+            recording_id in seen_recordings
+            or conversation_id in seen_conversations
+            or source_sha256 in seen_sources
+        ):
+            excluded["successor_pool_identity_duplicate"] += 1
+            continue
+        seen_recordings.add(recording_id)
+        seen_conversations.add(conversation_id)
+        seen_sources.add(source_sha256)
+        selected.append(
+            {
+                **item,
+                "artifact_sha256": str(row["artifact_sha256"]),
+                "candidate_role": "gold_review_candidate",
+                "successor_identity_binding": {
+                    "conversation_id": conversation_id,
+                    "recording_id": recording_id,
+                    "source_blob_id": source_blob_id,
+                    "source_sha256": source_sha256,
+                },
+            }
+        )
+    if len(selected) != batch_size:
+        raise ValueError(
+            "Successor campaign does not have the exact requested durable, "
+            f"disjoint denominator: requested {batch_size}, found {len(selected)}."
+        )
+
+    authority = {
+        "parent_campaign_id": parent_campaign_id,
+        "parent_manifest_id": str(parent_manifest.get("manifest_id") or ""),
+        "parent_manifest_sha256": sha256_file(parent_manifest_path),
+        "parent_gold_index_sha256": sha256_file(parent_gold_index_path),
+        "identity_projection_id": identity_projection["projection_id"],
+        "identity_projection_path": str(resolved_identity_projection_path),
+        "identity_projection_sha256": sha256_file(
+            resolved_identity_projection_path
+        ),
+        "prior_corpora": prior_authority,
+        "selector_module_sha256": sha256_file(Path(__file__)),
+        "metadata_projection_sha256": _sha256_json(metadata_projection),
+    }
+    selected_projection = [
+        {
+            "artifact_sha256": item["artifact_sha256"],
+            "chronological_rank": item["chronological_rank"],
+            "document_id": item["document_id"],
+            "speaker_labels": item["speaker_labels"],
+            "successor_identity_binding": item["successor_identity_binding"],
+        }
+        for item in selected
+    ]
+    core = {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "mode": "preview",
+        "store_root": str(selected_store_root),
+        "runtime_root": str(selected_runtime_root),
+        "state_root": str(state_root or parent_manifest.get("state_root") or ""),
+        "algorithm": {
+            "name": "successor_campaign_selection",
+            "version": SUCCESSOR_SELECTION_POLICY,
+            "source_sha256": sha256_file(Path(__file__)),
+            **_repository_state(),
+        },
+        "batch_size": batch_size,
+        "model_route": parent_manifest["model_route"],
+        "provenance_config_fingerprint": parent_manifest[
+            "provenance_config_fingerprint"
+        ],
+        "provenance_snapshot_policy": "fresh_retrieval",
+        "rubric_versions": parent_manifest["rubric_versions"],
+        "schema_versions": parent_manifest["schema_versions"],
+        "selection_authority": authority,
+        "selection_policy": {
+            "policy_id": SUCCESSOR_SELECTION_POLICY,
+            "schema_id": MANIFEST_SCHEMA_VERSION,
+            "order": "current_chronological_rank_then_document_id",
+            "availability_conditioned_census": True,
+            "requires_unreviewed_parent_item": True,
+            "requires_identity_scalar_projection": True,
+            "requires_durable_conversation_and_recording_ids": True,
+            "requires_private_source_blob": True,
+            "requires_prior_corpus_and_pool_disjointness": True,
+            "will_normalize_legacy_transcripts": False,
+        },
+        "summary": {
+            "parent_unreviewed_reviewable": len(parent_unreviewed_ids),
+            "current_parent_reviewable": len(reviewable),
+            "durable_disjoint_candidate_pool": len(selected),
+            "selected_recordings": len(selected),
+            "selected_speaker_labels": sum(
+                len(item.get("speaker_labels") or []) for item in selected
+            ),
+            "excluded_counts": dict(sorted(excluded.items())),
+        },
+        "cursor": {
+            "chronological_rank": int(selected[0]["chronological_rank"]),
+            "document_id": str(selected[0]["document_id"]),
+        },
+        "items": selected,
+        "prediction_visibility": "excluded",
+        "gold_content_included": False,
+        "will_write_campaign_state": False,
+        "will_execute_app_intelligence": False,
+        "will_read_source_audio": False,
+        "will_perform_external_write": False,
+    }
+    content_sha256 = _sha256_json(core)
+    return {
+        **core,
+        "manifest_id": f"manifest-{content_sha256[:20]}",
+        "content_sha256": content_sha256,
+        "selected_projection_sha256": _sha256_json(selected_projection),
+    }
+
+
+def apply_successor_campaign(
+    parent_campaign_id: str,
+    *,
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+    corpus_root: Optional[Path] = None,
+    identity_projection_path: Path,
+    batch_size: int = SUCCESSOR_BATCH_SIZE,
+    approval_token: str,
+    expected_content_sha256: str,
+    expected_manifest_id: str,
+) -> dict[str, Any]:
+    """Persist one reviewed successor campaign without opening any case."""
+    if approval_token != APPLY_SUCCESSOR_CAMPAIGN_TOKEN:
+        raise ValueError(
+            "Successor campaign apply requires its exact approval token."
+        )
+    preview = preview_successor_campaign(
+        parent_campaign_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        state_root=state_root,
+        corpus_root=corpus_root,
+        identity_projection_path=identity_projection_path,
+        batch_size=batch_size,
+    )
+    if (
+        preview["content_sha256"] != expected_content_sha256
+        or preview["manifest_id"] != expected_manifest_id
+    ):
+        raise ValueError(
+            "Successor campaign preview drifted from the reviewed authority."
+        )
+    if preview["algorithm"].get("dirty_tree") is not False:
+        raise ValueError("Successor campaign requires a clean repository state.")
+    campaign_id = str(preview["manifest_id"]).replace(
+        "manifest-", "campaign-", 1
+    )
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    manifest_path = campaign_dir / "manifest.json"
+    applied = {
+        **preview,
+        "campaign_id": campaign_id,
+        "mode": "applied",
+        "applied_at": _utc_now(),
+        "will_write_campaign_state": True,
+    }
+    if manifest_path.exists():
+        existing = _read_json(manifest_path)
+        comparable_existing = dict(existing)
+        comparable_applied = dict(applied)
+        comparable_existing.pop("applied_at", None)
+        comparable_applied.pop("applied_at", None)
+        if comparable_existing != comparable_applied:
+            raise ValueError("Existing successor campaign manifest conflicts.")
+        applied = existing
+    else:
+        _write_private_json(manifest_path, applied)
+    replay = replay_successor_campaign(
+        campaign_id,
+        store_root=store_root,
+        runtime_root=runtime_root,
+        state_root=state_root,
+        corpus_root=corpus_root,
+    )
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "campaign_id": campaign_id,
+        "manifest_id": applied["manifest_id"],
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": sha256_file(manifest_path),
+        "batch_size": batch_size,
+        "selected_recordings": int(applied["summary"]["selected_recordings"]),
+        "selected_speaker_labels": int(
+            applied["summary"]["selected_speaker_labels"]
+        ),
+        "content_sha256": str(applied["content_sha256"]),
+        "replay_path": replay["replay_path"],
+        "replay_sha256": replay["replay_sha256"],
+        "prediction_visibility": "excluded",
+        "will_open_review_case": False,
+        "will_execute_app_intelligence": False,
+        "will_perform_external_write": False,
+    }
+
+
+def replay_successor_campaign(
+    campaign_id: str,
+    *,
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+    corpus_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Recompute and compare the complete successor manifest body."""
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    manifest_path = campaign_dir / "manifest.json"
+    manifest = _read_json(manifest_path)
+    selection_policy = manifest.get("selection_policy") or {}
+    authority = manifest.get("selection_authority") or {}
+    if (
+        not isinstance(selection_policy, dict)
+        or selection_policy.get("policy_id") != SUCCESSOR_SELECTION_POLICY
+        or selection_policy.get("schema_id") != MANIFEST_SCHEMA_VERSION
+        or not isinstance(authority, dict)
+    ):
+        raise ValueError("Campaign is not a valid successor review tranche.")
+    parent_campaign_id = str(authority.get("parent_campaign_id") or "")
+    preview = preview_successor_campaign(
+        parent_campaign_id,
+        store_root=store_root,
+        runtime_root=selected_runtime_root,
+        state_root=state_root,
+        corpus_root=corpus_root,
+        identity_projection_path=Path(
+            str(authority.get("identity_projection_path") or "")
+        ),
+        batch_size=int(manifest.get("batch_size") or 0),
+    )
+    expected = {
+        **preview,
+        "campaign_id": campaign_id,
+        "mode": "applied",
+        "will_write_campaign_state": True,
+    }
+    comparable_manifest = dict(manifest)
+    comparable_manifest.pop("applied_at", None)
+    if comparable_manifest != expected:
+        raise ValueError("Successor campaign full-body replay mismatch.")
+    if campaign_id != str(preview["manifest_id"]).replace(
+        "manifest-", "campaign-", 1
+    ):
+        raise ValueError("Successor campaign content identity mismatch.")
+    receipt = {
+        "schema_version": SUCCESSOR_REPLAY_SCHEMA_VERSION,
+        "campaign_id": campaign_id,
+        "manifest_id": manifest["manifest_id"],
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": sha256_file(manifest_path),
+        "content_sha256": manifest["content_sha256"],
+        "selector_module_sha256": authority["selector_module_sha256"],
+        "full_body_equal": True,
+        "status": "verified",
+        "will_open_review_case": False,
+        "will_execute_app_intelligence": False,
+        "will_perform_external_write": False,
+        "replayed_at": _utc_now(),
+    }
+    replay_path = campaign_dir / "successor-replay.json"
+    if replay_path.exists():
+        existing = _read_json(replay_path)
+        left = dict(existing)
+        right = dict(receipt)
+        left.pop("replayed_at", None)
+        right.pop("replayed_at", None)
+        if left != right:
+            raise ValueError("Successor campaign replay receipt conflicts.")
+        receipt = existing
+    else:
+        _write_private_json(replay_path, receipt)
+    return {
+        **receipt,
+        "replay_path": str(replay_path),
+        "replay_sha256": sha256_file(replay_path),
+    }
+
+
 def _manifest_item(
     manifest: dict[str, Any],
     document_id: str,
@@ -309,6 +1005,239 @@ def _document_row(store_root: Optional[Path], document_id: str) -> dict[str, Any
     return dict(row)
 
 
+def _is_successor_campaign(manifest: dict[str, Any]) -> bool:
+    policy = manifest.get("selection_policy")
+    return (
+        isinstance(policy, dict)
+        and policy.get("policy_id") == SUCCESSOR_SELECTION_POLICY
+    )
+
+
+def _gold_index_state(index: dict[str, Any]) -> str:
+    return _sha256_json(index)
+
+
+def _successor_open_receipts(campaign_dir: Path) -> list[dict[str, Any]]:
+    open_dir = campaign_dir / "review-opens"
+    if not open_dir.is_dir():
+        return []
+    receipts: list[dict[str, Any]] = []
+    for expected_position, path in enumerate(
+        sorted(open_dir.glob("*.json")), start=1
+    ):
+        receipt = _read_json(path)
+        if (
+            receipt.get("schema_version")
+            != SUCCESSOR_REVIEW_OPEN_SCHEMA_VERSION
+            or int(receipt.get("position") or 0) != expected_position
+        ):
+            raise ValueError("Successor review-open history is invalid.")
+        receipts.append(receipt)
+    return receipts
+
+
+def _latest_gold_by_document(index: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for record in index.get("records") or []:
+        if isinstance(record, dict):
+            latest[str(record.get("document_id") or "")] = record
+    return latest
+
+
+def _validate_successor_open_history(
+    campaign_dir: Path,
+    manifest: dict[str, Any],
+    receipts: list[dict[str, Any]],
+) -> None:
+    items = manifest.get("items")
+    if not isinstance(items, list):
+        raise ValueError("Successor campaign items are invalid.")
+    manifest_sha256 = sha256_file(campaign_dir / "manifest.json")
+    expected_keys = {
+        "campaign_id",
+        "chronological_rank",
+        "document_id",
+        "gold_index_state_sha256",
+        "manifest_id",
+        "manifest_sha256",
+        "open_receipt_sha256",
+        "opened_at",
+        "position",
+        "prediction_visibility",
+        "previous_open_receipt_sha256",
+        "schema_version",
+        "status",
+        "will_execute_app_intelligence",
+        "will_perform_external_write",
+        "will_read_gold_body",
+    }
+    previous_receipt_sha256 = ""
+    for position, receipt in enumerate(receipts, start=1):
+        receipt_core = dict(receipt)
+        receipt_sha256 = str(receipt_core.pop("open_receipt_sha256", ""))
+        if (
+            set(receipt) != expected_keys
+            or position > len(items)
+            or receipt_sha256 != _sha256_json(receipt_core)
+            or receipt.get("previous_open_receipt_sha256")
+            != previous_receipt_sha256
+            or receipt.get("schema_version")
+            != SUCCESSOR_REVIEW_OPEN_SCHEMA_VERSION
+            or receipt.get("campaign_id") != manifest.get("campaign_id")
+            or receipt.get("manifest_id") != manifest.get("manifest_id")
+            or receipt.get("manifest_sha256") != manifest_sha256
+            or receipt.get("document_id")
+            != str(items[position - 1].get("document_id") or "")
+            or int(receipt.get("chronological_rank") or 0)
+            != int(items[position - 1].get("chronological_rank") or 0)
+            or receipt.get("status") != "open"
+            or receipt.get("prediction_visibility") != "excluded"
+            or receipt.get("will_read_gold_body") is not False
+            or receipt.get("will_execute_app_intelligence") is not False
+            or receipt.get("will_perform_external_write") is not False
+            or not str(receipt.get("opened_at") or "")
+            or not re.fullmatch(
+                r"[a-f0-9]{64}",
+                str(receipt.get("gold_index_state_sha256") or ""),
+            )
+        ):
+            raise ValueError("Successor review-open history binding is invalid.")
+        previous_receipt_sha256 = receipt_sha256
+
+
+def _require_successor_case_open(
+    campaign_dir: Path,
+    manifest: dict[str, Any],
+    document_id: str,
+) -> dict[str, Any]:
+    receipts = _successor_open_receipts(campaign_dir)
+    if not receipts:
+        raise ValueError("Successor review case has not been opened by the cursor.")
+    _validate_successor_open_history(campaign_dir, manifest, receipts)
+    receipt = receipts[-1]
+    _index_path, index = _gold_index(campaign_dir)
+    latest = _latest_gold_by_document(index)
+    if (
+        receipt.get("campaign_id") != manifest.get("campaign_id")
+        or receipt.get("manifest_sha256")
+        != sha256_file(campaign_dir / "manifest.json")
+        or receipt.get("document_id") != document_id
+        or document_id in latest
+        or receipt.get("gold_index_state_sha256") != _gold_index_state(index)
+    ):
+        raise ValueError("Successor review cursor does not authorize this case.")
+    return receipt
+
+
+def open_successor_review_case(
+    campaign_id: str,
+    *,
+    document_id: str = "",
+    store_root: Optional[Path] = None,
+    runtime_root: Optional[Path] = None,
+    state_root: Optional[Path] = None,
+    corpus_root: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Open or idempotently reopen exactly the next successor review case."""
+    selected_runtime_root = (runtime_root or DEFAULT_CAMPAIGN_ROOT).expanduser()
+    campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
+    manifest = _campaign_manifest(selected_runtime_root, campaign_id)
+    if not _is_successor_campaign(manifest):
+        raise ValueError("Campaign is not a successor review tranche.")
+    replay_successor_campaign(
+        campaign_id,
+        store_root=store_root,
+        runtime_root=selected_runtime_root,
+        state_root=state_root,
+        corpus_root=corpus_root,
+    )
+    items = manifest.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("Successor campaign items are invalid.")
+    _index_path, index = _gold_index(campaign_dir)
+    latest = _latest_gold_by_document(index)
+    receipts = _successor_open_receipts(campaign_dir)
+    _validate_successor_open_history(campaign_dir, manifest, receipts)
+    if receipts:
+        outstanding = receipts[-1]
+        outstanding_document = str(outstanding.get("document_id") or "")
+        if outstanding_document not in latest:
+            if document_id and document_id != outstanding_document:
+                raise ValueError("Another successor review case is outstanding.")
+            if outstanding.get("gold_index_state_sha256") != _gold_index_state(index):
+                raise ValueError("Successor gold index changed while a case was open.")
+            packet = review_case_packet(
+                campaign_id,
+                outstanding_document,
+                store_root=store_root,
+                runtime_root=selected_runtime_root,
+            )
+            return {
+                "open_receipt": outstanding,
+                "packet": packet,
+                "idempotent_reopen": True,
+            }
+    reviewed_in_order = [
+        str(item.get("document_id") or "") in latest for item in items
+    ]
+    first_unreviewed = next(
+        (index for index, reviewed in enumerate(reviewed_in_order) if not reviewed),
+        None,
+    )
+    if first_unreviewed is None:
+        raise ValueError("Successor review tranche is complete.")
+    if any(reviewed_in_order[first_unreviewed + 1 :]):
+        raise ValueError("Successor gold index contains an out-of-order review.")
+    expected_document = str(items[first_unreviewed].get("document_id") or "")
+    if document_id and document_id != expected_document:
+        raise ValueError("Successor review cases must open in manifest order.")
+    if len(receipts) != first_unreviewed:
+        raise ValueError("Successor review cursor history does not match gold progress.")
+    position = first_unreviewed + 1
+    receipt_core = {
+        "schema_version": SUCCESSOR_REVIEW_OPEN_SCHEMA_VERSION,
+        "campaign_id": campaign_id,
+        "manifest_id": manifest["manifest_id"],
+        "manifest_sha256": sha256_file(campaign_dir / "manifest.json"),
+        "gold_index_state_sha256": _gold_index_state(index),
+        "position": position,
+        "document_id": expected_document,
+        "chronological_rank": int(items[first_unreviewed]["chronological_rank"]),
+        "status": "open",
+        "prediction_visibility": "excluded",
+        "previous_open_receipt_sha256": (
+            str(receipts[-1]["open_receipt_sha256"]) if receipts else ""
+        ),
+        "will_read_gold_body": False,
+        "will_execute_app_intelligence": False,
+        "will_perform_external_write": False,
+        "opened_at": _utc_now(),
+    }
+    receipt = {
+        **receipt_core,
+        "open_receipt_sha256": _sha256_json(receipt_core),
+    }
+    open_path = (
+        campaign_dir
+        / "review-opens"
+        / f"{position:04d}-{expected_document}.json"
+    )
+    if open_path.exists():
+        raise ValueError("Successor review-open receipt already exists unexpectedly.")
+    _write_private_json(open_path, receipt)
+    packet = review_case_packet(
+        campaign_id,
+        expected_document,
+        store_root=store_root,
+        runtime_root=selected_runtime_root,
+    )
+    return {
+        "open_receipt": {**receipt, "receipt_path": str(open_path)},
+        "packet": packet,
+        "idempotent_reopen": False,
+    }
+
+
 def review_case_packet(
     campaign_id: str,
     document_id: str,
@@ -322,6 +1251,12 @@ def review_case_packet(
     ).expanduser()
     manifest = _campaign_manifest(selected_runtime_root, campaign_id)
     item = _manifest_item(manifest, document_id)
+    if _is_successor_campaign(manifest):
+        _require_successor_case_open(
+            _campaign_dir(selected_runtime_root, campaign_id),
+            manifest,
+            document_id,
+        )
     document = _document_row(store_root, document_id)
     resolved = transcript_artifact_access.resolve_transcript_artifact(
         document,
@@ -527,6 +1462,8 @@ def record_gold_review(
     campaign_dir = _campaign_dir(selected_runtime_root, campaign_id)
     manifest = _campaign_manifest(selected_runtime_root, campaign_id)
     item = _manifest_item(manifest, document_id)
+    if _is_successor_campaign(manifest):
+        _require_successor_case_open(campaign_dir, manifest, document_id)
     index_path, index = _gold_index(campaign_dir)
     records = index["records"]
     prior = [

@@ -4,16 +4,17 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 3
+Plan Version: 5
 
 Parent: Plan 0037 P4
 
 Owner: primary agent
 
-Expected Write Surface: `acoustic_speech_preparation.py`, focused tests, one
-privacy-safe successor-readiness module and receipt, this plan, Plan 0037,
-`ROADMAP.md`, and `RUNBOOK.md`; private receipts only under
-`~/.local/state/transcribe-audio/plan-0037/verification-calibration/`.
+Expected Write Surface: `acoustic_speech_preparation.py`,
+`speaker_evaluation_campaign.py`, focused tests, privacy-safe successor
+readiness/review-tranche receipts, this plan, Plan 0037, `ROADMAP.md`, and
+`RUNBOOK.md`; private receipts only under user-scoped Plan 0037 and speaker-
+evaluation campaign roots.
 
 ## Vision alignment
 
@@ -43,6 +44,15 @@ P0 corpus. After excluding overlap by document, recording, conversation, and
 source SHA-256, the successor candidate count is zero. The inventory did not
 read model predictions or expose gold, names, transcript text, or source audio.
 
+The same frozen campaign contains 236 unreviewed reviewable items. Current
+store metadata proves seven have current durable conversation/recording IDs,
+accessible source blobs, no overlap with any prior corpus by document,
+conversation, recording, or source SHA-256, and no duplicate identity within
+the pool. Those seven contain 18 opaque speaker labels across seven multi-label
+recordings. The other 229 lack durable identities and are outside this packet;
+they must not be silently assigned IDs or rewritten merely to enlarge the
+terminal cohort.
+
 ## Scope
 
 - Add `evaluation` as an explicit later-split mode in the P2 dry-run, apply,
@@ -56,6 +66,34 @@ read model predictions or expose gold, names, transcript text, or source audio.
   eligible operator-gold records with all prior frozen corpus recordings and
   reports only counts, split counts, opaque set hashes, readiness status, and
   blockers.
+- Freeze one deterministic successor operator-review campaign from the seven
+  currently durable, source-available, fully disjoint candidates. Bind the
+  parent campaign/manifest/gold-index hashes, all prior corpus hashes, current
+  artifact/source hashes, durable recording/conversation IDs, chronological
+  selection order, exact membership in the frozen parent's unreviewed future
+  pool, and non-configurable seven-item denominator before any case review.
+  First apply must name the independently reviewed preview content hash and
+  manifest ID and reject any intervening parent/corpus/store drift.
+- Present the seven cases one at a time in concise plain English. Each gold
+  record must be an attributable operator decision with prediction visibility
+  excluded; the agent may not infer person identity, calendar outcome, or an
+  eligible-known disposition from model output, existing suggestions, or
+  silence.
+- After reviews, measure eligible recordings, opaque subjects, speaker labels,
+  same-person session pairs, different-person session pairs, and achievable
+  frozen trial counts. Proceed only if the unchanged terminal minima are
+  feasible; otherwise record the exact evidence shortfall.
+- Treat the seven records as an availability-conditioned census of the complete
+  technically eligible pool, not as representative population evidence. The
+  20/100/20 window/profile trial counts are computational coverage only. A
+  terminal `select` additionally requires seven distinct recordings and
+  conversations, at least two operator-confirmed subjects each present in at
+  least two conversations, at least four independent same-person subject-
+  session pairs, at least five distinct known subjects, and measured (not
+  `unassessed`) channel, device, noise, telephone-bandwidth, and usable-duration
+  slices with at least two observed values in every decision-relevant condition
+  dimension. Missing independent or condition coverage forces `stop` or
+  `refine`, never `select`.
 - Keep authority construction, split reveal, audio access, model execution,
   scoring, and terminal selection stopped until a genuinely new cohort exists
   and a reviewed generation-2 authority binds the already-implemented seam.
@@ -81,6 +119,9 @@ read model predictions or expose gold, names, transcript text, or source audio.
   seam/readiness packet.
 - Do not put raw gold, person identifiers, names, transcript text, source
   paths, audio, embeddings, or credential values in repo or portable receipts.
+- Do not normalize or rewrite the 229 legacy transcript artifacts that lack
+  durable identities in this packet. A future identity-migration packet must
+  preserve original evidence and independently review its grouping semantics.
 
 ## Execution graph
 
@@ -88,8 +129,9 @@ read model predictions or expose gold, names, transcript text, or source audio.
 | --- | --- | --- | --- |
 | P4E2-A inventory and design | primary plus read-only reviewer | P4E generation-1 STOP | disjoint-count receipt and reviewed plan exist |
 | P4E2-B P2 evaluation seam | primary | P4E2-A | dry-run/apply/replay/lineage tests pass for all three split modes |
-| P4E2-C successor cohort freeze | primary plus read-only reviewer | new operator-confirmed recordings | no overlap with any original P0 item and evidence-feasible terminal policy |
-| P4E2-D authority and reveal | primary plus read-only reviewer | P4E2-C, complete replayed authority chain | independent `READY_TO_REVEAL` audit |
+| P4E2-C1 successor review tranche | primary plus read-only reviewer | P4E2-B plus durable disjoint candidates | immutable seven-case campaign exists and operator reviews proceed one case at a time |
+| P4E2-C2 successor cohort freeze | primary plus read-only reviewer | P4E2-C1 operator gold | no overlap with any prior corpus and evidence-feasible terminal policy |
+| P4E2-D authority and reveal | primary plus read-only reviewer | P4E2-C2, complete replayed authority chain | independent `READY_TO_REVEAL` audit |
 | P4E2-E terminal execution | primary plus read-only reviewer | P4E2-D | exact frozen matrix completes or fails closed, then one replayed terminal decision |
 
 Intended concurrency is two agents. The primary owns writes and private
@@ -106,6 +148,27 @@ keeps the affected unit open.
 - P4E2-C is blocked while the fully disjoint candidate count is zero. New
   operator-confirmed recordings must be incorporated through the governed
   speaker-evaluation campaign; existing revealed evidence cannot substitute.
+- P4E2-C1 may freeze the seven current candidates before operator review. It
+  first projects only `conversation_id` and `recording_id` scalars for the
+  frozen parent's unreviewed future pool into a private, content-addressed
+  authority. Campaign selection then reads that projection plus current
+  document/artifact/blob identity metadata; it cannot query `json_payload` or
+  `text_content`, invoke the legacy full-store preview, or open a transcript
+  artifact. A transcript body may open only for the single current review
+  packet. It must not execute App Intelligence, open any prediction, preassign
+  gold, or expose another case concurrently.
+- The child campaign binds the selector module SHA-256, selection schema and
+  rule version, exact metadata-projection hash, content hash, and stored
+  manifest SHA-256. Apply and replay require full manifest-body equality apart
+  from the declared application timestamp; manifest-ID equality alone is
+  insufficient.
+- Opening a successor review packet requires a manifest/current-gold-index-
+  bound immutable cursor receipt. Only the next unreviewed manifest item may
+  open; the same outstanding case may reopen idempotently, any other case is
+  rejected, and the cursor advances only after an attributable gold record for
+  the outstanding document exists. Every open receipt has an exact schema,
+  content hash, previous-receipt link, and fail-closed privacy flags; added,
+  removed, or changed fields invalidate the cursor history.
 - The generation-2 authority must bind and replay the new corpus manifest,
   split policy and seal, prediction-excluded frozen gold authority, P1
   derivative/quality manifests, P2 dry-run/comparison/apply/replay manifests and
@@ -143,8 +206,21 @@ keeps the affected unit open.
 - Focused P2/readiness tests, the full repository suite, compilation, and
   `git diff --check` pass.
 - Independent review returns `PASS` for this bounded packet before commit/push.
-- Plan 0037 remains open. P4E2-C through P4E2-E remain `not_run` until new
+- Plan 0037 remains open. P4E2-C2 through P4E2-E remain `not_run` until new
   eligible source evidence exists; absence of evidence is not a failed model.
+- The successor campaign preview/apply is deterministic and idempotent, fails
+  closed on parent/corpus/store drift, uses `0600` files under `0700`
+  directories, and proves all seven candidates are pairwise and prior-corpus
+  disjoint before operator review starts.
+- A guarded selector test rejects any access to `documents.json_payload`,
+  `text_content`, the legacy full-store preview, or transcript-artifact bodies;
+  the separately frozen identity-scalar projection is hash-bound to the parent
+  manifest, parent gold index, module, repository state, and exact future pool.
+- Selector replay recomputes the full current preview from its bound parent,
+  corpus, store, policy/schema, and module authorities and matches the stored
+  child manifest body and SHA-256 exactly. Cursor tests cover first open,
+  idempotent reopen, out-of-order/concurrent rejection, gold-bound advance, and
+  manifest/index tamper rejection.
 
 ## P4E2-A/P4E2-B checkpoint
 
@@ -178,3 +254,27 @@ State: CLOSED; P4E2-C through P4E2-E are `not_run`.
 - Independent read-only audit returned `PASS` after verifying no transcript/body
   or source-blob dereference, exact receipt/module hashes and private modes,
   focused/full tests, compilation, and diff integrity.
+
+## P4E2-C1 opening checkpoint
+
+State: OPEN; successor campaign not yet applied and no case review opened.
+
+- The parent campaign already freezes all 375 transcript rows, so a second
+  unfiltered oldest-forward campaign would repeat the same source authority.
+- Of 236 unreviewed reviewable rows, seven current records satisfy the bounded
+  successor gate: durable recording/conversation IDs, current artifact hash,
+  accessible source blob, full prior-corpus disjointness, and pairwise pool
+  disjointness. They contain 18 opaque speaker labels. The remaining 229 lack
+  durable IDs and are excluded without mutation.
+- P4E2-C1 will freeze those seven into a child campaign before opening the first
+  review packet. No prediction, prior gold body, transcript text, person name,
+  or audio is part of the portable selection evidence.
+- This is an availability-conditioned census, not a representativeness claim.
+  Independent recording/conversation/subject-session and measured-condition
+  gates remain separate from combinatorial window trial counts and can force
+  `stop`/`refine` after review.
+- Implementation validation is complete before runtime apply: the private
+  identity-scalar projection, exact-seven selector, reviewed-hash-bound apply,
+  full-body replay, and chained one-case cursor passed all 16 campaign tests
+  and all 549 repository tests, plus compilation and `git diff --check`.
+  Independent read-only review returned `PASS` after two bounded repair cycles.
