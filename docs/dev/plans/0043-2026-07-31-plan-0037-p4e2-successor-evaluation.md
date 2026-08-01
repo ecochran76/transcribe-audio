@@ -1,10 +1,10 @@
 # Plan 0043 | Plan 0037 P4E2 successor terminal evaluation
 
-State: OPEN
+State: OPEN — P4E2 terminal STOP; refinement required
 
 Lane: P10
 
-Plan Version: 8
+Plan Version: 9
 
 Parent: Plan 0037 P4
 
@@ -334,3 +334,23 @@ State: P4E2-C2 CLOSED; P4E2-D OPEN.
   usable-duration evidence before constructing the independently reviewed
   generation-2 terminal authority. No biometric score or terminal selection
   has run.
+
+## P4E2-D condition close / terminal stop checkpoint
+
+State: P4E2-D CLOSED with terminal `STOP`; P4E2-E is `not_run`.
+
+- Plan 0044 executed its reviewed private condition authority from clean pushed
+  commit `837edf02e67d113d38819937acf5833a2fbd0db3`. Exact execution
+  completed 7 P1 successes and 35 P2 method successes; full-body replay passed.
+- Channel, noise, telephone-bandwidth, and usable-duration each have two
+  observed values with zero missing recordings. Device has zero observed values
+  and seven missing recordings and is the sole terminal blocker.
+- Independent metadata-only audit returned `PASS`, including exact `3 / 2 / 2`
+  split membership, all method/replay hashes, current readiness/module/repo
+  bindings, and private modes.
+- Because the precommitted decision policy requires two genuine observed
+  physical-device values with no missing recordings, generation-2 authority
+  construction, split reveal, biometric scoring, and terminal selection remain
+  stopped. Encoding profiles cannot satisfy this gate. A later refinement must
+  obtain explicit capture-device provenance or freeze a genuinely eligible new
+  cohort; it may not reinterpret this result as model failure or `select`.

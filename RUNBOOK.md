@@ -6,11 +6,11 @@
 
 Plan:
 `docs/dev/plans/0044-2026-08-01-plan-0037-p4e2-condition-measurement.md`,
-version 1
+version 2
 
 Packet: P4E2-D1 | Successor condition measurement
 
-State transition: `CLOSED/P4E2-C2 -> OPEN/P4E2-D1`.
+State transition: `CLOSED/P4E2-C2 -> CLOSED/TERMINAL-STOP/P4E2-D1`.
 
 - Opened the bounded condition packet against the exact replayed successor
   corpus. Graphiti was healthy but returned only older Plan 0037/P2 context;
@@ -18,14 +18,26 @@ State transition: `CLOSED/P4E2-C2 -> OPEN/P4E2-D1`.
 - A metadata-only source probe found six mono and one stereo recording, source
   rates of 16, 22.05, 44.1, and 48 kHz, and multiple encoding profiles.
   Physical device identity is absent and must not be inferred from encoding.
-- The packet will run exact seven-record P1 and five-method P2 preparation,
-  derive measured noise and usable-duration evidence, and report missing device
-  coverage as a terminal blocker unless genuine source metadata proves it.
+- Added and independently audited the exact condition preview/apply/replay
+  orchestrator. The audit repaired an actual split-recount gap and extended the
+  one-attempt failure boundary through final manifest/receipt writes. Six
+  focused tests and all 557 repository tests passed. Commit `837edf0` is pushed.
+- Production preview `successor-conditions-b76095fdaf488f41930cc1f4` executed
+  exactly 7 P1 successes and 35 P2 method successes. Full-body replay matched
+  content SHA-256
+  `3ef3bcdabc776dfd80fb2002fa0b29377008c08ae9b2dc5f715e6155eb0f1a5e`.
+  All runtime directories/files are private `0700`/`0600`.
+- Channel, noise, telephone-bandwidth, and usable-duration each passed with two
+  observed values and no missing recordings. Physical device had zero observed
+  values and seven missing recordings, the sole blocker. Independent runtime
+  audit returned `PASS`; no biometric scoring or terminal split reveal ran.
 
 Next:
 
-- Implement and independently audit the preview/apply/replay condition
-  orchestrator, then execute it from a clean pushed commit.
+- Keep generation-2 authority construction and terminal execution stopped.
+  A separately reviewed refinement must obtain explicit physical capture-device
+  provenance or freeze a genuinely eligible new cohort; encoding profiles may
+  not satisfy the device gate.
 
 ## Turn 268 | 2026-08-01
 

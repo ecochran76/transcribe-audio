@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 4
+Plan Version: 5
 
 Execution Mode: high-level campaign plan with bounded implementation packets
 
@@ -87,9 +87,13 @@ trials. P4E generation 1 ended in a terminal `STOP` after reveal but before
 audio/model execution because its authority-bound P2 module lacked the required
 evaluation split seam. That cohort is no longer blind terminal evidence; a new
 sealed cohort/generation is required. The seam is now implemented and replay-
-tested before any successor authority freeze, but a metadata-only readiness
-receipt proves the governed campaign has zero new fully disjoint candidates.
-No model/method selection, App
+tested before any successor authority freeze. Seven fully disjoint candidates
+were subsequently operator-reviewed and frozen into a replayed `3 / 2 / 2`
+successor corpus. Exact private condition execution completed 7 P1 runs and 35
+P2 method results. Channel, noise, telephone-bandwidth, and usable-duration
+coverage passed, but every recording lacks explicit physical capture-device
+provenance. Plan 0044 therefore closed with terminal `STOP` before generation-2
+authority construction or biometric scoring. No model/method selection, App
 Intelligence integration, or historical reprocessing exists. Plan 0036 remains
 sealed and paused after five of ten current gold reviews.
 

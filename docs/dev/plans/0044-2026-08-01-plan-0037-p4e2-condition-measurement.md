@@ -1,10 +1,10 @@
 # Plan 0044 | Plan 0037 P4E2 successor condition measurement
 
-State: OPEN
+State: CLOSED — terminal STOP
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0043 P4E2-D
 
@@ -126,3 +126,36 @@ transcript text, raw audio, embeddings, or biometric values.
 - `python -m py_compile acoustic_successor_conditions.py`
 - `git diff --check`
 - Private runtime preview/apply/replay with exact hash and permission readback.
+
+## Close checkpoint
+
+State: CLOSED with terminal `STOP`; generation-2 authority construction and
+biometric scoring remain `not_run`.
+
+- Commit `837edf02e67d113d38819937acf5833a2fbd0db3` contains the
+  independently reviewed condition orchestrator. Six focused tests and all
+  557 repository tests passed; compilation and `git diff --check` passed.
+- The reviewed production preview was
+  `successor-conditions-b76095fdaf488f41930cc1f4`, content SHA-256
+  `b76095fdaf488f41930cc1f46309280d6f1de115377a8d0733fd27080432e76c`.
+  Apply completed exactly 7 P1 successes and 35 P2 method successes. No
+  credential load, retry, failure receipt, biometric operation, gold use for
+  measurement, or external write occurred.
+- The private manifest content SHA-256 is
+  `3ef3bcdabc776dfd80fb2002fa0b29377008c08ae9b2dc5f715e6155eb0f1a5e`;
+  its file SHA-256 is
+  `d9d2d1627f5ec069b088aaef44102e2850d796587646ef683bea0124e3bb7eba`.
+  Full-body replay returned `full_body_match=true` and `idempotent=true`.
+- Channel, noise, telephone-bandwidth, and usable-duration coverage each
+  passed with two observed values and zero missing recordings. Physical device
+  coverage has zero observed values and seven missing recordings. It is the
+  sole blocker, so `terminal_selection_eligible=false`.
+- Independent metadata-only runtime audit returned `PASS`: exact `3 / 2 / 2`
+  splits, all 35 method-result hashes and 14 P1/P2 replay hashes matched, five
+  readiness methods remained successful, and the repository authority was
+  clean at the bound commit. Its complete runtime scan found 45 directories at
+  `0700`, 100 files at `0600`, and zero symlinks.
+- Encoding profiles remain diagnostic only. This cohort cannot produce a
+  generation-2 terminal `select` authority unless genuine explicit capture-
+  device provenance becomes available under a separately reviewed refinement
+  packet.

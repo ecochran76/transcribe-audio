@@ -452,9 +452,14 @@ replay-tested the evaluation seam before any successor authority freeze. Its
 exact-seven successor campaign is now fully operator-reviewed, and the new
 conversation/source-disjoint corpus is frozen and replayed with a deterministic
 3/2/2 development/calibration/evaluation split. It has 10 known subjects, 3
-recurrent subjects, and 23 feasible same-person session pairs. The cohort is
-ready for P1 measurement but remains terminal-ineligible until P1/P2 condition
-coverage and the independently reviewed generation-2 authority are complete.
+recurrent subjects, and 23 feasible same-person session pairs. The successor
+condition campaign completed exact 7 P1 and 35 P2 method successes with replay
+and independent audit. Channel, noise, telephone-bandwidth, and usable-duration
+coverage passed. Physical device provenance was absent for all seven records,
+so Plan 0044 closed with terminal `STOP`; generation-2 authority construction,
+biometric scoring, and selection remain `not_run`. A later refinement requires
+genuine explicit capture-device evidence or a new eligible cohort and may not
+substitute encoding profiles.
 No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036
