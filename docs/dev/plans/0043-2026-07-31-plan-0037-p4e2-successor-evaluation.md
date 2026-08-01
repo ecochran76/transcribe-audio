@@ -368,3 +368,21 @@ State: Plan 0045 OPEN; the Plan 0044 terminal `STOP` remains in force.
 - Generation-2 authority construction, evaluation reveal, biometric scoring,
   and selection remain `not_run` until the composite authority independently
   proves seven nonmissing direct attestations and at least two distinct devices.
+
+## P4E2-D2 historical calibration replay checkpoint
+
+State: Plan 0046 Unit A CLOSED; Plan 0045 and Plan 0046 remain OPEN.
+
+- The sole generation-2 descendant replay mismatch was isolated to the
+  archived calibration authority's P2 module hash versus the later reviewed
+  evaluation-split seam. Plan 0046 now admits only that exact transition under
+  a replay-only contract; normal calibration replay remains strict.
+- The compatibility route cannot enter calibration build, reveal, preparation,
+  selection, or apply functions. Dedicated read-only stage validation preserves
+  the existing profile, descendant, 396-trial score, and nine-threshold checks.
+- Production calibration replay passed with no immutable writer call and no
+  hash or mtime change across the six archived authority/stage/application
+  artifacts. Independent re-audit returned `PASS`; all 585 tests passed.
+- This closes only the calibration descendant seam. Generation-2 preview is
+  next, while production authority apply, reveal, scoring, and selection remain
+  stopped behind the Plan 0045 composite device-condition gate.

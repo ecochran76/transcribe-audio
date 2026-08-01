@@ -2,6 +2,41 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 271 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0046-2026-08-01-plan-0037-p4e2-generation-2-authority.md`,
+version 1
+
+Packet: P4E2-D2 | Historical calibration replay seam
+
+State transition: `OPEN/P4E2-R1 -> OPEN/P4E2-R1+P4E2-D2`.
+
+- Isolated the archived calibration replay failure to one exact field: P2
+  module `467627bc...10bdc` versus the reviewed evaluation-split seam
+  `700e10d8...bd595`; every other authority field matched.
+- Added an exact replay-only compatibility contract bound to calibration
+  authority `0fe6009b...fae5`. Default replay remains strict, and the contract
+  is unavailable to build, reveal, preparation, selection, and apply paths.
+- Added dedicated read-only validation for the archived split reveal,
+  preparation, and window selection before existing profile, descendant,
+  396-trial score, and nine-threshold replay checks.
+- Production replay succeeded with an immutable-writer spy and unchanged hash
+  plus mtime state for all six archived authority/stage/application artifacts.
+- One bounded audit repair removed write-capable stage routing and restored two
+  accidentally touched inference exception boundaries. Final independent
+  re-audit returned `PASS` on scoped code/test diff SHA-256
+  `9dae572b4683ea54176dd3f9fc750b8a84ad4f1262f20d84da4eb964671ea6b7`.
+  Twenty-two historical tests, 73 joined verification tests, and all 585
+  repository tests passed; compilation and `git diff --check` passed.
+
+Next:
+
+- Build and independently audit the deterministic no-write generation-2
+  authority preview. Keep production apply, reveal, scoring, and selection
+  stopped until Plan 0045 yields seven direct device attestations, at least two
+  opaque devices, and a passing replayed composite condition authority.
+
 ## Turn 270 | 2026-08-01
 
 Plan:

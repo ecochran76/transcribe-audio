@@ -459,7 +459,11 @@ coverage passed. Physical device provenance was absent for all seven records,
 so Plan 0044 closed with terminal `STOP`; generation-2 authority construction,
 biometric scoring, and selection remain `not_run`. A later refinement requires
 genuine explicit capture-device evidence or a new eligible cohort and may not
-substitute encoding profiles.
+substitute encoding profiles. Plan 0046 Unit A now replays the exact archived
+calibration authority across the reviewed evaluation-split P2 seam under a
+strict read-only compatibility contract; all other drift remains rejected.
+Generation-2 preview construction is next, but production apply remains blocked
+on Plan 0045's complete passing composite device authority.
 No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036
@@ -476,6 +480,7 @@ Plans:
 - `docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`
 - `docs/dev/plans/0044-2026-08-01-plan-0037-p4e2-condition-measurement.md`
 - `docs/dev/plans/0045-2026-08-01-plan-0037-p4e2-device-provenance-refinement.md`
+- `docs/dev/plans/0046-2026-08-01-plan-0037-p4e2-generation-2-authority.md`
 
 Research:
 

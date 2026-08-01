@@ -841,6 +841,22 @@ EXPECTED_EVALUATION_SPLIT_REVEAL_SHA256 = (
 OBSERVED_INCOMPATIBLE_EVALUATION_P2_MODULE_SHA256 = (
     "96946fcc39cbc77928bd2df5f3944b93fec6359cbcb741859d34b0a26f6e1f22"
 )
+HISTORICAL_P2_REPLAY_CONTRACT_SCHEMA = (
+    "transcribe-audio.historical-p2-replay-contract.v1"
+)
+HISTORICAL_CALIBRATION_AUTHORITY_SHA256 = (
+    "0fe6009bef2adfc9c48d87eea7d4ac15c00734ec45376ba3dbba45952e42fae5"
+)
+HISTORICAL_CALIBRATION_P2_MODULE_SHA256 = (
+    "467627bc3452863c996b81e4aada0b5d62d0b7350064c5adc6132666b8410bdc"
+)
+CURRENT_EVALUATION_SEAM_P2_MODULE_SHA256 = (
+    "700e10d802a6443eab9d2bb9c6b9a7519cff26021ffec23acbdb767f12bcd595"
+)
+HISTORICAL_P2_REPLAY_POLICY_ID = "evaluation_split_seam_only"
+HISTORICAL_P2_REPLAY_REASON = (
+    "successor_adds_explicit_evaluation_later_split_without_reissuing_calibration"
+)
 CALIBRATION_SCORE_METHOD_IDS = (
     "no_enhancement",
     "deepfilternet",
@@ -3910,6 +3926,7 @@ def _calibration_apply_authority_payload(
     development_authority: Mapping[str, Any],
     split_metadata: Mapping[str, Any],
     authorized_at: str,
+    p2_module_sha256: Optional[str] = None,
 ) -> dict[str, Any]:
     if (
         development_application.get("status") != "success"
@@ -4056,7 +4073,11 @@ def _calibration_apply_authority_payload(
         "metric_policy": metric_policy,
         "preparation_contract": {
             "p1_module_sha256": sha256_file(p1_module_path),
-            "p2_module_sha256": sha256_file(p2_module_path),
+            "p2_module_sha256": (
+                p2_module_sha256
+                if p2_module_sha256 is not None
+                else sha256_file(p2_module_path)
+            ),
             "p2_open_acquisition_manifest_sha256": (
                 EXPECTED_P2_OPEN_ACQUISITION_MANIFEST_SHA256
             ),
@@ -4101,6 +4122,77 @@ def _calibration_apply_authority_payload(
     return authority
 
 
+def historical_p2_replay_contract() -> dict[str, Any]:
+    """Return the sole exact contract for replaying the archived calibration."""
+    return {
+        "schema_version": HISTORICAL_P2_REPLAY_CONTRACT_SCHEMA,
+        "policy_id": HISTORICAL_P2_REPLAY_POLICY_ID,
+        "reason": HISTORICAL_P2_REPLAY_REASON,
+        "calibration_authority_sha256": HISTORICAL_CALIBRATION_AUTHORITY_SHA256,
+        "archived_p2_module_sha256": HISTORICAL_CALIBRATION_P2_MODULE_SHA256,
+        "current_p2_module_sha256": CURRENT_EVALUATION_SEAM_P2_MODULE_SHA256,
+        "replay_only": True,
+        "permits_artifact_creation": False,
+        "permits_apply": False,
+    }
+
+
+def _validate_historical_p2_replay_contract(
+    value: Any,
+    *,
+    authority: Mapping[str, Any],
+    authority_sha256: str,
+) -> str:
+    """Validate the exact archived-to-current P2 transition, or fail closed."""
+    if not isinstance(value, Mapping) or dict(value) != historical_p2_replay_contract():
+        raise AcousticVerificationError(
+            "Historical P2 replay contract is invalid."
+        )
+    stored_p2_sha = (
+        authority.get("preparation_contract", {}).get("p2_module_sha256")
+        if isinstance(authority.get("preparation_contract"), Mapping)
+        else None
+    )
+    live_p2_sha = sha256_file(Path(speech_preparation.__file__).resolve())
+    if (
+        authority_sha256 != HISTORICAL_CALIBRATION_AUTHORITY_SHA256
+        or stored_p2_sha != HISTORICAL_CALIBRATION_P2_MODULE_SHA256
+        or live_p2_sha != CURRENT_EVALUATION_SEAM_P2_MODULE_SHA256
+    ):
+        raise AcousticVerificationError(
+            "Historical P2 replay binding is invalid."
+        )
+    return HISTORICAL_CALIBRATION_P2_MODULE_SHA256
+
+
+def _require_historical_replay_artifacts(
+    *,
+    runtime_root: Path,
+    authority_sha256: str,
+    stages: Sequence[str],
+) -> None:
+    """Require archived stages before a compatibility replay can enter them."""
+    stage_root = runtime_root / "calibration-stages" / authority_sha256
+    paths = {
+        "split_reveal": stage_root / "split-reveal.json",
+        "preparation": stage_root / "preparation.json",
+        "window_selection": stage_root / "window-selection.json",
+        "score_matrix": stage_root / "score-matrix.json",
+    }
+    for stage in stages:
+        path = paths.get(stage)
+        if path is None:
+            raise AcousticVerificationError(
+                "Historical calibration replay stage is invalid."
+            )
+        try:
+            require_private_file(path, runtime_root)
+        except Exception as exc:
+            raise AcousticVerificationError(
+                "Historical calibration replay artifact is unavailable."
+            ) from exc
+
+
 def _validate_calibration_apply_authority(
     value: Any,
     *,
@@ -4108,16 +4200,28 @@ def _validate_calibration_apply_authority(
     development_application_sha256: str,
     development_authority: Mapping[str, Any],
     split_metadata: Mapping[str, Any],
+    authority_sha256: Optional[str] = None,
+    p2_replay_contract: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise AcousticVerificationError("Calibration authority is invalid.")
     authorized_at = str(value.get("authorized_at") or "")
+    p2_module_sha256 = None
+    if p2_replay_contract is not None:
+        if authority_sha256 is None:
+            raise AcousticVerificationError("Calibration authority is invalid.")
+        p2_module_sha256 = _validate_historical_p2_replay_contract(
+            p2_replay_contract,
+            authority=value,
+            authority_sha256=authority_sha256,
+        )
     expected = _calibration_apply_authority_payload(
         development_application=development_application,
         development_application_sha256=development_application_sha256,
         development_authority=development_authority,
         split_metadata=split_metadata,
         authorized_at=authorized_at,
+        p2_module_sha256=p2_module_sha256,
     )
     if dict(value) != expected or not re.fullmatch(
         r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", authorized_at
@@ -4199,6 +4303,7 @@ def replay_calibration_apply_authority(
     p3_runtime_root: Path,
     split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
     parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    p2_replay_contract: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     """Replay P4D2 authority while evaluation remains sealed."""
     if not SHA256_RE.fullmatch(str(authority_sha256)):
@@ -4225,6 +4330,8 @@ def replay_calibration_apply_authority(
         development_application_sha256=development_sha,
         development_authority=development_authority,
         split_metadata=split_metadata,
+        authority_sha256=authority_sha256,
+        p2_replay_contract=p2_replay_contract,
     )
     if canonical_artifact_hash(authority) != authority_sha256:
         raise AcousticVerificationError("Calibration authority replay is invalid.")
@@ -4806,6 +4913,184 @@ def _calibration_pcm_window(
     return tuple(value / 32768.0 for value in struct.unpack(f"<{end-start}h", payload))
 
 
+def _replay_historical_calibration_window_selection(
+    authority: Mapping[str, Any],
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    parent_corpus_manifest_path: Path,
+) -> dict[str, Any]:
+    """Replay persisted reveal/preparation/window stages without any writer."""
+    _require_historical_replay_artifacts(
+        runtime_root=runtime_root,
+        authority_sha256=authority_sha256,
+        stages=("split_reveal", "preparation", "window_selection"),
+    )
+    stage_root = runtime_root / "calibration-stages" / authority_sha256
+    records = _calibration_records_after_authority(
+        authority, parent_corpus_manifest_path=parent_corpus_manifest_path
+    )
+    records_by_id = {str(item["recording_id"]): item for item in records}
+
+    reveal_path = stage_root / "split-reveal.json"
+    reveal = read_private_object(reveal_path)
+    expected_reveal_records = []
+    for record in records:
+        source = record["source_blob"]
+        lineage = record["transcript_lineage"]
+        gold = record["operator_gold"]
+        expected_reveal_records.append(
+            {
+                "recording_id": record["recording_id"],
+                "conversation_id": record["conversation_id"],
+                "source_blob_id": source["blob_id"],
+                "source_sha256": source["sha256"],
+                "source_bytes": source["bytes"],
+                "transcript_artifact_sha256": lineage[
+                    "current_artifact_sha256"
+                ],
+                "gold_id": gold["gold_id"],
+                "speaker_truth": [dict(item) for item in gold["speaker_truth"]],
+                "conditions": dict(record.get("conditions") or {}),
+            }
+        )
+    if (
+        reveal.get("schema_version") != CALIBRATION_SPLIT_REVEAL_SCHEMA
+        or reveal.get("status") != "success"
+        or reveal.get("reason_code") is not None
+        or reveal.get("authority_sha256") != authority_sha256
+        or reveal.get("intended_split") != "calibration"
+        or reveal.get("record_set_sha256")
+        != authority["calibration_record_set_sha256"]
+        or reveal.get("conversation_set_sha256")
+        != authority["calibration_conversation_set_sha256"]
+        or reveal.get("record_count") != len(records)
+        or reveal.get("conversation_count")
+        != len({item["conversation_id"] for item in records})
+        or reveal.get("records") != expected_reveal_records
+        or reveal.get("development_disjoint") is not True
+        or reveal.get("evaluation_disjoint") is not True
+        or reveal.get("source_content_disjoint") is not True
+        or reveal.get("contains_opaque_gold_labels") is not True
+        or reveal.get("contains_raw_audio") is not False
+        or reveal.get("contains_transcript_text") is not False
+        or reveal.get("contains_names_or_emails") is not False
+        or reveal.get("contains_embeddings_or_vectors") is not False
+        or reveal.get("will_read_evaluation") is not False
+        or reveal.get("will_perform_external_write") is not False
+    ):
+        raise AcousticVerificationError(
+            "Historical calibration split reveal is invalid."
+        )
+    reveal_sha = canonical_artifact_hash(
+        {key: value for key, value in reveal.items() if key != "revealed_at"}
+    )
+
+    preparation_path = stage_root / "preparation.json"
+    preparation = read_private_object(preparation_path)
+    units = preparation.get("units")
+    expected_methods = list(authority["preparation_methods"])
+    units_by_recording = {
+        str(item.get("recording_id") or ""): item
+        for item in units or []
+        if isinstance(item, Mapping)
+    }
+    valid_units = isinstance(units, list) and len(units_by_recording) == len(records)
+    if valid_units:
+        for recording_id, record in records_by_id.items():
+            unit = units_by_recording.get(recording_id)
+            if (
+                not isinstance(unit, Mapping)
+                or unit.get("conversation_id") != record["conversation_id"]
+                or unit.get("source_sha256") != record["source_blob"]["sha256"]
+                or [item.get("method_id") for item in unit.get("methods") or []]
+                != expected_methods
+            ):
+                valid_units = False
+                break
+    if (
+        preparation.get("schema_version") != CALIBRATION_PREPARATION_SCHEMA
+        or preparation.get("status") != "success"
+        or preparation.get("reason_code") is not None
+        or preparation.get("authority_sha256") != authority_sha256
+        or preparation.get("split_reveal_sha256") != reveal_sha
+        or preparation.get("intended_split") != "calibration"
+        or preparation.get("record_count") != len(records)
+        or preparation.get("method_attempts") != len(records) * len(expected_methods)
+        or preparation.get("method_successes") != len(records) * len(expected_methods)
+        or valid_units is not True
+        or preparation.get("did_run_p1_p2") is not True
+        or preparation.get("did_read_calibration_audio") is not True
+        or preparation.get("did_run_biometrics") is not False
+        or preparation.get("did_read_evaluation") is not False
+        or preparation.get("did_perform_external_write") is not False
+        or preparation.get("contains_raw_audio") is not False
+        or preparation.get("contains_transcript_text") is not False
+        or preparation.get("contains_embeddings_or_vectors") is not False
+    ):
+        raise AcousticVerificationError(
+            "Historical calibration preparation replay is invalid."
+        )
+    preparation_sha = _calibration_stage_identity(preparation, "prepared_at")
+
+    selection_path = stage_root / "window-selection.json"
+    selection = read_private_object(selection_path)
+    windows = selection.get("windows")
+    window_ids = {
+        str(item.get("window_id") or "")
+        for item in windows or []
+        if isinstance(item, Mapping)
+    }
+    valid_windows = isinstance(windows, list) and len(window_ids) == len(windows)
+    if valid_windows:
+        for window in windows:
+            record = records_by_id.get(str(window.get("recording_id") or ""))
+            duration = float(window.get("end_seconds") or 0.0) - float(
+                window.get("start_seconds") or 0.0
+            )
+            if (
+                record is None
+                or window.get("conversation_id") != record["conversation_id"]
+                or window.get("source_sha256") != record["source_blob"]["sha256"]
+                or window.get("transcript_artifact_sha256")
+                != record["transcript_lineage"]["current_artifact_sha256"]
+                or not 0.75 <= duration <= 15.0
+            ):
+                valid_windows = False
+                break
+    if (
+        selection.get("schema_version") != CALIBRATION_WINDOW_SELECTION_SCHEMA
+        or selection.get("status") != "success"
+        or selection.get("reason_code") is not None
+        or selection.get("authority_sha256") != authority_sha256
+        or selection.get("split_reveal_sha256") != reveal_sha
+        or selection.get("preparation_sha256") != preparation_sha
+        or selection.get("intended_split") != "calibration"
+        or selection.get("maximum_windows_per_speaker_per_conversation") != 3
+        or selection.get("window_count") != len(windows or [])
+        or valid_windows is not True
+        or selection.get("did_read_calibration_gold") is not True
+        or selection.get("did_run_biometrics") is not False
+        or selection.get("did_read_evaluation") is not False
+        or selection.get("did_perform_external_write") is not False
+        or selection.get("contains_opaque_gold_labels") is not True
+        or selection.get("contains_raw_audio") is not False
+        or selection.get("contains_transcript_text") is not False
+        or selection.get("contains_embeddings_or_vectors") is not False
+    ):
+        raise AcousticVerificationError(
+            "Historical calibration window replay is invalid."
+        )
+    return {
+        **selection,
+        "window_selection_sha256": _calibration_stage_identity(
+            selection, "selected_at"
+        ),
+        "private_window_selection_path": str(selection_path),
+        "selection_replay_mode": "structural_without_writers",
+    }
+
+
 def apply_calibration_scores(
     authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
     adapters: Optional[Mapping[str, VerificationAdapter]] = None,
@@ -4920,17 +5205,37 @@ def apply_calibration_scores(
 def replay_calibration_score_matrix(
     authority_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
     parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    p2_replay_contract: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     """Structurally replay persisted calibration scores without model execution."""
     root = runtime_root.expanduser().absolute()
+    if p2_replay_contract is not None:
+        _require_historical_replay_artifacts(
+            runtime_root=root,
+            authority_sha256=authority_sha256,
+            stages=(
+                "split_reveal", "preparation", "window_selection", "score_matrix",
+            ),
+        )
     authority = replay_calibration_apply_authority(
         authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
         parent_corpus_manifest_path=parent_corpus_manifest_path,
+        p2_replay_contract=p2_replay_contract,
     )
-    selection = select_calibration_windows(
-        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
-        parent_corpus_manifest_path=parent_corpus_manifest_path,
-    )
+    if p2_replay_contract is None:
+        selection = select_calibration_windows(
+            authority_sha256,
+            runtime_root=root,
+            p3_runtime_root=p3_runtime_root,
+            parent_corpus_manifest_path=parent_corpus_manifest_path,
+        )
+    else:
+        selection = _replay_historical_calibration_window_selection(
+            authority,
+            authority_sha256,
+            runtime_root=root,
+            parent_corpus_manifest_path=parent_corpus_manifest_path,
+        )
     path = root / "calibration-stages" / authority_sha256 / "score-matrix.json"
     require_private_file(path, root)
     receipt = read_private_object(path)
@@ -5223,6 +5528,7 @@ def apply_calibration_thresholds(
 def replay_calibration_thresholds(
     application_sha256: str, *, runtime_root: Path, p3_runtime_root: Path,
     parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+    p2_replay_contract: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     """Recompute thresholds and metrics from persisted scores, never audio."""
     if not SHA256_RE.fullmatch(str(application_sha256)):
@@ -5237,10 +5543,12 @@ def replay_calibration_thresholds(
     authority = replay_calibration_apply_authority(
         authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
         parent_corpus_manifest_path=parent_corpus_manifest_path,
+        p2_replay_contract=p2_replay_contract,
     )
     scores = replay_calibration_score_matrix(
         authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root,
         parent_corpus_manifest_path=parent_corpus_manifest_path,
+        p2_replay_contract=p2_replay_contract,
     )
     recomputed = _calibration_threshold_results(authority, scores)
     if (
