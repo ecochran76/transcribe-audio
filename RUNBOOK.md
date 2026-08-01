@@ -2,6 +2,38 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 274 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0047-2026-08-01-plan-0037-source-device-metadata.md`,
+version 1
+
+Packet: P4E2-R3 | Source-embedded device metadata supplement
+
+State transition: `OPEN/P4E2-R1-CASE-1+P4E2-D3 -> OPEN/P4E2-R3-PARTIAL+P4E2-D3`.
+
+- Operator-authorized indexed search recovered all seven frozen sources with
+  exact SHA-256 matches, so the conditional replacement path did not run.
+- A separate immutable authority admits only the exact manufacturer hardware
+  tag `Samsung:SamsungModel`; it does not alter or masquerade as Plan 0045
+  direct-operator testimony. Five cases identify one opaque physical device;
+  cases 2 and 4 explicitly remain unavailable.
+- Independent audit exposed and closed campaign/body detachment, duplicate
+  cases, receipt path disclosure, distribution drift, and extraction-time
+  source-swap risks. Final targeted verification returned `PASS`; nine focused
+  and all 622 tests, compilation, and `git diff --check` passed.
+- Implementation commit `90c62e38f59eb2d970640593d5678f58880115b4`
+  is pushed. Production authority
+  `source-device-metadata-e9c6839faeaa1bdfd6bfe842` applied and replayed with
+  full-body equality and exact private modes.
+
+Next:
+
+- Keep generation-2 apply/reveal blocked. Composite integration remains open,
+  but cannot pass with two missing recordings and only one distinct device.
+  Obtain genuine device evidence for cases 2 and 4 or define and review a new
+  cohort/replacement packet; do not infer from ineligible metadata.
+
 ## Turn 273 | 2026-08-01
 
 Plan:

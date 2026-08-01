@@ -38,13 +38,15 @@ passed with two observed values and zero missing recordings. Physical capture
 device has zero observed values and seven missing recordings and is the sole
 terminal blocker.
 
-A new read-only inventory found no device, recorder, microphone, hardware,
-manufacturer, model, or capture-application field in any of the seven current
-transcript artifacts. The byte-authoritative M4A containers expose only generic
-`SoundHandle` / `SoundHandler` track labels, and their private copies have no
-extended attributes. None of the seven recorded original source paths remains
-present. Encoding, container, filename, source folder, channel, and sample-rate
-profiles therefore remain ineligible as physical-device evidence.
+The initial read-only inventory found no eligible device field because it did
+not query the manufacturer-specific metadata namespace and the recorded
+original source paths appeared absent. A later operator-authorized indexed
+search recovered all seven exact source byte streams. Plan 0047 then found an
+allowlisted `Samsung:SamsungModel` hardware-model tag in five exact sources;
+cases 2 and 4 contain no such tag. Generic handler, encoding, container,
+filename, source folder, channel, and sample-rate profiles remain ineligible.
+The five source facts are held in a separate authority and are not mislabeled
+or inserted into this direct-operator attestation history.
 
 After the campaign froze and its first case opened, reviewed Plan 0046
 descendant commits advanced repository `HEAD` without changing the frozen

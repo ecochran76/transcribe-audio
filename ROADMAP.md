@@ -455,11 +455,12 @@ conversation/source-disjoint corpus is frozen and replayed with a deterministic
 recurrent subjects, and 23 feasible same-person session pairs. The successor
 condition campaign completed exact 7 P1 and 35 P2 method successes with replay
 and independent audit. Channel, noise, telephone-bandwidth, and usable-duration
-coverage passed. Physical device provenance was absent for all seven records,
-so Plan 0044 closed with terminal `STOP`; generation-2 authority construction,
-biometric scoring, and selection remain `not_run`. A later refinement requires
-genuine explicit capture-device evidence or a new eligible cohort and may not
-substitute encoding profiles. Plan 0046 Units A through C now replay the exact
+coverage passed. Plan 0044 therefore closed with terminal `STOP`; generation-2
+biometric scoring and selection remain `not_run`. Plan 0047 subsequently
+recovered all seven exact frozen sources and froze five allowlisted
+manufacturer hardware-model facts in a separate replayed authority. Cases 2
+and 4 remain unavailable, and the five observed rows represent only one
+distinct device, so the device gate still fails without inference. Plan 0046 Units A through C now replay the exact
 archived calibration authority across the reviewed evaluation-split P2 seam
 and provide an independently audited deterministic generation-2 pre-reveal
 preview. The preview binds the frozen successor, condition, calibration,
@@ -470,8 +471,10 @@ passing composite device authority.
 Plan 0045's frozen exact-seven campaign has also been repaired to replay across
 clean reviewed descendant commits without reissuing its original identity.
 Production full-body replay and idempotent case-1 reopen passed at pushed commit
-`bb975ebe5e46f880cefadf4267d03e2b5d7ede83`; zero attestations exist, so the
-direct case-1 physical-device fact remains the next critical-path input.
+`bb975ebe5e46f880cefadf4267d03e2b5d7ede83`; zero direct attestations exist.
+The pushed Plan 0047 supplement now provides five source-embedded facts without
+rewriting that history. Exact device evidence for cases 2 and 4, plus a second
+distinct device, remains the next critical-path input.
 No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036

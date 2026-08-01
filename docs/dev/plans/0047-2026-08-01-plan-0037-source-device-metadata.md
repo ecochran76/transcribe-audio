@@ -77,3 +77,24 @@ composite authority merge those facts without modifying Plan 0045 history.
   audit, clean pushed commit, production preview/apply/replay, and exact private
   permissions must pass before composite consumption.
 
+## Source authority checkpoint
+
+State: CLOSED; composite-consumption unit remains OPEN.
+
+- Operator-authorized indexed search recovered all seven exact frozen source
+  byte streams; no case replacement was needed.
+- The applied authority is
+  `source-device-metadata-e9c6839faeaa1bdfd6bfe842`, content SHA-256
+  `e9c6839faeaa1bdfd6bfe8420c0cff13c42f8d1743b4f3ce4539e1c75afa98a6`.
+  It contains five observed results, two explicit unavailable results, and one
+  distinct opaque device ID.
+- Independent review found and closed manifest/body detachment, duplicate-case,
+  portable-path disclosure, result-distribution, and extraction-time source
+  swap risks. Targeted final verification returned `PASS`.
+- Nine focused and all 622 repository tests passed; compilation and
+  `git diff --check` passed. Implementation commit
+  `90c62e38f59eb2d970640593d5678f58880115b4` is pushed.
+- Production apply and full-body replay passed with exact `0700` directory and
+  `0600` manifest/receipt modes. This evidence does not clear the terminal
+  gate: cases 2 and 4 remain unavailable and the five observed rows identify
+  only one distinct device.
