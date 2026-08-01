@@ -207,6 +207,11 @@ def _authorities(monkeypatch: pytest.MonkeyPatch) -> dict:
     }
     monkeypatch.setattr(device, "_repository_authority", lambda: dict(authority))
     monkeypatch.setattr(device, "_validate_closed_commit", lambda commit: None)
+    monkeypatch.setattr(
+        device,
+        "_module_sha256_at_commit",
+        lambda commit: authority["module_sha256"],
+    )
     return authority
 
 
@@ -270,6 +275,151 @@ def test_preview_is_exact_deterministic_and_no_write(
     assert first["will_assert_device_fact"] is False
     assert first["will_run_models"] is False
     assert not (tmp_path / "runtime").exists()
+
+
+def test_frozen_campaign_replays_after_clean_descendant_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    corpus, condition, sources = _fixture(tmp_path)
+    authority = _authorities(monkeypatch)
+    frozen_authority = dict(authority)
+    runtime = tmp_path / "runtime"
+    preview = device.preview_device_campaign(corpus, condition)
+    device.apply_device_campaign(
+        corpus,
+        condition,
+        expected_content_sha256=preview["content_sha256"],
+        runtime_root=runtime,
+    )
+
+    authority["commit"] = "c" * 40
+    replay = device.replay_device_campaign(
+        preview["campaign_id"],
+        corpus_manifest_path=corpus,
+        condition_manifest_path=condition,
+        runtime_root=runtime,
+    )
+
+    assert replay["full_body_match"] is True
+    manifest = json.loads(
+        (runtime / "campaigns" / preview["campaign_id"] / "manifest.json").read_text()
+    )
+    assert manifest["repository_authority"] == frozen_authority
+    assert all(source.is_file() for source in sources)
+
+
+def test_apply_after_descendant_commit_reuses_frozen_campaign(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    corpus, condition, _sources = _fixture(tmp_path)
+    authority = _authorities(monkeypatch)
+    runtime = tmp_path / "runtime"
+    frozen_preview = device.preview_device_campaign(corpus, condition)
+    device.apply_device_campaign(
+        corpus,
+        condition,
+        expected_content_sha256=frozen_preview["content_sha256"],
+        runtime_root=runtime,
+    )
+
+    authority["commit"] = "c" * 40
+    descendant_preview = device.preview_device_campaign(corpus, condition)
+    assert descendant_preview["campaign_id"] != frozen_preview["campaign_id"]
+    replay = device.apply_device_campaign(
+        corpus,
+        condition,
+        expected_content_sha256=descendant_preview["content_sha256"],
+        runtime_root=runtime,
+    )
+
+    assert replay["campaign_id"] == frozen_preview["campaign_id"]
+    assert replay["full_body_match"] is True
+    assert [path.name for path in (runtime / "campaigns").iterdir()] == [
+        frozen_preview["campaign_id"]
+    ]
+
+
+def test_apply_rejects_two_campaigns_for_same_predecessor_authorities(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    corpus, condition, _sources = _fixture(tmp_path)
+    authority = _authorities(monkeypatch)
+    runtime = tmp_path / "runtime"
+    first = device.preview_device_campaign(corpus, condition)
+    device.apply_device_campaign(
+        corpus,
+        condition,
+        expected_content_sha256=first["content_sha256"],
+        runtime_root=runtime,
+    )
+
+    authority["commit"] = "c" * 40
+    second = device.preview_device_campaign(corpus, condition)
+    second_paths = device._paths(runtime, second["campaign_id"])
+    device.ensure_private_tree(second_paths["root"], second_paths["campaign"])
+    second_manifest = {
+        **second,
+        "schema_version": device.CAMPAIGN_SCHEMA,
+        "status": "open",
+        "applied_at": "2026-08-01T12:00:00Z",
+    }
+    device.write_immutable_private_json(second_paths["manifest"], second_manifest)
+    device.write_immutable_private_json(
+        second_paths["receipt"],
+        {
+            "schema_version": device.CAMPAIGN_RECEIPT_SCHEMA,
+            "campaign_id": second["campaign_id"],
+            "content_sha256": second["content_sha256"],
+            "manifest_path": str(second_paths["manifest"]),
+            "manifest_sha256": device.sha256_file(second_paths["manifest"]),
+            "recordings": 7,
+            "mode": "0600",
+            "contains_private_operator_context": False,
+            "contains_device_labels": False,
+            "will_perform_external_write": False,
+        },
+    )
+
+    with pytest.raises(device.DeviceProvenanceError, match="Multiple device campaigns"):
+        device.apply_device_campaign(
+            corpus,
+            condition,
+            expected_content_sha256=second["content_sha256"],
+            runtime_root=runtime,
+        )
+
+
+@pytest.mark.parametrize("drift", ["dirty", "historical_module", "non_ancestor"])
+def test_frozen_campaign_descendant_replay_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, drift: str
+) -> None:
+    corpus, condition, runtime, campaign_id, _sources = _freeze(
+        tmp_path, monkeypatch
+    )
+    current = {
+        "commit": "c" * 40,
+        "clean": drift != "dirty",
+        "module_sha256": "d" * 64,
+    }
+    monkeypatch.setattr(device, "_repository_authority", lambda: dict(current))
+    if drift == "historical_module":
+        monkeypatch.setattr(device, "_module_sha256_at_commit", lambda commit: "0" * 64)
+    elif drift == "non_ancestor":
+        monkeypatch.setattr(
+            device,
+            "_validate_closed_commit",
+            lambda commit: (_ for _ in ()).throw(
+                device.DeviceProvenanceError("not an ancestor")
+            ),
+        )
+
+    with pytest.raises(device.DeviceProvenanceError):
+        device.replay_device_campaign(
+            campaign_id,
+            corpus_manifest_path=corpus,
+            condition_manifest_path=condition,
+            runtime_root=runtime,
+        )
 
 
 def test_freeze_cursor_attestation_and_replay_are_private(

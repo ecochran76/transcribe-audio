@@ -92,6 +92,52 @@ def _validate_repository_authority(authority: Mapping[str, Any]) -> None:
         raise DeviceProvenanceError("Repository authority is stale or dirty.")
 
 
+def _module_sha256_at_commit(commit: str) -> str:
+    """Return the frozen device-provenance module identity from one commit."""
+    if not COMMIT_RE.fullmatch(commit):
+        raise DeviceProvenanceError("Frozen repository commit is invalid.")
+    root = Path(__file__).resolve().parent
+    result = subprocess.run(
+        ["git", "show", f"{commit}:acoustic_device_provenance.py"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise DeviceProvenanceError(
+            "Frozen device-provenance module is unavailable."
+        )
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def _validate_frozen_repository_authority(
+    authority: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate a frozen campaign under a clean descendant checkout."""
+    frozen = dict(authority)
+    current = _repository_authority()
+    frozen_commit = str(frozen.get("commit") or "")
+    frozen_module = str(frozen.get("module_sha256") or "")
+    if (
+        set(frozen) != {"commit", "clean", "module_sha256"}
+        or frozen.get("clean") is not True
+        or not COMMIT_RE.fullmatch(frozen_commit)
+        or not SHA256_RE.fullmatch(frozen_module)
+        or current.get("clean") is not True
+        or not COMMIT_RE.fullmatch(str(current.get("commit") or ""))
+        or not SHA256_RE.fullmatch(str(current.get("module_sha256") or ""))
+    ):
+        raise DeviceProvenanceError(
+            "Frozen repository authority is invalid or current checkout is dirty."
+        )
+    _validate_closed_commit(frozen_commit)
+    if _module_sha256_at_commit(frozen_commit) != frozen_module:
+        raise DeviceProvenanceError(
+            "Frozen device-provenance module authority drifted."
+        )
+    return current
+
+
 def _validate_closed_commit(commit: str) -> None:
     if not COMMIT_RE.fullmatch(commit):
         raise DeviceProvenanceError("Closed condition commit is invalid.")
@@ -353,7 +399,41 @@ def apply_device_campaign(
     if preview["content_sha256"] != expected_content_sha256:
         raise DeviceProvenanceError("Reviewed device campaign hash is stale.")
     _validate_repository_authority(preview["repository_authority"])
-    paths = _paths(runtime_root or DEFAULT_RUNTIME_ROOT, preview["campaign_id"])
+    selected_root = (runtime_root or DEFAULT_RUNTIME_ROOT).expanduser().absolute()
+    campaigns_root = selected_root / "campaigns"
+    matching_campaign_ids: list[str] = []
+    if campaigns_root.is_dir():
+        for manifest_path in sorted(campaigns_root.glob("*/manifest.json")):
+            require_private_file(manifest_path, selected_root)
+            existing = read_private_object(manifest_path)
+            if (
+                existing.get("corpus_authority") != preview["corpus_authority"]
+                or existing.get("condition_authority")
+                != preview["condition_authority"]
+            ):
+                continue
+            existing_campaign_id = str(existing.get("campaign_id") or "")
+            if (
+                existing.get("schema_version") != CAMPAIGN_SCHEMA
+                or existing.get("status") != "open"
+                or manifest_path.parent.name != existing_campaign_id
+            ):
+                raise DeviceProvenanceError(
+                    "Existing device campaign authority is invalid."
+                )
+            matching_campaign_ids.append(existing_campaign_id)
+    if len(matching_campaign_ids) > 1:
+        raise DeviceProvenanceError(
+            "Multiple device campaigns bind the same predecessor authorities."
+        )
+    if matching_campaign_ids:
+        return replay_device_campaign(
+            matching_campaign_ids[0],
+            corpus_manifest_path=corpus_manifest_path,
+            condition_manifest_path=condition_manifest_path,
+            runtime_root=selected_root,
+        )
+    paths = _paths(selected_root, preview["campaign_id"])
     if paths["manifest"].exists() and paths["receipt"].exists():
         return replay_device_campaign(
             preview["campaign_id"],
@@ -595,11 +675,29 @@ def replay_device_campaign(
     runtime_root: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Read-only replay of campaign, cursor, and append-only provenance."""
-    preview = preview_device_campaign(corpus_manifest_path, condition_manifest_path)
-    if campaign_id != preview["campaign_id"]:
-        raise DeviceProvenanceError("Device campaign identity is stale.")
     paths = _paths(runtime_root or DEFAULT_RUNTIME_ROOT, campaign_id)
     manifest = _load_campaign(paths)
+    frozen_repository = manifest.get("repository_authority")
+    if not isinstance(frozen_repository, Mapping):
+        raise DeviceProvenanceError("Frozen repository authority is missing.")
+    _validate_frozen_repository_authority(frozen_repository)
+    current_preview = preview_device_campaign(
+        corpus_manifest_path, condition_manifest_path
+    )
+    preview_core = {
+        key: value
+        for key, value in current_preview.items()
+        if key not in {"campaign_id", "content_sha256"}
+    }
+    preview_core["repository_authority"] = dict(frozen_repository)
+    preview_digest = _canonical_hash(preview_core)
+    preview = {
+        **preview_core,
+        "campaign_id": f"device-provenance-{preview_digest[:24]}",
+        "content_sha256": preview_digest,
+    }
+    if campaign_id != preview["campaign_id"]:
+        raise DeviceProvenanceError("Device campaign identity is stale.")
     comparable = dict(manifest)
     comparable.pop("applied_at", None)
     expected = {**preview, "schema_version": CAMPAIGN_SCHEMA, "status": "open"}

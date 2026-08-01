@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0043 P4E2-D refinement
 
@@ -46,6 +46,12 @@ extended attributes. None of the seven recorded original source paths remains
 present. Encoding, container, filename, source folder, channel, and sample-rate
 profiles therefore remain ineligible as physical-device evidence.
 
+After the campaign froze and its first case opened, reviewed Plan 0046
+descendant commits advanced repository `HEAD` without changing the frozen
+device-provenance module. The original replay path rebuilt campaign identity
+from current `HEAD`, so the valid frozen campaign became stale. This is a
+continuity defect in replay, not source or operator evidence drift.
+
 ## Scope
 
 - Add a private preview/apply/replay device-provenance campaign bound to the
@@ -53,6 +59,13 @@ profiles therefore remain ineligible as physical-device evidence.
   all seven source hashes, clean repository commit, and module hash.
 - Freeze exactly seven opaque recording cases in corpus order. Apply requires
   the independently reviewed preview content hash and writes no device claim.
+- Preserve a frozen campaign across later clean descendant commits by proving
+  the frozen commit remains an ancestor and the exact historical module blob
+  still hashes to its stored authority. Reconstruct the frozen body with its
+  original repository binding; do not rewrite or reissue it.
+- Reapplying after a descendant commit must find and replay the one existing
+  campaign with the same exact corpus and condition authorities. Multiple or
+  malformed matches fail closed instead of creating a duplicate campaign.
 - Open exactly one case at a time through an immutable hash-chained cursor.
   A private operator packet may show recording date/title and source-location
   context needed for recall, but portable receipts contain only opaque IDs,
@@ -105,6 +118,9 @@ audits. Review retries are limited to one repair-and-re-audit cycle per unit.
 - Preview, apply, open, attest, correct, compose, and replay revalidate every
   bound manifest, receipt, module, repository, source, cursor, and prior-record
   hash before writes.
+- Descendant replay requires a clean current checkout, exact frozen repository
+  keys, an ancestor relationship from frozen commit to current `HEAD`, and the
+  historical device-provenance module hash read from the frozen Git tree.
 - A campaign with an outstanding case may only reopen that case idempotently.
   It cannot skip, reorder, or concurrently open cases.
 - An attestation must be an explicit operator fact about the physical capture
@@ -128,6 +144,9 @@ audits. Review retries are limited to one repair-and-re-audit cycle per unit.
   fail closed.
 - Full replay recomputes campaign, cursor, latest-record reduction, opaque
   device IDs, exact denominators, privacy flags, and composite coverage.
+- A clean descendant commit preserves the original campaign ID/content and
+  reapply remains singleton-idempotent; dirty checkout, non-ancestor history,
+  historical module drift, duplicate campaign, or predecessor drift fails.
 - Portable receipts contain no raw/private content and all runtime files are
   `0600` under `0700` directories.
 - Focused and full tests, compilation, `git diff --check`, independent audit,
@@ -141,3 +160,23 @@ audits. Review retries are limited to one repair-and-re-audit cycle per unit.
 - `.venv/bin/python -m py_compile acoustic_device_provenance.py`
 - `git diff --check`
 - Private preview/apply/replay and exact permission readback.
+
+## Descendant replay continuity repair
+
+State: OPEN pending independent re-audit and clean pushed production replay.
+
+- Frozen campaign `device-provenance-07f1509cf8657c793777e386` remains the
+  sole exact-seven authority. No campaign, cursor, or attestation artifact is
+  rewritten by this repair.
+- Replay now validates the frozen commit/module from Git history under a clean
+  descendant checkout and reconstructs the original body with its frozen
+  repository authority. Apply reuses the single campaign bound to the same
+  corpus and condition instead of deriving a duplicate from the later `HEAD`.
+- Tests cover clean descendant replay and reapply plus dirty checkout,
+  historical module drift, non-ancestor rejection, and two valid campaigns for
+  one predecessor pair. Independent re-audit returned `PASS` on scoped
+  code/test diff SHA-256
+  `3f6cbebdd0f945453775b4d065801e88784f11df213f3abe1f0664da900d96c1`.
+  Twelve focused tests, 40 joined device/condition/generation-2 tests, and all
+  613 repository tests passed; compilation and `git diff --check` passed.
+  Production replay must pass only after the repair commit is clean and pushed.
