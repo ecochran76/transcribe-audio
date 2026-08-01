@@ -438,7 +438,11 @@ candidates were resolved through exact production P3 approvals and a
 content-addressed P4 apply authority under the operator's blanket proceed
 instruction. Six active real profiles now cover both candidates across all
 three pinned models using no-enhancement enrollment windows. P4D development
-trials are next; calibration and evaluation remain sealed. No calibrated
+resubstitution diagnostics are complete across all five preparation paths:
+450 logical scores, 225 genuine/225 impostor, and 270 unique
+waveform/model/profile combinations. They are explicitly non-held-out and do
+not support accuracy, threshold, or model-selection claims. P4D2 held-out
+calibration is next under its exact apply authority; evaluation remains sealed. No calibrated
 verification model or historical reprocessing workflow exists yet. Plan 0036
 remains sealed and paused at five of ten current gold reviews.
 

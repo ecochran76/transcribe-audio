@@ -16,13 +16,16 @@ from acoustic_verification import (
     FakeVerificationAdapter,
     adapter_registry,
     apply_real_enrollment,
+    apply_development_trials,
     build_real_enrollment_apply_authority,
+    build_development_trial_authority,
     build_real_enrollment_candidate_proposal,
     build_real_enrollment_preview,
     cosine_score,
     dry_run_model_acquisition,
     replay_model_acquisition,
     replay_real_enrollment_apply_authority,
+    replay_development_trial_application,
     replay_real_enrollment_application,
     replay_real_enrollment_candidate_proposal,
     replay_real_enrollment_preview,
@@ -1546,6 +1549,191 @@ def test_real_enrollment_apply_rejects_unreviewed_adapter_override(
             runtime_root=tmp_path / "p4",
             p3_runtime_root=tmp_path / "p3",
             adapters={adapter.candidate_id: adapter},
+        )
+
+
+def test_development_trials_are_exact_resubstitution_and_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    proposal, _, _ = real_enrollment_authority_inputs()
+    source = proposal["candidates"][0]["proposed_sources"][0]
+    second_person = "subject-second-person-001"
+    adapter = FakeVerificationAdapter(candidate_id="synthetic_verifier")
+    profiles = []
+    for index, person_ref_id in enumerate(
+        (proposal["candidates"][0]["person_ref_id"], second_person), start=1
+    ):
+        profiles.append(
+            {
+                "profile_id": f"verification-profile-{index:024d}",
+                "descendant_id": f"verification-descendant-{index:024d}",
+                "person_ref_id": person_ref_id,
+                "p3_profile_id": f"reference-profile-{index:024d}",
+                "generation_id": f"refgen-{index:024d}",
+                "generation_sha256": str(index) * 64,
+                "candidate_id": adapter.candidate_id,
+                "model_revision": adapter.revision_sha,
+                "artifact_sha256": chr(96 + index) * 64,
+                "profile_manifest_sha256": chr(98 + index) * 64,
+                "private_artifact_path": str(tmp_path / f"profile-{index}.f32le"),
+                "window_count": 1,
+                "session_count": 1,
+                "dispersion": 0.0,
+                "lifecycle_state": "active",
+                "calibration_eligible": True,
+                "replacement_profile_id": None,
+                "created_at": "2026-07-31T12:00:00Z",
+                "updated_at": "2026-07-31T12:00:00Z",
+            }
+        )
+    application = {
+        "status": "success",
+        "intended_split": "development",
+        "did_run_trials": False,
+        "did_read_calibration_or_evaluation": False,
+        "candidate_proposal_sha256": "2" * 64,
+        "enrollment_preview_sha256": "3" * 64,
+        "profiles": profiles,
+    }
+    source_binding = verification._development_trial_source_binding(source)
+    authority_sha = "4" * 64
+    authority = {
+        "authority_sha256": authority_sha,
+        "enrollment_application_sha256": "5" * 64,
+        "candidate_proposal_sha256": "2" * 64,
+        "enrollment_preview_sha256": "3" * 64,
+        "development_comparison_receipt_sha256": (
+            verification.EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256
+        ),
+        "source_units": [
+            {
+                "person_ref_id": proposal["candidates"][0]["person_ref_id"],
+                "source": source_binding,
+            }
+        ],
+        "preparation_methods": list(verification.METHOD_IDS),
+        "profiles": profiles,
+        "expected_coverage": {
+            "logical_trials": 10,
+            "genuine_trials": 5,
+            "impostor_trials": 5,
+            "unique_probe_waveforms": 5,
+            "unique_waveform_model_profile_combinations": 10,
+        },
+    }
+    monkeypatch.setattr(
+        verification,
+        "replay_development_trial_authority",
+        lambda *args, **kwargs: authority,
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_application",
+        lambda *args, **kwargs: application,
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_candidate_proposal",
+        lambda *args, **kwargs: proposal,
+    )
+    monkeypatch.setattr(
+        verification,
+        "_authorized_real_windows",
+        lambda sources, method_id: [
+            {
+                "session_id": source["session_id"],
+                "samples": [
+                    float(verification.METHOD_IDS.index(method_id) + 1) / 10.0,
+                    -0.5,
+                ]
+                * 4_000,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_profile",
+        lambda profile_id, **kwargs: {
+            **next(profile for profile in profiles if profile["profile_id"] == profile_id),
+            "private_bytes_present": True,
+            "tombstone_path": None,
+            "replayed_at": "2026-07-31T12:00:01Z",
+        },
+    )
+    monkeypatch.setattr(verification, "descendant_is_eligible", lambda *args, **kwargs: True)
+    score_calls: list[str] = []
+
+    def fake_score(profile_id: str, *, probe_samples: list[float], **kwargs: object) -> dict:
+        profile = next(profile for profile in profiles if profile["profile_id"] == profile_id)
+        probe_sha = verification._window_hash(probe_samples)
+        score = 0.75 if profile["person_ref_id"] == proposal["candidates"][0]["person_ref_id"] else -0.25
+        identity = {
+            "profile_id": profile_id,
+            "descendant_id": profile["descendant_id"],
+            "artifact_sha256": profile["artifact_sha256"],
+            "candidate_id": profile["candidate_id"],
+            "model_revision": profile["model_revision"],
+            "probe_sha256": probe_sha,
+            "score": score,
+        }
+        score_calls.append(profile_id)
+        return {
+            "trial_id": "verification-trial-"
+            + verification.canonical_artifact_hash(identity)[:24],
+            "probe_sha256": probe_sha,
+            "score": score,
+        }
+
+    monkeypatch.setattr(verification, "score_profile", fake_score)
+    root = tmp_path / "p4"
+    result = apply_development_trials(
+        authority_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+
+    assert result["denominators"] == {
+        "attempted": 10, "success": 10, "failure": 0, "blocked": 0
+    }
+    assert result["evidence_class"] == "development_resubstitution_diagnostic"
+    assert result["held_out"] is False
+    assert result["enrollment_probe_overlap"] is True
+    assert result["contains_biometric_scores"] is True
+    assert result["did_select_threshold"] is False
+    assert replay_development_trial_application(
+        result["application_sha256"],
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    ) == result
+    repeated = apply_development_trials(
+        authority_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+    assert repeated == result
+    assert len(score_calls) == 10
+
+    forged = {
+        key: value
+        for key, value in result.items()
+        if key not in {"application_sha256", "private_application_path"}
+    }
+    forged["held_out"] = True
+    forged_sha = verification.canonical_artifact_hash(
+        {key: value for key, value in forged.items() if key != "applied_at"}
+    )
+    verification.write_immutable_private_json(
+        root / "development-trial-applications" / f"{forged_sha}.json",
+        forged,
+        volatile_fields=("applied_at",),
+    )
+    with pytest.raises(AcousticVerificationError, match="semantics"):
+        replay_development_trial_application(
+            forged_sha, runtime_root=root, p3_runtime_root=tmp_path / "p3"
         )
 
 

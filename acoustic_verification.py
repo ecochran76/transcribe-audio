@@ -44,6 +44,7 @@ from acoustic_biometric_references import (
     source_set_sha256,
 )
 from acoustic_speech_preparation import (
+    METHOD_IDS,
     SpeechPreparationError,
     resolve_comparison_lineage_receipt,
 )
@@ -749,6 +750,12 @@ ENROLLMENT_APPLY_AUTHORITY_SCHEMA = (
 )
 ENROLLMENT_APPLICATION_SCHEMA = (
     "transcribe-audio.biometric-enrollment-application.v1"
+)
+DEVELOPMENT_TRIAL_AUTHORITY_SCHEMA = (
+    "transcribe-audio.verification-development-trial-authority.v1"
+)
+DEVELOPMENT_TRIAL_APPLICATION_SCHEMA = (
+    "transcribe-audio.verification-development-trial-application.v1"
 )
 REAL_ENROLLMENT_AUTHORIZATION_BASIS = "operator_blanket_proceed_2026-07-31"
 REAL_ENROLLMENT_AUTHORIZER_REF_ID = "operator-standing-20260731"
@@ -2561,10 +2568,8 @@ def _authorized_real_windows(
     method_id: str,
 ) -> list[dict[str, Any]]:
     """Open exact hash-bound P2 PCM only after real enrollment authorization."""
-    if method_id != "no_enhancement":
-        raise AcousticVerificationError(
-            "P4C enrollment is limited to no-enhancement preparation."
-        )
+    if method_id not in METHOD_IDS:
+        raise AcousticVerificationError("Real audio preparation method is invalid.")
     windows: list[dict[str, Any]] = []
     for source in sources:
         lineage = source.get("lineage") if isinstance(source, Mapping) else None
@@ -2583,18 +2588,20 @@ def _authorized_real_windows(
             raise AcousticVerificationError(
                 "Real enrollment preparation lineage is invalid."
             ) from exc
-        if any(
-            resolved_lineage.get(key) != lineage.get(key)
-            for key in (
+        if (
+            lineage.get("method_id") != "no_enhancement"
+            or resolved_lineage.get("method_id") != method_id
+            or any(
+                resolved_lineage.get(key) != lineage.get(key)
+                for key in (
                 "run_id",
-                "method_id",
                 "replay_receipt_sha256",
                 "comparison_path",
                 "comparison_sha256",
-                "method_result_sha256",
                 "source_blob_id",
                 "source_sha256",
                 "audio_quality_sha256",
+            )
             )
         ):
             raise AcousticVerificationError(
@@ -2619,7 +2626,7 @@ def _authorized_real_windows(
             method is None
             or method.get("status") != "success"
             or canonical_artifact_hash(dict(method))
-            != lineage.get("method_result_sha256")
+            != resolved_lineage.get("method_result_sha256")
         ):
             raise AcousticVerificationError(
                 "Real enrollment preparation result is invalid."
@@ -2921,6 +2928,848 @@ def replay_real_enrollment_application(
     )
     if receipt != expected_receipt:
         raise AcousticVerificationError("Enrollment application semantics are invalid.")
+    return {
+        **receipt,
+        "application_sha256": application_sha256,
+        "private_application_path": str(path),
+    }
+
+
+def _development_trial_source_binding(source: Any) -> dict[str, Any]:
+    if not isinstance(source, Mapping):
+        raise AcousticVerificationError("Development trial source is invalid.")
+    lineage = source.get("lineage")
+    quality = source.get("quality_evidence")
+    if not isinstance(lineage, Mapping) or not isinstance(quality, Mapping):
+        raise AcousticVerificationError(
+            "Development trial source evidence is invalid."
+        )
+    required = {
+        "reference_id", "source_sha256", "recording_id", "conversation_id",
+        "speaker_label_id", "session_id", "start_seconds", "end_seconds",
+    }
+    if not required.issubset(source):
+        raise AcousticVerificationError(
+            "Development trial source binding is incomplete."
+        )
+    return {
+        "reference_id": source["reference_id"],
+        "source_sha256": source["source_sha256"],
+        "recording_id": source["recording_id"],
+        "conversation_id": source["conversation_id"],
+        "speaker_label_id": source["speaker_label_id"],
+        "session_id": source["session_id"],
+        "start_seconds": source["start_seconds"],
+        "end_seconds": source["end_seconds"],
+        "quality_evidence_sha256": quality.get("sha256"),
+        "lineage_authority": lineage.get("authority"),
+        "lineage_replay_receipt_sha256": lineage.get("replay_receipt_sha256"),
+        "lineage_comparison_sha256": lineage.get("comparison_sha256"),
+        "proposal_source_sha256": canonical_artifact_hash(dict(source)),
+    }
+
+
+def _development_trial_source_units(
+    proposal: Mapping[str, Any], split_authority: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    allowed_pairs = split_authority["recording_conversation_pairs"]
+    units: list[dict[str, Any]] = []
+    for candidate in proposal.get("candidates") or []:
+        if not isinstance(candidate, Mapping):
+            raise AcousticVerificationError("Development trial candidate is invalid.")
+        person_ref_id = str(candidate.get("person_ref_id") or "")
+        for source in candidate.get("proposed_sources") or []:
+            if not isinstance(source, Mapping):
+                raise AcousticVerificationError(
+                    "Development trial source is invalid."
+                )
+            pair = (
+                str(source.get("recording_id") or ""),
+                str(source.get("conversation_id") or ""),
+            )
+            if pair not in allowed_pairs:
+                raise AcousticVerificationError(
+                    "Development trial source is outside the authorized split."
+                )
+            units.append(
+                {
+                    "person_ref_id": person_ref_id,
+                    "source": _development_trial_source_binding(source),
+                }
+            )
+    if not units:
+        raise AcousticVerificationError("Development trial sources are unavailable.")
+    return units
+
+
+def _development_method_inventory(
+    proposal: Mapping[str, Any], source_units: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    source_lookup = {
+        (str(candidate.get("person_ref_id") or ""), str(source.get("reference_id") or "")): source
+        for candidate in proposal.get("candidates") or []
+        if isinstance(candidate, Mapping)
+        for source in candidate.get("proposed_sources") or []
+        if isinstance(source, Mapping)
+    }
+    representative_by_recording: dict[str, Mapping[str, Any]] = {}
+    for unit in source_units:
+        binding = unit.get("source") if isinstance(unit, Mapping) else None
+        source = source_lookup.get(
+            (
+                str(unit.get("person_ref_id") or ""),
+                str(binding.get("reference_id") or "")
+                if isinstance(binding, Mapping)
+                else "",
+            )
+        )
+        if source is None:
+            raise AcousticVerificationError(
+                "Development trial source inventory changed."
+            )
+        representative_by_recording.setdefault(
+            str(source.get("recording_id") or ""), source
+        )
+    inventory: list[dict[str, Any]] = []
+    for recording_id, source in sorted(representative_by_recording.items()):
+        lineage = source.get("lineage")
+        if not isinstance(lineage, Mapping):
+            raise AcousticVerificationError(
+                "Development trial lineage is unavailable."
+            )
+        for method_id in METHOD_IDS:
+            try:
+                resolved = resolve_comparison_lineage_receipt(
+                    str(lineage.get("run_id") or ""),
+                    method_id=method_id,
+                    replay_receipt_sha256=str(
+                        lineage.get("replay_receipt_sha256") or ""
+                    ),
+                    runtime_root=Path(str(lineage.get("runtime_root") or "")),
+                )
+            except SpeechPreparationError as exc:
+                raise AcousticVerificationError(
+                    "Development trial method lineage is invalid."
+                ) from exc
+            comparison_path = Path(str(resolved.get("comparison_path") or ""))
+            require_private_file(comparison_path, comparison_path.parent)
+            if sha256_file(comparison_path) != resolved.get("comparison_sha256"):
+                raise AcousticVerificationError(
+                    "Development trial comparison drifted."
+                )
+            comparison = read_private_object(comparison_path)
+            method = next(
+                (
+                    item
+                    for item in comparison.get("method_results") or []
+                    if isinstance(item, Mapping)
+                    and item.get("method_id") == method_id
+                ),
+                None,
+            )
+            if (
+                method is None
+                or method.get("status") != "success"
+                or canonical_artifact_hash(dict(method))
+                != resolved.get("method_result_sha256")
+                or not SHA256_RE.fullmatch(str(method.get("output_sha256") or ""))
+            ):
+                raise AcousticVerificationError(
+                    "Development trial method result is invalid."
+                )
+            inventory.append(
+                {
+                    "recording_id": recording_id,
+                    "conversation_id": source["conversation_id"],
+                    "run_id": resolved["run_id"],
+                    "replay_receipt_sha256": resolved[
+                        "replay_receipt_sha256"
+                    ],
+                    "comparison_sha256": resolved["comparison_sha256"],
+                    "method_id": method_id,
+                    "method_result_sha256": resolved["method_result_sha256"],
+                    "output_sha256": method["output_sha256"],
+                    "output_equivalence_class_sha256": method[
+                        "output_sha256"
+                    ],
+                    "pcm_contract": {
+                        "channels": 1,
+                        "sample_rate_hz": 16_000,
+                        "sample_width_bytes": 2,
+                        "compression": "NONE",
+                    },
+                }
+            )
+    return inventory
+
+
+def _development_trial_authority_payload(
+    *,
+    application: Mapping[str, Any],
+    application_sha256: str,
+    proposal: Mapping[str, Any],
+    split_authority: Mapping[str, Any],
+    authorized_at: str,
+) -> dict[str, Any]:
+    profiles = application.get("profiles")
+    if (
+        application.get("status") != "success"
+        or application.get("intended_split") != "development"
+        or application.get("did_run_trials") is not False
+        or application.get("did_read_calibration_or_evaluation") is not False
+        or not isinstance(profiles, list)
+        or not profiles
+    ):
+        raise AcousticVerificationError(
+            "Development trial application dependency is invalid."
+        )
+    source_units = _development_trial_source_units(proposal, split_authority)
+    method_inventory = _development_method_inventory(proposal, source_units)
+    profile_people_by_model: dict[str, set[str]] = {}
+    for profile in profiles:
+        if not isinstance(profile, Mapping):
+            raise AcousticVerificationError("Development trial profile is invalid.")
+        profile_people_by_model.setdefault(
+            str(profile.get("candidate_id") or ""), set()
+        ).add(str(profile.get("person_ref_id") or ""))
+    if not profile_people_by_model or any(
+        len(people) != 2 for people in profile_people_by_model.values()
+    ):
+        raise AcousticVerificationError(
+            "Development trials require two people for every model."
+        )
+    logical_trials = len(source_units) * len(METHOD_IDS) * len(profiles)
+    unique_probe_waveforms = sum(
+        len(
+            {
+                item["output_sha256"]
+                for item in method_inventory
+                if item["recording_id"] == unit["source"]["recording_id"]
+            }
+        )
+        for unit in source_units
+    )
+    authority = {
+        "schema_version": DEVELOPMENT_TRIAL_AUTHORITY_SCHEMA,
+        "status": "authorized",
+        "reason_code": None,
+        "authorization_basis": REAL_ENROLLMENT_AUTHORIZATION_BASIS,
+        "authorized_by_ref_id": REAL_ENROLLMENT_AUTHORIZER_REF_ID,
+        "authorized_at": authorized_at,
+        "intended_split": "development",
+        "enrollment_application_sha256": application_sha256,
+        "candidate_proposal_sha256": application["candidate_proposal_sha256"],
+        "enrollment_preview_sha256": application["enrollment_preview_sha256"],
+        "split_access_policy_sha256": split_authority[
+            "split_access_policy_sha256"
+        ],
+        "parent_corpus_manifest_sha256": split_authority[
+            "parent_corpus_manifest_sha256"
+        ],
+        "development_record_set_sha256": split_authority[
+            "development_record_set_sha256"
+        ],
+        "development_conversation_set_sha256": split_authority[
+            "development_conversation_set_sha256"
+        ],
+        "development_comparison_receipt_sha256": (
+            EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256
+        ),
+        "source_units": source_units,
+        "preparation_methods": list(METHOD_IDS),
+        "method_inventory": method_inventory,
+        "profiles": [dict(profile) for profile in profiles],
+        "expected_coverage": {
+            "logical_trials": logical_trials,
+            "genuine_trials": logical_trials // 2,
+            "impostor_trials": logical_trials // 2,
+            "unique_probe_waveforms": unique_probe_waveforms,
+            "unique_waveform_model_profile_combinations": (
+                unique_probe_waveforms * len(profiles)
+            ),
+        },
+        "evidence_class": "development_resubstitution_diagnostic",
+        "held_out": False,
+        "enrollment_probe_overlap": True,
+        "permits_generalization_claim": False,
+        "permits_accuracy_far_frr_eer_claim": False,
+        "permits_threshold_or_model_selection": False,
+        "will_read_audio": True,
+        "will_run_trials": True,
+        "will_select_threshold": False,
+        "will_read_calibration_or_evaluation": False,
+        "will_perform_external_write": False,
+        "contains_biometric_scores": False,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False,
+    }
+    if _contains_forbidden_private_key(authority):
+        raise AcousticVerificationError(
+            "Development trial authority contains forbidden private data."
+        )
+    return authority
+
+
+def _validate_development_trial_authority(
+    value: Any,
+    *,
+    application: Mapping[str, Any],
+    application_sha256: str,
+    proposal: Mapping[str, Any],
+    split_authority: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise AcousticVerificationError("Development trial authority is invalid.")
+    authorized_at = str(value.get("authorized_at") or "")
+    expected = _development_trial_authority_payload(
+        application=application,
+        application_sha256=application_sha256,
+        proposal=proposal,
+        split_authority=split_authority,
+        authorized_at=authorized_at,
+    )
+    if dict(value) != expected or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", authorized_at
+    ):
+        raise AcousticVerificationError("Development trial authority is invalid.")
+    return dict(value)
+
+
+def build_development_trial_authority(
+    enrollment_application_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Persist one exact development-only trial authority without opening audio."""
+    root = runtime_root.expanduser().absolute()
+    application = replay_real_enrollment_application(
+        enrollment_application_sha256,
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+    )
+    proposal = replay_real_enrollment_candidate_proposal(
+        str(application["candidate_proposal_sha256"]), runtime_root=root
+    )
+    split_authority = _development_split_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    authority_dir = root / "development-trial-authorities"
+    ensure_private_tree(root, authority_dir)
+    matches: list[tuple[Path, dict[str, Any], str]] = []
+    for path in sorted(authority_dir.glob("*.json")):
+        require_private_file(path, root)
+        value = read_private_object(path)
+        if value.get("enrollment_application_sha256") != enrollment_application_sha256:
+            continue
+        _validate_development_trial_authority(
+            value,
+            application=application,
+            application_sha256=enrollment_application_sha256,
+            proposal=proposal,
+            split_authority=split_authority,
+        )
+        value_sha = canonical_artifact_hash(value)
+        if path.name != f"{value_sha}.json":
+            raise AcousticVerificationError(
+                "Development trial authority path is invalid."
+            )
+        matches.append((path, value, value_sha))
+    if len(matches) > 1:
+        raise AcousticVerificationError(
+            "Multiple development trial authorities exist for one application."
+        )
+    if matches:
+        path, authority, authority_sha = matches[0]
+    else:
+        authority = _development_trial_authority_payload(
+            application=application,
+            application_sha256=enrollment_application_sha256,
+            proposal=proposal,
+            split_authority=split_authority,
+            authorized_at=utc_now(),
+        )
+        authority_sha = canonical_artifact_hash(authority)
+        path = authority_dir / f"{authority_sha}.json"
+        write_immutable_private_json(path, authority)
+    return {
+        **authority,
+        "authority_sha256": authority_sha,
+        "private_authority_path": str(path),
+    }
+
+
+def replay_development_trial_authority(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    split_policy_path: Path = DEFAULT_SPLIT_ACCESS_POLICY,
+    parent_corpus_manifest_path: Path = DEFAULT_PARENT_CORPUS_MANIFEST,
+) -> dict[str, Any]:
+    """Replay an exact P4D development authority with sealed later splits."""
+    if not SHA256_RE.fullmatch(str(authority_sha256)):
+        raise AcousticVerificationError("Development trial authority hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "development-trial-authorities" / f"{authority_sha256}.json"
+    require_private_file(path, root)
+    authority = read_private_object(path)
+    application_sha = str(authority.get("enrollment_application_sha256") or "")
+    application = replay_real_enrollment_application(
+        application_sha, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    proposal = replay_real_enrollment_candidate_proposal(
+        str(application["candidate_proposal_sha256"]), runtime_root=root
+    )
+    split_authority = _development_split_authority(
+        split_policy_path, parent_corpus_manifest_path
+    )
+    _validate_development_trial_authority(
+        authority,
+        application=application,
+        application_sha256=application_sha,
+        proposal=proposal,
+        split_authority=split_authority,
+    )
+    if canonical_artifact_hash(authority) != authority_sha256:
+        raise AcousticVerificationError("Development trial authority replay is invalid.")
+    return {
+        **authority,
+        "authority_sha256": authority_sha256,
+        "private_authority_path": str(path),
+    }
+
+
+def _development_trial_application_payload(
+    *,
+    authority: Mapping[str, Any],
+    authority_sha256: str,
+    trials: Sequence[Mapping[str, Any]],
+    applied_at: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": DEVELOPMENT_TRIAL_APPLICATION_SCHEMA,
+        "status": "success",
+        "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "intended_split": "development",
+        "enrollment_application_sha256": authority[
+            "enrollment_application_sha256"
+        ],
+        "candidate_proposal_sha256": authority["candidate_proposal_sha256"],
+        "development_comparison_receipt_sha256": authority[
+            "development_comparison_receipt_sha256"
+        ],
+        "evidence_class": "development_resubstitution_diagnostic",
+        "held_out": False,
+        "enrollment_probe_overlap": True,
+        "permits_generalization_claim": False,
+        "permits_accuracy_far_frr_eer_claim": False,
+        "permits_threshold_or_model_selection": False,
+        "denominators": {
+            "attempted": len(trials),
+            "success": len(trials),
+            "failure": 0,
+            "blocked": 0,
+        },
+        "trials": [dict(trial) for trial in trials],
+        "did_read_audio": True,
+        "did_run_trials": True,
+        "did_select_threshold": False,
+        "scores_recomputed_during_replay": False,
+        "score_replay_scope": "structural_identity_and_authority_only",
+        "did_read_calibration_or_evaluation": False,
+        "did_mutate_profiles_or_references": False,
+        "did_perform_external_write": False,
+        "contains_biometric_scores": True,
+        "contains_raw_audio": False,
+        "contains_transcript_text": False,
+        "contains_embeddings_or_vectors": False,
+        "contains_raw_biometric_values": False,
+        "applied_at": applied_at,
+    }
+
+
+def apply_development_trials(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    adapters: Optional[Mapping[str, VerificationAdapter]] = None,
+    test_mode: bool = False,
+) -> dict[str, Any]:
+    """Run the exact P4D development matrix without reading later splits."""
+    if adapters is not None and not test_mode:
+        raise AcousticVerificationError(
+            "Custom trial adapters are limited to deterministic tests."
+        )
+    root = runtime_root.expanduser().absolute()
+    authority = replay_development_trial_authority(
+        authority_sha256, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    application_sha = str(authority["enrollment_application_sha256"])
+    application = replay_real_enrollment_application(
+        application_sha, runtime_root=root, p3_runtime_root=p3_runtime_root
+    )
+    proposal = replay_real_enrollment_candidate_proposal(
+        str(authority["candidate_proposal_sha256"]), runtime_root=root
+    )
+    application_dir = root / "development-trial-applications"
+    if application_dir.exists():
+        matches = []
+        for existing_path in sorted(application_dir.glob("*.json")):
+            require_private_file(existing_path, root)
+            existing = read_private_object(existing_path)
+            if existing.get("authority_sha256") != authority_sha256:
+                continue
+            matches.append(
+                replay_development_trial_application(
+                    existing_path.stem,
+                    runtime_root=root,
+                    p3_runtime_root=p3_runtime_root,
+                )
+            )
+        if len(matches) > 1:
+            raise AcousticVerificationError(
+                "Multiple development trial applications exist for one authority."
+            )
+        if matches:
+            return matches[0]
+    source_lookup = {
+        (str(candidate.get("person_ref_id") or ""), str(source.get("reference_id") or "")): source
+        for candidate in proposal.get("candidates") or []
+        if isinstance(candidate, Mapping)
+        for source in candidate.get("proposed_sources") or []
+        if isinstance(source, Mapping)
+    }
+    selected_adapters = dict(adapters or adapter_registry())
+    expected_models = {
+        str(profile.get("candidate_id") or ""): str(profile.get("model_revision") or "")
+        for profile in authority.get("profiles") or []
+        if isinstance(profile, Mapping)
+    }
+    if set(selected_adapters) != set(expected_models) or any(
+        selected_adapters[candidate_id].revision_sha != revision
+        for candidate_id, revision in expected_models.items()
+    ):
+        raise AcousticVerificationError("Development trial model inventory drifted.")
+    profiles_by_model = {
+        candidate_id: [
+            dict(profile)
+            for profile in authority.get("profiles") or []
+            if isinstance(profile, Mapping)
+            and profile.get("candidate_id") == candidate_id
+        ]
+        for candidate_id in sorted(expected_models)
+    }
+    if any(
+        len(model_profiles) != 2
+        or len({profile["person_ref_id"] for profile in model_profiles}) != 2
+        for model_profiles in profiles_by_model.values()
+    ):
+        raise AcousticVerificationError(
+            "Development trials require two distinct profiles per model."
+        )
+    trials: list[dict[str, Any]] = []
+    for unit in authority.get("source_units") or []:
+        source_binding = unit.get("source") if isinstance(unit, Mapping) else None
+        if not isinstance(source_binding, Mapping):
+            raise AcousticVerificationError("Development trial source unit is invalid.")
+        probe_person_ref_id = str(unit.get("person_ref_id") or "")
+        source = source_lookup.get(
+            (probe_person_ref_id, str(source_binding.get("reference_id") or ""))
+        )
+        if (
+            source is None
+            or _development_trial_source_binding(source) != dict(source_binding)
+        ):
+            raise AcousticVerificationError("Development trial source binding changed.")
+        for method_id in authority.get("preparation_methods") or []:
+            windows = _authorized_real_windows([source], method_id=str(method_id))
+            if len(windows) != 1:
+                raise AcousticVerificationError("Development trial window is invalid.")
+            for candidate_id in sorted(expected_models):
+                adapter = selected_adapters[candidate_id]
+                for profile in profiles_by_model[candidate_id]:
+                    scored = score_profile(
+                        str(profile["profile_id"]),
+                        adapter=adapter,
+                        probe_samples=windows[0]["samples"],
+                        sample_rate=16_000,
+                        runtime_root=root,
+                        p3_runtime_root=p3_runtime_root,
+                    )
+                    identity = {
+                        "authority_sha256": authority_sha256,
+                        "reference_id": source_binding["reference_id"],
+                        "method_id": method_id,
+                        "profile_id": profile["profile_id"],
+                        "score_trial_id": scored["trial_id"],
+                    }
+                    trials.append(
+                        {
+                            "trial_id": "development-trial-"
+                            + canonical_artifact_hash(identity)[:24],
+                            "status": "success",
+                            "reason_code": None,
+                            "reference_id": source_binding["reference_id"],
+                            "recording_id": source_binding["recording_id"],
+                            "conversation_id": source_binding["conversation_id"],
+                            "probe_person_ref_id": probe_person_ref_id,
+                            "profile_person_ref_id": profile["person_ref_id"],
+                            "expected_match": (
+                                probe_person_ref_id == profile["person_ref_id"]
+                            ),
+                            "method_id": method_id,
+                            "profile_id": profile["profile_id"],
+                            "descendant_id": profile["descendant_id"],
+                            "candidate_id": candidate_id,
+                            "model_revision": adapter.revision_sha,
+                            "probe_sha256": scored["probe_sha256"],
+                            "score_trial_id": scored["trial_id"],
+                            "score": scored["score"],
+                            "p4_state_verified_before_and_after": True,
+                            "p3_eligibility_verified_before_and_after": True,
+                            "contains_raw_biometric_values": False,
+                        }
+                    )
+    expected_coverage = authority.get("expected_coverage")
+    if not isinstance(expected_coverage, Mapping):
+        raise AcousticVerificationError("Development trial coverage is invalid.")
+    genuine_count = sum(trial["expected_match"] is True for trial in trials)
+    impostor_count = sum(trial["expected_match"] is False for trial in trials)
+    unique_combinations = {
+        (
+            trial["probe_sha256"],
+            trial["candidate_id"],
+            trial["profile_id"],
+        )
+        for trial in trials
+    }
+    if (
+        len(trials) != expected_coverage.get("logical_trials")
+        or genuine_count != expected_coverage.get("genuine_trials")
+        or impostor_count != expected_coverage.get("impostor_trials")
+        or len(unique_combinations)
+        != expected_coverage.get("unique_waveform_model_profile_combinations")
+    ):
+        raise AcousticVerificationError(
+            "Development trial observed coverage is invalid."
+        )
+    applied_at = utc_now()
+    receipt = _development_trial_application_payload(
+        authority=authority,
+        authority_sha256=authority_sha256,
+        trials=trials,
+        applied_at=applied_at,
+    )
+    receipt_sha = canonical_artifact_hash(
+        {key: value for key, value in receipt.items() if key != "applied_at"}
+    )
+    path = root / "development-trial-applications" / f"{receipt_sha}.json"
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(path, receipt, volatile_fields=("applied_at",))
+    return {
+        **stored,
+        "application_sha256": receipt_sha,
+        "private_application_path": str(path),
+    }
+
+
+def replay_development_trial_application(
+    application_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Replay P4D structure and live eligibility without recomputing scores."""
+    if not SHA256_RE.fullmatch(str(application_sha256)):
+        raise AcousticVerificationError(
+            "Development trial application hash is invalid."
+        )
+    root = runtime_root.expanduser().absolute()
+    path = root / "development-trial-applications" / f"{application_sha256}.json"
+    require_private_file(path, root)
+    receipt = read_private_object(path)
+    identity = {key: value for key, value in receipt.items() if key != "applied_at"}
+    if canonical_artifact_hash(identity) != application_sha256:
+        raise AcousticVerificationError(
+            "Development trial application replay is invalid."
+        )
+    authority = replay_development_trial_authority(
+        str(receipt.get("authority_sha256") or ""),
+        runtime_root=root,
+        p3_runtime_root=p3_runtime_root,
+    )
+    profiles = authority.get("profiles")
+    if not isinstance(profiles, list):
+        raise AcousticVerificationError("Development trial profiles are invalid.")
+    profile_by_id: dict[str, dict[str, Any]] = {}
+    profiles_by_model: dict[str, list[dict[str, Any]]] = {}
+    for expected_profile in profiles:
+        if not isinstance(expected_profile, Mapping):
+            raise AcousticVerificationError(
+                "Development trial profile is invalid."
+            )
+        profile = dict(expected_profile)
+        current = replay_profile(str(profile.get("profile_id") or ""), runtime_root=root)
+        if (
+            {key: current.get(key) for key in profile} != profile
+            or not descendant_is_eligible(
+                str(profile.get("descendant_id") or ""),
+                runtime_root=p3_runtime_root,
+            )
+        ):
+            raise AcousticVerificationError(
+                "Development trial profile binding changed."
+            )
+        profile_by_id[str(profile["profile_id"])] = profile
+        profiles_by_model.setdefault(str(profile["candidate_id"]), []).append(profile)
+    source_units = authority.get("source_units")
+    methods = authority.get("preparation_methods")
+    if not isinstance(source_units, list) or not isinstance(methods, list):
+        raise AcousticVerificationError("Development trial coverage is invalid.")
+    expected_coverage = [
+        (
+            str(unit["source"]["reference_id"]),
+            str(method_id),
+            str(candidate_id),
+            str(profile["profile_id"]),
+        )
+        for unit in source_units
+        if isinstance(unit, Mapping) and isinstance(unit.get("source"), Mapping)
+        for method_id in methods
+        for candidate_id in sorted(profiles_by_model)
+        for profile in profiles_by_model[candidate_id]
+    ]
+    trials = receipt.get("trials")
+    if not isinstance(trials, list):
+        raise AcousticVerificationError("Development trial results are invalid.")
+    source_by_reference = {
+        str(unit["source"]["reference_id"]): unit
+        for unit in source_units
+        if isinstance(unit, Mapping) and isinstance(unit.get("source"), Mapping)
+    }
+    actual_coverage: list[tuple[str, str, str, str]] = []
+    canonical_trials: list[dict[str, Any]] = []
+    expected_trial_keys = {
+        "trial_id", "status", "reason_code", "reference_id", "recording_id",
+        "conversation_id", "probe_person_ref_id", "profile_person_ref_id",
+        "expected_match", "method_id", "profile_id", "descendant_id",
+        "candidate_id", "model_revision", "probe_sha256", "score_trial_id",
+        "score", "p4_state_verified_before_and_after",
+        "p3_eligibility_verified_before_and_after",
+        "contains_raw_biometric_values",
+    }
+    for trial_value in trials:
+        if not isinstance(trial_value, Mapping) or set(trial_value) != expected_trial_keys:
+            raise AcousticVerificationError("Development trial result shape is invalid.")
+        trial = dict(trial_value)
+        source_unit = source_by_reference.get(str(trial.get("reference_id") or ""))
+        profile = profile_by_id.get(str(trial.get("profile_id") or ""))
+        source = source_unit.get("source") if source_unit else None
+        score = trial.get("score")
+        if (
+            source_unit is None
+            or profile is None
+            or not isinstance(source, Mapping)
+            or trial.get("status") != "success"
+            or trial.get("reason_code") is not None
+            or trial.get("recording_id") != source.get("recording_id")
+            or trial.get("conversation_id") != source.get("conversation_id")
+            or trial.get("probe_person_ref_id") != source_unit.get("person_ref_id")
+            or trial.get("profile_person_ref_id") != profile.get("person_ref_id")
+            or trial.get("expected_match")
+            is not (
+                source_unit.get("person_ref_id") == profile.get("person_ref_id")
+            )
+            or trial.get("candidate_id") != profile.get("candidate_id")
+            or trial.get("model_revision") != profile.get("model_revision")
+            or trial.get("descendant_id") != profile.get("descendant_id")
+            or trial.get("method_id") not in methods
+            or not SHA256_RE.fullmatch(str(trial.get("probe_sha256") or ""))
+            or isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(float(score))
+            or not -1.0 <= float(score) <= 1.0
+            or trial.get("p4_state_verified_before_and_after") is not True
+            or trial.get("p3_eligibility_verified_before_and_after") is not True
+            or trial.get("contains_raw_biometric_values") is not False
+        ):
+            raise AcousticVerificationError("Development trial result is invalid.")
+        score_identity = {
+            "profile_id": profile["profile_id"],
+            "descendant_id": profile["descendant_id"],
+            "artifact_sha256": profile["artifact_sha256"],
+            "candidate_id": profile["candidate_id"],
+            "model_revision": profile["model_revision"],
+            "probe_sha256": trial["probe_sha256"],
+            "score": score,
+        }
+        expected_score_trial_id = (
+            "verification-trial-" + canonical_artifact_hash(score_identity)[:24]
+        )
+        wrapper_identity = {
+            "authority_sha256": authority["authority_sha256"],
+            "reference_id": trial["reference_id"],
+            "method_id": trial["method_id"],
+            "profile_id": trial["profile_id"],
+            "score_trial_id": expected_score_trial_id,
+        }
+        if (
+            trial.get("score_trial_id") != expected_score_trial_id
+            or trial.get("trial_id")
+            != "development-trial-" + canonical_artifact_hash(wrapper_identity)[:24]
+        ):
+            raise AcousticVerificationError(
+                "Development trial identity is invalid."
+            )
+        actual_coverage.append(
+            (
+                str(trial["reference_id"]),
+                str(trial["method_id"]),
+                str(trial["candidate_id"]),
+                str(trial["profile_id"]),
+            )
+        )
+        canonical_trials.append(trial)
+    if actual_coverage != expected_coverage:
+        raise AcousticVerificationError("Development trial coverage is invalid.")
+    coverage = authority.get("expected_coverage")
+    unique_combinations = {
+        (trial["probe_sha256"], trial["candidate_id"], trial["profile_id"])
+        for trial in canonical_trials
+    }
+    if (
+        not isinstance(coverage, Mapping)
+        or len(canonical_trials) != coverage.get("logical_trials")
+        or sum(trial["expected_match"] is True for trial in canonical_trials)
+        != coverage.get("genuine_trials")
+        or sum(trial["expected_match"] is False for trial in canonical_trials)
+        != coverage.get("impostor_trials")
+        or len(unique_combinations)
+        != coverage.get("unique_waveform_model_profile_combinations")
+    ):
+        raise AcousticVerificationError(
+            "Development trial denominators are invalid."
+        )
+    applied_at = str(receipt.get("applied_at") or "")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", applied_at):
+        raise AcousticVerificationError("Development trial application time is invalid.")
+    expected_receipt = _development_trial_application_payload(
+        authority=authority,
+        authority_sha256=str(receipt.get("authority_sha256") or ""),
+        trials=canonical_trials,
+        applied_at=applied_at,
+    )
+    if receipt != expected_receipt:
+        raise AcousticVerificationError(
+            "Development trial application semantics are invalid."
+        )
     return {
         **receipt,
         "application_sha256": application_sha256,
@@ -3307,6 +4156,7 @@ def score_profile(
         "descendant_id": descendant_id,
         "candidate_id": adapter.candidate_id,
         "model_revision": adapter.revision_sha,
+        "probe_sha256": trial_identity["probe_sha256"],
         "score": score,
         "p4_state_verified_before_and_after": True,
         "p3_eligibility_verified_before_and_after": True,

@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 7
+Plan Version: 8
 
 Parent: Plan 0037 P4
 
@@ -414,3 +414,36 @@ State: CLOSED; P4D development trials are next.
   `py_compile` and `git diff --check` passed. Independent checkpoint re-audit
   returned `PASS`, reproduced the focused checks, and confirmed exact live
   replay plus semantic-forgery rejection.
+
+## P4D development checkpoint
+
+State: CLOSED; P4D2 calibration remains sealed pending its exact apply
+authority.
+
+- Development-trial authority SHA-256
+  `b2bc390d71ef51230a81a2c1e1896f916be60f3e68bfffdcd17ff0dac329fd65`
+  binds the exact P4C application/proposal, frozen development split, P2 joined
+  comparison receipt, 15 source windows, 15 recording/method result and output
+  hashes, six profiles, and all model revisions.
+- This is explicitly a `development_resubstitution_diagnostic`: the probes
+  overlap enrollment, are not held out, and cannot support generalization,
+  accuracy, FAR/FRR/EER, threshold, calibration, or model-selection claims.
+  Per-recording output SHA equivalence classes preserve the fact that
+  no-enhancement, Silero VAD, and Pyannote Community-1 currently use identical
+  PCM; duplicate logical cells are not treated as independent evidence.
+- Live application SHA-256
+  `6b1a06971279785b02d99e3e42f09536c6c0e85e634a949801cfeb6e7c1d5f8a`
+  completed 450/450 logical scores with 225 genuine and 225 impostor labels.
+  The evidence contains 45 unique probe waveforms and 270 unique
+  waveform/model/profile combinations. It includes derived biometric scores
+  but no raw audio, transcript text, embeddings, vectors, or portable raw
+  biometric values.
+- Exact replay rechecks authority structure, trial identities and coverage,
+  current profile/P3 eligibility, sealing flags, and finite cosine bounds. It
+  structurally replays persisted numeric scores rather than recomputing them.
+  A repeat apply reused the single canonical receipt without reopening PCM or
+  rerunning models. Authority and application receipts are private `0600`.
+- Validation: 68 focused P3/P4 tests and 535 full repository tests passed;
+  `py_compile` and `git diff --check` passed. Independent checkpoint re-audit
+  returned `PASS` with no remaining code, runtime, privacy, or documentation
+  finding.

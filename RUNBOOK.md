@@ -2,6 +2,46 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 263 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 8
+
+Packet: P4D | Development resubstitution diagnostics
+
+State transition: `OPEN/Plan-0037-P4D -> CLOSED/Plan-0037-P4D`.
+
+- Added exact development trial authority, apply, and semantic replay seams.
+  Authority SHA-256
+  `b2bc390d71ef51230a81a2c1e1896f916be60f3e68bfffdcd17ff0dac329fd65`
+  binds the P4C application/proposal, development split, P2 comparison,
+  sources, method outputs/equivalence classes, profiles, and model revisions.
+- Labeled the packet as non-held-out resubstitution evidence because all probe
+  segments overlap enrollment. The receipts prohibit generalization,
+  accuracy/FAR/FRR/EER, threshold, calibration, and model-selection claims.
+- Live application SHA-256
+  `6b1a06971279785b02d99e3e42f09536c6c0e85e634a949801cfeb6e7c1d5f8a`
+  completed all 450 logical trials: 225 genuine, 225 impostor, 45 unique probe
+  waveforms, and 270 unique waveform/model/profile combinations. Duplicate PCM
+  across no-enhancement, Silero VAD, and Pyannote is not counted as independent
+  acoustic evidence.
+- Replay rechecks exact trial identities/coverage, finite score bounds, current
+  P4/P3 eligibility, and all sealing/privacy flags. Numeric scores are
+  structurally replayed, not recomputed. A repeat apply reused the same receipt
+  without reopening PCM or rerunning models.
+- Receipts are private `0600`, explicitly contain derived biometric scores,
+  and contain no raw audio, transcript text, embeddings, vectors, or portable
+  raw biometric values. Calibration and evaluation were not read.
+- Validation: 68 focused P3/P4 tests and 535 full repository tests passed.
+  Compilation and diff checks passed. Independent checkpoint re-audit returned
+  `PASS` with no remaining finding.
+
+Next:
+
+- Build the exact P4D2 held-out calibration apply authority from the verified
+  P4D receipt. Keep evaluation sealed.
+
 ## Turn 262 | 2026-07-31
 
 Plan:
