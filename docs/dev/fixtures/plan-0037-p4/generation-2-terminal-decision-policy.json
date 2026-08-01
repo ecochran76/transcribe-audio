@@ -1,0 +1,52 @@
+{
+  "schema_version": "transcribe-audio.verification-generation-2-terminal-decision-policy.v1",
+  "precedence": ["stop", "reject", "select", "refine"],
+  "minimum_evidence": {
+    "genuine_trials_per_model_method_unit": 20,
+    "impostor_trials_per_model_method_unit": 100,
+    "open_set_trials_per_model_method_unit": 20,
+    "successor_corpus_recordings": 7,
+    "successor_corpus_conversations": 7,
+    "evaluation_recordings": 2,
+    "evaluation_conversations": 2,
+    "known_subjects": 5,
+    "recurrent_subjects": 2,
+    "independent_same_person_subject_session_pairs": 4,
+    "all_declared_condition_slices_reported": true,
+    "minimum_observed_values_per_condition": 2,
+    "missing_condition_recordings": 0
+  },
+  "stop_if": [
+    "split_or_hash_integrity_failure",
+    "private_biometric_leak",
+    "stale_or_ineligible_p3_descendant_used",
+    "profile_lifecycle_failure",
+    "exact_trial_child_authority_missing_or_invalid",
+    "candidate_matrix_incomplete",
+    "trial_class_denominator_below_policy",
+    "condition_coverage_below_policy",
+    "non_finite_score_or_metric",
+    "required_candidate_or_preparation_path_not_run"
+  ],
+  "reject_if": {
+    "false_acceptance_rate_gt": 0.05,
+    "label_group_precision_lt": 0.8,
+    "open_set_rejection_rate_lt": 0.8
+  },
+  "select_if_all": {
+    "false_acceptance_rate_lte": 0.01,
+    "false_rejection_rate_lte": 0.25,
+    "abstention_rate_lte": 0.3,
+    "expected_calibration_error_lte": 0.1,
+    "open_set_rejection_rate_gte": 0.95,
+    "label_group_precision_gte": 0.95,
+    "label_group_recall_gte": 0.75,
+    "enhancement_has_no_safety_metric_regression": true,
+    "complete_candidate_matrix": true,
+    "complete_condition_coverage": true
+  },
+  "refine_if": "evidence_is_valid_and_neither_stop_reject_nor_select_matches",
+  "tie_break": "prefer_lower_false_acceptance_then_lower_abstention_then_lower_false_rejection_then_simpler_runtime",
+  "policy_changes_after_evaluation_unseal": "forbidden_for_this_evaluation_generation",
+  "exact_trial_child_may_change_parent_policy": false
+}

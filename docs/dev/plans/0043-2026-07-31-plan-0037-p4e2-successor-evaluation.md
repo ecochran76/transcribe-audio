@@ -386,3 +386,21 @@ State: Plan 0046 Unit A CLOSED; Plan 0045 and Plan 0046 remain OPEN.
 - This closes only the calibration descendant seam. Generation-2 preview is
   next, while production authority apply, reveal, scoring, and selection remain
   stopped behind the Plan 0045 composite device-condition gate.
+
+## P4E2-D3 generation-2 pre-reveal authority checkpoint
+
+State: Plan 0046 Units A through C CLOSED; Plan 0045 and Unit D remain OPEN.
+
+- The independently audited, deterministic generation-2 pre-reveal preview
+  binds the exact successor seal, historical condition and calibration chains,
+  current model/profile assets, nine frozen thresholds and margins, candidate
+  matrix, terminal policy, and mandatory exact-trial child contract.
+- Exact production historical-condition replay rehashed all seven P1 artifacts
+  and all 35 P2 outputs. Frozen successor projection `bbadd46c...befbd` and
+  canonical composite content/ID recomputation prevent detached caller input.
+- Independent re-audit returned `PASS`; 22 focused, 56 joined, and all 607
+  repository tests passed. No evaluation reveal, model execution, score,
+  terminal metric, decision, or external write occurred.
+- Production generation-2 freeze remains `not_run` until Plan 0045 produces a
+  passing replayed composite with seven direct nonmissing device attestations
+  and at least two distinct opaque devices.

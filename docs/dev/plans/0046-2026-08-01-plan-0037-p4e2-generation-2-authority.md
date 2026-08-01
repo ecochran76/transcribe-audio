@@ -1,17 +1,19 @@
 # Plan 0046 | Plan 0037 P4E2 generation-2 terminal authority
 
-State: OPEN — Unit A closed; Unit B next
+State: OPEN — Units A through C closed; Unit D blocked on Plan 0045
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0043 P4E2-D
 
 Owner: primary agent
 
-Expected Write Surface: `acoustic_verification.py`, focused tests, this plan,
-Plans 0037 and 0043, `ROADMAP.md`, and `RUNBOOK.md`; private pre-reveal
+Expected Write Surface: `acoustic_verification.py`,
+`acoustic_generation2_authority.py`, focused tests, the generation-2 terminal
+policy fixture, this plan, Plans 0037 and 0043, `ROADMAP.md`, and `RUNBOOK.md`;
+private pre-reveal
 authority artifacts only under the user-scoped Plan 0037 runtime root after
 all predecessor gates pass.
 
@@ -57,6 +59,12 @@ or scoring.
   measured composite conditions, exact historical calibration replay, current
   P1/P2 authorities, profiles, model assets, frozen thresholds and margins,
   candidate matrix, trial construction, terminal metrics, and decision policy.
+- Resolve the pre-reveal/exact-trial dependency with two fail-closed stages:
+  the generation-2 pre-reveal envelope freezes the exact successor recording
+  set, candidates, thresholds, window/trial derivation rules, terminal policy,
+  and permits no scoring; after authorized reveal and immutable window freeze,
+  a mandatory child authority must bind the exact trial IDs and denominators
+  before any model or score execution. The child cannot change any parent rule.
 - Keep production apply unavailable until Plan 0045 produces a passing,
   independently reviewed composite condition authority.
 
@@ -68,6 +76,9 @@ or scoring.
   apply/write path.
 - Do not reveal evaluation, read successor audio or gold bodies, run models,
   score trials, calculate terminal metrics, or select a model/method.
+- Do not represent the pre-reveal construction policy as an exact realized
+  trial manifest. Exact trials remain a required child authority after windows
+  exist and before scoring.
 - Do not infer missing capture-device evidence or treat execution authorization
   as a factual device attestation.
 
@@ -101,6 +112,10 @@ the existing reviewer performs read-only audit.
   attestations, at least two opaque physical-device IDs, a replayed composite
   condition authority, independent audit `PASS`, clean pushed commit, and an
   evaluation split that remains sealed.
+- The pre-reveal envelope must set model execution, scoring, terminal metrics,
+  and terminal decision to false. Those actions require a later exact-trial
+  child whose parent hash, window manifest, full candidate matrix, trial IDs,
+  and per-class denominators replay exactly.
 - No preview, test, audit, or blanket authorization satisfies a content or
   integrity gate by itself.
 
@@ -146,3 +161,37 @@ State: CLOSED; Units B through D remain `not_run`.
 - Unit B may implement the no-write generation-2 authority preview against
   fixture and replayed predecessor summaries. Production apply remains blocked
   on Plan 0045's seven direct attestations and passing composite authority.
+
+## Unit B and Unit C close checkpoint
+
+State: CLOSED; Unit D remains `not_run` behind the Plan 0045 composite gate.
+
+- The deterministic generation-2 pre-reveal preview binds the exact successor
+  corpus and `3 / 2 / 2` seal, the frozen condition campaign, the full
+  historical calibration application and authority bodies, all six active
+  profiles and model assets, nine frozen thresholds, zero fixed margins, the
+  nine-unit candidate matrix, and terminal policy
+  `d741d8ef10594818646910b08a1dd925cfe40ffb04e3e8536a5c6d0ffad9330f`.
+- The preview cannot run models, score trials, calculate terminal metrics,
+  decide, reveal, or write. It permits reveal only after a separately reviewed
+  production apply. A mandatory post-window child must freeze exact trial IDs
+  and denominators before any model or score execution and cannot alter a
+  parent threshold, margin, candidate, or policy rule.
+- Historical condition replay now rehashes the exact seven P1 audio artifacts,
+  requires the ordered five-method success set for every recording, and
+  rehashes all 35 P2 outputs. Production replay returned full-body equality and
+  frozen safe projection
+  `bbadd46c5b68d8a8210f20f4ec1f69cdee73f4efc5fe2c764d40bb70109befbd`.
+  Caller-supplied successor or composite projections cannot detach from their
+  frozen/canonical content identities.
+- One bounded audit repair closed calibration-body, successor-projection,
+  composite-content, and P1-artifact integrity gaps. Independent re-audit
+  returned `PASS` on scoped code/test/policy diff SHA-256
+  `25b8e01d46f61195d5205947dc5378b7f03e3094f98dbe69c890f31bf59bf529`.
+  Twenty-two focused tests, 56 joined predecessor tests, and all 607 repository
+  tests passed; compilation, production historical replay, and
+  `git diff --check` passed.
+- Unit D must not apply until Plan 0045 freezes and replays seven nonmissing
+  direct attestations with at least two opaque devices, the Unit B commit is
+  clean and pushed, and the production preview receives independent review.
+  Evaluation reveal and terminal execution remain `not_run`.

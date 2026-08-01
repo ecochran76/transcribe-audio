@@ -96,10 +96,11 @@ provenance. Plan 0044 therefore closed with terminal `STOP` before generation-2
 authority construction or biometric scoring. Plan 0045 is open to collect an
 exact-seven, append-only, direct-operator device provenance authority without
 inferring from encoding or rewriting the measured condition evidence. No
-generation-2 production authority may apply yet. Plan 0046 Unit A has closed
-the exact archived-to-current P2 replay seam without weakening default replay
-or entering a writer; its generation-2 preview unit is next while the device
-composite remains a hard production gate. No
+generation-2 production authority may apply yet. Plan 0046 Units A through C
+have closed the exact archived-to-current P2 replay seam and independently
+audited deterministic generation-2 pre-reveal preview without weakening
+default replay or entering a writer. Its production freeze remains `not_run`
+while the device composite is a hard gate. No
 model/method selection, App
 Intelligence integration, or historical reprocessing exists. Plan 0036 remains
 sealed and paused after five of ten current gold reviews.

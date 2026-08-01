@@ -2,6 +2,41 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 272 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0046-2026-08-01-plan-0037-p4e2-generation-2-authority.md`,
+version 2
+
+Packet: P4E2-D3 | Generation-2 pre-reveal authority
+
+State transition: `OPEN/P4E2-R1+P4E2-D2 -> OPEN/P4E2-R1+P4E2-D3`.
+
+- Added deterministic generation-2 preview/replay with exact successor seal,
+  condition, historical calibration, profile/model, threshold/margin,
+  candidate-matrix, terminal-policy, and post-window exact-trial-child
+  bindings. Preview authorizes no reveal, model, score, metric, decision, or
+  write.
+- Added exact read-only Plan 0044 historical replay. It rehashes all seven P1
+  audio artifacts, requires the ordered five-method success set, and rehashes
+  all 35 P2 outputs. Production replay returned frozen safe projection
+  `bbadd46c...befbd` and full-body equality.
+- One bounded audit repair added full calibration-body identity, a frozen
+  successor projection, canonical composite content/ID recomputation, and P1
+  artifact integrity. Final independent re-audit returned `PASS` on scoped
+  code/test/policy diff SHA-256
+  `25b8e01d46f61195d5205947dc5378b7f03e3094f98dbe69c890f31bf59bf529`.
+- Twenty-two focused tests, 56 joined predecessor tests, and all 607 repository
+  tests passed. Compilation, production historical replay, and
+  `git diff --check` passed.
+
+Next:
+
+- Continue the Plan 0045 one-case-at-a-time device campaign. Keep production
+  generation-2 apply, reveal, scoring, and selection `not_run` until the exact
+  seven direct attestations yield at least two opaque devices and a passing
+  replayed composite authority.
+
 ## Turn 271 | 2026-08-01
 
 Plan:
