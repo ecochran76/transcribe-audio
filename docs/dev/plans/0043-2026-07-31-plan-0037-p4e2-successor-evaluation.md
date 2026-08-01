@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 6
+Plan Version: 7
 
 Parent: Plan 0037 P4
 
@@ -302,3 +302,34 @@ State: P4E2-C1 CLOSED; P4E2-C2 OPEN.
   tamper rejection. Passing C2 means only `ready_for_p1_measurement`; terminal
   selection remains pending until P1/P2 replace every decision-relevant
   `unassessed` condition and prove at least two observed values per dimension.
+
+## P4E2-C2 close / P4E2-D opening checkpoint
+
+State: P4E2-C2 CLOSED; P4E2-D OPEN.
+
+- Commit `50f34ab3fd36f7b00ece776c35c9d9e05c3571f3` added the
+  successor-only chronological `3 / 2 / 2` split, exact-two prior-corpus and
+  superseding-gold-freeze bindings, live source/transcript/gold/index drift
+  validation, reviewed-content-hash apply, fail-before-write readiness, and
+  read-only exact-manifest/receipt replay. Legacy corpus content identity is
+  preserved.
+- Independent read-only review returned `PASS` on exact diff SHA-256
+  `fdf8cded9c96926aae03bbacc2e88cade05e550d1430bd37d85ed62a3afd0c6f`
+  after all authority, replay, and compatibility findings were repaired.
+  Five focused tests and all 551 repository tests passed; compilation and
+  `git diff --check` passed.
+- The private corpus is `acoustic-corpus-4a2b13e7bdc201f694af2f43`, content
+  SHA-256 `4a2b13e7bdc201f694af2f43d4ab845749eeeb3ea06c7a97a40164cab40b83fe`,
+  manifest SHA-256
+  `4b77479d25d7b248cc62d500ed84c1604f105848da25ecef53661c5d9ea05a30`.
+  Exact replay returned `full_body_match=true`; manifest and receipt are `0600`
+  under a `0700` corpus directory.
+- Frozen denominators are 7 recordings, 7 conversations, 18 speaker labels,
+  10 known subjects, 3 recurrent subjects, 23 feasible same-person pairs, and
+  114 feasible different-person pairs. Split counts are 3 development, 2
+  calibration, and 2 evaluation. Both prior corpus overlap counts remain zero.
+- C2 status is only `ready_for_p1_measurement`; `promotion_eligible=false`.
+  P4E2-D must now measure and bind channel, device, noise, telephone-bandwidth,
+  and usable-duration evidence before constructing the independently reviewed
+  generation-2 terminal authority. No biometric score or terminal selection
+  has run.

@@ -448,10 +448,14 @@ open-set, and condition-slice evidence. P4E generation 1 was revealed under an
 independently reviewed authority but terminally stopped before audio/model
 execution because the bound P2 module lacked an evaluation-split seam. The
 revealed cohort cannot be reused for terminal selection. Plan 0043 added and
-replay-tested the evaluation seam before any successor authority freeze, then
-persisted a metadata-only readiness receipt proving the campaign has zero fully
-disjoint new candidates. A new sealed cohort and authority generation remain
-required. No terminal model/method selection,
+replay-tested the evaluation seam before any successor authority freeze. Its
+exact-seven successor campaign is now fully operator-reviewed, and the new
+conversation/source-disjoint corpus is frozen and replayed with a deterministic
+3/2/2 development/calibration/evaluation split. It has 10 known subjects, 3
+recurrent subjects, and 23 feasible same-person session pairs. The cohort is
+ready for P1 measurement but remains terminal-ineligible until P1/P2 condition
+coverage and the independently reviewed generation-2 authority are complete.
+No terminal model/method selection,
 operational accuracy claim, default integration, or historical reprocessing
 workflow exists yet. Plan 0036
 remains sealed and paused at five of ten current gold reviews.

@@ -2,6 +2,48 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 268 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md`,
+version 7
+
+Packet: P4E2-C1/P4E2-C2 | Operator gold and successor cohort freeze
+
+State transition: `OPEN/REVIEW-TRANCHE/Plan-0037-P4E2 -> OPEN/GENERATION-2-AUTHORITY/Plan-0037-P4E2`.
+
+- Completed all seven one-at-a-time, prediction-excluded operator reviews.
+  Append-only corrections identify Jordan Katz in case 1, Nacu Hernandez in
+  case 4, and unify the recurring Eric identity. Superseding gold freeze
+  `7870394e-417f-40f0-8e04-3de5e1fa130b` is current; the earlier freeze remains
+  audit history.
+- Rejected the legacy hash split because it measured `6 / 1 / 0`. Added the
+  successor-only, model-independent chronological `3 / 2 / 2` policy with
+  exact-seven membership and unchanged legacy behavior.
+- Added exact prior-corpus, gold-freeze, clean-repository, and module authority
+  bindings; live source/transcript/gold/index drift checks; reviewed-hash apply;
+  readiness-before-write; private idempotent freeze; and read-only exact-body
+  replay with tamper tests.
+- Independent review returned `PASS` on diff SHA-256
+  `fdf8cded9c96926aae03bbacc2e88cade05e550d1430bd37d85ed62a3afd0c6f`.
+  Five focused and 551 full tests passed; compilation and diff checks passed.
+  Commit `50f34ab` is pushed.
+- Applied private corpus `acoustic-corpus-4a2b13e7bdc201f694af2f43` at content
+  SHA-256 `4a2b13e7bdc201f694af2f43d4ab845749eeeb3ea06c7a97a40164cab40b83fe`.
+  Manifest SHA-256 is
+  `4b77479d25d7b248cc62d500ed84c1604f105848da25ecef53661c5d9ea05a30`;
+  replay returned `full_body_match=true`; files are `0600` under `0700`.
+- Frozen evidence is 7 recordings/conversations, 18 labels, 10 subjects, 3
+  recurrent subjects, 23 same-person pairs, and 114 different-person pairs.
+  It is `ready_for_p1_measurement` but explicitly not promotion eligible.
+
+Next:
+
+- Build the bounded P1/P2 condition-measurement packet and bind its private
+  derivative/comparison receipts before independently reviewing generation-2
+  reveal authority. Missing real device or other two-value condition coverage
+  must stop or refine; it cannot be relabeled as terminal-select evidence.
+
 ## Turn 267 | 2026-07-31
 
 Plan:
