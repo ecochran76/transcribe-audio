@@ -2,6 +2,55 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 262 | 2026-07-31
+
+Plan:
+`docs/dev/plans/0042-2026-07-31-plan-0037-p4-verification-calibration.md`,
+version 7
+
+Packet: P4C | Exact P3 references and real profile apply
+
+State transition: `READY_FOR_REVIEW/Plan-0037-P4C -> CLOSED/Plan-0037-P4C`.
+
+- Resolved the operator's blanket proceed instruction into exact P3 create
+  approvals for only the two frozen operator-gold candidate/source sets. Both
+  production references are active, replay-eligible, and non-synthetic.
+- Ready preview SHA-256
+  `ca9a8ee8daa2ebe2e3b466dcb676fe4de472a5604af7ec3496aa541215ce0f93`
+  and apply-authority SHA-256
+  `ac7884adacb9acb665cc1de3686e7bc6bed227a567a60f3451bb1b5f5eb77614`
+  bind the exact P3 generations, 15 source segments, three pinned models, and
+  no-enhancement development-only preparation.
+- Added a real enrollment apply/replay seam. It validates P2 lineage and method
+  receipts, PCM path/hash/format/bounds, current P3 generations, model
+  revisions, and descendant promotion before persisting metadata-only
+  receipts. It refuses custom adapters outside deterministic tests.
+- Live application SHA-256
+  `9ec7fe5abc04461a740e224ef2c239760b4ffdf34654b4a845aea9f0a608953a`
+  activated six profiles for two people across SpeechBrain ECAPA, WeSpeaker
+  CAM++, and WeSpeaker ResNet34. Exact replay and a repaired idempotent rerun
+  returned the same application and profile IDs.
+- Application replay reconstructs the full authority-bound receipt, requires
+  exact ordered person/model/P3/preparation coverage, and rejects independently
+  rehashed proposal, preview, split, trial, calibration/evaluation, external,
+  and raw-biometric semantic forgeries.
+- The first rerun exposed replay-only fields in the application identity. The
+  repaired core returns one stable public profile shape. The noncanonical
+  duplicate receipt was preserved under private `rejected-noncanonical/`
+  quarantine; no profile or biometric bytes were removed.
+- No trial, verification score, calibration/evaluation read, external write,
+  raw-biometric portability, or default integration occurred.
+- Validation: 67 focused P3/P4 tests and 534 full repository tests passed;
+  compilation and diff checks passed. Independent checkpoint re-audit returned
+  `PASS` after reproducing the prior semantic-forgery rejection and exact live
+  canonical replay.
+
+Next:
+
+- Run the independently reviewed P4D development packet across the three
+  pinned models and authorized preparation paths. Keep calibration and
+  evaluation sealed.
+
 ## Turn 261 | 2026-07-31
 
 Plan:

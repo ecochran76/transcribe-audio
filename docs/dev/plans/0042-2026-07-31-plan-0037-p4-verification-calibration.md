@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 6
+Plan Version: 7
 
 Parent: Plan 0037 P4
 
@@ -132,8 +132,10 @@ Its reviewed v1 SHA-256 is
 P4B now has three offline, lazy host adapters; deterministic fake-model
 materialization/scoring; a private model-specific profile store; P3 descendant
 registration/promotion/invalidation; and staged, active, superseded, withdrawn,
-and deleted lifecycle replay. Real adapters have run only on generated
-synthetic waveforms. No real reference generation or corpus audio was opened.
+and deleted lifecycle replay. P4C now has two exact production P3 reference
+generations and six active real model-specific profiles from the authorized
+development windows. No verification trial or calibration/evaluation evidence
+has been read.
 
 Graphiti was healthy at opening. Its only current P4-specific recall is the
 source-backed P2 closeout directing Plan 0037 to the next bounded
@@ -145,10 +147,11 @@ downstream/profile packet; current repo and runtime evidence control.
   acquisition, package installation/build, terms/contact sharing where needed,
   and development processing. Persisted hashes are audit evidence, not per-run
   authorization rituals.
-- That standing acquisition/development grant does not itself create a
-  biometric-purpose approval for any person or source segment. Real enrollment
-  requires an exact P3 approval object plus a reviewed P4 enrollment manifest
-  naming opaque people, source generations, segment hashes, and intended split.
+- The operator subsequently rejected per-step authorization rituals, supplied
+  blanket authorization, and directed execution to proceed. P4C resolves that
+  instruction into exact P3 approval objects and one content-addressed P4
+  enrollment authority; it does not treat a broad statement as permission to
+  add people or sources outside the frozen operator-gold candidate proposal.
 - P4A/P4B may acquire models and prove synthetic interfaces without opening
   private corpus audio. P4C may prepare a no-audio enrollment preview. Audio and
   real profile materialization remain fail-closed until the enrollment manifest
@@ -372,3 +375,42 @@ real enrollment apply remains gated.
   pre-build clue-packet, blind-prediction, and run-ledger drift plus post-build
   replay drift. Independent checkpoint re-audit returned `PASS` and reproduced
   the focused/full validation and exact live replay.
+
+## P4C apply checkpoint
+
+State: CLOSED; P4D development trials are next.
+
+- Applied exact P3 create approvals for the two candidate/source sets from the
+  reviewed proposal. Both production references replay as active,
+  `synthetic_test_only=false`, with source-set SHA-256 values
+  `0d258558be0dce631bb08b06d986280cc7cc35915229ba5bd8388794212e1d13`
+  and
+  `8bf3da29bd8772de03859476e1656913a6af739cfa7a27fe5e3a4e60f926c11e`.
+- Ready preview SHA-256
+  `ca9a8ee8daa2ebe2e3b466dcb676fe4de472a5604af7ec3496aa541215ce0f93`
+  binds both P3 generations, all 15 exact source segments, and the three pinned
+  models. Exact apply-authority SHA-256
+  `ac7884adacb9acb665cc1de3686e7bc6bed227a567a60f3451bb1b5f5eb77614`
+  limits audio reads and embedding materialization to those development units
+  using no-enhancement preparation; trials and calibration/evaluation remain
+  false.
+- The real apply validates P2 replay, comparison/method hashes, PCM artifact
+  hashes, mono 16 kHz signed-16-bit format, and exact frame bounds before any
+  model call. It activated six profiles: two people across SpeechBrain ECAPA,
+  WeSpeaker CAM++, and WeSpeaker ResNet34. Application SHA-256
+  `9ec7fe5abc04461a740e224ef2c239760b4ffdf34654b4a845aea9f0a608953a`
+  replays exactly and is idempotent; all profile aggregates remain private.
+- Replay reconstructs the complete authority-bound application and requires
+  exact ordered person/model/P3/preparation coverage. Independently rehashed
+  receipts with changed proposal, preview, split, trial,
+  calibration/evaluation, external-write, or raw-biometric semantics fail.
+- One pre-fix rerun receipt included replay-only fields and produced a second
+  noncanonical hash. It was moved intact into private
+  `rejected-noncanonical/` quarantine; no profile or biometric bytes were
+  deleted. The repaired rerun returns the original canonical application.
+- No verification score, trial, calibration/evaluation read, external write,
+  portable raw biometric value, or default pipeline integration occurred.
+- Validation: 67 focused P3/P4 tests and 534 full repository tests passed;
+  `py_compile` and `git diff --check` passed. Independent checkpoint re-audit
+  returned `PASS`, reproduced the focused checks, and confirmed exact live
+  replay plus semantic-forgery rejection.

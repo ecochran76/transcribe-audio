@@ -426,19 +426,21 @@ anchored P4 descendant invalidation. Plan 0042 P4 is open for exact
 SpeechBrain ECAPA, WeSpeaker CAM++, and WeSpeaker ResNet34 acquisition,
 model-specific profile materialization, held-out calibration, and sealed
 evaluation. P4A model/code/terms acquisition and P4B offline adapters plus
-synthetic private profile lifecycle are closed; P4C exact real-enrollment
-preview is closed with a truthful blocker because no canonical real P3
-reference store exists. A private no-audio candidate proposal now recovers two
+synthetic private profile lifecycle are closed; the initial P4C exact
+real-enrollment preview closed with a truthful blocker because no canonical
+real P3 reference store existed at preview time. A private no-audio candidate
+proposal recovers two
 raw-file hash drifts through a committed metadata-only authority that binds
 the frozen campaign, blind-prediction, completed-run, prompt, status, and clue
 packet hashes and matches the clues exactly against current speaker, ordinal,
 timestamp, and bounded-text fields. Two multi-session opaque
-candidates are ready for exact source-set review. P4C apply and P4D remain
-gated on that biometric-purpose approval plus a reviewed
-biometric-enrollment apply manifest. No calibrated
-verification model, real enrolled reference library, or historical reprocessing
-workflow exists yet. Plan 0036 remains sealed and paused at five of ten current
-gold reviews.
+candidates were resolved through exact production P3 approvals and a
+content-addressed P4 apply authority under the operator's blanket proceed
+instruction. Six active real profiles now cover both candidates across all
+three pinned models using no-enhancement enrollment windows. P4D development
+trials are next; calibration and evaluation remain sealed. No calibrated
+verification model or historical reprocessing workflow exists yet. Plan 0036
+remains sealed and paused at five of ten current gold reviews.
 
 Plans:
 

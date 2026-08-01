@@ -4,6 +4,8 @@ import json
 import hashlib
 import sqlite3
 import stat
+import struct
+import wave
 from pathlib import Path
 
 import pytest
@@ -13,11 +15,15 @@ from acoustic_verification import (
     AcousticVerificationError,
     FakeVerificationAdapter,
     adapter_registry,
+    apply_real_enrollment,
+    build_real_enrollment_apply_authority,
     build_real_enrollment_candidate_proposal,
     build_real_enrollment_preview,
     cosine_score,
     dry_run_model_acquisition,
     replay_model_acquisition,
+    replay_real_enrollment_apply_authority,
+    replay_real_enrollment_application,
     replay_real_enrollment_candidate_proposal,
     replay_real_enrollment_preview,
     materialize_profile,
@@ -27,6 +33,49 @@ from acoustic_verification import (
     supersede_profile,
     withdraw_profile,
 )
+
+
+def real_enrollment_authority_inputs() -> tuple[dict, dict, dict]:
+    resolved = production_reference()
+    source = resolved["reference"]["sources"][0]
+    proposal = {
+        "status": "ready_for_operator_review",
+        "reason_codes": [],
+        "candidates": [
+            {
+                "person_ref_id": resolved["person_ref_id"],
+                "proposed_p3_profile_id": resolved["profile_id"],
+                "proposed_source_set_sha256": resolved["reference"][
+                    "source_set_sha256"
+                ],
+                "proposed_sources": [source],
+            }
+        ],
+    }
+    preview = {
+        "status": "ready_for_review",
+        "reason_codes": [],
+        "enrollment_units": [
+            {
+                "person_ref_id": resolved["person_ref_id"],
+                "p3_profile_id": resolved["profile_id"],
+                "p3_generation_id": resolved["generation_id"],
+                "p3_generation_sha256": resolved["generation_sha256"],
+                "p3_source_set_sha256": resolved["reference"][
+                    "source_set_sha256"
+                ],
+                "p3_approval_id": resolved["reference"]["approval"]["approval_id"],
+                "p3_approval_sha256": verification.canonical_artifact_hash(
+                    resolved["reference"]["approval"]
+                ),
+                "source_segments": [verification._enrollment_source_binding(source)],
+            }
+        ],
+        "models": [
+            {"candidate_id": "synthetic-verifier", "revision_sha": "1" * 40}
+        ],
+    }
+    return proposal, preview, resolved
 
 
 def production_reference() -> dict:
@@ -519,6 +568,97 @@ def test_real_enrollment_preview_replay_rejects_forged_reason_semantics(
         replay_real_enrollment_preview(
             forged_sha, runtime_root=root, split_policy_path=policy,
             parent_corpus_manifest_path=parent,
+        )
+
+
+def test_real_enrollment_apply_authority_is_exact_private_and_replayable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    proposal, preview, resolved = real_enrollment_authority_inputs()
+    proposal_sha = "2" * 64
+    preview_sha = "3" * 64
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_candidate_proposal",
+        lambda *args, **kwargs: proposal,
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_preview",
+        lambda *args, **kwargs: preview,
+    )
+    monkeypatch.setattr(
+        verification,
+        "resolve_eligible_reference",
+        lambda *args, **kwargs: resolved,
+    )
+    root = tmp_path / "p4"
+    authority = build_real_enrollment_apply_authority(
+        proposal_sha,
+        preview_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+
+    assert authority["status"] == "authorized"
+    assert authority["candidate_proposal_sha256"] == proposal_sha
+    assert authority["enrollment_preview_sha256"] == preview_sha
+    assert authority["real_biometric_enrollment_authorized"] is True
+    assert authority["will_read_audio"] is True
+    assert authority["will_materialize_embeddings"] is True
+    assert authority["will_run_trials"] is False
+    assert authority["will_read_calibration_or_evaluation"] is False
+    assert authority["contains_raw_biometric_values"] is False
+    assert replay_real_enrollment_apply_authority(
+        authority["authority_sha256"], runtime_root=root
+    ) == authority
+    repeated = build_real_enrollment_apply_authority(
+        proposal_sha,
+        preview_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert repeated == authority
+    path = Path(authority["private_authority_path"])
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+    forged = json.loads(path.read_text(encoding="utf-8"))
+    forged["will_run_trials"] = True
+    path.write_text(json.dumps(forged), encoding="utf-8")
+    path.chmod(0o600)
+    with pytest.raises(AcousticVerificationError, match="authority"):
+        replay_real_enrollment_apply_authority(
+            authority["authority_sha256"], runtime_root=root
+        )
+
+
+def test_real_enrollment_apply_authority_rejects_proposal_preview_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    proposal, preview, resolved = real_enrollment_authority_inputs()
+    preview["enrollment_units"][0]["p3_source_set_sha256"] = "9" * 64
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_candidate_proposal",
+        lambda *args, **kwargs: proposal,
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_preview",
+        lambda *args, **kwargs: preview,
+    )
+    monkeypatch.setattr(
+        verification,
+        "resolve_eligible_reference",
+        lambda *args, **kwargs: resolved,
+    )
+
+    with pytest.raises(AcousticVerificationError, match="bindings differ"):
+        build_real_enrollment_apply_authority(
+            "2" * 64,
+            "3" * 64,
+            runtime_root=tmp_path / "p4",
+            p3_runtime_root=tmp_path / "p3",
         )
 
 
@@ -1278,6 +1418,201 @@ def install_fake_p3(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         lambda *args, **kwargs: calls.append("eligible") or True,
     )
     return calls
+
+
+def test_real_enrollment_apply_materializes_and_replays_exact_profiles(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = install_fake_p3(monkeypatch)
+    proposal, preview, resolved = real_enrollment_authority_inputs()
+    adapter = FakeVerificationAdapter(candidate_id="synthetic_verifier")
+    authority_sha = "4" * 64
+    authority = {
+        "candidate_proposal_sha256": "2" * 64,
+        "enrollment_preview_sha256": "3" * 64,
+        "enrollment_units": preview["enrollment_units"],
+        "models": [
+            {
+                "candidate_id": adapter.candidate_id,
+                "revision_sha": adapter.revision_sha,
+            }
+        ],
+        "preparation_methods": [
+            {
+                "method_id": "no_enhancement",
+                "development_comparison_receipt_sha256": (
+                    verification.EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256
+                ),
+            }
+        ],
+        "real_biometric_enrollment_authorized": True,
+        "will_read_audio": True,
+        "will_materialize_embeddings": True,
+        "will_run_trials": False,
+        "will_read_calibration_or_evaluation": False,
+    }
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_apply_authority",
+        lambda *args, **kwargs: authority,
+    )
+    monkeypatch.setattr(
+        verification,
+        "replay_real_enrollment_candidate_proposal",
+        lambda *args, **kwargs: proposal,
+    )
+    monkeypatch.setattr(
+        verification,
+        "resolve_eligible_reference",
+        lambda *args, **kwargs: resolved,
+    )
+    monkeypatch.setattr(
+        verification,
+        "_authorized_real_windows",
+        lambda *args, **kwargs: [
+            {"session_id": "session-001", "samples": [0.25, -0.25] * 8_000}
+        ],
+    )
+    root = tmp_path / "p4"
+    application = apply_real_enrollment(
+        authority_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+
+    assert application["status"] == "success"
+    assert application["profile_count"] == 1
+    assert application["did_read_audio"] is True
+    assert application["did_materialize_embeddings"] is True
+    assert application["did_register_p4_descendants"] is True
+    assert application["did_run_trials"] is False
+    assert application["contains_raw_biometric_values"] is False
+    assert calls == ["register", "promote", "eligible"]
+    assert replay_real_enrollment_application(
+        application["application_sha256"],
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    ) == application
+    for field, forged_value in (
+        ("candidate_proposal_sha256", "a" * 64),
+        ("enrollment_preview_sha256", "b" * 64),
+        ("intended_split", "evaluation"),
+        ("did_run_trials", True),
+        ("did_read_calibration_or_evaluation", True),
+        ("did_perform_external_write", True),
+        ("contains_raw_biometric_values", True),
+    ):
+        forged = {
+            key: value
+            for key, value in application.items()
+            if key not in {"application_sha256", "private_application_path"}
+        }
+        forged[field] = forged_value
+        forged_sha = verification.canonical_artifact_hash(
+            {key: value for key, value in forged.items() if key != "applied_at"}
+        )
+        forged_path = root / "enrollment-applications" / f"{forged_sha}.json"
+        verification.write_immutable_private_json(
+            forged_path, forged, volatile_fields=("applied_at",)
+        )
+        with pytest.raises(AcousticVerificationError, match="semantics"):
+            replay_real_enrollment_application(
+                forged_sha,
+                runtime_root=root,
+                p3_runtime_root=tmp_path / "p3",
+            )
+    repeated = apply_real_enrollment(
+        authority_sha,
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+    assert repeated == application
+    assert stat.S_IMODE(
+        Path(application["private_application_path"]).stat().st_mode
+    ) == 0o600
+
+
+def test_real_enrollment_apply_rejects_unreviewed_adapter_override(
+    tmp_path: Path,
+) -> None:
+    adapter = FakeVerificationAdapter(candidate_id="synthetic_verifier")
+    with pytest.raises(AcousticVerificationError, match="deterministic tests"):
+        apply_real_enrollment(
+            "4" * 64,
+            runtime_root=tmp_path / "p4",
+            p3_runtime_root=tmp_path / "p3",
+            adapters={adapter.candidate_id: adapter},
+        )
+
+
+def test_authorized_real_windows_validate_lineage_and_exact_pcm_bounds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "p2"
+    root.mkdir(mode=0o700)
+    audio_path = root / "source.wav"
+    values = [1_000, -1_000] * 16_000
+    with wave.open(str(audio_path), "wb") as writer:
+        writer.setnchannels(1)
+        writer.setsampwidth(2)
+        writer.setframerate(16_000)
+        writer.writeframes(struct.pack(f"<{len(values)}h", *values))
+    audio_path.chmod(0o600)
+    method = {
+        "method_id": "no_enhancement",
+        "status": "success",
+        "output_path": str(audio_path),
+        "output_sha256": hashlib.sha256(audio_path.read_bytes()).hexdigest(),
+    }
+    comparison_path = root / "comparison.json"
+    comparison_path.write_text(
+        json.dumps({"method_results": [method]}), encoding="utf-8"
+    )
+    comparison_path.chmod(0o600)
+    lineage = {
+        "run_id": "speech-prep-test-001",
+        "method_id": "no_enhancement",
+        "replay_receipt_sha256": "1" * 64,
+        "comparison_path": str(comparison_path),
+        "comparison_sha256": hashlib.sha256(
+            comparison_path.read_bytes()
+        ).hexdigest(),
+        "method_result_sha256": verification.canonical_artifact_hash(method),
+        "source_blob_id": "source-001",
+        "source_sha256": "2" * 64,
+        "audio_quality_sha256": "3" * 64,
+        "runtime_root": str(root),
+    }
+    monkeypatch.setattr(
+        verification,
+        "resolve_comparison_lineage_receipt",
+        lambda *args, **kwargs: dict(lineage),
+    )
+    source = {
+        "session_id": "session-001",
+        "start_seconds": 0.5,
+        "end_seconds": 1.5,
+        "lineage": lineage,
+    }
+
+    windows = verification._authorized_real_windows(
+        [source], method_id="no_enhancement"
+    )
+    assert len(windows) == 1
+    assert windows[0]["session_id"] == "session-001"
+    assert len(windows[0]["samples"]) == 16_000
+    assert max(abs(value) for value in windows[0]["samples"]) < 1.0
+
+    audio_path.write_bytes(audio_path.read_bytes() + b"drift")
+    audio_path.chmod(0o600)
+    with pytest.raises(AcousticVerificationError, match="PCM artifact drifted"):
+        verification._authorized_real_windows(
+            [source], method_id="no_enhancement"
+        )
 
 
 def test_synthetic_profile_stages_registers_promotes_and_scores_privately(

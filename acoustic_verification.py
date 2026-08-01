@@ -17,6 +17,7 @@ import re
 import sqlite3
 import struct
 import tempfile
+import wave
 from pathlib import Path
 from typing import Any, Mapping, Optional, Protocol, Sequence
 
@@ -743,6 +744,14 @@ TRIAL_SCHEMA = "transcribe-audio.verification-trial.v1"
 ENROLLMENT_PREVIEW_SCHEMA = (
     "transcribe-audio.biometric-enrollment-preview.v1"
 )
+ENROLLMENT_APPLY_AUTHORITY_SCHEMA = (
+    "transcribe-audio.biometric-enrollment-apply-authority.v1"
+)
+ENROLLMENT_APPLICATION_SCHEMA = (
+    "transcribe-audio.biometric-enrollment-application.v1"
+)
+REAL_ENROLLMENT_AUTHORIZATION_BASIS = "operator_blanket_proceed_2026-07-31"
+REAL_ENROLLMENT_AUTHORIZER_REF_ID = "operator-standing-20260731"
 _OPAQUE_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{2,127}")
 DEFAULT_SPLIT_ACCESS_POLICY = Path(__file__).parent / (
     "docs/dev/fixtures/plan-0037-p4/split-access-policy.json"
@@ -1226,6 +1235,291 @@ def replay_real_enrollment_preview(
         **preview,
         "preview_sha256": preview_sha256,
         "private_preview_path": str(path),
+    }
+
+
+def _real_enrollment_apply_payload(
+    *,
+    candidate_proposal: Mapping[str, Any],
+    enrollment_preview: Mapping[str, Any],
+    candidate_proposal_sha256: str,
+    enrollment_preview_sha256: str,
+    authorized_at: str,
+) -> dict[str, Any]:
+    """Build one exact P4C authority from replayed proposal and preview facts."""
+    if (
+        candidate_proposal.get("status") != "ready_for_operator_review"
+        or candidate_proposal.get("reason_codes") != []
+        or enrollment_preview.get("status") != "ready_for_review"
+        or enrollment_preview.get("reason_codes") != []
+    ):
+        raise AcousticVerificationError(
+            "Real enrollment apply requires ready proposal and preview receipts."
+        )
+    candidates = candidate_proposal.get("candidates")
+    units = enrollment_preview.get("enrollment_units")
+    models = enrollment_preview.get("models")
+    if not isinstance(candidates, list) or not isinstance(units, list) or not units:
+        raise AcousticVerificationError("Real enrollment apply units are unavailable.")
+    if not isinstance(models, list) or not models:
+        raise AcousticVerificationError("Real enrollment apply models are unavailable.")
+    candidate_by_person = {
+        str(candidate.get("person_ref_id") or ""): candidate
+        for candidate in candidates
+        if isinstance(candidate, Mapping)
+    }
+    if len(candidate_by_person) != len(candidates):
+        raise AcousticVerificationError("Real enrollment candidates are invalid.")
+    for unit in units:
+        if not isinstance(unit, Mapping):
+            raise AcousticVerificationError("Real enrollment unit is invalid.")
+        person_ref_id = str(unit.get("person_ref_id") or "")
+        candidate = candidate_by_person.get(person_ref_id)
+        if candidate is None:
+            raise AcousticVerificationError(
+                "Real enrollment preview is outside the candidate proposal."
+            )
+        proposed_sources = candidate.get("proposed_sources")
+        if not isinstance(proposed_sources, list):
+            raise AcousticVerificationError("Candidate proposal sources are invalid.")
+        expected_segments = []
+        for source in proposed_sources:
+            if not isinstance(source, Mapping):
+                raise AcousticVerificationError(
+                    "Candidate proposal source is invalid."
+                )
+            lineage = source.get("lineage")
+            quality = source.get("quality_evidence")
+            if not isinstance(lineage, Mapping) or not isinstance(quality, Mapping):
+                raise AcousticVerificationError(
+                    "Candidate proposal source evidence is invalid."
+                )
+            expected_segments.append(
+                {
+                    "reference_id": source.get("reference_id"),
+                    "source_sha256": source.get("source_sha256"),
+                    "recording_id": source.get("recording_id"),
+                    "conversation_id": source.get("conversation_id"),
+                    "speaker_label_id": source.get("speaker_label_id"),
+                    "session_id": source.get("session_id"),
+                    "start_seconds": source.get("start_seconds"),
+                    "end_seconds": source.get("end_seconds"),
+                    "quality_evidence_sha256": quality.get("sha256"),
+                    "lineage_authority": lineage.get("authority"),
+                    "lineage_replay_receipt_sha256": lineage.get(
+                        "replay_receipt_sha256"
+                    ),
+                }
+            )
+        preview_segments = unit.get("source_segments")
+        if not isinstance(preview_segments, list):
+            raise AcousticVerificationError("Preview source segments are invalid.")
+        comparable_preview_segments = (
+            [
+                {key: segment.get(key) for key in expected_segments[0]}
+                for segment in preview_segments
+                if isinstance(segment, Mapping)
+            ]
+            if expected_segments
+            else []
+        )
+        if (
+            candidate.get("proposed_p3_profile_id") != unit.get("p3_profile_id")
+            or candidate.get("proposed_source_set_sha256")
+            != unit.get("p3_source_set_sha256")
+            or len(comparable_preview_segments) != len(preview_segments)
+            or expected_segments != comparable_preview_segments
+        ):
+            raise AcousticVerificationError(
+                "Real enrollment proposal and preview bindings differ."
+            )
+    if set(candidate_by_person) != {
+        str(unit.get("person_ref_id") or "") for unit in units
+    }:
+        raise AcousticVerificationError(
+            "Real enrollment proposal and preview people differ."
+        )
+    authority = {
+        "schema_version": ENROLLMENT_APPLY_AUTHORITY_SCHEMA,
+        "status": "authorized",
+        "reason_code": None,
+        "authorization_basis": REAL_ENROLLMENT_AUTHORIZATION_BASIS,
+        "authorized_by_ref_id": REAL_ENROLLMENT_AUTHORIZER_REF_ID,
+        "authorized_at": authorized_at,
+        "intended_split": "development",
+        "candidate_proposal_sha256": candidate_proposal_sha256,
+        "enrollment_preview_sha256": enrollment_preview_sha256,
+        "enrollment_units": [dict(unit) for unit in units],
+        "models": [dict(model) for model in models],
+        "preparation_methods": [
+            {
+                "method_id": "no_enhancement",
+                "development_comparison_receipt_sha256": (
+                    EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256
+                ),
+            }
+        ],
+        "authorization_scope": (
+            "exact_p3_generations_and_source_segments_for_p4c_"
+            "development_enrollment"
+        ),
+        "real_biometric_enrollment_authorized": True,
+        "will_read_audio": True,
+        "will_materialize_embeddings": True,
+        "will_register_references": False,
+        "will_register_p4_descendants": True,
+        "will_run_trials": False,
+        "will_read_calibration_or_evaluation": False,
+        "will_perform_external_write": False,
+        "contains_raw_biometric_values": False,
+    }
+    if _contains_forbidden_private_key(authority):
+        raise AcousticVerificationError(
+            "Real enrollment authority contains forbidden private data."
+        )
+    return authority
+
+
+def _validate_real_enrollment_apply_authority(
+    value: Any,
+    *,
+    candidate_proposal: Mapping[str, Any],
+    enrollment_preview: Mapping[str, Any],
+    candidate_proposal_sha256: str,
+    enrollment_preview_sha256: str,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise AcousticVerificationError("Real enrollment authority is invalid.")
+    authorized_at = str(value.get("authorized_at") or "")
+    expected = _real_enrollment_apply_payload(
+        candidate_proposal=candidate_proposal,
+        enrollment_preview=enrollment_preview,
+        candidate_proposal_sha256=candidate_proposal_sha256,
+        enrollment_preview_sha256=enrollment_preview_sha256,
+        authorized_at=authorized_at,
+    )
+    if dict(value) != expected or not re.fullmatch(
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+        authorized_at,
+    ):
+        raise AcousticVerificationError("Real enrollment authority is invalid.")
+    return dict(value)
+
+
+def build_real_enrollment_apply_authority(
+    candidate_proposal_sha256: str,
+    enrollment_preview_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Persist the exact P4C apply scope authorized by the standing grant."""
+    proposal = replay_real_enrollment_candidate_proposal(
+        candidate_proposal_sha256,
+        runtime_root=runtime_root,
+    )
+    preview = replay_real_enrollment_preview(
+        enrollment_preview_sha256,
+        runtime_root=runtime_root,
+    )
+    for unit in preview.get("enrollment_units") or []:
+        resolved = resolve_eligible_reference(
+            str(unit.get("person_ref_id") or ""), runtime_root=p3_runtime_root
+        )
+        if (
+            resolved.get("profile_id") != unit.get("p3_profile_id")
+            or resolved.get("generation_id") != unit.get("p3_generation_id")
+            or resolved.get("generation_sha256")
+            != unit.get("p3_generation_sha256")
+        ):
+            raise AcousticVerificationError(
+                "P3 generation changed before enrollment authorization."
+            )
+    root = runtime_root.expanduser().absolute()
+    authority_dir = root / "enrollment-authorities"
+    ensure_private_tree(root, authority_dir)
+    existing_authorities: list[tuple[Path, dict[str, Any], str]] = []
+    for existing_path in sorted(authority_dir.glob("*.json")):
+        require_private_file(existing_path, root)
+        existing = read_private_object(existing_path)
+        if (
+            existing.get("candidate_proposal_sha256") != candidate_proposal_sha256
+            or existing.get("enrollment_preview_sha256")
+            != enrollment_preview_sha256
+        ):
+            continue
+        _validate_real_enrollment_apply_authority(
+            existing,
+            candidate_proposal=proposal,
+            enrollment_preview=preview,
+            candidate_proposal_sha256=candidate_proposal_sha256,
+            enrollment_preview_sha256=enrollment_preview_sha256,
+        )
+        existing_sha256 = canonical_artifact_hash(existing)
+        if existing_path.name != f"{existing_sha256}.json":
+            raise AcousticVerificationError(
+                "Existing real enrollment authority path is invalid."
+            )
+        existing_authorities.append((existing_path, existing, existing_sha256))
+    if len(existing_authorities) > 1:
+        raise AcousticVerificationError(
+            "Multiple real enrollment authorities exist for one exact scope."
+        )
+    if existing_authorities:
+        path, authority, authority_sha256 = existing_authorities[0]
+        return {
+            **authority,
+            "authority_sha256": authority_sha256,
+            "private_authority_path": str(path),
+        }
+    authority = _real_enrollment_apply_payload(
+        candidate_proposal=proposal,
+        enrollment_preview=preview,
+        candidate_proposal_sha256=candidate_proposal_sha256,
+        enrollment_preview_sha256=enrollment_preview_sha256,
+        authorized_at=utc_now(),
+    )
+    authority_sha256 = canonical_artifact_hash(authority)
+    path = authority_dir / f"{authority_sha256}.json"
+    write_immutable_private_json(path, authority)
+    return {
+        **authority,
+        "authority_sha256": authority_sha256,
+        "private_authority_path": str(path),
+    }
+
+
+def replay_real_enrollment_apply_authority(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+) -> dict[str, Any]:
+    """Replay one exact P4C authority without opening audio or running models."""
+    if not SHA256_RE.fullmatch(str(authority_sha256)):
+        raise AcousticVerificationError("Real enrollment authority hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "enrollment-authorities" / f"{authority_sha256}.json"
+    require_private_file(path, root)
+    authority = read_private_object(path)
+    proposal_sha256 = str(authority.get("candidate_proposal_sha256") or "")
+    preview_sha256 = str(authority.get("enrollment_preview_sha256") or "")
+    proposal = replay_real_enrollment_candidate_proposal(
+        proposal_sha256, runtime_root=root
+    )
+    preview = replay_real_enrollment_preview(preview_sha256, runtime_root=root)
+    _validate_real_enrollment_apply_authority(
+        authority,
+        candidate_proposal=proposal,
+        enrollment_preview=preview,
+        candidate_proposal_sha256=proposal_sha256,
+        enrollment_preview_sha256=preview_sha256,
+    )
+    if canonical_artifact_hash(authority) != authority_sha256:
+        raise AcousticVerificationError("Real enrollment authority replay is invalid.")
+    return {
+        **authority,
+        "authority_sha256": authority_sha256,
+        "private_authority_path": str(path),
     }
 
 
@@ -2261,6 +2555,379 @@ def _public_profile(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _authorized_real_windows(
+    sources: Sequence[Mapping[str, Any]],
+    *,
+    method_id: str,
+) -> list[dict[str, Any]]:
+    """Open exact hash-bound P2 PCM only after real enrollment authorization."""
+    if method_id != "no_enhancement":
+        raise AcousticVerificationError(
+            "P4C enrollment is limited to no-enhancement preparation."
+        )
+    windows: list[dict[str, Any]] = []
+    for source in sources:
+        lineage = source.get("lineage") if isinstance(source, Mapping) else None
+        if not isinstance(lineage, Mapping):
+            raise AcousticVerificationError("Real enrollment lineage is unavailable.")
+        try:
+            resolved_lineage = resolve_comparison_lineage_receipt(
+                str(lineage.get("run_id") or ""),
+                method_id=method_id,
+                replay_receipt_sha256=str(
+                    lineage.get("replay_receipt_sha256") or ""
+                ),
+                runtime_root=Path(str(lineage.get("runtime_root") or "")),
+            )
+        except SpeechPreparationError as exc:
+            raise AcousticVerificationError(
+                "Real enrollment preparation lineage is invalid."
+            ) from exc
+        if any(
+            resolved_lineage.get(key) != lineage.get(key)
+            for key in (
+                "run_id",
+                "method_id",
+                "replay_receipt_sha256",
+                "comparison_path",
+                "comparison_sha256",
+                "method_result_sha256",
+                "source_blob_id",
+                "source_sha256",
+                "audio_quality_sha256",
+            )
+        ):
+            raise AcousticVerificationError(
+                "Real enrollment preparation lineage binding changed."
+            )
+        comparison_path = Path(str(lineage.get("comparison_path") or ""))
+        require_private_file(comparison_path, comparison_path.parent)
+        if sha256_file(comparison_path) != lineage.get("comparison_sha256"):
+            raise AcousticVerificationError(
+                "Real enrollment preparation comparison drifted."
+            )
+        comparison = read_private_object(comparison_path)
+        method = next(
+            (
+                item
+                for item in comparison.get("method_results") or []
+                if isinstance(item, Mapping) and item.get("method_id") == method_id
+            ),
+            None,
+        )
+        if (
+            method is None
+            or method.get("status") != "success"
+            or canonical_artifact_hash(dict(method))
+            != lineage.get("method_result_sha256")
+        ):
+            raise AcousticVerificationError(
+                "Real enrollment preparation result is invalid."
+            )
+        audio_path = Path(str(method.get("output_path") or ""))
+        require_private_file(audio_path, audio_path.parent)
+        if sha256_file(audio_path) != method.get("output_sha256"):
+            raise AcousticVerificationError("Real enrollment PCM artifact drifted.")
+        try:
+            with wave.open(str(audio_path), "rb") as reader:
+                if (
+                    reader.getnchannels() != 1
+                    or reader.getsampwidth() != 2
+                    or reader.getframerate() != 16_000
+                    or reader.getcomptype() != "NONE"
+                ):
+                    raise AcousticVerificationError(
+                        "Real enrollment PCM contract is invalid."
+                    )
+                start_frame = round(float(source.get("start_seconds")) * 16_000)
+                end_frame = round(float(source.get("end_seconds")) * 16_000)
+                if (
+                    start_frame < 0
+                    or end_frame <= start_frame
+                    or end_frame > reader.getnframes()
+                ):
+                    raise AcousticVerificationError(
+                        "Real enrollment window is outside the PCM artifact."
+                    )
+                reader.setpos(start_frame)
+                payload = reader.readframes(end_frame - start_frame)
+        except (EOFError, OSError, wave.Error, TypeError, ValueError) as exc:
+            raise AcousticVerificationError(
+                "Real enrollment PCM window is unreadable."
+            ) from exc
+        sample_count = end_frame - start_frame
+        if len(payload) != sample_count * 2:
+            raise AcousticVerificationError("Real enrollment PCM window is truncated.")
+        samples = tuple(
+            value / 32768.0
+            for value in struct.unpack(f"<{sample_count}h", payload)
+        )
+        windows.append(
+            {"session_id": str(source.get("session_id") or ""), "samples": samples}
+        )
+    return windows
+
+
+def _real_enrollment_application_payload(
+    *,
+    authority: Mapping[str, Any],
+    authority_sha256: str,
+    profiles: Sequence[Mapping[str, Any]],
+    applied_at: str,
+) -> dict[str, Any]:
+    receipt = {
+        "schema_version": ENROLLMENT_APPLICATION_SCHEMA,
+        "status": "success",
+        "reason_code": None,
+        "authority_sha256": authority_sha256,
+        "candidate_proposal_sha256": authority["candidate_proposal_sha256"],
+        "enrollment_preview_sha256": authority["enrollment_preview_sha256"],
+        "intended_split": "development",
+        "profile_count": len(profiles),
+        "profiles": [dict(profile) for profile in profiles],
+        "will_read_audio": True,
+        "did_read_audio": True,
+        "will_materialize_embeddings": True,
+        "did_materialize_embeddings": True,
+        "will_register_p4_descendants": True,
+        "did_register_p4_descendants": True,
+        "will_run_trials": False,
+        "did_run_trials": False,
+        "will_read_calibration_or_evaluation": False,
+        "did_read_calibration_or_evaluation": False,
+        "will_perform_external_write": False,
+        "did_perform_external_write": False,
+        "contains_raw_biometric_values": False,
+        "applied_at": applied_at,
+    }
+    if _contains_forbidden_private_key(receipt):
+        raise AcousticVerificationError(
+            "Real enrollment receipt contains forbidden private data."
+        )
+    return receipt
+
+
+def apply_real_enrollment(
+    authority_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+    adapters: Optional[Mapping[str, VerificationAdapter]] = None,
+    test_mode: bool = False,
+) -> dict[str, Any]:
+    """Apply one exact P4C authority and activate model-specific profiles."""
+    if adapters is not None and not test_mode:
+        raise AcousticVerificationError(
+            "Custom enrollment adapters are limited to deterministic tests."
+        )
+    authority = replay_real_enrollment_apply_authority(
+        authority_sha256, runtime_root=runtime_root
+    )
+    if (
+        authority.get("real_biometric_enrollment_authorized") is not True
+        or authority.get("will_read_audio") is not True
+        or authority.get("will_materialize_embeddings") is not True
+        or authority.get("will_run_trials") is not False
+        or authority.get("will_read_calibration_or_evaluation") is not False
+    ):
+        raise AcousticVerificationError("Real enrollment apply authority is invalid.")
+    proposal = replay_real_enrollment_candidate_proposal(
+        str(authority["candidate_proposal_sha256"]), runtime_root=runtime_root
+    )
+    candidates = {
+        str(candidate.get("person_ref_id") or ""): candidate
+        for candidate in proposal.get("candidates") or []
+        if isinstance(candidate, Mapping)
+    }
+    selected_adapters = dict(adapters or adapter_registry())
+    expected_models = {
+        str(model.get("candidate_id") or ""): str(model.get("revision_sha") or "")
+        for model in authority.get("models") or []
+        if isinstance(model, Mapping)
+    }
+    if set(selected_adapters) != set(expected_models) or any(
+        selected_adapters[candidate_id].revision_sha != revision
+        for candidate_id, revision in expected_models.items()
+    ):
+        raise AcousticVerificationError("Real enrollment model inventory drifted.")
+    method_ids = [
+        str(method.get("method_id") or "")
+        for method in authority.get("preparation_methods") or []
+        if isinstance(method, Mapping)
+    ]
+    if method_ids != ["no_enhancement"]:
+        raise AcousticVerificationError("Real enrollment preparation scope drifted.")
+    profiles: list[dict[str, Any]] = []
+    for unit in authority.get("enrollment_units") or []:
+        if not isinstance(unit, Mapping):
+            raise AcousticVerificationError("Real enrollment unit is invalid.")
+        person_ref_id = str(unit.get("person_ref_id") or "")
+        candidate = candidates.get(person_ref_id)
+        if candidate is None:
+            raise AcousticVerificationError("Real enrollment candidate disappeared.")
+        resolved = resolve_eligible_reference(
+            person_ref_id, runtime_root=p3_runtime_root
+        )
+        if (
+            resolved.get("profile_id") != unit.get("p3_profile_id")
+            or resolved.get("generation_id") != unit.get("p3_generation_id")
+            or resolved.get("generation_sha256")
+            != unit.get("p3_generation_sha256")
+        ):
+            raise AcousticVerificationError(
+                "P3 generation changed before real enrollment apply."
+            )
+        sources = candidate.get("proposed_sources")
+        if not isinstance(sources, list) or not sources:
+            raise AcousticVerificationError("Real enrollment sources are unavailable.")
+        windows = _authorized_real_windows(sources, method_id="no_enhancement")
+        for candidate_id in sorted(expected_models):
+            profile = _materialize_profile_core(
+                resolved=resolved,
+                adapter=selected_adapters[candidate_id],
+                windows=windows,
+                preprocessing={
+                    "method_id": "no_enhancement",
+                    "revision": EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256,
+                },
+                runtime_root=runtime_root,
+                p3_runtime_root=p3_runtime_root,
+            )
+            profiles.append(profile)
+    applied_at = utc_now()
+    receipt = _real_enrollment_application_payload(
+        authority=authority,
+        authority_sha256=authority_sha256,
+        profiles=profiles,
+        applied_at=applied_at,
+    )
+    receipt_identity = {
+        key: value for key, value in receipt.items() if key != "applied_at"
+    }
+    receipt_sha256 = canonical_artifact_hash(receipt_identity)
+    root = runtime_root.expanduser().absolute()
+    path = root / "enrollment-applications" / f"{receipt_sha256}.json"
+    ensure_private_tree(root, path.parent)
+    stored = write_immutable_private_json(
+        path, receipt, volatile_fields=("applied_at",)
+    )
+    return {
+        **stored,
+        "application_sha256": receipt_sha256,
+        "private_application_path": str(path),
+    }
+
+
+def replay_real_enrollment_application(
+    application_sha256: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Replay a real enrollment receipt and every active P3/P4 binding."""
+    if not SHA256_RE.fullmatch(str(application_sha256)):
+        raise AcousticVerificationError("Enrollment application hash is invalid.")
+    root = runtime_root.expanduser().absolute()
+    path = root / "enrollment-applications" / f"{application_sha256}.json"
+    require_private_file(path, root)
+    receipt = read_private_object(path)
+    identity = {key: value for key, value in receipt.items() if key != "applied_at"}
+    if canonical_artifact_hash(identity) != application_sha256:
+        raise AcousticVerificationError("Enrollment application replay is invalid.")
+    authority = replay_real_enrollment_apply_authority(
+        str(receipt.get("authority_sha256") or ""), runtime_root=root
+    )
+    profiles = receipt.get("profiles")
+    if not isinstance(profiles, list) or len(profiles) != receipt.get("profile_count"):
+        raise AcousticVerificationError("Enrollment application profiles are invalid.")
+    expected_coverage = [
+        (
+            str(unit.get("person_ref_id") or ""),
+            str(model.get("candidate_id") or ""),
+            str(model.get("revision_sha") or ""),
+            "no_enhancement",
+            EXPECTED_DEVELOPMENT_COMPARISON_RECEIPT_SHA256,
+            str(unit.get("p3_profile_id") or ""),
+            str(unit.get("p3_generation_id") or ""),
+            str(unit.get("p3_generation_sha256") or ""),
+        )
+        for unit in authority.get("enrollment_units") or []
+        if isinstance(unit, Mapping)
+        for model in sorted(
+            authority.get("models") or [],
+            key=lambda item: str(item.get("candidate_id") or "")
+            if isinstance(item, Mapping)
+            else "",
+        )
+        if isinstance(model, Mapping)
+    ]
+    actual_coverage: list[tuple[str, ...]] = []
+    canonical_profiles: list[dict[str, Any]] = []
+    for expected in profiles:
+        if not isinstance(expected, Mapping):
+            raise AcousticVerificationError("Enrollment application profile is invalid.")
+        current = replay_profile(str(expected.get("profile_id") or ""), runtime_root=root)
+        comparable_current = {key: current.get(key) for key in expected}
+        if comparable_current != dict(expected) or not descendant_is_eligible(
+            str(expected.get("descendant_id") or ""), runtime_root=p3_runtime_root
+        ):
+            raise AcousticVerificationError(
+                "Enrollment application profile binding changed."
+            )
+        with _profile_database(root) as connection:
+            profile_row = connection.execute(
+                "SELECT preprocessing_json FROM profiles WHERE profile_id = ?",
+                (str(expected.get("profile_id") or ""),),
+            ).fetchone()
+        if profile_row is None:
+            raise AcousticVerificationError(
+                "Enrollment application preprocessing is invalid."
+            )
+        try:
+            preprocessing = json.loads(str(profile_row["preprocessing_json"]))
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise AcousticVerificationError(
+                "Enrollment application preprocessing is invalid."
+            ) from exc
+        if not isinstance(preprocessing, Mapping):
+            raise AcousticVerificationError(
+                "Enrollment application preprocessing is invalid."
+            )
+        actual_coverage.append(
+            (
+                str(expected.get("person_ref_id") or ""),
+                str(expected.get("candidate_id") or ""),
+                str(expected.get("model_revision") or ""),
+                str(preprocessing.get("method_id") or ""),
+                str(preprocessing.get("revision") or ""),
+                str(expected.get("p3_profile_id") or ""),
+                str(expected.get("generation_id") or ""),
+                str(expected.get("generation_sha256") or ""),
+            )
+        )
+        canonical_profiles.append(dict(expected))
+    if actual_coverage != expected_coverage:
+        raise AcousticVerificationError(
+            "Enrollment application profile coverage is invalid."
+        )
+    applied_at = str(receipt.get("applied_at") or "")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", applied_at):
+        raise AcousticVerificationError("Enrollment application time is invalid.")
+    expected_receipt = _real_enrollment_application_payload(
+        authority=authority,
+        authority_sha256=str(receipt.get("authority_sha256") or ""),
+        profiles=canonical_profiles,
+        applied_at=applied_at,
+    )
+    if receipt != expected_receipt:
+        raise AcousticVerificationError("Enrollment application semantics are invalid.")
+    return {
+        **receipt,
+        "application_sha256": application_sha256,
+        "private_application_path": str(path),
+    }
+
+
 def materialize_profile(
     person_ref_id: str,
     *,
@@ -2270,9 +2937,7 @@ def materialize_profile(
     runtime_root: Path,
     p3_runtime_root: Path,
 ) -> dict[str, Any]:
-    """Materialize, register, and promote one private model-specific profile."""
-    if not windows:
-        raise AcousticVerificationError("Profile materialization requires windows.")
+    """Materialize one synthetic-only P4B profile through the shared core."""
     if (
         not isinstance(preprocessing, Mapping)
         or set(preprocessing) != {"method_id", "revision"}
@@ -2312,6 +2977,47 @@ def materialize_profile(
             raise AcousticVerificationError(
                 "P4B materialization requires synthetic fixture authority."
             )
+    return _materialize_profile_core(
+        resolved=resolved,
+        adapter=adapter,
+        windows=windows,
+        preprocessing=preprocessing,
+        runtime_root=runtime_root,
+        p3_runtime_root=p3_runtime_root,
+    )
+
+
+def _materialize_profile_core(
+    *,
+    resolved: Mapping[str, Any],
+    adapter: VerificationAdapter,
+    windows: Sequence[Mapping[str, Any]],
+    preprocessing: Mapping[str, Any],
+    runtime_root: Path,
+    p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Materialize after the caller has proved synthetic or exact real authority."""
+    if not windows:
+        raise AcousticVerificationError("Profile materialization requires windows.")
+    if (
+        not isinstance(preprocessing, Mapping)
+        or set(preprocessing) != {"method_id", "revision"}
+        or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{1,127}",
+            str(preprocessing.get("method_id", "")),
+        )
+        or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{1,127}",
+            str(preprocessing.get("revision", "")),
+        )
+    ):
+        raise AcousticVerificationError("Profile preprocessing schema is invalid.")
+    if _contains_forbidden_private_key(preprocessing):
+        raise AcousticVerificationError(
+            "Profile preprocessing contains forbidden private metadata."
+        )
+    if resolved.get("materialization_contract") != "stage_then_register_then_promote":
+        raise AcousticVerificationError("P3 materialization contract is invalid.")
     vectors: list[tuple[float, ...]] = []
     window_hashes: list[str] = []
     session_ids: list[str] = []
@@ -2439,7 +3145,8 @@ def materialize_profile(
                 raise AcousticVerificationError(
                     "Existing profile descendant is no longer eligible."
                 )
-            return replay_profile(profile_id, runtime_root=root)
+            replay_profile(profile_id, runtime_root=root)
+            return _public_profile(existing)
     staging_identity = {
         "profile_id": profile_id,
         "descendant_id": descendant_id,
