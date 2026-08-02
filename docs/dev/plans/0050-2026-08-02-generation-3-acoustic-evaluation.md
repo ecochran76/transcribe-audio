@@ -293,8 +293,13 @@ preview reports zero overlap independently for source, recording, conversation,
 and derivative identities. Implementation commit `65733dd` is pushed. Exact
 membership authority `generation3-cohort-714fb3cf3f881b8bad6757ed` applied and
 replayed full-body with private `0700/0600` modes. Its receipt authorizes only
-membership freeze plus private gold-packet construction. Private label gold is
-not yet frozen, evaluation has not been revealed, and no Generation-3 audio
+membership freeze plus private gold-packet construction. The separate gold
+preview/apply/replay implementation now independently binds both active P3
+subject IDs back to exact Plan 0049 training-label evidence, requires exactly
+28 per-recording label outcomes, enforces explicit identity-token evidence,
+and passed independent code audit. The exact production gold preview and apply
+remain pending a clean pushed implementation. Private label gold is not yet
+frozen, evaluation has not been revealed, and no Generation-3 audio
 preparation, model score, metric, or decision has run.
 
 ## Exact-trial child binding

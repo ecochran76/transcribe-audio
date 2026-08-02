@@ -2,6 +2,45 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 281 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-C1 | Exact private gold authority implementation
+
+State transition: `OPEN/exact-preview -> OPEN/gold-implementation`, without
+gold freeze or evaluation reveal.
+
+- Added a separate private gold preview/apply/replay authority. It requires one
+  outcome for each of the exact 28 frozen diarized labels and permits only
+  enrolled, cohort-local open-set, mixed, or unknown outcomes.
+- Both active opaque P3 subject IDs are independently bound through exact Plan
+  0049 training sources, speaker-label IDs, and direct-address/response
+  utterance evidence before evaluation mappings can use those subject IDs.
+- Known evaluation labels require operator confirmation containing the complete
+  identity or cited transcript utterances containing the complete open-set
+  identity. Enrolled direct-address evidence may use only the complete first
+  name or full identity because the separate active-P3 training binding supplies
+  the full identity authority.
+- The authority enforces both enrolled subjects across at least two independent
+  conversations, at least five total known subjects, and at least one open-set
+  label. Mixed and unknown labels carry no identity or evidence body.
+- The portable projection contains counts, hashes, and action flags only. An
+  initial subject-ID-key leak was removed; names, subject IDs, source membership,
+  transcript text, paths, audio, embeddings, and scores are absent.
+- Independent audit required three repair rounds: exact 28-label enforcement,
+  explicit identity-token evidence, and complete-token rather than substring
+  matching. Final code-audit result is `PASS`. Focused tests pass and the prior
+  complete repository run reported 664 passed.
+
+Next:
+
+- Commit and push the independently audited implementation, construct the exact
+  production private gold preview, audit its evidence body, then freeze/replay
+  gold without reveal. Recalibration remains the only newly eligible successor.
+
 ## Turn 280 | 2026-08-02
 
 Plan:
