@@ -1,10 +1,10 @@
 # Plan 0037 | Audio enhancement and biometric speaker identity
 
-State: OPEN
+State: CLOSED — TERMINAL STOP; product acceptance not met
 
 Lane: P10
 
-Plan Version: 6
+Plan Version: 7
 
 Execution Mode: high-level campaign plan with bounded implementation packets
 
@@ -259,7 +259,7 @@ descendant invalidation passed terminal review. No real enrollment occurred.
 
 ### P4 | Verification and calibration
 
-State: OPEN via Plan 0042.
+State: CLOSED with terminal `STOP` via Plans 0042, 0043, and 0048.
 
 Materialize model-specific profiles from immutable eligible P3 reference
 generations. Benchmark SpeechBrain ECAPA-TDNN, WeSpeaker CAM++, and one WeSpeaker ResNet or
@@ -273,6 +273,8 @@ as confidence values.
 
 ### P5 | Pipeline integration
 
+State: `not_run`; closed by the P4/P7 evidence gate.
+
 Add `AcousticEvidenceBundle` to host-prepared identity evidence. Require cited
 acoustic evidence IDs and prepared candidate IDs. Keep final scoring and
 confidence host-owned. Acoustic evidence may support, contradict, or abstain;
@@ -282,6 +284,8 @@ Use within-recording similarity to propose same-person diarization-label
 groups. Preserve mixed and unresolved labels rather than forcing merges.
 
 ### P6 | Historical reprocessing
+
+State: `not_run`; closed by the P4/P7 evidence gate.
 
 Inventory eligible audio and report missing, corrupt, unsupported, already
 processed, and policy-excluded items. Prepare a small reviewed cohort before
@@ -293,6 +297,8 @@ original transcript or audio. New derived artifacts remain distinguishable
 from the historical production result.
 
 ### P7 | Outcome measurement and continuation
+
+State: CLOSED with terminal `STOP` via Plan 0048.
 
 Measure the complete acoustic path on an unseen chronological cohort. Report
 speaker accuracy, false acceptance, false rejection, abstention, calibration,
@@ -355,3 +361,21 @@ reprocessed safely, and an unseen evaluation supports an explicit accept,
 refine, reject, or stop decision. Completion does not enable automatic speaker
 confirmation unless the existing authority and confidence gates separately
 approve it.
+
+## Terminal campaign closeout
+
+Plan 0037 is closed as an unsuccessful, fail-closed campaign rather than a
+successful Definition-of-Done completion. The generation-2 successor reveal
+proved zero evaluation/profile subject overlap. All nine frozen model-by-method
+units therefore have zero possible genuine and impostor trials, below the
+precommitted 20/100 minima. Applied Plan 0048 run
+`generation-2-evaluation-stop-5945db0810a482bbbe80db74` records terminal
+`STOP` with full-body replay.
+
+P5 integration and P6 historical reprocessing did not run. No evaluation
+audio was prepared, no windows or exact-trial child were created, no model or
+score ran, no terminal metrics were calculated, and no candidate or method was
+selected. The acoustic path remains shadow-only and unavailable to default App
+Intelligence or automatic speaker confirmation. A future attempt requires a
+new plan and a cohort whose frozen profile coverage can satisfy every required
+trial class before model execution.

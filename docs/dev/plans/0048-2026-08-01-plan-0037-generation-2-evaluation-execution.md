@@ -1,10 +1,10 @@
 # Plan 0048 | Plan 0037 generation-2 evaluation execution
 
-State: IMPLEMENTED; production apply remains OPEN
+State: CLOSED — terminal STOP
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Parent: Plan 0046 generation-2 terminal authority
 
@@ -135,3 +135,23 @@ State: CLOSED; Unit D production apply remains OPEN.
 - Nine focused tests and all 639 repository tests passed; compilation and
   `git diff --check` passed. No audio, window, exact-trial child, model, score,
   terminal metric, or model/method selection was run.
+
+## Unit D and Unit E close checkpoint
+
+State: CLOSED with terminal `STOP`.
+
+- Reviewed implementation commit `937ca21` is pushed and upstream-even.
+- Applied run `generation-2-evaluation-stop-5945db0810a482bbbe80db74`,
+  authority content SHA-256
+  `5945db0810a482bbbe80db746a4851863ea89a6fa2da4f068aaf0155dd1989c9`,
+  and manifest SHA-256
+  `41c67d21f50001247228c57069515b63bf1891d79c490ac8136eb6e91e83032e`
+  replay full-body and idempotently.
+- The private reveal is confined to `0700` directories and `0600` manifest;
+  the portable receipt contains no subject IDs, names, paths, transcript text,
+  raw audio, embeddings, or scores.
+- Audio preparation, window freeze, exact-trial child construction, models,
+  scoring, terminal metrics, and model/method selection are all explicitly
+  unauthorized and `not_run` after STOP.
+- Plan 0037 closes unsuccessfully at the evidence gate. No acoustic path is
+  integrated, promoted, or used for historical reprocessing.

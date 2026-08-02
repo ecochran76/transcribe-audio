@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 277 | 2026-08-01
+
+Plan:
+`docs/dev/plans/0048-2026-08-01-plan-0037-generation-2-evaluation-execution.md`,
+version 2
+
+Packet: P4E2-E | Generation-2 evaluation reveal and terminal preflight
+
+State transition: `CLOSED/P4E2-D4 -> CLOSED/TERMINAL-STOP/Plan-0037`.
+
+- The authorized private reveal bound the exact two-record successor
+  evaluation split. It contains five opaque evaluation subjects and has zero
+  overlap with the two subjects represented by the six frozen profiles.
+- All nine candidate-by-method units therefore have a structural maximum of
+  zero genuine and zero impostor trials, below the frozen 20/100 minima. The
+  terminal reason is `trial_class_denominator_below_policy`.
+- Independent audit found one portable-receipt revocation gap. The repair
+  added explicit false flags for preparation, window freeze, exact-child
+  construction, models, scoring, metrics, and selection plus binding/tamper
+  tests; targeted re-audit returned `PASS`.
+- Nine focused and all 639 repository tests passed; compilation and
+  `git diff --check` passed. Reviewed implementation commit `937ca21` is pushed.
+- Applied run `generation-2-evaluation-stop-5945db0810a482bbbe80db74`
+  (content SHA-256
+  `5945db0810a482bbbe80db746a4851863ea89a6fa2da4f068aaf0155dd1989c9`)
+  replays full-body with exact `0700` directories and `0600` files.
+- No audio preparation, windows, exact-trial child, models, scores, metrics,
+  model/method selection, P5 integration, or P6 historical reprocessing ran.
+  Plan 0037 closes unsuccessfully at the evidence gate; nothing is promoted.
+
+Next:
+
+- Keep the acoustic path shadow-only and Plan 0036 sealed. Any future acoustic
+  attempt requires a new plan and an evaluation cohort with sufficient frozen
+  profile coverage to satisfy every trial class before model execution.
+
 ## Turn 276 | 2026-08-01
 
 Plan:

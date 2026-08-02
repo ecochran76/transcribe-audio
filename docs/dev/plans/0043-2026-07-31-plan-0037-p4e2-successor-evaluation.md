@@ -1,10 +1,10 @@
 # Plan 0043 | Plan 0037 P4E2 successor terminal evaluation
 
-State: OPEN — P4E2-R1 device provenance refinement
+State: CLOSED — terminal STOP
 
 Lane: P10
 
-Plan Version: 10
+Plan Version: 11
 
 Parent: Plan 0037 P4
 
@@ -422,3 +422,21 @@ State: CLOSED; Plan 0045 Unit E remains OPEN at case 1.
   case-1 reopen passed without changing any campaign file hash or mtime. No
   device attestation was inferred or written; Unit E still requires the direct
   physical-device fact for case 1.
+
+## P4E2-E generation-2 terminal close checkpoint
+
+State: CLOSED with terminal `STOP` via Plan 0048.
+
+- Plans 0045 and 0047 ultimately supplied a replayed exact-seven device
+  partition, and Plan 0046 applied the independently reviewed generation-2
+  pre-reveal authority.
+- The authorized two-record evaluation reveal contains five distinct opaque
+  subjects, none represented by the two frozen profile subjects. Consequently
+  every one of the nine candidate-by-method units has zero possible genuine
+  and zero possible impostor trials under the frozen class definitions.
+- The immutable Plan 0048 authority records
+  `trial_class_denominator_below_policy` because 0/0 cannot satisfy the
+  required 20 genuine / 100 impostor minima. It stops before preparation,
+  windows, exact-trial child, models, scores, metrics, or selection.
+- This is an evaluation-cohort evidence failure, not a model-quality result.
+  No candidate or method is selected, rejected, or promoted.

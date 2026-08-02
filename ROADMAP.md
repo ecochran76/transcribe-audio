@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN
+State: CLOSED — TERMINAL STOP; product acceptance not met
 
 Current State: Plan 0037 is the immediate speaker-identity critical path. P0
 closed through Plan 0038, and P1 closed through Plan 0039 with immutable,
@@ -470,17 +470,17 @@ pre-reveal authority, and authorizes the later evaluation reveal. The apply did
 not reveal evaluation, prepare audio, freeze windows, run models, score trials,
 calculate metrics, or decide. Model execution and scoring remain blocked until
 the exact post-window trial child exists and replays.
-Plan 0045's frozen exact-seven campaign has also been repaired to replay across
-clean reviewed descendant commits without reissuing its original identity.
-Production full-body replay and idempotent case-1 reopen passed at pushed commit
-`bb975ebe5e46f880cefadf4267d03e2b5d7ede83`; zero direct attestations exist.
-The pushed Plan 0047 supplement now provides five source-embedded facts without
-rewriting that history. Exact device evidence for cases 2 and 4, plus a second
-distinct device, remains the next critical-path input.
-No terminal model/method selection,
-operational accuracy claim, default integration, or historical reprocessing
-workflow exists yet. Plan 0036
-remains sealed and paused at five of ten current gold reviews.
+Plan 0048 then executed the authorized prediction-excluded reveal. Its two
+evaluation recordings contain five opaque subjects, none represented by the
+two frozen profile subjects. All nine candidate-by-method units therefore have
+zero possible genuine and impostor trials against required minima of 20 and
+100. Immutable run
+`generation-2-evaluation-stop-5945db0810a482bbbe80db74` records terminal
+`STOP` and replays full-body. Audio preparation, window freeze, exact-trial
+child construction, models, scores, metrics, P5 integration, and P6 historical
+reprocessing are `not_run`. No operational accuracy claim, default integration,
+or model/method selection exists. Plan 0036 remains sealed and paused at five
+of ten current gold reviews.
 
 Plans:
 
@@ -494,6 +494,8 @@ Plans:
 - `docs/dev/plans/0044-2026-08-01-plan-0037-p4e2-condition-measurement.md`
 - `docs/dev/plans/0045-2026-08-01-plan-0037-p4e2-device-provenance-refinement.md`
 - `docs/dev/plans/0046-2026-08-01-plan-0037-p4e2-generation-2-authority.md`
+- `docs/dev/plans/0047-2026-08-01-plan-0037-source-device-metadata.md`
+- `docs/dev/plans/0048-2026-08-01-plan-0037-generation-2-evaluation-execution.md`
 
 Research:
 
