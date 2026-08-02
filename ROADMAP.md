@@ -451,6 +451,15 @@ aggregate receipt authorizes only successor recalibration.
 Evaluation reveal, preparation, windows, models, scores, metrics, and terminal
 decision remain not run.
 
+The successor recalibration pre-score authority is now implemented and passed
+independent re-audit. Its live no-write preview binds the exact historical
+22-window membership, the complete six-profile/two-subject/three-candidate
+Cartesian inventory, all nine candidate-method units, and derived per-unit
+44/9/35/26 total/genuine/impostor/open-set denominators. Four-dimensional
+overlap with active training and Generation-3 is zero. Applying this authority
+remains pending a clean pushed implementation; no calibration model or score
+has run and evaluation reveal remains locked.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference

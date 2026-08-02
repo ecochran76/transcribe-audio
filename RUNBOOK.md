@@ -2,6 +2,51 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 283 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-B1 | Successor recalibration pre-score authority
+
+State transition: `OPEN/gold-frozen -> OPEN/recalibration-authority-built`,
+without calibration scoring or evaluation reveal.
+
+- Added a separate preview/apply/replay authority that binds the exact
+  historical 22-window calibration membership, six active successor profiles,
+  three candidates, three score methods, and nine candidate-method units before
+  any model can load.
+- Replayed the active training authority and all three prior evaluation corpus
+  authorities. Calibration-to-training and calibration-to-Generation-3 overlap
+  is zero independently for source, recording, conversation, and derivative
+  semantic identities; every prior evaluation source has validated private,
+  hash-matched semantic transcript lineage.
+- Derived, rather than declared, the exact per-unit calibration denominators
+  from frozen windows joined to the two active subjects: 44 total, 9 genuine,
+  35 impostor, and 26 open-set trials.
+- Enforced the complete candidate-by-subject Cartesian profile inventory, one
+  coherent P3 profile/generation lineage per subject, current lifecycle and
+  descendant eligibility, exact model revisions/assets, preprocessing and
+  eight module hashes, and current clean upstream-even replay.
+- Cross-checked the immutable 28-label gold receipt against the frozen cohort
+  membership without reading Generation-3 gold or audio. The portable
+  projection contains only aggregate counts, hashes, zero-overlap evidence,
+  and action flags.
+- Independent audit found and drove repairs for false declared denominators,
+  incomplete profile shape, missing module/current-repository/gold bindings,
+  mismatched semantic namespaces, and unvalidated prior-evaluation/training
+  transcript lineage. Final re-audit result is `PASS`.
+- Validation: 169 impact tests and the complete 670-test repository suite pass;
+  no-write live preview content hash is
+  `930dd537819dbefd2bead697fef3d930c1bb768f9ae8efac59c87fd515ed6ec9`.
+
+Next:
+
+- Commit and push the audited implementation, apply/replay the exact pre-score
+  authority, then run and freeze the complete successor calibration score
+  matrix and nine threshold/temperature pairs before pre-reveal construction.
+
 ## Turn 282 | 2026-08-02
 
 Plan:

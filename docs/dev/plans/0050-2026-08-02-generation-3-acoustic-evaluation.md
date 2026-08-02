@@ -305,6 +305,19 @@ replayed with private `0700/0600` modes. Its aggregate-only receipt authorizes
 successor recalibration construction and keeps evaluation reveal, audio
 preparation, windows, exact trials, models, scores, metrics, and decision false.
 
+The successor recalibration pre-score preview/apply/replay implementation now
+binds the exact historical 22-window calibration membership, all three prior
+evaluation corpus authorities, full active-training replay, the complete six
+successor-profile Cartesian inventory, exact model/assets and preprocessing,
+and all nine candidate-method units. Its per-unit 44 total, 9 genuine, 35
+impostor, and 26 open-set denominators are derived from the frozen window and
+active-subject join. Independent audit drove repairs across denominator,
+profile-shape, repository, gold/cohort, semantic-namespace, and transcript
+lineage validation; final re-audit is `PASS`. Live no-write preview hash is
+`930dd537819dbefd2bead697fef3d930c1bb768f9ae8efac59c87fd515ed6ec9`.
+The authority is not yet applied, no calibration model or score has run, and
+evaluation reveal remains false.
+
 ## Exact-trial child binding
 
 The child must bind the pre-reveal parent content hash, revealed-gold authority
