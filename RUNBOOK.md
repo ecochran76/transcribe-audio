@@ -38,13 +38,18 @@ acoustic execution.
   and the private immutable-write/permission dependency. Focused negative tests
   cover all four overlap dimensions, stale previews, portable privacy, applied
   actions, dependency binding, and missing identity evidence.
+- Independent audit passed, 661 repository tests passed, and commit `65733dd`
+  is pushed and upstream-even. Exact membership authority
+  `generation3-cohort-714fb3cf3f881b8bad6757ed` applied and replayed with
+  manifest hash `7e2ede46f554507583032dd15f7eb3fa5c2b1449dfb36cf622371bca8ef010db`.
+  Its directory is `0700`, files are `0600`, and every action after private
+  gold-packet construction remains false.
 
 Next:
 
-- Independent code/preview re-audit passed after removal of derivative-derived
-  recording/conversation fallbacks. Commit and push the authority, then freeze
-  only exact cohort membership and build the private per-label gold review
-  packet. Do not reveal, prepare audio, or execute models.
+- Build and independently audit the private per-label gold review packet, then
+  freeze exact gold and successor recalibration before any reveal. Do not
+  prepare audio or execute models.
 
 ## Turn 279 | 2026-08-02
 
