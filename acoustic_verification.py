@@ -6500,6 +6500,37 @@ def _materialize_profile_core(
                 )
             replay_profile(profile_id, runtime_root=root)
             return _public_profile(existing)
+        elif descendant_is_eligible(
+            descendant_id, runtime_root=p3_runtime_root
+        ):
+            promoted_at = utc_now()
+            active_lifecycle = _lifecycle_receipt(
+                profile_id=profile_id,
+                descendant_id=descendant_id,
+                artifact_sha256=artifact_sha,
+                profile_manifest_sha256=profile_manifest_sha,
+                from_state="staged",
+                to_state="active",
+                reason="p3_descendant_promoted",
+                previous_receipt_sha256=existing["state_receipt_sha256"],
+                transitioned_at=promoted_at,
+            )
+            _authority_anchor(root, active_lifecycle)
+            active_lifecycle_sha = canonical_artifact_hash(active_lifecycle)
+            connection.execute(
+                "UPDATE profiles SET lifecycle_state = 'active', updated_at = ?, "
+                "state_receipt_sha256 = ? "
+                "WHERE profile_id = ? AND lifecycle_state = 'staged'",
+                (promoted_at, active_lifecycle_sha, profile_id),
+            )
+            resumed = connection.execute(
+                "SELECT * FROM profiles WHERE profile_id = ?", (profile_id,)
+            ).fetchone()
+            if resumed is None or resumed["lifecycle_state"] != "active":
+                raise AcousticVerificationError(
+                    "Eligible staged profile recovery failed closed."
+                )
+            return _public_profile(resumed)
     staging_identity = {
         "profile_id": profile_id,
         "descendant_id": descendant_id,
@@ -6820,6 +6851,14 @@ def _disable_profile(
         ):
             raise AcousticVerificationError("Profile transition receipt conflicts.")
         row = current_row
+    if row["invalidation_receipt_sha256"] is not None:
+        if descendant_is_eligible(
+            str(row["descendant_id"]), runtime_root=p3_runtime_root
+        ):
+            raise AcousticVerificationError(
+                "Profile has an invalidation receipt but its descendant is eligible."
+            )
+        return _public_profile(row)
     invalidation_reason = f"p4_profile_{target_state}"
     requested = request_descendant_invalidation(
         str(row["descendant_id"]),
@@ -6877,6 +6916,98 @@ def _disable_profile(
         ).fetchone()
     if current is None:
         raise AcousticVerificationError("Profile transition disappeared.")
+    return _public_profile(current)
+
+
+def acknowledge_parent_reference_supersession(
+    profile_id: str,
+    *,
+    runtime_root: Path,
+    p3_runtime_root: Path,
+) -> dict[str, Any]:
+    """Acknowledge a P3-initiated descendant invalidation before replacement.
+
+    P3 supersession invalidates every descendant before a replacement P4
+    profile can be promoted.  This bounded bridge records that parent-owned
+    invalidation while leaving the P4 profile active until its replacement is
+    available; the subsequent ``supersede_profile`` call performs the P4
+    lifecycle transition without issuing a conflicting second invalidation.
+    """
+    root = runtime_root.expanduser().absolute()
+    with _profile_database(root) as connection:
+        row = connection.execute(
+            "SELECT * FROM profiles WHERE profile_id = ?", (profile_id,)
+        ).fetchone()
+    if row is None:
+        raise AcousticVerificationError("Verification profile does not exist.")
+    if row["lifecycle_state"] != "active":
+        raise AcousticVerificationError(
+            "Parent supersession acknowledgment requires an active profile."
+        )
+    if row["invalidation_receipt_sha256"] is not None:
+        if descendant_is_eligible(
+            str(row["descendant_id"]), runtime_root=p3_runtime_root
+        ):
+            raise AcousticVerificationError(
+                "Profile has an invalidation receipt but its descendant is eligible."
+            )
+        return _public_profile(row)
+    requested = request_descendant_invalidation(
+        str(row["descendant_id"]),
+        reason="reference_superseded",
+        approval_token=(
+            f"INVALIDATE_BIOMETRIC_DESCENDANT:{row['descendant_id']}:"
+            f"{row['artifact_sha256']}:reference_superseded"
+        ),
+        runtime_root=p3_runtime_root,
+    )
+    requested_at = str(requested.get("requested_at", ""))
+    if not requested_at.endswith("Z"):
+        raise AcousticVerificationError("P3 invalidation request time is invalid.")
+    evidence_sha = canonical_artifact_hash(
+        {
+            "profile_lifecycle_receipt_sha256": row["state_receipt_sha256"],
+            "invalidation_requested_at": requested_at,
+        }
+    )
+    invalidation = {
+        "schema_version": INVALIDATION_SCHEMA,
+        "status": "invalidated",
+        "descendant_id": row["descendant_id"],
+        "artifact_sha256": row["artifact_sha256"],
+        "reason": "reference_superseded",
+        "evidence_sha256": evidence_sha,
+        "will_perform_external_write": False,
+        "acknowledged_at": requested_at,
+    }
+    authority_path = _authority_anchor(root, invalidation)
+    acknowledge_descendant_invalidation(
+        str(row["descendant_id"]),
+        invalidation,
+        authority_receipt_path=authority_path,
+        p4_authority_root=root / "authority",
+        approval_token=requested["required_acknowledgment_token"],
+        runtime_root=p3_runtime_root,
+    )
+    if descendant_is_eligible(
+        str(row["descendant_id"]), runtime_root=p3_runtime_root
+    ):
+        raise AcousticVerificationError("P3 descendant invalidation failed closed.")
+    invalidation_sha = canonical_artifact_hash(invalidation)
+    with _profile_database(root) as connection:
+        connection.execute(
+            "UPDATE profiles SET invalidation_receipt_sha256 = ?, updated_at = ? "
+            "WHERE profile_id = ? AND lifecycle_state = 'active' "
+            "AND invalidation_receipt_sha256 IS NULL",
+            (invalidation_sha, requested_at, profile_id),
+        )
+        current = connection.execute(
+            "SELECT * FROM profiles WHERE profile_id = ?", (profile_id,)
+        ).fetchone()
+    if current is None or current["invalidation_receipt_sha256"] != invalidation_sha:
+        raise AcousticVerificationError(
+            "Parent supersession acknowledgment was not recorded."
+        )
     return _public_profile(current)
 
 

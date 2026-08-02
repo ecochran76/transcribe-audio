@@ -34,6 +34,7 @@ from acoustic_verification import (
     replay_profile,
     score_profile,
     supersede_profile,
+    acknowledge_parent_reference_supersession,
     withdraw_profile,
 )
 
@@ -1845,6 +1846,40 @@ def test_synthetic_profile_stages_registers_promotes_and_scores_privately(
     assert calls[-2:] == ["eligible", "eligible"]
 
 
+def test_staged_profile_resumes_after_parent_promotion_interrupt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    install_fake_p3(monkeypatch)
+    eligibility_checks = iter((False, True))
+    monkeypatch.setattr(
+        verification,
+        "descendant_is_eligible",
+        lambda *args, **kwargs: next(eligibility_checks),
+    )
+    root = tmp_path / "profiles"
+    kwargs = {
+        "person_ref_id": "person-ref-001",
+        "adapter": FakeVerificationAdapter(candidate_id="synthetic_verifier"),
+        "windows": [
+            {"session_id": "session-001", "samples": [0.25, -0.25] * 8_000}
+        ],
+        "preprocessing": {"method_id": "synthetic_raw", "revision": "v1"},
+        "runtime_root": root,
+        "p3_runtime_root": tmp_path / "p3",
+    }
+    with pytest.raises(
+        AcousticVerificationError,
+        match="P3 descendant promotion did not become eligible",
+    ):
+        materialize_profile(**kwargs)
+
+    resumed = materialize_profile(**kwargs)
+    assert resumed["lifecycle_state"] == "active"
+    assert replay_profile(
+        resumed["profile_id"], runtime_root=root
+    )["lifecycle_state"] == "active"
+
+
 def test_score_fails_if_p3_eligibility_changes_during_trial(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -2031,6 +2066,77 @@ def test_supersede_requires_active_same_person_replacement(
     assert replay_profile(
         replacement["profile_id"], runtime_root=root
     )["lifecycle_state"] == "active"
+
+
+def test_parent_reference_supersession_can_precede_profile_replacement(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    install_fake_p3(monkeypatch)
+    eligibility: dict[str, bool] = {}
+    monkeypatch.setattr(
+        verification,
+        "descendant_is_eligible",
+        lambda descendant_id, **kwargs: eligibility.get(descendant_id, True),
+    )
+
+    def request_invalidation(descendant_id, **kwargs):
+        assert kwargs["reason"] == "reference_superseded"
+        eligibility[descendant_id] = False
+        return {
+            "state": "invalidation_pending",
+            "requested_at": "2026-08-02T12:00:00Z",
+            "required_acknowledgment_token": "parent-invalidation-token",
+        }
+
+    monkeypatch.setattr(
+        verification, "request_descendant_invalidation", request_invalidation
+    )
+    monkeypatch.setattr(
+        verification,
+        "acknowledge_descendant_invalidation",
+        lambda *args, **kwargs: {"status": "invalidated"},
+    )
+    root = tmp_path / "profiles"
+    adapter = FakeVerificationAdapter(candidate_id="synthetic_verifier")
+
+    original = materialize_profile(
+        "person-ref-001",
+        adapter=adapter,
+        windows=[{"session_id": "session-one", "samples": [0.25, -0.25] * 8_000}],
+        preprocessing={"method_id": "synthetic_raw", "revision": "one"},
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    acknowledged = acknowledge_parent_reference_supersession(
+        original["profile_id"],
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert acknowledged["lifecycle_state"] == "active"
+    repeated_acknowledgment = acknowledge_parent_reference_supersession(
+        original["profile_id"],
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert repeated_acknowledgment["lifecycle_state"] == "active"
+
+    replacement = materialize_profile(
+        "person-ref-001",
+        adapter=adapter,
+        windows=[{"session_id": "session-two", "samples": [0.2, -0.2] * 8_000}],
+        preprocessing={"method_id": "synthetic_raw", "revision": "two"},
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    superseded = supersede_profile(
+        original["profile_id"],
+        replacement_profile_id=replacement["profile_id"],
+        reason="model_profile_refresh",
+        runtime_root=root,
+        p3_runtime_root=tmp_path / "p3",
+    )
+    assert superseded["lifecycle_state"] == "superseded"
+    assert superseded["replacement_profile_id"] == replacement["profile_id"]
 
 
 def test_profile_materialization_replays_and_lifecycle_tamper_fails_closed(

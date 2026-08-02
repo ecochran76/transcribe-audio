@@ -10,7 +10,7 @@ version 3
 
 Packet: P10-T1 | Additional acoustic training-conversation intake
 
-State transition: `CLOSED/TERMINAL-STOP/Plan-0037 -> OPEN/Plan-0049`, without
+State transition: `CLOSED/TERMINAL-STOP/Plan-0037 -> CLOSED/Plan-0049`, without
 reopening or changing the stopped evaluation.
 
 - Graphiti discovery was healthy but returned no current Plan 0048/0049
@@ -43,14 +43,24 @@ reopening or changing the stopped evaluation.
 - Exact-recording readouts provide direct-address or role evidence for every
   mapping in four conversations. The remaining label has a unanimous
   three-model match to an operator-enrolled profile plus same-day direct-address
-  continuity. A 14-mapping private evidence preview is ready, but remains
-  explicitly unconfirmed; no references or profiles have been mutated.
+  continuity. The operator confirmed all 14 mappings against evidence preview
+  `e8063c5786d0ed28abd345f2f069483f6be3dd1db446153838c38f5892a8904c`;
+  the private immutable confirmation receipt is
+  `b9eb1e64e2dcbb20484e240fd765ac81de9c44b1731f666f2f738fadea59224c`.
+- Two successor P3 generations applied and replayed: 10 eligible windows over
+  four independent conversations for one confirmed person and 15 windows over
+  five for the other. Both respect the three-window-per-conversation cap.
+- P3 parent supersession exposed a fail-closed lifecycle ordering gap. P4 now
+  acknowledges the parent-owned invalidation before successor promotion and
+  resumes an already-promoted staged descendant deterministically after an
+  interrupted apply.
+- Six successor P4 profiles are active across all three pinned models, and all
+  six predecessors are superseded. Private application receipt
+  `29d1ec10bee8ee009d63e907e7b2f0c0c881c4e8693ef8dbf3312dc76e27d19b`
+  records `training_sufficiency_met=true`. Evaluation was not opened.
 
-Next:
-
-- Capture the exact operator confirmation for the 14-mapping evidence preview,
-  then register only confirmed references and verify the two-session/six-window
-  sufficiency contract.
+Next: none for Plan 0049. Any new evaluation generation requires a separate
+bounded plan and authority; Plan 0048's terminal STOP remains unchanged.
 
 ## Turn 277 | 2026-08-01
 

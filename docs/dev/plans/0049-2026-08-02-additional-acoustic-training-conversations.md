@@ -1,17 +1,17 @@
 # Plan 0049 | Additional acoustic training conversations
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
-Plan Version: 3
+Plan Version: 4
 
 Parent: Plan 0037 terminal closeout and Plan 0048 STOP authority
 
 Owner: primary agent
 
 Expected Write Surface: `acoustic_training_expansion.py`,
-`acoustic_training_preparation.py`, their focused tests, this plan,
+`acoustic_training_preparation.py`, `acoustic_verification.py`, their focused tests, this plan,
 `ROADMAP.md`, and `RUNBOOK.md`; private intake, preparation, review, and
 reference artifacts only beneath the user-scoped Plan 0037 runtime root.
 
@@ -147,3 +147,27 @@ the training recipe exactly.
   directory / `0600` private-file modes.
 - Record operator confirmations and training denominators separately from
   preparation success.
+
+## Closeout
+
+The operator confirmed the exact 14-label mapping bound to evidence preview
+`e8063c5786d0ed28abd345f2f069483f6be3dd1db446153838c38f5892a8904c`.
+The immutable private confirmation receipt is
+`b9eb1e64e2dcbb20484e240fd765ac81de9c44b1731f666f2f738fadea59224c`.
+
+Two successor P3 generations were applied and replayed. One confirmed person
+has 10 eligible windows across four independent conversations; the other has
+15 eligible windows across five. Both remain below the three-window
+per-conversation cap. Six successor P4 profiles are active across the three
+pinned models, and all six predecessor profiles are superseded. The private
+registration application
+`29d1ec10bee8ee009d63e907e7b2f0c0c881c4e8693ef8dbf3312dc76e27d19b`
+records `training_sufficiency_met=true` without opening evaluation.
+
+The first successor-profile attempt exposed a real lifecycle ordering gap:
+P3 parent supersession correctly put predecessor descendants into
+`invalidation_pending`, while P4 promotion correctly refused to proceed until
+those invalidations were acknowledged. The shared P4 lifecycle now supports
+an explicit parent-supersession acknowledgment and deterministic recovery of
+an already-promoted staged descendant. Focused and full-suite validation cover
+the repaired path. Plan 0048's terminal STOP remains unchanged.
