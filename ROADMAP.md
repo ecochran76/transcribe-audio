@@ -411,24 +411,18 @@ Definition of Done:
 
 State: CLOSED — TERMINAL STOP; product acceptance not met
 
-Current State: Plan 0037 is the immediate speaker-identity critical path. P0
-closed through Plan 0038, and P1 closed through Plan 0039 with immutable,
-content-addressed PCM derivatives, deterministic signal-quality evidence,
-full timestamp identity maps, and fail-closed lifecycle receipts. Plan 0040 P2
-is closed at development-only preparation shadow maturity: pinned Silero,
-DeepFilterNet, RNNoise, and pyannote Community-1 assets plus the no-enhancement
-baseline completed 15/15 attempts across the three-recording, 2,892-second
-development slice with replayed private evidence. Calibration/evaluation,
-downstream outcome measurement, and method selection remain unrun. Plan 0041 P3 is closed at synthetic
-shadow maturity with a distinct operator-approved reference-only authority,
-immutable lifecycle replay, mandatory production lineage, and independently
-anchored P4 descendant invalidation. Plan 0042 P4 is open for exact
-SpeechBrain ECAPA, WeSpeaker CAM++, and WeSpeaker ResNet34 acquisition,
-model-specific profile materialization, held-out calibration, and sealed
-evaluation. P4A model/code/terms acquisition and P4B offline adapters plus
-synthetic private profile lifecycle are closed; the initial P4C exact
-real-enrollment preview closed with a truthful blocker because no canonical
-real P3 reference store existed at preview time. A private no-audio candidate
+Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
+Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
+created six real profiles and nine held-out calibration thresholds, but the
+successor evaluation revealed zero overlap between five evaluation subjects
+and the two frozen profile subjects. Every candidate unit therefore has zero
+possible genuine and impostor trials against the frozen 20/100 minima. P5
+integration and P6 historical reprocessing are `not_run`; nothing is promoted.
+
+Historical execution: P4A model/code/terms acquisition and P4B offline
+adapters plus synthetic private profile lifecycle closed before the initial P4C
+exact real-enrollment preview reported that no canonical real P3 reference
+store existed. A private no-audio candidate
 proposal recovers two
 raw-file hash drifts through a committed metadata-only authority that binds
 the frozen campaign, blind-prediction, completed-run, prompt, status, and clue

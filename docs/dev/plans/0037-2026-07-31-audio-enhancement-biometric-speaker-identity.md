@@ -72,46 +72,22 @@ identity authority:
 
 ## Current state
 
-P0 is closed through Plan 0038, P1 through Plan 0039, P2 through Plan 0040,
-and P3 through Plan 0041. The repo now has frozen contracts and a private
-24-recording conversation-disjoint corpus; immutable content-addressed PCM and
-quality evidence; five-method development-only speech preparation with 15/15
-successful attempts; and a synthetic private biometric-reference authority
-with CAS lifecycle and P4 descendant invalidation.
+P0 through P3 are closed through Plans 0038 through 0041. P4 calibration
+produced six active real profiles and nine frozen model-by-method thresholds
+from 396 held-out trials. The generation-1 evaluation stopped on a missing P2
+evaluation seam; Plans 0043 through 0047 then froze a disjoint successor
+corpus, measured all conditions, repaired the historical replay seam, and
+applied the independently audited generation-2 pre-reveal authority.
 
-P4 is open through
-[Plan 0043](0043-2026-07-31-plan-0037-p4e2-successor-evaluation.md). P4C has
-six active real profiles, P4D development diagnostics are complete, and P4D2
-has frozen nine model-by-method thresholds from 396 held-out calibration
-trials. P4E generation 1 ended in a terminal `STOP` after reveal but before
-audio/model execution because its authority-bound P2 module lacked the required
-evaluation split seam. That cohort is no longer blind terminal evidence; a new
-sealed cohort/generation is required. The seam is now implemented and replay-
-tested before any successor authority freeze. Seven fully disjoint candidates
-were subsequently operator-reviewed and frozen into a replayed `3 / 2 / 2`
-successor corpus. Exact private condition execution completed 7 P1 runs and 35
-P2 method results. Channel, noise, telephone-bandwidth, and usable-duration
-coverage passed, but every recording lacks explicit physical capture-device
-provenance. Plan 0044 therefore closed with terminal `STOP` before generation-2
-authority construction or biometric scoring. Plan 0045 is open to collect an
-exact-seven, append-only, direct-operator device provenance authority without
-inferring from encoding or rewriting the measured condition evidence. No
-generation-2 production authority may apply yet. Plan 0046 Units A through C
-have closed the exact archived-to-current P2 replay seam and independently
-audited deterministic generation-2 pre-reveal preview without weakening
-default replay or entering a writer. Its production freeze remains `not_run`
-while the device composite is a hard gate. No
-model/method selection, App
-Intelligence integration, or historical reprocessing exists. Plan 0036 remains
-sealed and paused after five of ten current gold reviews.
-
-Plan 0045's already-frozen exact-seven device campaign now replays across
-reviewed clean descendant commits without changing its original repository
-binding. Production replay at `bb975ebe5e46f880cefadf4267d03e2b5d7ede83`
-returned full-body equality and idempotently reopened case 1 with zero recorded
-attestations. The next required evidence remains the direct physical-device
-fact for that open case; no identity, filename, codec, or authorization fact
-can substitute for it.
+Plan 0048 is the terminal current authority. Its authorized reveal found five
+opaque evaluation subjects and zero overlap with the two frozen profile
+subjects. Every candidate-by-method unit therefore has zero possible genuine
+and impostor trials against the frozen 20/100 minima. Immutable run
+`generation-2-evaluation-stop-5945db0810a482bbbe80db74` replays full-body with
+terminal `STOP`. P5 integration and P6 historical reprocessing are `not_run`;
+no model/method selection, operational accuracy claim, default integration, or
+automatic confirmation exists. Plan 0036 remains sealed and paused after five
+of ten current gold reviews.
 
 The host continues to build a bounded speaker clue packet from transcript,
 calendar, contact, relationship, GWS, and Odollo evidence. App Intelligence
