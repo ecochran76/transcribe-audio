@@ -423,8 +423,10 @@ integration and P6 historical reprocessing are `not_run`; nothing is promoted.
 Plan 0049 is a separate bounded training-data expansion over at most five
 novel `Documents/Sound Recordings` conversations. It may add reviewed private
 references and successor profiles, but it cannot rewrite the Plan 0048 STOP or
-claim terminal evaluation sufficiency. Its immediate gate is exact intake and
-speaker-label review for the selected conversations.
+claim terminal evaluation sufficiency. Exact intake plus P1/P2 preparation are
+complete for five conversations, with 25/25 required P2 method attempts
+successful. A private 14-label/40-clip review packet and source-grounded mapping
+preview await exact operator confirmation before any reference mutation.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

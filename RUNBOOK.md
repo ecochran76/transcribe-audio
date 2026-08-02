@@ -34,11 +34,23 @@ reopening or changing the stopped evaluation.
   instance alone sees 0.100 seconds; concurrent ordinary callers remain at
   0.050 seconds. The training recipe/run identity changes and the failed dry
   run is not reused.
+- All five admitted conversations then completed P1 with active full-body
+  replay. All five P2 comparisons completed with every required method
+  successful: 25 attempted, 25 successful, 0 failed, and 0 blocked.
+- A private review packet freezes 14 diarized-label instances and 40 clean
+  candidate clips selected inside transcript-labeled/Silero speech while
+  excluding pyannote overlap and speaker-change boundaries.
+- Exact-recording readouts provide direct-address or role evidence for every
+  mapping in four conversations. The remaining label has a unanimous
+  three-model match to an operator-enrolled profile plus same-day direct-address
+  continuity. A 14-mapping private evidence preview is ready, but remains
+  explicitly unconfirmed; no references or profiles have been mutated.
 
 Next:
 
-- Independently audit the bounded P1 tolerance repair, then run P1/P2
-  preparation and generate compact speaker-label review packets.
+- Capture the exact operator confirmation for the 14-mapping evidence preview,
+  then register only confirmed references and verify the two-session/six-window
+  sufficiency contract.
 
 ## Turn 277 | 2026-08-01
 
