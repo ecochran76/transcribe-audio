@@ -2,6 +2,45 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 286 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-D1 | Independently audited pre-reveal envelope
+
+State transition: `OPEN/recalibration-thresholds-frozen ->
+OPEN/pre-reveal-envelope-frozen`, without reveal or evaluation execution.
+
+- Added a separate pre-reveal authority and Generation-3 terminal policy at
+  clean pushed commit `da4acdc`. Required independent audit found and drove
+  repairs to exact condition-function identity, terminal STOP semantics, and
+  unique finite candidate-matrix coverage; final re-audit is `PASS`.
+- The production no-write preview independently reproduced hash
+  `c9db91fb9ed2d69055893ded7a9f987f641b3962364bef6de66f88061f968797`
+  and left the complete 19-entry runtime snapshot unchanged.
+- The envelope binds seven conversations, 28 labels, 12 known subjects, 24
+  same-person subject/session pairs, six profiles, nine threshold/temperature
+  units, five exact condition dimensions/algorithms, the 12-window evaluation
+  cap, exact preparation/trial/score/metric/minimum-evidence rules, and terminal
+  precedence `stop`, `reject`, `select`, `refine`.
+- Applied and full-body replayed authority
+  `generation3-pre-reveal-2dac320b6577456bd38a281b`; manifest hash is
+  `98aa3a077eac3932e43a1938aaccbd42d9fa19b7c8f2f36c9b5625b86f959d6c`.
+- Only envelope completion and the separate reveal action are true.
+  Denominator preflight, preparation, conditions, windows, exact trials,
+  models, scores, metrics, decision, mutation, integration, and historical
+  reprocessing remain false.
+- Validation: 11 focused tests, 149 impact tests, and the complete 688-test
+  suite pass.
+
+Next:
+
+- Implement the separately self-bound reveal and structural denominator
+  preflight. A failed preflight must freeze terminal `STOP` before P1/P2 or
+  model loading; a pass may authorize prediction-blind P1/P2 only.
+
 ## Turn 285 | 2026-08-02
 
 Plan:

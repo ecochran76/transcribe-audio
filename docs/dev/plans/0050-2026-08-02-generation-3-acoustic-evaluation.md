@@ -344,6 +344,24 @@ pre-reveal-envelope construction; reveal, evaluation preparation/windows,
 exact trials, evaluation scoring/metrics/decision, profile mutation, default
 integration, and historical reprocessing remain false.
 
+The separately sealed pre-reveal implementation is pushed at `da4acdc` and
+passed required independent code re-audit after repairing exact condition
+function and terminal-STOP bindings. Independent production no-write
+reproduction matched preview hash
+`c9db91fb9ed2d69055893ded7a9f987f641b3962364bef6de66f88061f968797`
+with an unchanged 19-entry runtime snapshot. The preview binds seven
+conversations, 28 labels, 12 known subjects, 24 independently derived
+same-person subject/session pairs, six profiles, nine threshold units, five
+condition dimensions, the evaluation-only 12-window cap, exact-trial rules,
+minimum evidence, and terminal precedence. Authority
+`generation3-pre-reveal-2dac320b6577456bd38a281b` is applied and replayed
+full-body with manifest hash
+`98aa3a077eac3932e43a1938aaccbd42d9fa19b7c8f2f36c9b5625b86f959d6c`.
+Its aggregate receipt authorizes only the separate reveal action. Denominator
+preflight, preparation, condition measurement, windows, exact trials, models,
+scores, metrics, decision, mutation, integration, and historical reprocessing
+remain false.
+
 ## Exact-trial child binding
 
 The child must bind the pre-reveal parent content hash, revealed-gold authority

@@ -471,6 +471,16 @@ construction. Generation-3 reveal, preparation, windows, exact trials,
 evaluation scores/metrics/decision, profile mutation, default integration, and
 historical reprocessing remain not run.
 
+The required independently audited pre-reveal envelope is also frozen. Clean
+commit `da4acdc` reproduced preview hash
+`c9db91fb9ed2d69055893ded7a9f987f641b3962364bef6de66f88061f968797`
+without changing the runtime. Applied authority
+`generation3-pre-reveal-2dac320b6577456bd38a281b` binds the exact cohort,
+gold, population, six profiles, score matrix, nine threshold/temperature
+pairs, five condition dimensions and algorithms, 12-window cap, preparation,
+exact-trial, metric, minimum-evidence, and terminal policies. It authorizes
+only the separate reveal step; no Generation-3 acoustic execution has begun.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference
