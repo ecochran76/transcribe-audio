@@ -2,6 +2,38 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 284 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-B2 | Successor recalibration pre-score freeze
+
+State transition: `OPEN/recalibration-authority-built ->
+OPEN/recalibration-authority-frozen`, without calibration scoring or evaluation
+reveal.
+
+- Independently audited implementation commit `cacf58e` was pushed clean and
+  upstream-even after 169 impact tests and the complete 670-test suite passed.
+- Applied and idempotently replayed exact authority
+  `generation3-recalibration-99fcabf628404df4940f2be0` with manifest hash
+  `a87d873e79d1a859d45734e85e1b02524495915126ce02fd57cff499f7046e53`.
+- The applied aggregate receipt preserves the 22 windows, six profiles, two
+  subjects, three candidates, three methods, nine units, exact derived
+  44/9/35/26 denominators, and zero overlap in all four semantic dimensions.
+- Only recalibration-authority freeze and calibration-model execution are true.
+  Threshold/temperature freeze, pre-reveal construction, evaluation reveal,
+  preparation, windows, exact trials, evaluation scores/metrics/decision,
+  profile mutation, integration, and reprocessing remain false.
+
+Next:
+
+- Add a separately self-bound score/threshold executor without changing any
+  frozen authority module, commit and push it before model load, then run the
+  exact 396-trial successor calibration matrix and deterministically freeze all
+  nine threshold/temperature pairs.
+
 ## Turn 283 | 2026-08-02
 
 Plan:

@@ -315,8 +315,12 @@ active-subject join. Independent audit drove repairs across denominator,
 profile-shape, repository, gold/cohort, semantic-namespace, and transcript
 lineage validation; final re-audit is `PASS`. Live no-write preview hash is
 `930dd537819dbefd2bead697fef3d930c1bb768f9ae8efac59c87fd515ed6ec9`.
-The authority is not yet applied, no calibration model or score has run, and
-evaluation reveal remains false.
+Commit `cacf58e` is pushed and exact authority
+`generation3-recalibration-99fcabf628404df4940f2be0` is applied and replayed
+idempotently. Its manifest hash is
+`a87d873e79d1a859d45734e85e1b02524495915126ce02fd57cff499f7046e53`.
+Only calibration-model execution is newly authorized; no calibration score has
+run, threshold freeze remains false, and evaluation reveal remains false.
 
 ## Exact-trial child binding
 

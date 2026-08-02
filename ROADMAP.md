@@ -456,9 +456,12 @@ independent re-audit. Its live no-write preview binds the exact historical
 22-window membership, the complete six-profile/two-subject/three-candidate
 Cartesian inventory, all nine candidate-method units, and derived per-unit
 44/9/35/26 total/genuine/impostor/open-set denominators. Four-dimensional
-overlap with active training and Generation-3 is zero. Applying this authority
-remains pending a clean pushed implementation; no calibration model or score
-has run and evaluation reveal remains locked.
+overlap with active training and Generation-3 is zero. The clean pushed
+implementation is frozen under
+`generation3-recalibration-99fcabf628404df4940f2be0` and replays
+idempotently. It authorizes only calibration-model execution; no calibration
+score has run, threshold freeze remains false, and evaluation reveal remains
+locked.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
