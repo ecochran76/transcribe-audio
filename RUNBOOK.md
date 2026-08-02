@@ -2,6 +2,34 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 278 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0049-2026-08-02-additional-acoustic-training-conversations.md`,
+version 1
+
+Packet: P10-T1 | Additional acoustic training-conversation intake
+
+State transition: `CLOSED/TERMINAL-STOP/Plan-0037 -> OPEN/Plan-0049`, without
+reopening or changing the stopped evaluation.
+
+- Graphiti discovery was healthy but returned no current Plan 0048/0049
+  authority, so pushed plans and private runtime manifests remain primary.
+- File-searcher resolved `Documents/Sound Recordings` to the live Windows path.
+  Five distinct, already-transcribed conversations were selected; their source
+  hashes do not occur in any prior Plan 0037 corpus.
+- Filename-derived selection leads remain private, and identity remains
+  unconfirmed for the exact diarized labels. Filenames are not enrollment
+  authority.
+- Plan 0049 defines sufficiency as at least two confirmed people with at least
+  two independent sessions and six eligible windows each. It preserves the
+  Plan 0048 STOP and forbids evaluation reuse or automatic promotion.
+
+Next:
+
+- Implement and independently audit the exact-five private intake authority,
+  then run P1/P2 preparation and generate compact speaker-label review packets.
+
 ## Turn 277 | 2026-08-01
 
 Plan:
