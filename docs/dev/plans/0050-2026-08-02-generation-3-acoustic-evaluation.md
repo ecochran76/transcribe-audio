@@ -322,6 +322,26 @@ idempotently. Its manifest hash is
 Only calibration-model execution is newly authorized; no calibration score has
 run, threshold freeze remains false, and evaluation reveal remains false.
 
+The separately self-bound score/threshold executor is committed and pushed at
+`7d5b535` without changing any module sealed by the pre-score authority. Its
+aggregate-only production preview hash is
+`6a6367554826ca76731b68e1b9b99e752268ecd1cb7f01e060ef8c39b69cfeba`.
+Execution authority
+`39298c74aab4a773945268cd73fbaabccf88e8e3026a4041ea6eeed29b715b4f`
+was persisted before model load. The exact three-model by three-method run
+completed 396 private trials with 44 total, 9 genuine, 35 impostor, and 26
+open-set trials in each unit. Score matrix
+`3fb983b06b1984724c2f0e3e3c01f55065ff755e36416260c33fe0f2649201c2`
+replays structurally without audio or models. All nine deterministic
+threshold/temperature units froze successfully under application
+`308f326d3fe9baa175ed32c90df4255a8d4bfc1924c6f925eab490ae2832f4d1`
+and threshold-set hash
+`a927b0d9752d4b79ec42f5248afd2028db1c44414ff2d733c46c7b01b6d16759`.
+Abstention remains exactly zero. The aggregate receipt now authorizes only
+pre-reveal-envelope construction; reveal, evaluation preparation/windows,
+exact trials, evaluation scoring/metrics/decision, profile mutation, default
+integration, and historical reprocessing remain false.
+
 ## Exact-trial child binding
 
 The child must bind the pre-reveal parent content hash, revealed-gold authority

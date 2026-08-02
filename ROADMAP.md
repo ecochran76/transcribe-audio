@@ -460,8 +460,16 @@ overlap with active training and Generation-3 is zero. The clean pushed
 implementation is frozen under
 `generation3-recalibration-99fcabf628404df4940f2be0` and replays
 idempotently. It authorizes only calibration-model execution; no calibration
-score has run, threshold freeze remains false, and evaluation reveal remains
-locked.
+score has run in that pre-score authority and evaluation reveal remains
+locked. A separate self-bound executor is pushed at `7d5b535`; it persisted
+execution authority before model load, completed and structurally replayed the
+exact 396-trial successor score matrix, and deterministically froze all nine
+threshold/temperature pairs. Every unit has exact 44/9/35/26
+total/genuine/impostor/open-set denominators, the abstention margin remains
+zero, and the aggregate threshold receipt authorizes only pre-reveal-envelope
+construction. Generation-3 reveal, preparation, windows, exact trials,
+evaluation scores/metrics/decision, profile mutation, default integration, and
+historical reprocessing remain not run.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

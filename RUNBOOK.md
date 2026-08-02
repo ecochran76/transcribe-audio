@@ -2,6 +2,51 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 285 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-B3 | Successor scoring and threshold freeze
+
+State transition: `OPEN/recalibration-authority-frozen ->
+OPEN/recalibration-thresholds-frozen`, without Generation-3 reveal or
+evaluation execution.
+
+- Added a separate self-bound executor in commit `7d5b535`, pushed clean and
+  upstream-even before production model load. No module sealed by the pre-score
+  authority changed.
+- The aggregate-only execution preview hash is
+  `6a6367554826ca76731b68e1b9b99e752268ecd1cb7f01e060ef8c39b69cfeba`.
+  Execution authority
+  `39298c74aab4a773945268cd73fbaabccf88e8e3026a4041ea6eeed29b715b4f`
+  was written before any adapter loaded.
+- Completed the exact 396-trial private calibration matrix across three pinned
+  models, three preparation methods, 22 windows, and six successor profiles.
+  Every one of nine units has exactly 44 total, 9 genuine, 35 impostor, and 26
+  open-set trials. Score matrix hash is
+  `3fb983b06b1984724c2f0e3e3c01f55065ff755e36416260c33fe0f2649201c2`.
+- Structural score replay passed without audio or model execution. All nine
+  deterministic threshold/temperature units then froze and recomputed exactly
+  from persisted scores. Threshold application hash is
+  `308f326d3fe9baa175ed32c90df4255a8d4bfc1924c6f925eab490ae2832f4d1`;
+  threshold-set hash is
+  `a927b0d9752d4b79ec42f5248afd2028db1c44414ff2d733c46c7b01b6d16759`.
+- Abstention remains exactly zero. Portable receipts contain no paths,
+  profile/subject IDs, biometric scores, or threshold values. Only pre-reveal
+  envelope construction is newly authorized; reveal and every evaluation,
+  mutation, integration, or reprocessing action remain false.
+- Validation: seven new focused tests, 104 impact tests, and the complete
+  677-test suite pass.
+
+Next:
+
+- Build the independently audited pre-reveal envelope binding the frozen
+  cohort, gold, six profiles, score matrix, nine threshold/temperature pairs,
+  preparation/window/trial/metric/decision policies, repository authority, and
+  negative action gates before any Generation-3 reveal.
+
 ## Turn 284 | 2026-08-02
 
 Plan:
