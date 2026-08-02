@@ -37,6 +37,10 @@ evaluation execution.
   profile/subject IDs, biometric scores, or threshold values. Only pre-reveal
   envelope construction is newly authorized; reveal and every evaluation,
   mutation, integration, or reprocessing action remain false.
+- Independent audit result is `PASS`: full live score/threshold recomputation
+  matched, fail-fast PCM/model sentinels proved structural replay performs no
+  acoustic execution, all nine pairs are finite and policy-candidate-bound,
+  and runtime modes are exact `0700/0600`.
 - Validation: seven new focused tests, 104 impact tests, and the complete
   677-test suite pass.
 

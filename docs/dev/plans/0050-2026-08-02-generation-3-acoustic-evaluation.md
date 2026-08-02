@@ -337,7 +337,9 @@ threshold/temperature units froze successfully under application
 `308f326d3fe9baa175ed32c90df4255a8d4bfc1924c6f925eab490ae2832f4d1`
 and threshold-set hash
 `a927b0d9752d4b79ec42f5248afd2028db1c44414ff2d733c46c7b01b6d16759`.
-Abstention remains exactly zero. The aggregate receipt now authorizes only
+Independent boundary audit is `PASS`, including fail-fast-sentinel replay that
+proved score and threshold replay do not reopen audio or models. Abstention
+remains exactly zero. The aggregate receipt now authorizes only
 pre-reveal-envelope construction; reveal, evaluation preparation/windows,
 exact trials, evaluation scoring/metrics/decision, profile mutation, default
 integration, and historical reprocessing remain false.
