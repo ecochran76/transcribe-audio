@@ -389,3 +389,24 @@ for each of nine units. Replay proves every parent rule is copied unchanged and
 that the child introduces no threshold, margin, method, feature, membership,
 window, score, metric, or terminal-policy change. Model loading remains false
 until this child replays full-body.
+
+## Terminal execution outcome
+
+Generation 3 reached terminal global `STOP` during prediction-blind P1/P2.
+Preparation authority
+`1bbee1bfbcc2648cefbb35393acfbebbfcad490a24352b0ac59a31c46796eb73`
+was persisted before audio execution. Six of seven P1 units and six matching
+P2 units completed and replayed, with 30/30 P2 method cells successful. The
+seventh source advertised 3558.342104 seconds but decoded to 3468.565313
+seconds: 89.776791 seconds drift against the frozen 0.05-second tolerance.
+
+No retry, tolerance change, source substitution, window freeze, exact trials,
+evaluation models, scores, metrics, or selection is authorized. Independently
+audited commit `944e554` records the result separately. Portable preview hash
+is `8cb99b0a28cdf1982e735c53490246d90b4eb25a1240aff779c5a8731121a95c`;
+artifact inventory hash is
+`76ad232a93ce12d8e7038c8b19474c0c4142bccfeab9f1a325163add0e1d757b`;
+private manifest hash is
+`b0f34f5b5e90a4ff483fed0bc7544455b830c6d29ee83aa9cb45fed9c3209d37`.
+Full-body replay passes without audio execution. Plan 0050 is complete with a
+truthful terminal `STOP`, not a model-quality result.

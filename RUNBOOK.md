@@ -2,6 +2,40 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 288 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-F1 | Prediction-blind preparation terminal STOP
+
+State transition: `OPEN/preflight-passed -> CLOSED/terminal-stop`.
+
+- Committed and pushed the independently audited preparation authority at
+  `e884a94`; its no-write preview hash was
+  `73d24e5bb30529be35057045a431fbd3557b5314b62d49c71eaa2a796e00c7e4`.
+- The single production attempt completed and replayed six P1 units and six P2
+  units with 30/30 successful method cells. The seventh P1 failed before any
+  application/receipt, windows, trials, evaluation models, scores, or metrics.
+- Decode measured 3468.565313 seconds against frozen source duration
+  3558.342104 seconds: 89.776791 seconds drift versus the immutable
+  0.05-second tolerance.
+- Commit `944e554` adds the separately sealed terminal recorder. Independent
+  audit is `PASS`; portable STOP preview hash is
+  `8cb99b0a28cdf1982e735c53490246d90b4eb25a1240aff779c5a8731121a95c`.
+- Applied manifest hash
+  `b0f34f5b5e90a4ff483fed0bc7544455b830c6d29ee83aa9cb45fed9c3209d37`
+  replays full-body. Runtime directories/files are `0700`/`0600`; every
+  post-STOP action is false.
+- Validation: six focused tests, complete 708-test suite, compilation, diff
+  check, independent re-audit, clean push, and live replay pass.
+
+Next:
+
+- Do not retry or repair Generation 3. Any new acoustic evaluation requires a
+  new generation, new cohort/media authority, and separately reviewed plan.
+
 ## Turn 287 | 2026-08-02
 
 Plan:

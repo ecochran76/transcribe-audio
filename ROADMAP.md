@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0050 Generation-3 evaluation inventory and authority design
+State: CLOSED — Plan 0050 Generation-3 terminal preparation STOP
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -487,6 +487,16 @@ excluded labels and passed every unit with conservative maxima 120 genuine,
 120 known-impostor, and 240 open-set against 20/100/20. It authorizes only
 prediction-blind P1/P2; all condition, window, trial, model, score, metric,
 decision, mutation, integration, and reprocessing actions remain false.
+
+Generation 3 then executed its single authorized prediction-blind preparation
+attempt. Six P1/P2 units completed with 30/30 P2 method cells, but the seventh
+P1 decode lost 89.776791 seconds relative to the frozen source duration,
+exceeding the immutable 0.05-second tolerance. The independently audited
+terminal packet at commit `944e554` replays full-body and records global
+`STOP`. Windows, exact trials, evaluation models, scores, metrics, selection,
+default integration, and historical reprocessing are `not_run`. A future
+attempt requires a new evaluation generation and authority, not a Generation 3
+repair or retry.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
