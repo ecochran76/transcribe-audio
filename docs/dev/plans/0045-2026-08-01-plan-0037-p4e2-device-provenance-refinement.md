@@ -1,6 +1,6 @@
 # Plan 0045 | Plan 0037 P4E2 capture-device provenance refinement
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -165,7 +165,13 @@ audits. Review retries are limited to one repair-and-re-audit cycle per unit.
 
 ## Descendant replay continuity repair
 
-State: CLOSED; Unit E attestations remain OPEN at case 1.
+State: CLOSED; Unit E attestations remained open at case 1 at this historical
+checkpoint.
+
+Unit E's original seven-direct-attestation route is `SUPERSEDED`, not completed.
+Plan 0047 closed the device gate through its separately governed two-direct plus
+five manufacturer-metadata authority and composite. This plan is closed and is
+not a Generation-3 blocker.
 
 - Frozen campaign `device-provenance-07f1509cf8657c793777e386` remains the
   sole exact-seven authority. No campaign, cursor, or attestation artifact is

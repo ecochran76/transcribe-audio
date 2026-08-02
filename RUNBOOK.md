@@ -2,6 +2,60 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 279 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-A | Generation-3 inventory and authority design
+
+State transition: `CLOSED/Plan-0049 -> OPEN/Plan-0050`, without changing the
+Generation-2 terminal STOP.
+
+- Reopened `VISION.md`, repo policy, Plans 0043-0049, live profile receipts,
+  CodeGraph, and advisory Graphiti context. Current repo/runtime artifacts
+  remain authoritative.
+- Independent read-only audit confirmed Generation 2 stopped on zero overlap
+  between five evaluation subjects and two active profile subjects. No audio,
+  windows, models, scores, metrics, or selection ran.
+- Six successor profiles are active across three pinned models. Generation 3
+  must recalibrate these successor artifacts before reveal; predecessor-bound
+  thresholds are not silently reused.
+- The requested file-searcher workflow refreshed only the named
+  `Documents/Sound Recordings` folder. It surfaced novel, already-transcribed
+  candidates with non-acoustic evidence proposing enrolled and open-set label
+  mappings. These remain private selection leads pending exact per-recording
+  gold; they are not established identity facts.
+- Plan 0050 requires a new source/recording/conversation/derivative-disjoint
+  cohort, active-profile subject IDs in gold, seven conversations, both enrolled
+  subjects across two conversations, five total subjects, and 20 genuine / 100
+  impostor / 20 open-set trials per unit.
+- Condition dimensions, measurement algorithms, and coverage minima freeze
+  before reveal; actual noise/usable-duration coverage is measured through
+  prediction-blind P1/P2 after reveal and must pass before the exact-trial child
+  or any model execution.
+- The selected seven-conversation inventory proposes 10 enrolled and 16 other
+  diarized label/conversation outcomes pending exact gold. The inherited cap
+  of three windows would permit only 30 impostor trials with two profiles, so
+  Generation 3
+  precommits an evaluation-only cap of 12 before reveal. This permits a
+  structural maximum of 120 genuine and 120 impostor trials per unit while
+  retaining all overlap, duration, timestamp, and same-window-set rules.
+- Generation-2 code and receipts remain immutable. Separate Generation-3
+  authority/evaluation modules will add successor recalibration, positive-path
+  execution, and the missing exact-trial child.
+- Corrected Plan 0045's stale top-level state to `CLOSED` and marked its
+  seven-direct-attestation route `SUPERSEDED`; Plan 0047 closed the device gate
+  under a different two-direct plus five-metadata authority and composite.
+
+Next:
+
+- Finish the private candidate inventory and exact disjointness/denominator
+  projection, then implement and independently audit the Generation-3
+  pre-reveal authority. Do not reveal or run models before that commit is clean
+  and pushed.
+
 ## Turn 278 | 2026-08-02
 
 Plan:

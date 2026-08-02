@@ -409,8 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: CLOSED — Plan 0049 training expansion complete; Plan 0037 remains closed
-with terminal STOP
+State: OPEN — Plan 0050 Generation-3 evaluation inventory and authority design
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -431,6 +430,13 @@ and 15 windows across five sessions, respectively. Six successor profiles are
 active across all three pinned models and their six predecessors are
 superseded. The exact two-person/two-session/six-window training sufficiency
 contract passes. Plan 0048's terminal evaluation STOP remains unchanged.
+
+Plan 0050 opens a separate Generation-3 campaign. It requires a new sealed
+cohort disjoint from both revealed evaluation generations and all Plan 0049
+training sources, binds enrolled gold directly to the active P3 subject IDs,
+recalibrates the six successor profiles before reveal, and adds the missing
+exact-trial child and positive evaluation path. No Generation-3 reveal, model
+score, metric, or terminal decision has run yet.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
@@ -504,6 +510,7 @@ Plans:
 - `docs/dev/plans/0047-2026-08-01-plan-0037-source-device-metadata.md`
 - `docs/dev/plans/0048-2026-08-01-plan-0037-generation-2-evaluation-execution.md`
 - `docs/dev/plans/0049-2026-08-02-additional-acoustic-training-conversations.md`
+- `docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`
 
 Research:
 
