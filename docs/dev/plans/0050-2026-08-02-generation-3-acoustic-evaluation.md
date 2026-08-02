@@ -162,8 +162,8 @@ different-person trials against the other profile.
 Generation 3 therefore freezes an evaluation-only maximum of 12 nonoverlapping
 clean windows per speaker per conversation before reveal. Conditional on exact
 gold and clean-window availability, its structural maximum is 120 genuine and
-120 impostor trials per model-method unit. The 16 proposed remaining diarized
-label/conversation instances can structurally supply up to 192 open-set windows
+120 impostor trials per model-method unit. The 18 proposed remaining diarized
+label/conversation instances can structurally supply up to 216 open-set windows
 before profile expansion. Minimum/maximum window duration,
 original timestamps, overlap/change exclusion, mixed/unknown exclusion, and
 the same-window-set rule remain unchanged. The cap cannot change after reveal,
@@ -212,6 +212,11 @@ one repair-and-re-audit cycle per authority boundary.
   prior evaluation sources are nonblind, and new Generation-3 authority,
   evaluation, recalibration, and exact-trial seams are required.
 - Writes: none.
+- Generation-3 cohort authority audit: initial `FAIL` found byte-only
+  disjointness, an untruthful applied action projection, and an unbound private
+  I/O dependency. The repair added independent semantic dimensions, exact
+  applied actions, and dependency replay. Re-audit found and removed the last
+  derivative-derived identity fallback. Final result: `PASS`; writes: none.
 
 ## Gates and stop conditions
 
@@ -276,13 +281,19 @@ one repair-and-re-audit cycle per authority boundary.
 ## Current execution checkpoint
 
 Unit A is in progress. File-searcher completed a bounded refresh of the named
-Sound Recordings folder. Seven novel canonical source/transcript pairs are now
-selected. Non-acoustic evidence proposes 10 enrolled and 16 other diarized
-label/conversation outcomes for exact review. All seven source hashes have zero
-occurrence in prior Plan 0037 runtime JSON and differ from every Plan 0049
-training hash; the formal lineage-wide exclusion authority remains pending.
-Private label gold and the exact cohort authority are not yet frozen,
-evaluation has not been revealed, and no Generation-3 model score has run.
+Sound Recordings folder. The first formal preview rejected the former fourth
+candidate because its exact source hash was already frozen; it was replaced
+with a separately transcribed, source-disjoint conversation. The current exact
+seven-conversation preview contains 28 diarized label/conversation instances.
+Non-acoustic evidence proposes 10 enrolled and 18 other outcomes for exact
+review. Its exclusion authority binds all prior corpus manifests and transcript
+derivatives, the active Plan 0049 training intake, both active P3 generations,
+and semantic recording/conversation/derivative fingerprints. The current
+preview reports zero overlap independently for source, recording, conversation,
+and derivative identities while every action remains false. Private label gold
+and cohort membership are not yet frozen, evaluation has not been revealed,
+and no Generation-3 audio preparation, model score, metric, or decision has
+run.
 
 ## Exact-trial child binding
 

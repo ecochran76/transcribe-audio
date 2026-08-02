@@ -2,6 +2,50 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 280 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-A1 | Generation-3 exact cohort preview authority
+
+State transition: `OPEN/inventory -> OPEN/exact-preview`, without reveal or
+acoustic execution.
+
+- Implemented a separate Generation-3 preview/apply/replay authority with an
+  exact-seven cohort contract, immutable private membership, aggregate-only
+  receipts, and an all-negative pre-apply action vector.
+- The first production preview failed closed because the former fourth source
+  already occurred in a frozen corpus. Per the operator's replacement rule, a
+  distinct transcribed conversation replaced it; the rejected source is not in
+  the Generation-3 cohort.
+- The repaired lineage authority replays all three prior corpora and transcript
+  derivatives, the active Plan 0049 intake, both active P3 generations, and
+  their current source/recording/conversation/derivative lineage.
+- Source bytes plus independent semantic recording, conversation, and
+  transcript-derivative identities all report zero overlap for the replacement
+  seven-conversation cohort. Missing recording or conversation identity fails
+  closed; media re-encoding does not bypass the semantic dimensions.
+- The exact private preview contains 7 conversations and 28 diarized-label
+  instances. Non-acoustic evidence still proposes 10 enrolled outcomes; the
+  replacement raises proposed other outcomes from 16 to 18 pending exact gold.
+- Applied receipts truthfully authorize only membership freeze and construction
+  of the private gold-review packet. Reveal, preparation, windows, models,
+  scores, metrics, decisions, profile mutation, integration, and historical
+  reprocessing remain false.
+- Repository replay binds the Generation-3 module, training/P3 dependencies,
+  and the private immutable-write/permission dependency. Focused negative tests
+  cover all four overlap dimensions, stale previews, portable privacy, applied
+  actions, dependency binding, and missing identity evidence.
+
+Next:
+
+- Independent code/preview re-audit passed after removal of derivative-derived
+  recording/conversation fallbacks. Commit and push the authority, then freeze
+  only exact cohort membership and build the private per-label gold review
+  packet. Do not reveal, prepare audio, or execute models.
+
 ## Turn 279 | 2026-08-02
 
 Plan:

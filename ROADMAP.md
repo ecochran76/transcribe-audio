@@ -436,7 +436,11 @@ cohort disjoint from both revealed evaluation generations and all Plan 0049
 training sources, binds enrolled gold directly to the active P3 subject IDs,
 recalibrates the six successor profiles before reveal, and adds the missing
 exact-trial child and positive evaluation path. No Generation-3 reveal, model
-score, metric, or terminal decision has run yet.
+score, metric, or terminal decision has run yet. Its exact cohort authority is
+implemented and the current seven-conversation/28-label preview passes source,
+recording, conversation, and derivative disjointness. Membership remains
+unfrozen pending independent audit plus a clean pushed implementation; gold,
+recalibration, preparation, and scoring remain not run.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
