@@ -1,0 +1,31 @@
+{
+  "schema_version": "transcribe-audio.verification-generation-3-terminal-decision-policy.v1",
+  "precedence": [
+    "stop",
+    "reject",
+    "select",
+    "refine"
+  ],
+  "minimum_evidence": {
+    "genuine_trials_per_model_method_unit": 20,
+    "impostor_trials_per_model_method_unit": 100,
+    "open_set_trials_per_model_method_unit": 20,
+    "evaluation_recordings": 7,
+    "evaluation_conversations": 7,
+    "known_subjects": 5,
+    "enrolled_subjects": 2,
+    "enrolled_subject_conversations_each": 2,
+    "independent_same_person_subject_session_pairs": 4,
+    "all_declared_condition_slices_reported": true,
+    "minimum_observed_values_per_condition": 2,
+    "missing_condition_recordings": 0
+  },
+  "condition_failure": "global_stop_before_exact_trial_or_model_execution",
+  "incomplete_cartesian_or_failed_or_blocked_cell": "global_stop",
+  "nonfinite_score_or_required_metric": "global_stop",
+  "exact_trial_child_required_before_model_or_score_execution": true,
+  "exact_trial_child_may_change_parent_policy": false,
+  "policy_changes_after_evaluation_unseal": "forbidden_for_this_evaluation_generation",
+  "default_integration_authorized": false,
+  "historical_reprocessing_authorized": false
+}
