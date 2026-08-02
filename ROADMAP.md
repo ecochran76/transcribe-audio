@@ -440,13 +440,16 @@ score, metric, or terminal decision has run yet. Its exact cohort authority is
 implemented and the current seven-conversation/28-label preview passes source,
 recording, conversation, and derivative disjointness. Membership is now frozen
 under an independently audited, clean pushed, live-replayed private
-authority. Gold, recalibration, reveal, preparation, and scoring remain not
-run; only private gold-packet construction is newly authorized. The separate
-exact-gold preview/apply/replay authority is implemented and independently
-audited: it requires all 28 frozen labels, binds enrolled outcomes to active P3
-lineage, enforces explicit identity-token evidence, and emits an aggregate-only
-portable projection. Its production preview and freeze remain pending a clean
-pushed implementation checkpoint.
+authority. Recalibration, reveal, preparation, and scoring remain not run. The
+separate exact-gold preview/apply/replay authority is independently audited and pushed
+at `43fcced`: it requires all 28 frozen labels, binds enrolled outcomes to
+active P3 lineage, enforces explicit identity-token evidence, and emits an
+aggregate-only portable projection. The exact gold packet passed independent
+no-write reproduction, was frozen under
+`generation3-gold-5f60fa794c40c8fa5a2c5cb0`, and replayed idempotently. Its
+aggregate receipt authorizes only successor recalibration.
+Evaluation reveal, preparation, windows, models, scores, metrics, and terminal
+decision remain not run.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

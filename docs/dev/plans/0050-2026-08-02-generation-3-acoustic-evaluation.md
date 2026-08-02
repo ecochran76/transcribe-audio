@@ -297,10 +297,13 @@ membership freeze plus private gold-packet construction. The separate gold
 preview/apply/replay implementation now independently binds both active P3
 subject IDs back to exact Plan 0049 training-label evidence, requires exactly
 28 per-recording label outcomes, enforces explicit identity-token evidence,
-and passed independent code audit. The exact production gold preview and apply
-remain pending a clean pushed implementation. Private label gold is not yet
-frozen, evaluation has not been revealed, and no Generation-3 audio
-preparation, model score, metric, or decision has run.
+and passed independent code audit. Commit `43fcced` is pushed upstream-even and
+the exact production 28-label preview passed independent no-write reproduction
+with matching membership, gold-body, and preview hashes. Gold authority
+`generation3-gold-5f60fa794c40c8fa5a2c5cb0` is frozen and idempotently
+replayed with private `0700/0600` modes. Its aggregate-only receipt authorizes
+successor recalibration construction and keeps evaluation reveal, audio
+preparation, windows, exact trials, models, scores, metrics, and decision false.
 
 ## Exact-trial child binding
 

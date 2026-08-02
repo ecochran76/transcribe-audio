@@ -2,6 +2,46 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 282 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-C2 | Exact private gold freeze
+
+State transition: `OPEN/gold-implementation -> OPEN/gold-frozen`, without
+evaluation reveal.
+
+- Commit `43fcced` passed 65 focused/impact tests and the complete 664-test
+  repository suite, was pushed upstream-even, and became the executable gold
+  authority checkpoint.
+- The exact private preview contained all 28 frozen labels: 10 enrolled, 10
+  open-set, 2 mixed, and 6 unknown outcomes across 12 known subjects. The two
+  enrolled subjects cover three and seven independent conversations.
+- Independent no-write reproduction matched the membership, gold-body, and
+  preview hashes exactly and returned `PASS` after checking every cited known
+  identity against its target diarized label and both active-P3 lineage
+  bindings.
+- Gold authority `generation3-gold-5f60fa794c40c8fa5a2c5cb0` was applied and
+  replayed idempotently. Its manifest hash is
+  `5e91c62985d137ca64689e6cd49872b92ebce1051689d62f43e32d000824495e`;
+  its gold-body hash is
+  `29166e3874a152d5254007c05af97abf2d8ddfcbc97615a96784a5b4751d5399`.
+- Runtime directories remain `0700` and both immutable files remain `0600`.
+  The aggregate receipt contains no names, subject IDs, source membership,
+  paths, transcript text, audio, embeddings, or biometric scores.
+- Only gold freeze and successor-recalibration-authority construction are true.
+  Reveal, audio preparation, windows, exact trials, model execution, scoring,
+  metrics, decision, profile mutation, integration, and historical reprocessing
+  remain false.
+
+Next:
+
+- Freeze and independently audit successor recalibration across the exact six
+  active profiles and nine candidate-method threshold/temperature pairs before
+  constructing the pre-reveal envelope.
+
 ## Turn 281 | 2026-08-02
 
 Plan:
