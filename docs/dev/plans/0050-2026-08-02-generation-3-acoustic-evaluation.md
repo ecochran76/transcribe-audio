@@ -362,6 +362,23 @@ preflight, preparation, condition measurement, windows, exact trials, models,
 scores, metrics, decision, mutation, integration, and historical reprocessing
 remain false.
 
+The self-bound reveal/preflight implementation is pushed at `3437d27` after
+independent audit repaired pre-authority gold access, broad preparation/decision
+permissions, and parent private-file validation. Its production no-write
+preview hash is
+`165b03f8838b5d496c317c2269f749b7d4d9d6a98f5aaf5c3e3b5fc0a1820e9b`.
+Reveal authority
+`fd0d4ec4826ed22ce073f8e65a410d1205e07b04288d739839397b3cbac3dcd5`
+was written before the first private-gold read. The exact revealed structure is
+10 enrolled, 10 open-set, and 8 mixed/unknown excluded labels. Conservative
+per-unit maxima are 120 genuine, 120 known-impostor, and 240 open-set trials,
+so every one of nine units passes 20/100/20 structural preflight. Preflight hash
+`1f9a388ea8f26b8239f009bc1af984c6a8402d6b8e467c5ccbcbd298aa3b6126`
+replays structurally without audio or models. Only prediction-blind P1/P2 is
+authorized; condition measurement, windows, exact trials, models, scores,
+metrics, terminal decision, mutation, integration, and reprocessing remain
+false.
+
 ## Exact-trial child binding
 
 The child must bind the pre-reveal parent content hash, revealed-gold authority

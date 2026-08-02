@@ -481,6 +481,13 @@ pairs, five condition dimensions and algorithms, 12-window cap, preparation,
 exact-trial, metric, minimum-evidence, and terminal policies. It authorizes
 only the separate reveal step; no Generation-3 acoustic execution has begun.
 
+The separately self-bound reveal authority is now frozen before private gold
+access. Exact structural preflight revealed 10 enrolled, 10 open-set, and 8
+excluded labels and passed every unit with conservative maxima 120 genuine,
+120 known-impostor, and 240 open-set against 20/100/20. It authorizes only
+prediction-blind P1/P2; all condition, window, trial, model, score, metric,
+decision, mutation, integration, and reprocessing actions remain false.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference

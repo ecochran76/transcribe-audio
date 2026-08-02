@@ -2,6 +2,45 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 287 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0050-2026-08-02-generation-3-acoustic-evaluation.md`,
+version 1
+
+Packet: P10-G3-E1 | Reveal and structural denominator preflight
+
+State transition: `OPEN/pre-reveal-envelope-frozen ->
+OPEN/preflight-passed`, without audio preparation or model execution.
+
+- Added a self-bound reveal/preflight implementation at clean pushed commit
+  `3437d27`. Independent audit drove repairs so preview cannot read private
+  gold, reveal authority is written first, parent manifest/receipt retain exact
+  private-file validation, and pass/STOP actions are machine-specific.
+- Production no-write reveal preview hash is
+  `165b03f8838b5d496c317c2269f749b7d4d9d6a98f5aaf5c3e3b5fc0a1820e9b`;
+  the 23-entry runtime snapshot remained unchanged.
+- Reveal authority
+  `fd0d4ec4826ed22ce073f8e65a410d1205e07b04288d739839397b3cbac3dcd5`
+  was persisted before private gold was read. Exact revealed outcomes are 10
+  enrolled, 10 open-set, and 8 mixed/unknown excluded label instances.
+- All nine units pass structural preflight: conservative per-unit maxima are
+  120 genuine, 120 known-impostor, and 240 open-set trials against required
+  20/100/20. Preflight hash is
+  `1f9a388ea8f26b8239f009bc1af984c6a8402d6b8e467c5ccbcbd298aa3b6126`.
+- Full structural replay passed without audio, preparation, models, or scores.
+  Only `run_prediction_blind_p1_p2` is newly true. Conditions, windows, exact
+  trials, models, scores, metrics, decision, mutation, integration, and
+  reprocessing remain false.
+- Validation: seven focused tests, 102 impact tests, and the complete 695-test
+  suite pass; final independent re-audit is `PASS`.
+
+Next:
+
+- Run isolated prediction-blind P1/P2 over the seven frozen recordings, then
+  measure and freeze all five condition dimensions. Stop before windows unless
+  every dimension has at least two observed values and zero missing recordings.
+
 ## Turn 286 | 2026-08-02
 
 Plan:
