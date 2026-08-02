@@ -6,7 +6,7 @@
 
 Plan:
 `docs/dev/plans/0049-2026-08-02-additional-acoustic-training-conversations.md`,
-version 1
+version 3
 
 Packet: P10-T1 | Additional acoustic training-conversation intake
 
@@ -24,11 +24,21 @@ reopening or changing the stopped evaluation.
 - Plan 0049 defines sufficiency as at least two confirmed people with at least
   two independent sessions and six eligible windows each. It preserves the
   Plan 0048 STOP and forbids evaluation reuse or automatic promotion.
+- The exact-five intake applied and replayed under private `0700/0600` state.
+  Its portable receipt contains no paths, names, transcript text, raw audio,
+  embeddings, or scores and authorizes preparation only.
+- The first P1 apply failed closed on duration drift. A no-output diagnostic
+  decoded all five sources cleanly and measured 0.0006–0.0944 seconds of AAC
+  stream-versus-PCM timing drift. Plan version 3 keeps the shared 0.050-second
+  P1 module byte-exact and uses an isolated training worker whose module
+  instance alone sees 0.100 seconds; concurrent ordinary callers remain at
+  0.050 seconds. The training recipe/run identity changes and the failed dry
+  run is not reused.
 
 Next:
 
-- Implement and independently audit the exact-five private intake authority,
-  then run P1/P2 preparation and generate compact speaker-label review packets.
+- Independently audit the bounded P1 tolerance repair, then run P1/P2
+  preparation and generate compact speaker-label review packets.
 
 ## Turn 277 | 2026-08-01
 

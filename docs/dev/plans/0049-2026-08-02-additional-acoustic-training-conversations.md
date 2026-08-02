@@ -4,14 +4,15 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 3
 
 Parent: Plan 0037 terminal closeout and Plan 0048 STOP authority
 
 Owner: primary agent
 
-Expected Write Surface: `acoustic_training_expansion.py`, focused tests, this
-plan, `ROADMAP.md`, and `RUNBOOK.md`; private intake, preparation, review, and
+Expected Write Surface: `acoustic_training_expansion.py`,
+`acoustic_training_preparation.py`, their focused tests, this plan,
+`ROADMAP.md`, and `RUNBOOK.md`; private intake, preparation, review, and
 reference artifacts only beneath the user-scoped Plan 0037 runtime root.
 
 ## Vision alignment
@@ -104,6 +105,22 @@ the primary owns all writes.
   six eligible windows remains insufficient and is not enrolled from this
   packet.
 - No result from this packet changes the closed Plan 0048 terminal outcome.
+
+## P1 training-only tolerance authority
+
+The first production P1 apply failed closed because decoded PCM duration
+differed from AAC stream duration by 0.0706 seconds, above the original
+0.050-second limit. A path-free diagnostic decoded all five admitted sources
+without errors and measured absolute drift of 0.0006–0.0944 seconds. Version 3
+therefore introduces a Plan 0049 training-only worker process. Only the child
+module instance sees the 0.100-second P1 tolerance; the parent and concurrent
+ordinary P1/P2 callers retain the frozen 0.050-second default. The shared P1
+module remains byte-exact, so earlier generation-2, successor-condition, and
+calibration authorities keep their frozen module binding and replay semantics.
+Training recipes and run IDs bind 0.100 seconds, the failed dry run is not
+reused, and deviations above 0.100 seconds continue to fail closed. P2 entry
+points execute in the same isolated worker so their internal P1 replay resolves
+the training recipe exactly.
 
 ## Acceptance criteria
 
