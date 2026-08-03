@@ -98,9 +98,16 @@ the pinned `.venv` without audio or model execution. G0 preview hash is
 `aa179741e735247e87cc6143c6526669670734c8c562ed166160eb0c6d605010`;
 immutable manifest hash is
 `ad9e26b59502508c8810e11648d519d99860579aea1ca731445459b196836d22`.
-Full replay passes with private `0700/0600` modes. Only G1A, G1B, and G1C are
-authorized. No private-gold access, prediction, or evaluation-model execution
-has started.
+Full replay passes with private `0700/0600` modes. G1C is complete under
+context-contract hash
+`f539146dfccc3a8025d20713b5cf02762d7d5a5d25cb01f4886f6dedda44bb18`,
+prompt hash
+`4afbdde84707b2cf2308535a8b4e01b1878c7f3065f2f954dc9180bfc01f5584`,
+and rubric hash
+`a624429790a6a4868c295d3188a033157f9314bdeeedb21d3bf794c44e8370cc`.
+G1A and G1B are running in their disjoint authorized lanes. J1 and all later
+actions remain false. No private-gold reveal, prediction, or evaluation-model
+execution has started.
 
 ## Scope
 
@@ -243,6 +250,13 @@ Owner: contextual-contract worker. Write only the Plan 0025-compatible schema,
 temporal evidence cutoff, prompt/rubric hashes, candidate-union policy,
 conflict representation, and paired prediction output contract. Terminal:
 complete contract or `stop`.
+
+Outcome: complete. The contract freezes the existing Plan 0025 two-phase
+workflow, exactly two paired prediction families, recording-start temporal
+cutoffs, stable context-first candidate union, separate cited acoustic factors,
+neutral missing voice evidence, visible conflicts, one prompt/rubric pair, and
+host-computed confidence. Only submission to J1 is true; model sends, reveal,
+assignments, mutations, integration, and reprocessing remain false.
 
 ### J1 | Independent Design Reconciliation
 

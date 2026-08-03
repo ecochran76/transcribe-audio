@@ -2,6 +2,41 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 294 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1C | Contextual visibility contract
+
+State transition: `OPEN/G1C-authorized -> OPEN/G1C-complete-awaiting-J1`.
+
+- Preserved the closed Plan 0025 two-phase clue-discovery, host-retrieval, and
+  identity-evaluation workflow while adding a path-free shadow contract.
+- Froze exactly two prediction families, one prompt hash
+  `4afbdde84707b2cf2308535a8b4e01b1878c7f3065f2f954dc9180bfc01f5584`,
+  and one rubric hash
+  `a624429790a6a4868c295d3188a033157f9314bdeeedb21d3bf794c44e8370cc`.
+- Froze recording-start temporal filtering, context-first stable candidate
+  union, separate cited acoustic factors, neutral missing acoustic evidence,
+  visible conflicts, and distinct context versus union candidate recall.
+- Contract hash is
+  `f539146dfccc3a8025d20713b5cf02762d7d5a5d25cb01f4886f6dedda44bb18`.
+  It contains no paths, private membership, transcript text, audio, embeddings,
+  thresholds, or biometric scores and did not send a model turn.
+- G1C delegation is `not_spawned`: the primary owned this disjoint lane while
+  G1A and G1B occupied the other two active-agent slots, preserving the
+  campaign concurrency cap.
+- Validation passed 34 focused tests, compilation, and `git diff --check`.
+  Only submission to J1 is true; all later execution and mutation actions are
+  false.
+
+Next:
+
+- Await G1A and G1B, reconcile their exact runtime and code evidence, then run
+  independent J1 design review before any G2 freeze.
+
 ## Turn 293 | 2026-08-03
 
 Plan:
