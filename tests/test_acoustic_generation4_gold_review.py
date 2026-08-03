@@ -51,14 +51,21 @@ def test_build_plan_preserves_case_numbers_and_marks_replacements(tmp_path: Path
                 {
                     "case_id": case_id,
                     "speaker_reviews": [
-                        {"speaker_ref": f"case-{index}:A", "review_status": "gap"}
+                        {"speaker_ref": f"opaque-ref-{index}", "review_status": "gap"}
                     ],
                 }
             )
     gap = {
         "cases": gap_cases,
+        "review_gaps": [
+            {"speaker_ref": "opaque-ref-2", "speaker_label": "A"}
+        ],
         "supported_operator_assertions": [
-            {"speaker_ref": "case-1:A", "person_display_name": "Known Person"}
+            {
+                "speaker_ref": "opaque-ref-1",
+                "speaker_label": "A",
+                "person_display_name": "Known Person",
+            }
         ],
     }
     swap = {"opaque_best_subset_case_ids": best_ids}

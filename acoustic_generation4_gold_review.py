@@ -135,6 +135,12 @@ def build_generation4_gold_review_plan(
     if any(case_id not in row_by_case for case_id in best):
         raise Generation4GoldReviewError("A best-subset case is missing from private membership.")
 
+    label_by_ref = {
+        str(item.get("speaker_ref") or ""): str(item.get("speaker_label") or "")
+        for field in ("review_gaps", "supported_operator_assertions")
+        for item in gap_packet.get(field) or []
+        if isinstance(item, Mapping)
+    }
     old_case_numbers: dict[str, int] = {}
     ref_by_case_label: dict[tuple[str, str], str] = {}
     cases = gap_packet.get("cases")
@@ -148,7 +154,7 @@ def build_generation4_gold_review_plan(
                 if not isinstance(review, Mapping):
                     continue
                 ref = str(review.get("speaker_ref") or "")
-                label = ref.rsplit(":", 1)[-1] if ":" in ref else ""
+                label = label_by_ref.get(ref, "")
                 if label:
                     ref_by_case_label[(case_id, label)] = ref
 
