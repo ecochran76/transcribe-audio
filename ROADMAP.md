@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: PLANNED — Generation-4 cohort and gold design
+State: OPEN — Plan 0052 Generation-4 shadow speaker identity milestone
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -512,6 +512,17 @@ were excluded. Full source re-decode replay passes with no retained audio.
 Only a separate cohort-preview action is authorized. The next bounded slice
 must determine conversation identity, enrolled-speaker coverage, and private
 gold feasibility before freezing any Generation-4 cohort.
+
+Plan 0052 opens the full meaningful Generation-4 milestone rather than only
+that next slice. It must carry the qualified pool through cohort and private
+gold feasibility, one frozen unseen acoustic evaluation, and a paired shadow
+comparison of the existing Plan 0025 context-only workflow against the same
+workflow with separately visible acoustic evidence. Completion requires one
+immutable terminal decision: advance to a separately governed limited-pilot
+plan, keep the factor in shadow and refine, reject the factor, or stop. Cohort
+freeze, passing tests, acoustic scores, or an intermediate packet do not close
+the plan. Automatic assignment, enrollment, profile mutation, default
+integration, and historical reprocessing remain unauthorized.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

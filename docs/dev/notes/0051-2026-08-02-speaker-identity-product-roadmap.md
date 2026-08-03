@@ -67,6 +67,9 @@ Rejections and corrections must prevent profile contamination.
 
 ## Immediate critical path
 
-Plan 0051 qualifies and freezes a fresh Generation-4 media pool. Profile-loop
-contract design may proceed conceptually in parallel, but acoustic clues remain
-non-authoritative until a valid unseen evaluation passes.
+Plan 0051 is closed with 10 qualified, unique, prior-disjoint recordings and a
+replayable full-source decode authority. Plan 0052 now owns the campaign path
+from cohort and private-gold feasibility through a valid acoustic evaluation,
+a paired context-only versus context-plus-acoustic shadow comparison, and one
+immutable terminal decision. Profile learning remains a later milestone;
+acoustic clues remain non-authoritative outside the Plan 0052 shadow contract.

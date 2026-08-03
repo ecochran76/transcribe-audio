@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 291 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G0 | Campaign plan opening
+
+State transition: `PLANNED/Generation-4-cohort-design ->
+OPEN/Generation-4-shadow-speaker-identity-milestone`.
+
+- Opened a `/goal`-compatible campaign plan whose finish line is one
+  immutable product decision, not implementation, cohort freeze, acoustic
+  execution, a metric report, or passing tests.
+- Bound the campaign to the Plan 0051 10-recording qualified-media authority,
+  six active profiles, nine frozen calibration thresholds, and the closed
+  Plan 0025 contextual speaker-clue workflow.
+- Froze the product comparison as paired context-only and
+  context-plus-separately-visible-acoustic predictions on one unseen cohort,
+  with both prediction families immutable before one gold reveal.
+- Defined G1A cohort/gold feasibility, G1B acoustic evidence contract, and G1C
+  contextual visibility contract as the only parallel lanes. G2 through G6
+  form the sequential critical path, with independent reconciliation at J1,
+  J2, and J3.
+- Kept automatic assignment, enrollment, profile mutation, default
+  integration, and historical reprocessing outside plan authority.
+- Graphiti discovery was healthy and surfaced the relevant Plan 0025 context;
+  its advisory active-state wording was stale, so the repository's CLOSED
+  authority controls.
+
+Next:
+
+- Invoke the exact `/goal` command recorded in Plan 0052 and begin G0 authority
+  replay. Do not access private gold or run prediction/model work before its
+  frozen gates authorize those actions.
+
 ## Turn 290 | 2026-08-02
 
 Plan:
