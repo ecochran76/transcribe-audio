@@ -2,6 +2,53 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 297 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-IMPORT | Fail-closed private-gold answer importer
+
+State transition: `OPEN/G1A-operator-review-ready -> OPEN/G1A-import-ready-awaiting-answers`.
+
+- Added exact parsing for the review page's copied answer block. Every speaker
+  reference must appear once; blanks, unknowns, missing lines, duplicates,
+  unknown references, and control-bearing values fail before any write.
+- Repeated normalized names or stable aliases map to one opaque person ID.
+  Conversation and recording IDs are deterministic and distinct from private
+  source paths.
+- Added exact loading of the two enrolled identity bindings from immutable
+  Generation-3 private gold manifest
+  `5e91c62985d137ca64689e6cd49872b92ebce1051689d62f43e32d000824495e`.
+  The loader validates private mode, manifest hash/schema/status, name hashes,
+  and opaque person references.
+- A live read proved the two previously supplied case identities are not the
+  two enrolled profiles. Review bundle
+  `09a4718d04e0d931daad9e8bcb38e46b0fa524b9c53cd88797473202bafbc3ec`
+  therefore shows both enrolled names only inside the private local page as
+  people to look for. It retains 12 labels, two prefilled answers, ten blanks,
+  12 private clips, and no external publication.
+- A complete answer block can now create one content-addressed `0600` private
+  GOLD_SCHEMA packet marked operator-review-complete but explicitly not frozen.
+  It contains no transcript text, audio, acoustic score, model execution, or
+  prediction-worker reveal.
+- Focused tests cover passing population construction, repeated-person
+  identity, both enrolled identities, four same-person session pairs, stale
+  enrollment authority, incomplete answers, immutable apply, and modes. The
+  full suite passes 753 tests. Commit `3b2b433` is pushed and upstream-even.
+- Graphiti runtime doctor reported MCP HTTP degraded while direct read
+  discovery succeeded. Discovery had no authoritative Plan-0052 episode and
+  returned a stale Plan-0025 status; current repo/runtime evidence prevailed.
+
+Next:
+
+- Operator completes and copies the ten remaining page answers. Import them,
+  run G1A population evaluation, and continue only if both enrolled identities
+  have two sessions, at least five people and four same-person pairs exist, and
+  all overlap/completeness gates pass. Otherwise use the one bounded
+  replacement/supplement decision without starting J1.
+
 ## Turn 296 | 2026-08-03
 
 Plan:

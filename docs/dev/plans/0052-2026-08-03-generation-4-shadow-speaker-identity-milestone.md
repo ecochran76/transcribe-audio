@@ -119,10 +119,13 @@ G1A remains at the private-gold review gate; the supplemental-pool option is
 unconsumed. A two-for-two original-pool substitution reduces the unresolved
 operator review from 13 to 10 speaker labels while preserving seven recordings
 and structural population capacity. Private review bundle hash is
-`41294254962762e700af78273c4367c59a02718c2e91be1632ab1330a4e34f58`;
+`09a4718d04e0d931daad9e8bcb38e46b0fa524b9c53cd88797473202bafbc3ec`;
 its 12 short clips and review page are all `0600`, with the two prior operator
-labels prefilled. J1 and all later actions remain false. No private-gold reveal
-to a prediction worker, prediction, or evaluation-model execution has started.
+labels prefilled and the two pre-existing enrolled identity names shown only as
+private review hints. The fail-closed answer importer is ready: partial,
+duplicate, or unknown labels cannot create a GOLD_SCHEMA packet. J1 and all
+later actions remain false. No private-gold reveal to a prediction worker,
+prediction, or evaluation-model execution has started.
 
 ## Scope
 
@@ -260,8 +263,12 @@ The feasibility apply is immutable and replays full-body with private
 only authorized next action is completion of the private gold review. A
 private, local-only batch listening sheet now presents 12 labels across the
 best seven-recording original-pool substitution; two are operator-supported
-and ten remain for review. No external preview publication or supplemental
-media use occurred.
+and ten remain for review. It privately names the two enrolled identities that
+must each appear in two sessions. A complete copied response can be converted
+deterministically into one private, unfrozen GOLD_SCHEMA packet; blanks,
+unknowns, duplicates, stale membership, and stale Generation-3 enrollment
+authority fail closed. No external preview publication or supplemental media
+use occurred.
 
 ### G1B | Acoustic Evidence Contract
 
