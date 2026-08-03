@@ -187,14 +187,31 @@ def apply_generation5_j2_stop(
 def replay_generation5_j2_stop(
     expected_content_sha256: str, *, runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
-    preview = preview_generation5_j2_stop()
-    if preview["content_sha256"] != expected_content_sha256:
-        raise Generation5J2StopError("J2 STOP authority drifted.")
     paths = _paths(runtime_root, expected_content_sha256)
     require_private_file(paths["manifest"], paths["root"])
     require_private_file(paths["receipt"], paths["root"])
     manifest = _read_json(paths["manifest"])
     receipt = _read_json(paths["receipt"])
+    preview = manifest.get("preview")
+    if not isinstance(preview, Mapping):
+        raise Generation5J2StopError("J2 STOP preview is missing.")
+    preview = dict(preview)
+    core = {key: value for key, value in preview.items() if key != "content_sha256"}
+    repository = preview.get("repository_authority")
+    if not isinstance(repository, Mapping):
+        raise Generation5J2StopError("Recorded repository authority is missing.")
+    commit = str(repository.get("commit") or "")
+    module_sha256 = str(repository.get("module_sha256") or "")
+    body = _git(["show", f"{commit}:{MODULE_NAME}"], binary=True) if re.fullmatch(r"[a-f0-9]{40}", commit) else b""
+    _g2_preview()
+    if (
+        preview.get("content_sha256") != expected_content_sha256
+        or _canonical_hash(core) != expected_content_sha256
+        or not isinstance(body, bytes)
+        or hashlib.sha256(body).hexdigest() != module_sha256
+        or _git(["merge-base", "--is-ancestor", commit, "HEAD"]) != ""
+    ):
+        raise Generation5J2StopError("J2 STOP authority drifted.")
     expected_manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
     expected_receipt = {
         **_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]), "mode": "0600"

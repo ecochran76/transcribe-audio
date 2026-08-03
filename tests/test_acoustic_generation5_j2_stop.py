@@ -1,4 +1,5 @@
 import json
+import hashlib
 
 import pytest
 
@@ -7,7 +8,7 @@ import acoustic_generation5_j2_stop as stop
 
 REPOSITORY = {
     "commit": "1" * 40,
-    "module_sha256": "2" * 64,
+    "module_sha256": hashlib.sha256(b"module").hexdigest(),
     "clean": True,
     "upstream_ahead": 0,
     "upstream_behind": 0,
@@ -47,6 +48,12 @@ def test_j2_stop_rejects_parent_drift() -> None:
 def test_j2_stop_apply_replay_is_private_and_idempotent(tmp_path, monkeypatch) -> None:
     preview = _preview()
     monkeypatch.setattr(stop, "preview_generation5_j2_stop", lambda: preview)
+    monkeypatch.setattr(stop, "_g2_preview", lambda: G2)
+    monkeypatch.setattr(
+        stop,
+        "_git",
+        lambda arguments, binary=False: b"module" if arguments[0] == "show" else "",
+    )
 
     applied = stop.apply_generation5_j2_stop(
         preview, expected_content_sha256=preview["content_sha256"], runtime_root=tmp_path

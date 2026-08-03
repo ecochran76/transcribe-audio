@@ -196,3 +196,11 @@ def test_sidecar_invalid_working_path_uses_valid_source(tmp_path) -> None:
 
     assert list(result) == [source.resolve()]
     assert result[source.resolve()][0]["matched_source_fields"] == ["source_media_path"]
+
+
+def test_recording_start_requires_exact_offset_aware_rfc3339() -> None:
+    assert r0._recording_start("2026-01-01T10:00:00-06:00") == (
+        "2026-01-01T10:00:00-06:00", "2026-01-01T16:00:00Z"
+    )
+    assert r0._recording_start("2026-01-01 10:00:00-06:00") is None
+    assert r0._recording_start("2026-01-01T10:00:00") is None

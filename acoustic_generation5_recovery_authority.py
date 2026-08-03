@@ -99,6 +99,11 @@ def _repository_authority() -> dict[str, Any]:
 
 
 def _plan0053_terminal() -> dict[str, Any]:
+    replayed = plan0053_stop.replay_generation5_j2_stop(
+        PLAN0053_STOP_PREVIEW_SHA256
+    )
+    if replayed.get("idempotent_replay") is not True:
+        raise Generation5RecoveryAuthorityError("Plan 0053 terminal replay failed.")
     paths = plan0053_stop._paths(
         plan0053_stop.DEFAULT_RUNTIME_ROOT, PLAN0053_STOP_PREVIEW_SHA256
     )
@@ -198,7 +203,13 @@ def _exclusion_union(prior_root: Path) -> dict[str, Any]:
 def _recording_start(value: Any) -> tuple[str, str] | None:
     if not isinstance(value, str) or not value.strip():
         return None
-    text = value.strip().replace("Z", "+00:00")
+    original = value.strip()
+    if not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+        original,
+    ):
+        return None
+    text = original.replace("Z", "+00:00")
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
@@ -206,7 +217,7 @@ def _recording_start(value: Any) -> tuple[str, str] | None:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
     normalized = parsed.astimezone(timezone.utc)
-    return value.strip(), normalized.isoformat().replace("+00:00", "Z")
+    return original, normalized.isoformat().replace("+00:00", "Z")
 
 
 def _sidecars(source_root: Path) -> dict[Path, list[dict[str, Any]]]:
