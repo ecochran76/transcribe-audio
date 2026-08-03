@@ -90,14 +90,17 @@ capability beyond shadow evidence.
 
 ## Current State
 
-Plan 0051's exact 12-candidate authority replays full-body: 10 recordings
-remain qualified, two remain rejected only as shorter than 60 seconds, and the
-qualified-set and private-manifest hashes match. The six active successor
-profiles and all nine frozen calibration thresholds also replay in the pinned
-`.venv` without audio or model execution. G0 checkpoint implementation is
-prepared and tested; its production preview/apply/replay remains pending until
-that implementation is clean, committed, pushed, and upstream-even. No G1
-worker, private-gold access, prediction, or model execution has started.
+G0 is complete. Plan 0051's exact 12-candidate authority replays full-body: 10
+recordings remain qualified, two remain rejected only as shorter than 60
+seconds, and the qualified-set and private-manifest hashes match. The six
+active successor profiles and all nine frozen calibration thresholds replay in
+the pinned `.venv` without audio or model execution. G0 preview hash is
+`aa179741e735247e87cc6143c6526669670734c8c562ed166160eb0c6d605010`;
+immutable manifest hash is
+`ad9e26b59502508c8810e11648d519d99860579aea1ca731445459b196836d22`.
+Full replay passes with private `0700/0600` modes. Only G1A, G1B, and G1C are
+authorized. No private-gold access, prediction, or evaluation-model execution
+has started.
 
 ## Scope
 
@@ -213,6 +216,12 @@ Owner: primary agent. Replay the exact Plan 0051 authority, verify clean pushed
 repository identity and runtime permissions, resolve all inherited hashes and
 negative-action vectors, and publish the plan-version checkpoint. Terminal:
 continue only on exact replay; otherwise `stop`.
+
+Outcome: complete. Clean pushed commit `5117e7e` supplied the implementation
+authority. Production preview, immutable apply, permissions, and full
+inherited-authority replay passed under the hashes recorded in Current State.
+The negative action vector remains false for J1 through G6, reveal, profile
+mutation, default integration, and historical reprocessing.
 
 ### G1A | Cohort And Gold Feasibility
 

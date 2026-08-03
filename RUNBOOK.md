@@ -2,6 +2,39 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 293 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G0 | Production campaign checkpoint
+
+State transition: `OPEN/G0-implementation-prepared -> OPEN/G0-complete`.
+
+- Clean pushed implementation commit `5117e7e` passed 24 focused tests, 725
+  full repository tests, compilation, diff validation, and the active planning
+  audit.
+- Production no-write preview hash is
+  `aa179741e735247e87cc6143c6526669670734c8c562ed166160eb0c6d605010`.
+  It binds the exact Plan 0051 media hashes, six-profile and model-asset sets,
+  score matrix, nine-threshold set, pinned runtimes, plan, repository, privacy
+  flags, delegation decision, and negative actions.
+- Immutable G0 manifest hash is
+  `ad9e26b59502508c8810e11648d519d99860579aea1ca731445459b196836d22`.
+  Full replay independently re-decoded all frozen sources and recomputed the
+  thresholds without gold, retained audio, or model execution.
+- Runtime directories are `0700`; manifest and receipt are `0600`, regular,
+  and not symlinks.
+- Only G1A cohort/gold feasibility, G1B acoustic evidence contract, and G1C
+  contextual visibility contract are true. J1 through G6, reveal, profile
+  mutation, integration, and historical reprocessing remain false.
+
+Next:
+
+- Spawn only the three named, disjoint G1 lanes with bounded write surfaces
+  and runtime handles. Reconcile them at J1 before any G2 authority.
+
 ## Turn 292 | 2026-08-03
 
 Plan:
