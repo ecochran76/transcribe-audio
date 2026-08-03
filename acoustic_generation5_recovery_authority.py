@@ -129,6 +129,29 @@ def _all_hashes(value: Any) -> set[str]:
     return found
 
 
+def _read_json_sequence(path: Path) -> list[Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise Generation5RecoveryAuthorityError("Prior evidence JSON is unreadable.") from exc
+    decoder = json.JSONDecoder()
+    values: list[Any] = []
+    offset = 0
+    try:
+        while offset < len(text):
+            while offset < len(text) and text[offset].isspace():
+                offset += 1
+            if offset >= len(text):
+                break
+            value, offset = decoder.raw_decode(text, offset)
+            values.append(value)
+    except json.JSONDecodeError as exc:
+        raise Generation5RecoveryAuthorityError("Prior evidence JSON is unreadable.") from exc
+    if not values:
+        raise Generation5RecoveryAuthorityError("Prior evidence JSON is empty.")
+    return values
+
+
 def _exclusion_union(prior_root: Path) -> dict[str, Any]:
     root = prior_root.expanduser().absolute()
     if not root.is_dir() or root.is_symlink():
@@ -142,11 +165,8 @@ def _exclusion_union(prior_root: Path) -> dict[str, Any]:
             raise Generation5RecoveryAuthorityError("Prior evidence escaped its root.") from exc
         if not path.is_file() or path.is_symlink() or (relative.parts and relative.parts[0] == "plan-0054"):
             continue
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise Generation5RecoveryAuthorityError("Prior evidence JSON is unreadable.") from exc
-        hashes.update(_all_hashes(value))
+        values = _read_json_sequence(path)
+        hashes.update(_all_hashes(values))
         file_hashes.append(sha256_file(path))
     if not hashes or not file_hashes:
         raise Generation5RecoveryAuthorityError("Prior exclusion evidence is empty.")

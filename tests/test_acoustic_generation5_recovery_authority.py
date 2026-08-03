@@ -91,3 +91,13 @@ def test_r0_apply_replay_is_private_and_idempotent(tmp_path, monkeypatch) -> Non
     assert replayed["idempotent_replay"] is True
     assert paths["manifest"].stat().st_mode & 0o777 == 0o600
     assert "private_evidence" not in paths["receipt"].read_text()
+
+
+def test_prior_reader_accepts_concatenated_json_documents(tmp_path) -> None:
+    path = tmp_path / "evidence.json"
+    path.write_text('{"one":"' + "a" * 64 + '"}\n{"two":"' + "b" * 64 + '"}\n')
+
+    values = r0._read_json_sequence(path)
+
+    assert len(values) == 2
+    assert r0._all_hashes(values) == {"a" * 64, "b" * 64}
