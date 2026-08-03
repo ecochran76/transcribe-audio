@@ -2,6 +2,38 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 298 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-CORRECTION | Immutable operator label corrections
+
+State transition: `OPEN/G1A-import-ready-awaiting-answers -> OPEN/G1A-corrected-review-awaiting-answers`.
+
+- Corrected both prior operator assertions without mutating the original gap
+  packet. Immutable correction content hashes are
+  `c0e2c19a9d61f5e20f43e59c1a88804f673f68b05515c0a59204820832ecc178`
+  and
+  `66a3a684fe6e15f85fac50f16aaf2e9d7fdd202cfc1b0d0c13705d10b8ab56be`.
+- Added fail-closed correction validation over the base gap hash, speaker
+  reference and label, prior identity hash, and correction content hash.
+- Corrected private review bundle
+  `c826f642f47e915ff3afd5476615e342f53b8ff5981b8a6ec0ddac1b641d3d2d`
+  retains 12 private clips, two corrected prefills, ten blanks, and the two
+  enrolled-identity hints. One corrected prefill matches an enrolled identity.
+- Published corrected private preview session `d5a26f851bfe`; the previous
+  preview is superseded. No raw share-link token is persisted here.
+- Focused correction tests pass, and the full suite passes 754 tests in
+  61.75 seconds. Commit `dc0c6c5` is pushed and upstream-even.
+
+Next:
+
+- Operator completes the ten blank labels in the corrected preview, uses
+  **Copy all answers**, and returns the copied block. Import only that complete
+  block, then run the G1A population gates before any J1 action.
+
 ## Turn 297 | 2026-08-03
 
 Plan:

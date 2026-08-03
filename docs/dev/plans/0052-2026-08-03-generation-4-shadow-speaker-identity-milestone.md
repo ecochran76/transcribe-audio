@@ -119,13 +119,19 @@ G1A remains at the private-gold review gate; the supplemental-pool option is
 unconsumed. A two-for-two original-pool substitution reduces the unresolved
 operator review from 13 to 10 speaker labels while preserving seven recordings
 and structural population capacity. Private review bundle hash is
-`09a4718d04e0d931daad9e8bcb38e46b0fa524b9c53cd88797473202bafbc3ec`;
-its 12 short clips and review page are all `0600`, with the two prior operator
-labels prefilled and the two pre-existing enrolled identity names shown only as
-private review hints. The fail-closed answer importer is ready: partial,
-duplicate, or unknown labels cannot create a GOLD_SCHEMA packet. J1 and all
-later actions remain false. No private-gold reveal to a prediction worker,
-prediction, or evaluation-model execution has started.
+`c826f642f47e915ff3afd5476615e342f53b8ff5981b8a6ec0ddac1b641d3d2d`;
+its 12 short clips and review page are all `0600`. Both prior operator
+assertions were corrected through immutable overlays with content hashes
+`c0e2c19a9d61f5e20f43e59c1a88804f673f68b05515c0a59204820832ecc178`
+and
+`66a3a684fe6e15f85fac50f16aaf2e9d7fdd202cfc1b0d0c13705d10b8ab56be`;
+the original assertions remain preserved. The corrected labels are prefilled,
+the two pre-existing enrolled identity names remain private review hints, and
+one corrected prefill matches an enrolled identity. The fail-closed answer
+importer is ready: partial, duplicate, or unknown labels cannot create a
+GOLD_SCHEMA packet. J1 and all later actions remain false. No private-gold
+reveal to a prediction worker, prediction, or evaluation-model execution has
+started.
 
 ## Scope
 
@@ -262,13 +268,16 @@ The feasibility apply is immutable and replays full-body with private
 `0700/0600` modes, but it deliberately freezes neither cohort nor gold. Its
 only authorized next action is completion of the private gold review. A
 private, local-only batch listening sheet now presents 12 labels across the
-best seven-recording original-pool substitution; two are operator-supported
-and ten remain for review. It privately names the two enrolled identities that
-must each appear in two sessions. A complete copied response can be converted
-deterministically into one private, unfrozen GOLD_SCHEMA packet; blanks,
-unknowns, duplicates, stale membership, and stale Generation-3 enrollment
-authority fail closed. No external preview publication or supplemental media
-use occurred.
+best seven-recording original-pool substitution; two corrected assertions are
+operator-supported and ten remain for review. Corrections are immutable
+overlays bound to the base gap packet, speaker reference, prior identity hash,
+and correction content hash; the original packet is not mutated. The sheet
+privately names the two enrolled identities that must each appear in two
+sessions. A complete copied response can be converted deterministically into
+one private, unfrozen GOLD_SCHEMA packet; blanks, unknowns, duplicates, stale
+membership, and stale Generation-3 enrollment authority fail closed. The
+corrected private review was published through the authorized preview service;
+the previous review is superseded. No supplemental media use occurred.
 
 ### G1B | Acoustic Evidence Contract
 
