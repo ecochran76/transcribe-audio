@@ -107,10 +107,12 @@ replay exactly. Independent J1 then signed acceptance.
 
 G2 froze the exact cohort, private-gold commitment, selected factor, complete
 nine-unit contract, contextual prompt/rubric, negative actions, metrics, and
-terminal policy. Its preview is
-`cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee`
+terminal policy. Its replay-stable renewed preview is
+`6d6e86094c809c34c45694c311063c06570020348eccd6f65a420535167e3d41`
 and private manifest is
-`ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41`.
+`20cb311ebf436ffdd382c4715de2987d854d1d5b5c56974739d1c4f94c96ae61`.
+It is semantically identical to the G2 authority used for G3; only repository
+authority was repaired from moving `HEAD` to the last module commit.
 
 G3 executed one frozen prediction-blind preparation attempt. Three cases
 completed all 15 P1/P2 method cells. The fourth P1 source duration was
@@ -118,9 +120,9 @@ completed all 15 P1/P2 method cells. The fourth P1 source duration was
 seconds: drift `0.17397950000031415` exceeded the immutable `0.05`-second
 tolerance. Cohort substitution and recipe relaxation were forbidden after G2,
 so the remaining three cases were not attempted. Terminal preview
-`fd1a1bed2c6b300e7bc829277465b7820aee8d3c7a7f7d570683ab1f3823333c`
+`2f7f228189072dfb90344c916c2e104d0d4836ea613cd0f081f7e9109e33fc17`
 and private manifest
-`b75aefda1bbf2c38c6c33c7054fc39d05f3631777e4409bc248411f32b0f47ea`
+`7600629721bfcedcf3e6a1f708164fe4600441f8241874873a473e00080fe702`
 replay full-body. Gold was never revealed to prediction workers; no contextual
 prediction, biometric model, acoustic score, profile mutation, integration,
 or reprocessing action ran. A successor requires fresh authority.

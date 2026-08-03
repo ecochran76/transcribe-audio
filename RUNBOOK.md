@@ -30,23 +30,26 @@ State transition: `OPEN/J1-independent-design-reconciliation -> CLOSED/G6-stop`.
 - G2 froze the exact seven-recording cohort, private-gold commitment,
   population proof, selected acoustic factor, full nine-unit contract,
   contextual contract, metrics, negative actions, and terminal policy at
-  commit `473a67c`. Preview
-  `cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee`
+  commit `473a67c`. Replay authority was subsequently repaired at `dc069a6`
+  without changing any G2 semantics: the generator now binds its last module
+  commit instead of moving `HEAD`. Renewed preview
+  `6d6e86094c809c34c45694c311063c06570020348eccd6f65a420535167e3d41`
   and private manifest
-  `ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41`
+  `20cb311ebf436ffdd382c4715de2987d854d1d5b5c56974739d1c4f94c96ae61`
   replay idempotently. Gold reveal and biometric models remained false.
 - G3 ran one frozen prediction-blind preparation attempt. Three cases
   completed and replayed all 15 P1/P2 method cells. The fourth source probed
   at `5138.648667` seconds and decoded at `5138.4746875` seconds. Drift
   `0.17397950000031415` exceeded the immutable `0.05`-second P1 tolerance.
   The remaining three cases were not attempted after the hard gate failed.
-- G6 mechanically applied terminal precedence one. Commit `4e44d9c` freezes
-  terminal preview
-  `fd1a1bed2c6b300e7bc829277465b7820aee8d3c7a7f7d570683ab1f3823333c`,
+- G6 mechanically applied terminal precedence one. Commit `ea058de` preserves
+  the original G3 execution authority while binding the renewed,
+  semantically-identical G2 receipt. It freezes terminal preview
+  `2f7f228189072dfb90344c916c2e104d0d4836ea613cd0f081f7e9109e33fc17`,
   failure evidence
-  `98c8dd4921383113719bbfc5573f62c38789dc36cc0416b80df4ad353b7c4906`,
+  `53915d76835849db729b380095e2043cc23af8ee3f03aece1ac2d3bc9793b1ed`,
   and `0600` private manifest
-  `b75aefda1bbf2c38c6c33c7054fc39d05f3631777e4409bc248411f32b0f47ea`.
+  `7600629721bfcedcf3e6a1f708164fe4600441f8241874873a473e00080fe702`.
   Full-body replay returns terminal decision `stop`.
 - The full suite passed `764` tests. No contextual or augmented prediction
   turn, gold reveal, biometric execution, acoustic score, profile/reference
