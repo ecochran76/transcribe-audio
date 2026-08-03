@@ -61,3 +61,28 @@ def test_real_adversarial_grid_rejects_every_fault(tmp_path: Path) -> None:
         boundary["discontinuity_limit_ticks_denominator"],
     )
     assert Fraction(boundary["maximum_pts_delta"]) == limit
+
+
+def test_heldout_grid_is_seed_and_severity_disjoint(tmp_path: Path) -> None:
+    source = tmp_path / "source.m4a"
+    _make_source(source)
+    source_sha256 = p1.sha256_file(source)
+
+    development = adversarial.run_development_adversaries(
+        source,
+        expected_source_sha256=source_sha256,
+        channel_policy_authority_sha256="a" * 64,
+    )
+    holdout = adversarial.run_holdout_adversaries(
+        source,
+        expected_source_sha256=source_sha256,
+        channel_policy_authority_sha256="a" * 64,
+    )
+
+    assert holdout["all_expected_rejections_observed"] is True
+    assert holdout["case_count"] == 11
+    assert holdout["seed"] != development["seed"]
+    assert holdout["segment_start_seconds"] != development["segment_start_seconds"]
+    assert holdout["tail_loss_frames"] == [2, 800, 8_000, 32_000]
+    assert holdout["timestamp_gap_samples"] == [1_024, 9_600]
+    assert holdout["content_sha256"] != development["content_sha256"]

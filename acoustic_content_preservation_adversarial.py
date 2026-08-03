@@ -16,10 +16,13 @@ import acoustic_content_preservation as preservation
 
 SCHEMA_VERSION = "transcribe-audio.content-preservation-adversarial.v1"
 DEVELOPMENT_SEED = "generation5-duration-development-v1"
+HOLDOUT_SEED = "generation5-duration-holdout-v1"
 SEGMENT_SECONDS = 12
-TAIL_LOSS_FRAMES = (2, 320, 4_000, 16_000)
+DEVELOPMENT_TAIL_LOSS_FRAMES = (2, 320, 4_000, 16_000)
+HOLDOUT_TAIL_LOSS_FRAMES = (2, 800, 8_000, 32_000)
 MIDDLE_REMOVAL_FRAMES = 1_024
-TIMESTAMP_GAP_SAMPLES = (1_024, 4_800)
+DEVELOPMENT_TIMESTAMP_GAP_SAMPLES = (1_024, 4_800)
+HOLDOUT_TIMESTAMP_GAP_SAMPLES = (1_024, 9_600)
 CORRUPT_SOURCE_TAIL_BYTES = 4_096
 
 
@@ -64,18 +67,18 @@ def _packet_location(path: Path, ffprobe_path: str) -> tuple[int, int]:
     return position, size
 
 
-def _segment_start_seconds(source_sha256: str) -> int:
-    return int(hashlib.sha256(f"{DEVELOPMENT_SEED}:{source_sha256}".encode()).hexdigest()[:8], 16) % 60
+def _segment_start_seconds(source_sha256: str, seed: str) -> int:
+    return int(hashlib.sha256(f"{seed}:{source_sha256}".encode()).hexdigest()[:8], 16) % 60
 
 
 def _make_segment(
-    source: Path, target: Path, *, source_sha256: str, ffmpeg_path: str
+    source: Path, target: Path, *, source_sha256: str, seed: str, ffmpeg_path: str
 ) -> None:
     _run(
         [
             ffmpeg_path,
             "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", str(_segment_start_seconds(source_sha256)),
+            "-ss", str(_segment_start_seconds(source_sha256, seed)),
             "-i", str(source), "-t", str(SEGMENT_SECONDS),
             "-map", "0:a:0", "-vn", "-ac", "2", "-ar", "48000",
             "-c:a", "aac", "-b:a", "128k", str(target),
@@ -142,13 +145,16 @@ def _exception_case(
     }
 
 
-def run_development_adversaries(
+def _run_adversaries(
     source: Path,
     *,
     expected_source_sha256: str,
     channel_policy_authority_sha256: str,
+    seed: str,
+    tail_loss_frames: tuple[int, ...],
+    timestamp_gap_samples: tuple[int, ...],
 ) -> dict[str, Any]:
-    """Construct and execute the frozen development-only negative family."""
+    """Construct and execute one frozen, seeded negative family."""
     if p1.sha256_file(source) != expected_source_sha256:
         raise AdversarialValidationError("Development source binding drifted.")
     plan, _ = p1._build_plan(
@@ -165,6 +171,7 @@ def run_development_adversaries(
         segment = root / "baseline.m4a"
         _make_segment(
             source, segment, source_sha256=expected_source_sha256,
+            seed=seed,
             ffmpeg_path=ffmpeg_path,
         )
         segment_sha256 = p1.sha256_file(segment)
@@ -191,7 +198,7 @@ def run_development_adversaries(
         parameters, frames = _read_wav(baseline_wav)
         bytes_per_frame = parameters.nchannels * parameters.sampwidth
 
-        for frame_loss in TAIL_LOSS_FRAMES:
+        for frame_loss in tail_loss_frames:
             variant = root / f"tail-loss-{frame_loss}.wav"
             _write_wav(variant, parameters, frames[: -frame_loss * bytes_per_frame])
             measurement = preservation.measure(
@@ -260,7 +267,7 @@ def run_development_adversaries(
         )
         private_fixture_hashes["corrupt_output_tail_content"] = p1.sha256_file(corrupt_output)
 
-        for gap_samples in TIMESTAMP_GAP_SAMPLES:
+        for gap_samples in timestamp_gap_samples:
             timestamp_gap = root / f"timestamp-gap-{gap_samples}.m4a"
             _run(
                 [
@@ -325,7 +332,7 @@ def run_development_adversaries(
         cases.append(corrupt_case)
         private_fixture_hashes["corrupt_source_tail"] = corrupt_source_hash
 
-    expected_count = len(TAIL_LOSS_FRAMES) + len(TIMESTAMP_GAP_SAMPLES) + 5
+    expected_count = len(tail_loss_frames) + len(timestamp_gap_samples) + 5
     passed = (
         len(cases) == expected_count
         and all(item["status"] == "rejected" for item in cases)
@@ -336,12 +343,12 @@ def run_development_adversaries(
     }
     core = {
         "schema_version": SCHEMA_VERSION,
-        "seed": DEVELOPMENT_SEED,
-        "segment_start_seconds": _segment_start_seconds(expected_source_sha256),
+        "seed": seed,
+        "segment_start_seconds": _segment_start_seconds(expected_source_sha256, seed),
         "segment_seconds": SEGMENT_SECONDS,
-        "tail_loss_frames": list(TAIL_LOSS_FRAMES),
+        "tail_loss_frames": list(tail_loss_frames),
         "middle_removal_frames": MIDDLE_REMOVAL_FRAMES,
-        "timestamp_gap_samples": list(TIMESTAMP_GAP_SAMPLES),
+        "timestamp_gap_samples": list(timestamp_gap_samples),
         "compressed_packet_removal_bytes": packet_size,
         "tool_identity": {
             "decoder_path": plan["recipe"]["decoder_path"],
@@ -356,3 +363,37 @@ def run_development_adversaries(
         "private_case_measurements": private_case_measurements,
     }
     return {**core, "content_sha256": _canonical_hash(core)}
+
+
+def run_development_adversaries(
+    source: Path,
+    *,
+    expected_source_sha256: str,
+    channel_policy_authority_sha256: str,
+) -> dict[str, Any]:
+    """Construct and execute the frozen development-only negative family."""
+    return _run_adversaries(
+        source,
+        expected_source_sha256=expected_source_sha256,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
+        seed=DEVELOPMENT_SEED,
+        tail_loss_frames=DEVELOPMENT_TAIL_LOSS_FRAMES,
+        timestamp_gap_samples=DEVELOPMENT_TIMESTAMP_GAP_SAMPLES,
+    )
+
+
+def run_holdout_adversaries(
+    source: Path,
+    *,
+    expected_source_sha256: str,
+    channel_policy_authority_sha256: str,
+) -> dict[str, Any]:
+    """Construct and execute the separately seeded G2 held-out negative family."""
+    return _run_adversaries(
+        source,
+        expected_source_sha256=expected_source_sha256,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
+        seed=HOLDOUT_SEED,
+        tail_loss_frames=HOLDOUT_TAIL_LOSS_FRAMES,
+        timestamp_gap_samples=HOLDOUT_TIMESTAMP_GAP_SAMPLES,
+    )
