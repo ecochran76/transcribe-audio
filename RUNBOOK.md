@@ -1,5 +1,43 @@
 # Runbook
 
+## Turn 308: Open Plan 0054 fresh-holdout recovery (2026-08-03)
+
+- Opened
+  `docs/dev/plans/0054-2026-08-03-generation-5-fresh-holdout-recovery-and-blind-evaluation.md`
+  after Plan 0053's mandatory J2 STOP.
+- The successor retains the J1-accepted sample-preservation rule but cannot
+  reuse Plan 0053 development, positive-holdout, or negative media.
+- R0 must freeze a comprehensive exclusion union, a deterministic new
+  seven-source holdout proposal, the separately seeded recovery negatives, and
+  literal expected reasons before J0 can authorize any new decode.
+- The end state remains the full new blind context-only versus voice-augmented
+  evaluation; passing recovery validation alone is not milestone completion.
+
+## Turn 307: Plan 0053 J1 pass, G2 evidence, and J2 terminal STOP (2026-08-03)
+
+- The first J1 review stopped on an exact one-packet discontinuity boundary and
+  two weak adversarial implementations. A new G1 packet repaired the comparator,
+  exercised the exact boundary, removed a real compressed packet, invoked the
+  validator for wrong-stream input, and retained full private evidence.
+- Fresh J1 review passed preview
+  `3e66a93feb5a826680025135c6b60e0e541ed724a639146c1df126f403242919`;
+  manifest
+  `4d5ad0f08ba14ca20bd489530cc8919ab0d2defa9bb0dfaecfba5a761a303f0f`.
+  G2-only acceptance preview is
+  `1ccb0b9b747760b6202827f849d2575956a67ad03dd3e374d169b1777292eeda`.
+- G2 measured its holdout once: 7/7 positive recordings passed and 11/11
+  adversaries appeared rejected. Preview
+  `fc0d0dca9eec248df2e8dccdd262a3062ca2e5deca03aaa99799e4253e647c83`
+  and manifest
+  `c59771c6d6054be0384956beaa7a7908dca1fe6cbdffb93bf8fe2d00469c69f2`
+  replay without re-decoding.
+- Independent J2 reproduced 7/7 positives and ten fixed negatives, but found
+  `corrupt_source_tail` copied the observed reason into `expected_reason`.
+  The negative denominator was therefore circular and J2 returned `STOP`.
+- Plan 0053 is closed. No candidate, gold, model, prediction, mutation,
+  integration, or reprocessing action ran. The code now predeclares
+  `measurement_error`, but the revealed Plan 0053 holdout cannot be reused.
+
 ## Turn 306: Generation-5 development diagnosis measured (2026-08-03)
 
 - Ran the committed content-preservation validator from `3d8071d` against only

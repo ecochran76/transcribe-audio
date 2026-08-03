@@ -24,6 +24,15 @@ MIDDLE_REMOVAL_FRAMES = 1_024
 DEVELOPMENT_TIMESTAMP_GAP_SAMPLES = (1_024, 4_800)
 HOLDOUT_TIMESTAMP_GAP_SAMPLES = (1_024, 9_600)
 CORRUPT_SOURCE_TAIL_BYTES = 4_096
+EXPECTED_REASON_CONTRACT = {
+    "tail_loss": "output_sample_extent_mismatch",
+    "middle_packet_equivalent_removal": "output_content_mismatch",
+    "compressed_packet_removal": "source_hash_mismatch",
+    "corrupt_output_tail_content": "output_content_mismatch",
+    "timestamp_discontinuity": "timeline_discontinuity",
+    "wrong_stream_count": "audio_stream_count_not_one",
+    "corrupt_source_tail": "measurement_error",
+}
 
 
 class AdversarialValidationError(ValueError):
@@ -208,7 +217,7 @@ def _run_adversaries(
                 production_wav=variant,
             )
             case_id = f"tail_loss_{frame_loss}_frames"
-            cases.append(_case(case_id, measurement, "output_sample_extent_mismatch"))
+            cases.append(_case(case_id, measurement, EXPECTED_REASON_CONTRACT["tail_loss"]))
             private_fixture_hashes[case_id] = p1.sha256_file(variant)
 
         removal_start = len(frames) // (2 * bytes_per_frame) * bytes_per_frame
@@ -225,7 +234,10 @@ def _run_adversaries(
             production_wav=removed,
         )
         cases.append(
-            _case("middle_packet_equivalent_removal", removed_measurement, "output_content_mismatch")
+            _case(
+                "middle_packet_equivalent_removal", removed_measurement,
+                EXPECTED_REASON_CONTRACT["middle_packet_equivalent_removal"],
+            )
         )
         private_fixture_hashes["middle_packet_equivalent_removal"] = p1.sha256_file(removed)
 
@@ -245,7 +257,8 @@ def _run_adversaries(
             )
         except preservation.ContentPreservationError as exc:
             compressed_case = _exception_case(
-                "compressed_packet_removal", exc, "source_hash_mismatch"
+                "compressed_packet_removal", exc,
+                EXPECTED_REASON_CONTRACT["compressed_packet_removal"],
             )
         else:
             raise AdversarialValidationError("Compressed packet removal was not rejected.")
@@ -263,7 +276,10 @@ def _run_adversaries(
             production_wav=corrupt_output,
         )
         cases.append(
-            _case("corrupt_output_tail_content", corrupt_output_measurement, "output_content_mismatch")
+            _case(
+                "corrupt_output_tail_content", corrupt_output_measurement,
+                EXPECTED_REASON_CONTRACT["corrupt_output_tail_content"],
+            )
         )
         private_fixture_hashes["corrupt_output_tail_content"] = p1.sha256_file(corrupt_output)
 
@@ -286,7 +302,12 @@ def _run_adversaries(
                 channel_policy_authority_sha256=channel_policy_authority_sha256,
             )
             case_id = f"timestamp_discontinuity_{gap_samples}_samples"
-            cases.append(_case(case_id, timestamp_measurement, "timeline_discontinuity"))
+            cases.append(
+                _case(
+                    case_id, timestamp_measurement,
+                    EXPECTED_REASON_CONTRACT["timestamp_discontinuity"],
+                )
+            )
             private_fixture_hashes[case_id] = timestamp_hash
 
         wrong_stream = root / "wrong-stream.m4a"
@@ -307,7 +328,8 @@ def _run_adversaries(
             )
         except preservation.ContentPreservationError as exc:
             wrong_stream_case = _exception_case(
-                "wrong_stream_count", exc, "audio_stream_count_not_one"
+                "wrong_stream_count", exc,
+                EXPECTED_REASON_CONTRACT["wrong_stream_count"],
             )
         else:
             raise AdversarialValidationError("Wrong-stream fixture was not rejected.")
@@ -325,10 +347,14 @@ def _run_adversaries(
             )
         except preservation.ContentPreservationError as exc:
             corrupt_case = _exception_case(
-                "corrupt_source_tail", exc, exc.reason_code
+                "corrupt_source_tail", exc,
+                EXPECTED_REASON_CONTRACT["corrupt_source_tail"],
             )
         else:
-            corrupt_case = _case("corrupt_source_tail", corrupt_source_measurement, "decode_warning")
+            corrupt_case = _case(
+                "corrupt_source_tail", corrupt_source_measurement,
+                EXPECTED_REASON_CONTRACT["corrupt_source_tail"],
+            )
         cases.append(corrupt_case)
         private_fixture_hashes["corrupt_source_tail"] = corrupt_source_hash
 
@@ -344,6 +370,8 @@ def _run_adversaries(
     core = {
         "schema_version": SCHEMA_VERSION,
         "seed": seed,
+        "expected_reason_contract": EXPECTED_REASON_CONTRACT,
+        "expected_reason_contract_sha256": _canonical_hash(EXPECTED_REASON_CONTRACT),
         "segment_start_seconds": _segment_start_seconds(expected_source_sha256, seed),
         "segment_seconds": SEGMENT_SECONDS,
         "tail_loss_frames": list(tail_loss_frames),

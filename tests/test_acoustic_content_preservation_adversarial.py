@@ -61,6 +61,15 @@ def test_real_adversarial_grid_rejects_every_fault(tmp_path: Path) -> None:
         boundary["discontinuity_limit_ticks_denominator"],
     )
     assert Fraction(boundary["maximum_pts_delta"]) == limit
+    corrupt_tail = next(
+        item for item in result["cases"] if item["case_id"] == "corrupt_source_tail"
+    )
+    assert corrupt_tail["expected_reason"] == "measurement_error"
+    assert corrupt_tail["reason_codes"] == ["measurement_error"]
+    assert result["expected_reason_contract"]["corrupt_source_tail"] == "measurement_error"
+    assert result["expected_reason_contract_sha256"] == adversarial._canonical_hash(
+        adversarial.EXPECTED_REASON_CONTRACT
+    )
 
 
 def test_heldout_grid_is_seed_and_severity_disjoint(tmp_path: Path) -> None:

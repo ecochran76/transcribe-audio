@@ -1,16 +1,29 @@
 # Plan 0053 | Generation-5 Duration Validation And Blind Evaluation
 
-State: OPEN
+State: CLOSED — TERMINAL STOP AT J2
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Execution Mode: `/goal`-compatible, bounded, checkpointed
 
 Critical-Path Owner: primary agent
 
 Optimization: balanced for correctness, evidence quality, and time
+
+## Terminal Outcome
+
+Plan 0053 closed with `STOP` at J2. The repaired content-preservation rule was
+accepted at J1. All seven sealed positive-holdout recordings passed, and ten
+fixed held-out adversaries reproduced. The eleventh, `corrupt_source_tail`,
+copied the observed exception reason into its expected-reason field, making
+that expected-reason assertion circular. J2 therefore proved at most 10/11
+predeclared negative reasons and correctly withheld G3 authority. No candidate
+enumeration, gold access, biometric model execution, prediction, profile
+mutation, integration, or reprocessing occurred. The passing audio evidence
+does not override the invalid denominator. Any continuation requires a fresh
+plan and fresh positive holdout; the Plan 0053 holdout cannot be reused.
 
 ## Goal Contract
 

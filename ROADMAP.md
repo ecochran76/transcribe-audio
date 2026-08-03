@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0053 Generation-5 duration validation and blind evaluation
+State: OPEN — Plan 0054 fresh-holdout recovery and Generation-5 blind evaluation
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -544,6 +544,16 @@ diagnostic-disjoint evaluation cohort and run the complete blind context-only
 versus separately voice-augmented comparison. The lane remains open until one
 immutable Generation-5 terminal decision; a decoder fix, passing holdout,
 cohort freeze, or model score is not closure.
+
+Plan 0053 is now closed with terminal `STOP` at J2. Its J1-accepted
+sample-preservation rule passed all seven positive holdouts and ten fixed
+negative cases, but the corrupt-tail negative copied its observed exception
+reason into the expected field. That circular assertion invalidated the 11/11
+negative denominator. Candidate enumeration, gold, models, predictions,
+mutation, integration, and reprocessing never ran. Plan 0054 opens a fresh
+successor with a predeclared corrupt-tail reason, a newly selected disjoint
+positive holdout, and the same end-to-end paired evaluation milestone in
+`docs/dev/plans/0054-2026-08-03-generation-5-fresh-holdout-recovery-and-blind-evaluation.md`.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
