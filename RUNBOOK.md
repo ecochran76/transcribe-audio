@@ -2,6 +2,40 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 292 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G0 | Authority replay implementation checkpoint
+
+State transition: `OPEN/G0-not-started -> OPEN/G0-implementation-prepared`.
+
+- Graphiti discovery was healthy and returned 10 facts, five nodes, and five
+  episodes from `transcribe_audio_main`. Its Plan 0025 active-state wording is
+  stale; the current repo's CLOSED plan remains authoritative.
+- Replayed the exact Plan 0051 authority full-body with source re-decode and no
+  retained audio. All counts, reason codes, media hashes, privacy flags, and
+  the negative action vector match the frozen receipt.
+- Confirmed the first inherited calibration replay failure came from invoking
+  system Python, where the pinned biometric distributions are absent. The
+  repository `.venv` has exact SpeechBrain 1.1.0 and ONNX Runtime 1.24.4; the
+  complete nine-threshold replay then passed without audio or model execution.
+- Added a portable G0 preview/apply/replay authority that binds the plan,
+  repository, qualified media, six-profile set, model assets, score matrix,
+  nine-threshold set, pinned runtimes, privacy flags, and negative actions.
+- Reconciled Plan 0050 from stale `OPEN` to `CLOSED`; its independently audited
+  Generation-3 media-integrity `STOP` remains unchanged and non-retryable.
+- G0 delegation receipt is `not_spawned`: this is the primary-owned critical
+  authority path. The three named G1 design lanes remain unauthorized until
+  the production G0 checkpoint is applied and replayed.
+
+Next:
+
+- Validate, commit, and push the G0 implementation; then run its production
+  no-write preview, immutable apply, permission check, and exact replay.
+
 ## Turn 291 | 2026-08-03
 
 Plan:

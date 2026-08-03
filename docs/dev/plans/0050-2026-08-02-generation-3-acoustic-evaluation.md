@@ -1,6 +1,6 @@
 # Plan 0050 | Generation-3 acoustic evaluation
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 

@@ -88,6 +88,17 @@ capability beyond shadow evidence.
 - Private gold, raw transcripts, raw audio, embeddings, and private provider
   bodies remain in private governed storage, never broad memory surfaces.
 
+## Current State
+
+Plan 0051's exact 12-candidate authority replays full-body: 10 recordings
+remain qualified, two remain rejected only as shorter than 60 seconds, and the
+qualified-set and private-manifest hashes match. The six active successor
+profiles and all nine frozen calibration thresholds also replay in the pinned
+`.venv` without audio or model execution. G0 checkpoint implementation is
+prepared and tested; its production preview/apply/replay remains pending until
+that implementation is clean, committed, pushed, and upstream-even. No G1
+worker, private-gold access, prediction, or model execution has started.
+
 ## Scope
 
 - Replay and verify the Plan 0051 authority before deriving membership.

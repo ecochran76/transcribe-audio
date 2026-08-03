@@ -513,9 +513,11 @@ Only a separate cohort-preview action is authorized. The next bounded slice
 must determine conversation identity, enrolled-speaker coverage, and private
 gold feasibility before freezing any Generation-4 cohort.
 
-Plan 0052 opens the full meaningful Generation-4 milestone rather than only
-that next slice. It must carry the qualified pool through cohort and private
-gold feasibility, one frozen unseen acoustic evaluation, and a paired shadow
+Plan 0052, governed by
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+opens the full meaningful Generation-4 milestone rather than only that next
+slice. It must carry the qualified pool through cohort and private gold
+feasibility, one frozen unseen acoustic evaluation, and a paired shadow
 comparison of the existing Plan 0025 context-only workflow against the same
 workflow with separately visible acoustic evidence. Completion requires one
 immutable terminal decision: advance to a separately governed limited-pilot
