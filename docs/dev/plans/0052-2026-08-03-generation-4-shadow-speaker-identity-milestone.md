@@ -116,8 +116,13 @@ private feasibility preview hash is
 and immutable manifest hash is
 `e5dea7c7d0ede0478ce97c5152e3e2e15122cbdc0aa57001c0cb4e51bc6bc487`.
 G1A remains at the private-gold review gate; the supplemental-pool option is
-unconsumed. J1 and all later actions remain false. No private-gold reveal to a
-prediction worker, prediction, or evaluation-model execution has started.
+unconsumed. A two-for-two original-pool substitution reduces the unresolved
+operator review from 13 to 10 speaker labels while preserving seven recordings
+and structural population capacity. Private review bundle hash is
+`41294254962762e700af78273c4367c59a02718c2e91be1632ab1330a4e34f58`;
+its 12 short clips and review page are all `0600`, with the two prior operator
+labels prefilled. J1 and all later actions remain false. No private-gold reveal
+to a prediction worker, prediction, or evaluation-model execution has started.
 
 ## Scope
 
@@ -252,7 +257,11 @@ Checkpoint: private-gold review required. The original pool is sufficient to
 propose a seven-recording subset without consuming the supplemental option.
 The feasibility apply is immutable and replays full-body with private
 `0700/0600` modes, but it deliberately freezes neither cohort nor gold. Its
-only authorized next action is completion of the private gold review.
+only authorized next action is completion of the private gold review. A
+private, local-only batch listening sheet now presents 12 labels across the
+best seven-recording original-pool substitution; two are operator-supported
+and ten remain for review. No external preview publication or supplemental
+media use occurred.
 
 ### G1B | Acoustic Evidence Contract
 

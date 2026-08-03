@@ -2,6 +2,48 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 296 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-REVIEW | Private operator listening gate
+
+State transition: `OPEN/G1A-private-gold-review-required -> OPEN/G1A-operator-review-ready`.
+
+- Conservative transcript/calendar review supported 2 of 15 labels in the
+  original proposed subset. It created no gold authority and correctly left
+  population passing false.
+- A bounded two-for-two substitution within the transcript-linked original
+  pool preserves seven recordings, zero source/derivative overlap, and
+  structural people/session-pair capacity while reducing unresolved labels
+  from 13 to 10. Supplemental media remains unconsumed and unnecessary.
+- Added a content-addressed private review-bundle generator. It produces one
+  local HTML sheet, short per-label audio excerpts, bounded transcript clues,
+  and a copyable batch response. It does not run acoustic models or expose
+  predictions/scores.
+- Production bundle
+  `41294254962762e700af78273c4367c59a02718c2e91be1632ab1330a4e34f58`
+  contains seven cases and 12 labels; the two prior operator assertions are
+  prefilled, leaving ten manual labels. All page, receipt, and clip artifacts
+  are `0600`.
+- The page was intentionally kept out of the external Previews service because
+  it contains private transcript clues and audio excerpts. A local browser
+  smoke proved the page, 12 audio controls, 12 inputs, and prefilled labels
+  render. All 12 clips replay as positive 25-second WAV excerpts.
+- Implementation commits `7a5a6e5`, `3b0ff5d`, and `ed6d23d` are pushed and
+  upstream-even. The full suite passed 748 tests before the two focused
+  production corrections; four focused tests, compilation, and diff checks
+  pass afterward.
+
+Next:
+
+- Operator completes the ten remaining labels in the single private review
+  page and pastes its copied response. G1A then builds and validates the exact
+  private GOLD_SCHEMA packet. Do not run J1 or consume supplemental media
+  before that result.
+
 ## Turn 295 | 2026-08-03
 
 Plan:
