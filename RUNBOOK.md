@@ -2,6 +2,47 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 299 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-GOLD | Complete gold import and original-pool remainder gate
+
+State transition: `OPEN/G1A-corrected-review-awaiting-answers -> OPEN/G1A-original-remainder-review-required`.
+
+- Normalized the operator's copied page text into the exact 12-reference answer
+  block. Both later immutable corrections took precedence over stale values in
+  the copied original-page text.
+- Applied private, unfrozen GOLD_SCHEMA content
+  `4534fbb173c5ae8d261d3df6783e3f8908d48ef514979dff800bb24db6af7534`;
+  its `0600` private file hash is
+  `02624aec6bca8106a18f508b57bcfd7f3250e0760a36cc8565ecaca0f813022a`.
+- Population evaluation passed six gates with seven conversations, seven
+  people, 11 same-person session pairs, complete gold, zero overlap, and all
+  sources inside authority. It failed only because one of the two enrolled
+  people has the required two sessions; the other has none in reviewed gold.
+- Because two transcript-linked original-pool recordings remain unreviewed,
+  the bounded supplemental pool is not yet available or consumed. Generated a
+  five-label remainder review under plan hash
+  `eef4a765aaf1c95979a0df1225c3d05365f60054450eebae4e00956660f92e5a`
+  and published private preview session `7aecb6685519`.
+- Fixed the browser copy action so clipboard denial reveals a selectable answer
+  block and attempts the legacy copy fallback. Focused tests pass 9 tests; the
+  full suite passes 754 tests in 65.55 seconds. Commit `a4d1748` is pushed and
+  upstream-even.
+- No acoustic model, prediction, private-gold reveal, cohort/gold freeze,
+  profile mutation, or supplemental-media use occurred. J1 remains false.
+
+Next:
+
+- Operator reviews the five labels in the remaining two original-pool
+  recordings and returns the copied or manually selected answer block. Merge
+  those labels immutably with the existing private gold and re-run G1A. Request
+  the one bounded supplemental pool only if the complete original pool still
+  cannot satisfy enrolled-session coverage.
+
 ## Turn 298 | 2026-08-03
 
 Plan:

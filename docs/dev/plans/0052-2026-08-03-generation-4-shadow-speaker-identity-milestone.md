@@ -127,11 +127,21 @@ and
 `66a3a684fe6e15f85fac50f16aaf2e9d7fdd202cfc1b0d0c13705d10b8ab56be`;
 the original assertions remain preserved. The corrected labels are prefilled,
 the two pre-existing enrolled identity names remain private review hints, and
-one corrected prefill matches an enrolled identity. The fail-closed answer
-importer is ready: partial, duplicate, or unknown labels cannot create a
-GOLD_SCHEMA packet. J1 and all later actions remain false. No private-gold
-reveal to a prediction worker, prediction, or evaluation-model execution has
-started.
+one corrected prefill matches an enrolled identity. The operator's complete
+response was normalized with both corrections taking precedence and imported
+as private, unfrozen GOLD_SCHEMA content
+`4534fbb173c5ae8d261d3df6783e3f8908d48ef514979dff800bb24db6af7534`;
+the private file hash is
+`02624aec6bca8106a18f508b57bcfd7f3250e0760a36cc8565ecaca0f813022a`.
+Six population gates pass: seven conversations, seven people, 11 same-person
+session pairs, complete gold, zero overlap, and all sources within authority.
+The population remains non-passing because only one enrolled person has two
+sessions. The two remaining original-pool recordings now have a five-label
+private review under plan hash
+`eef4a765aaf1c95979a0df1225c3d05365f60054450eebae4e00956660f92e5a`.
+The supplemental-pool option remains unconsumed. J1 and all later actions
+remain false. No private-gold reveal to a prediction worker, prediction, or
+evaluation-model execution has started.
 
 ## Scope
 
@@ -267,17 +277,17 @@ propose a seven-recording subset without consuming the supplemental option.
 The feasibility apply is immutable and replays full-body with private
 `0700/0600` modes, but it deliberately freezes neither cohort nor gold. Its
 only authorized next action is completion of the private gold review. A
-private, local-only batch listening sheet now presents 12 labels across the
-best seven-recording original-pool substitution; two corrected assertions are
-operator-supported and ten remain for review. Corrections are immutable
-overlays bound to the base gap packet, speaker reference, prior identity hash,
-and correction content hash; the original packet is not mutated. The sheet
-privately names the two enrolled identities that must each appear in two
-sessions. A complete copied response can be converted deterministically into
-one private, unfrozen GOLD_SCHEMA packet; blanks, unknowns, duplicates, stale
-membership, and stale Generation-3 enrollment authority fail closed. The
-corrected private review was published through the authorized preview service;
-the previous review is superseded. No supplemental media use occurred.
+private, local-only batch listening sheet presented 12 labels across the best
+seven-recording original-pool substitution. Corrections were immutable overlays
+bound to the base gap packet, speaker reference, prior identity hash, and
+correction content hash; the original packet was not mutated. The complete
+operator response imported deterministically into one private, unfrozen
+GOLD_SCHEMA packet. Population evaluation proved every gate except the
+two-sessions requirement for the second enrolled person. The only authorized
+next action is a five-label review of the two remaining transcript-linked
+original-pool recordings, published through the authorized preview service.
+The copy control now exposes a selectable answer block when clipboard access
+fails. No supplemental media use occurred.
 
 ### G1B | Acoustic Evidence Contract
 
