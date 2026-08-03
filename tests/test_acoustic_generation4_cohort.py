@@ -47,8 +47,128 @@ def _transcript(root: Path, audio: Path, index: int, labels=("A",)) -> Path:
     return path
 
 
-def test_pool_with_fewer_than_seven_linked_recordings_requests_supplement(
+def _bind_source_authority(monkeypatch, qualified: list[dict]) -> None:
+    membership = [
+        {**item, "authority_origin": item.get("authority_origin", "original")}
+        for item in qualified
+    ]
+    monkeypatch.setattr(
+        cohort,
+        "_source_authority",
+        lambda: (dict(AUTHORITY), membership),
+    )
+
+
+def _media_manifest(root: Path, count: int) -> tuple[Path, str, str]:
+    root.mkdir(mode=0o700)
+    results = [
+        {
+            "path": str(root / f"audio-{index}.m4a"),
+            "source_sha256": f"{index + 1:064x}",
+            "status": "qualified",
+        }
+        for index in range(count)
+    ]
+    preview_sha256 = "e" * 64
+    manifest = {
+        "schema_version": cohort.media.MANIFEST_SCHEMA,
+        "status": "frozen",
+        "preview": {
+            "content_sha256": preview_sha256,
+            "candidate_count": count,
+            "qualified_count": count,
+            "private_results": results,
+        },
+    }
+    path = root / "private-manifest.json"
+    path.write_text(json.dumps(manifest, sort_keys=True))
+    path.chmod(0o600)
+    qualified_hash = cohort._canonical_hash(
+        sorted(item["source_sha256"] for item in results)
+    )
+    return path, preview_sha256, qualified_hash
+
+
+def test_manifest_membership_binds_each_member_to_origin(tmp_path: Path) -> None:
+    root = tmp_path / "private"
+    path, preview_hash, qualified_hash = _media_manifest(root, 2)
+
+    members = cohort._manifest_membership(
+        path,
+        private_root=root,
+        expected_manifest_sha256=cohort.sha256_file(path),
+        expected_preview_sha256=preview_hash,
+        expected_qualified_set_sha256=qualified_hash,
+        expected_qualified_count=2,
+        expected_candidate_count=2,
+        authority_origin="supplemental",
+    )
+
+    assert [item["authority_origin"] for item in members] == [
+        "supplemental",
+        "supplemental",
+    ]
+
+
+def test_manifest_membership_rejects_manifest_tamper(tmp_path: Path) -> None:
+    root = tmp_path / "private"
+    path, preview_hash, qualified_hash = _media_manifest(root, 2)
+    expected_manifest_hash = cohort.sha256_file(path)
+    value = json.loads(path.read_text())
+    value["preview"]["private_results"][0]["source_sha256"] = "f" * 64
+    path.write_text(json.dumps(value, sort_keys=True))
+
+    with pytest.raises(cohort.Generation4CohortError, match="manifest drifted"):
+        cohort._manifest_membership(
+            path,
+            private_root=root,
+            expected_manifest_sha256=expected_manifest_hash,
+            expected_preview_sha256=preview_hash,
+            expected_qualified_set_sha256=qualified_hash,
+            expected_qualified_count=2,
+            expected_candidate_count=2,
+            authority_origin="supplemental",
+        )
+
+
+def test_manifest_membership_rejects_qualified_set_tamper(tmp_path: Path) -> None:
+    root = tmp_path / "private"
+    path, preview_hash, _ = _media_manifest(root, 2)
+
+    with pytest.raises(cohort.Generation4CohortError, match="set hash drifted"):
+        cohort._manifest_membership(
+            path,
+            private_root=root,
+            expected_manifest_sha256=cohort.sha256_file(path),
+            expected_preview_sha256=preview_hash,
+            expected_qualified_set_sha256="f" * 64,
+            expected_qualified_count=2,
+            expected_candidate_count=2,
+            authority_origin="supplemental",
+        )
+
+
+def test_manifest_membership_rejects_supplemental_pool_above_bound(
     tmp_path: Path,
+) -> None:
+    root = tmp_path / "private"
+    path, preview_hash, qualified_hash = _media_manifest(root, 13)
+
+    with pytest.raises(cohort.Generation4CohortError, match="manifest drifted"):
+        cohort._manifest_membership(
+            path,
+            private_root=root,
+            expected_manifest_sha256=cohort.sha256_file(path),
+            expected_preview_sha256=preview_hash,
+            expected_qualified_set_sha256=qualified_hash,
+            expected_qualified_count=13,
+            expected_candidate_count=13,
+            authority_origin="supplemental",
+        )
+
+
+def test_pool_with_fewer_than_seven_linked_recordings_requests_supplement(
+    tmp_path: Path, monkeypatch,
 ) -> None:
     tmp_path.chmod(0o700)
     qualified = []
@@ -61,10 +181,9 @@ def test_pool_with_fewer_than_seven_linked_recordings_requests_supplement(
         audio, _ = _audio(tmp_path, index)
         _transcript(tmp_path, audio, index, ("A", "B"))
 
+    _bind_source_authority(monkeypatch, qualified)
     preview = cohort.preview_generation4_cohort(
         source_root=tmp_path,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
 
@@ -81,7 +200,7 @@ def test_pool_with_fewer_than_seven_linked_recordings_requests_supplement(
 
 
 def test_absent_gold_does_not_consume_supplement_for_nine_linked_recordings(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch,
 ) -> None:
     tmp_path.chmod(0o700)
     qualified = []
@@ -91,10 +210,9 @@ def test_absent_gold_does_not_consume_supplement_for_nine_linked_recordings(
         if index < 9:
             _transcript(tmp_path, audio, index, ("A", "B"))
 
+    _bind_source_authority(monkeypatch, qualified)
     preview = cohort.preview_generation4_cohort(
         source_root=tmp_path,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
 
@@ -126,7 +244,7 @@ def test_absent_gold_does_not_consume_supplement_for_nine_linked_recordings(
 
 
 def test_nine_linked_of_ten_passes_with_valid_seven_case_gold_subset(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch,
 ) -> None:
     tmp_path.chmod(0o700)
     qualified = []
@@ -169,11 +287,10 @@ def test_nine_linked_of_ten_passes_with_valid_seven_case_gold_subset(
     )
     gold_path.chmod(0o600)
 
+    _bind_source_authority(monkeypatch, qualified)
     preview = cohort.preview_generation4_cohort(
         source_root=tmp_path,
         gold_path=gold_path,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
 
@@ -253,7 +370,9 @@ def test_population_gate_fails_closed_on_duplicate_conversation() -> None:
     assert result["gates"]["zero_overlap"] is False
 
 
-def test_preview_rejects_gold_whose_labels_do_not_match_transcript(tmp_path: Path) -> None:
+def test_preview_rejects_gold_whose_labels_do_not_match_transcript(
+    tmp_path: Path, monkeypatch
+) -> None:
     tmp_path.chmod(0o700)
     audio, qualified = _audio(tmp_path, 0)
     transcript = _transcript(tmp_path, audio, 0, ("A", "B"))
@@ -278,11 +397,10 @@ def test_preview_rejects_gold_whose_labels_do_not_match_transcript(tmp_path: Pat
     )
     gold_path.chmod(0o600)
 
+    _bind_source_authority(monkeypatch, [qualified])
     preview = cohort.preview_generation4_cohort(
         source_root=tmp_path,
         gold_path=gold_path,
-        authority=AUTHORITY,
-        qualified_membership=[qualified],
         repository_authority=REPOSITORY,
     )
 
@@ -290,29 +408,27 @@ def test_preview_rejects_gold_whose_labels_do_not_match_transcript(tmp_path: Pat
     assert preview["population"]["overlap_count"] == 1
 
 
-def test_preview_rejects_invalid_repository_binding(tmp_path: Path) -> None:
+def test_preview_rejects_invalid_repository_binding(tmp_path: Path, monkeypatch) -> None:
     tmp_path.chmod(0o700)
     audio, qualified = _audio(tmp_path, 0)
     _transcript(tmp_path, audio, 0)
+    _bind_source_authority(monkeypatch, [qualified])
     invalid = {**REPOSITORY, "clean": False}
 
     with pytest.raises(cohort.Generation4CohortError, match="repository authority"):
         cohort.preview_generation4_cohort(
             source_root=tmp_path,
-            authority=AUTHORITY,
-            qualified_membership=[qualified],
             repository_authority=invalid,
         )
 
 
-def test_apply_rejects_stale_repository_binding(tmp_path: Path) -> None:
+def test_apply_rejects_stale_repository_binding(tmp_path: Path, monkeypatch) -> None:
     tmp_path.chmod(0o700)
     audio, qualified = _audio(tmp_path, 0)
     _transcript(tmp_path, audio, 0)
+    _bind_source_authority(monkeypatch, [qualified])
     preview = cohort.preview_generation4_cohort(
         source_root=tmp_path,
-        authority=AUTHORITY,
-        qualified_membership=[qualified],
         repository_authority=REPOSITORY,
     )
     drifted = {**REPOSITORY, "module_sha256": "3" * 64}
@@ -323,13 +439,13 @@ def test_apply_rejects_stale_repository_binding(tmp_path: Path) -> None:
             expected_content_sha256=preview["content_sha256"],
             runtime_root=tmp_path / "runtime",
             source_root=tmp_path,
-            authority=AUTHORITY,
-            qualified_membership=[qualified],
             repository_authority=drifted,
         )
 
 
-def test_apply_replay_is_private_idempotent_and_detects_drift(tmp_path: Path) -> None:
+def test_apply_replay_is_private_idempotent_and_detects_drift(
+    tmp_path: Path, monkeypatch
+) -> None:
     tmp_path.chmod(0o700)
     source = tmp_path / "source"
     source.mkdir(mode=0o700)
@@ -339,10 +455,9 @@ def test_apply_replay_is_private_idempotent_and_detects_drift(tmp_path: Path) ->
         qualified.append(item)
         _transcript(source, audio, index)
     runtime = tmp_path / "runtime"
+    _bind_source_authority(monkeypatch, qualified)
     preview = cohort.preview_generation4_cohort(
         source_root=source,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
 
@@ -351,16 +466,12 @@ def test_apply_replay_is_private_idempotent_and_detects_drift(tmp_path: Path) ->
         expected_content_sha256=preview["content_sha256"],
         runtime_root=runtime,
         source_root=source,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
     replayed = cohort.replay_generation4_cohort(
         preview["content_sha256"],
         runtime_root=runtime,
         source_root=source,
-        authority=AUTHORITY,
-        qualified_membership=qualified,
         repository_authority=REPOSITORY,
     )
 
@@ -375,13 +486,28 @@ def test_apply_replay_is_private_idempotent_and_detects_drift(tmp_path: Path) ->
     assert {key: applied[key] for key in stored_receipt} == stored_receipt
     assert {key: replayed[key] for key in stored_receipt} == stored_receipt
 
+    broadened = [
+        *qualified,
+        {
+            "path": str(source / "unauthorized.m4a"),
+            "source_sha256": "f" * 64,
+        },
+    ]
+    _bind_source_authority(monkeypatch, broadened)
+    with pytest.raises(cohort.Generation4CohortError, match="drifted"):
+        cohort.replay_generation4_cohort(
+            preview["content_sha256"],
+            runtime_root=runtime,
+            source_root=source,
+            repository_authority=REPOSITORY,
+        )
+
+    _bind_source_authority(monkeypatch, qualified)
     source.joinpath("transcript-0.json").write_text("{}")
     with pytest.raises(cohort.Generation4CohortError, match="drifted"):
         cohort.replay_generation4_cohort(
             preview["content_sha256"],
             runtime_root=runtime,
             source_root=source,
-            authority=AUTHORITY,
-            qualified_membership=qualified,
             repository_authority=REPOSITORY,
         )

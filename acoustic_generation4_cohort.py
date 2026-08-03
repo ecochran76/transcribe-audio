@@ -43,6 +43,24 @@ MEDIA_PREVIEW_SHA256 = campaign.MEDIA_PREVIEW_SHA256
 QUALIFIED_SET_SHA256 = (
     "e3c908f80c922365ead50795728feb959d8aa93e542ee2882be79efc456e48be"
 )
+ORIGINAL_MEDIA_MANIFEST_SHA256 = (
+    "8b115bb92930916b087f114ab396f43f08d40b39f5faff8e1254d30a709c29fe"
+)
+SUPPLEMENTAL_MEDIA_PREVIEW_SHA256 = (
+    "cc405f40414f69bea012559d5ca4c10098ed4ab0d4e4efc37264a361c26f82d9"
+)
+SUPPLEMENTAL_MEDIA_MANIFEST_SHA256 = (
+    "c34a4ebd2d78fef8193aec18f15c97146f06f99c32d2c29d81066719954ab677"
+)
+SUPPLEMENTAL_QUALIFIED_SET_SHA256 = (
+    "09ae99141880df95b3531563b484008ea411ccafab411b4da311627d5e16d994"
+)
+COMBINED_QUALIFIED_SET_SHA256 = (
+    "460fa3dd3befa17e249860b70477474580202577a599a357e7b7c641609cd4c2"
+)
+SUPPLEMENTAL_MEDIA_RUNTIME_ROOT = Path(
+    "~/.local/state/transcribe-audio/plan-0052/g1a/supplemental-media"
+)
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0052/g1a")
 MAX_SUPPLEMENTAL_CANDIDATES = 12
 MODULE_NAME = "acoustic_generation4_cohort.py"
@@ -175,6 +193,120 @@ def _media_membership() -> list[dict[str, Any]]:
     if len(qualified) != 10 or qualified_hash != QUALIFIED_SET_SHA256:
         raise Generation4CohortError("Plan 0051 qualified membership drifted.")
     return qualified
+
+
+def _manifest_membership(
+    manifest_path: Path,
+    *,
+    private_root: Path,
+    expected_manifest_sha256: str,
+    expected_preview_sha256: str,
+    expected_qualified_set_sha256: str,
+    expected_qualified_count: int,
+    expected_candidate_count: int,
+    authority_origin: str,
+) -> list[dict[str, Any]]:
+    """Load an exact qualified set from one immutable private media manifest."""
+    require_private_file(manifest_path, private_root.expanduser().absolute())
+    manifest = _read_json(manifest_path)
+    preview = manifest.get("preview")
+    if (
+        sha256_file(manifest_path) != expected_manifest_sha256
+        or manifest.get("schema_version") != media.MANIFEST_SCHEMA
+        or manifest.get("status") != "frozen"
+        or not isinstance(preview, Mapping)
+        or preview.get("content_sha256") != expected_preview_sha256
+        or preview.get("candidate_count") != expected_candidate_count
+        or preview.get("qualified_count") != expected_qualified_count
+        or expected_candidate_count > MAX_SUPPLEMENTAL_CANDIDATES
+    ):
+        raise Generation4CohortError("Frozen source media manifest drifted.")
+    private_results = preview.get("private_results")
+    if (
+        not isinstance(private_results, list)
+        or len(private_results) != expected_candidate_count
+    ):
+        raise Generation4CohortError("Frozen source membership is incomplete.")
+    qualified: list[dict[str, Any]] = []
+    hashes: set[str] = set()
+    for raw in private_results:
+        if not isinstance(raw, Mapping):
+            raise Generation4CohortError("Frozen source membership is invalid.")
+        item = dict(raw)
+        if item.get("status") != "qualified":
+            continue
+        source_sha256 = str(item.get("source_sha256") or "")
+        path = str(item.get("path") or "")
+        if (
+            not SHA256_RE.fullmatch(source_sha256)
+            or not path
+            or source_sha256 in hashes
+        ):
+            raise Generation4CohortError("Frozen qualified membership is invalid.")
+        hashes.add(source_sha256)
+        item["authority_origin"] = authority_origin
+        qualified.append(item)
+    if (
+        len(qualified) != expected_qualified_count
+        or _canonical_hash(sorted(hashes)) != expected_qualified_set_sha256
+    ):
+        raise Generation4CohortError("Frozen qualified set hash drifted.")
+    return qualified
+
+
+def _source_authority() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Resolve the exact original plus one consumed supplemental source union."""
+    g0 = _g0_authority()
+    original_paths = media._paths(media.DEFAULT_RUNTIME_ROOT, MEDIA_PREVIEW_SHA256)
+    original = _manifest_membership(
+        original_paths["manifest"],
+        private_root=original_paths["root"],
+        expected_manifest_sha256=ORIGINAL_MEDIA_MANIFEST_SHA256,
+        expected_preview_sha256=MEDIA_PREVIEW_SHA256,
+        expected_qualified_set_sha256=QUALIFIED_SET_SHA256,
+        expected_qualified_count=10,
+        expected_candidate_count=12,
+        authority_origin="original",
+    )
+    supplemental_paths = media._paths(
+        SUPPLEMENTAL_MEDIA_RUNTIME_ROOT, SUPPLEMENTAL_MEDIA_PREVIEW_SHA256
+    )
+    supplemental = _manifest_membership(
+        supplemental_paths["manifest"],
+        private_root=supplemental_paths["root"],
+        expected_manifest_sha256=SUPPLEMENTAL_MEDIA_MANIFEST_SHA256,
+        expected_preview_sha256=SUPPLEMENTAL_MEDIA_PREVIEW_SHA256,
+        expected_qualified_set_sha256=SUPPLEMENTAL_QUALIFIED_SET_SHA256,
+        expected_qualified_count=12,
+        expected_candidate_count=12,
+        authority_origin="supplemental",
+    )
+    original_hashes = {str(item["source_sha256"]) for item in original}
+    supplemental_hashes = {str(item["source_sha256"]) for item in supplemental}
+    if original_hashes & supplemental_hashes:
+        raise Generation4CohortError("Original and supplemental sources overlap.")
+    combined = original + supplemental
+    combined_hash = _canonical_hash(
+        sorted(str(item["source_sha256"]) for item in combined)
+    )
+    if combined_hash != COMBINED_QUALIFIED_SET_SHA256:
+        raise Generation4CohortError("Combined qualified source authority drifted.")
+    authority = {
+        **g0,
+        "original_media_manifest_sha256": ORIGINAL_MEDIA_MANIFEST_SHA256,
+        "original_qualified_set_sha256": QUALIFIED_SET_SHA256,
+        "original_qualified_count": len(original),
+        "supplemental_media_preview_sha256": SUPPLEMENTAL_MEDIA_PREVIEW_SHA256,
+        "supplemental_media_manifest_sha256": SUPPLEMENTAL_MEDIA_MANIFEST_SHA256,
+        "supplemental_qualified_set_sha256": SUPPLEMENTAL_QUALIFIED_SET_SHA256,
+        "supplemental_qualified_count": len(supplemental),
+        "supplemental_pool_count": 1,
+        "supplemental_pool_consumed": True,
+        "qualified_set_sha256": combined_hash,
+        "qualified_count": len(combined),
+        "authority_origins": ["original", "supplemental"],
+    }
+    return authority, combined
 
 
 def _transcript_rows(source_root: Path) -> list[dict[str, Any]]:
@@ -394,6 +526,7 @@ def _portable(preview: Mapping[str, Any]) -> dict[str, Any]:
         "g0_manifest_sha256": preview["authority"]["g0_manifest_sha256"],
         "media_preview_sha256": preview["authority"]["media_preview_sha256"],
         "qualified_set_sha256": preview["authority"]["qualified_set_sha256"],
+        "source_authority": dict(preview["authority"]),
         "repository_authority": dict(preview["repository_authority"]),
         "delegation_receipt": dict(preview["delegation_receipt"]),
         "qualified_recording_count": preview["qualified_recording_count"],
@@ -429,18 +562,19 @@ def preview_generation4_cohort(
     *,
     source_root: Path = media.DEFAULT_SOURCE_ROOT,
     gold_path: Path | None = None,
-    authority: Mapping[str, Any] | None = None,
-    qualified_membership: Sequence[Mapping[str, Any]] | None = None,
     repository_authority: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    authority_value = dict(authority or _g0_authority())
+    authority_value, qualified = _source_authority()
     repository_value = _validated_repository(
         repository_authority if repository_authority is not None else _repository_authority()
     )
-    qualified = [dict(item) for item in (qualified_membership or _media_membership())]
     rows = _transcript_rows(source_root)
     by_source = {str(row["source_path"]): row for row in rows}
-    exact = [row for item in qualified if (row := by_source.get(str(Path(item["path"]).resolve())))]
+    exact = [
+        {**row, "authority_origin": item["authority_origin"]}
+        for item in qualified
+        if (row := by_source.get(str(Path(item["path"]).resolve())))
+    ]
     expected_sources = {str(item["source_sha256"]) for item in qualified}
     gold = _gold_cases(gold_path)
     transcript_authority = {
@@ -645,15 +779,11 @@ def apply_generation4_cohort(
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
     source_root: Path = media.DEFAULT_SOURCE_ROOT,
     gold_path: Path | None = None,
-    authority: Mapping[str, Any] | None = None,
-    qualified_membership: Sequence[Mapping[str, Any]] | None = None,
     repository_authority: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     preview = preview_generation4_cohort(
         source_root=source_root,
         gold_path=gold_path,
-        authority=authority,
-        qualified_membership=qualified_membership,
         repository_authority=repository_authority,
     )
     if dict(reviewed_preview) != preview or preview["content_sha256"] != expected_content_sha256:
@@ -665,8 +795,6 @@ def apply_generation4_cohort(
             runtime_root=runtime_root,
             source_root=source_root,
             gold_path=gold_path,
-            authority=authority,
-            qualified_membership=qualified_membership,
             repository_authority=repository_authority,
         )
     ensure_private_tree(paths["root"], paths["run"])
@@ -695,15 +823,11 @@ def replay_generation4_cohort(
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
     source_root: Path = media.DEFAULT_SOURCE_ROOT,
     gold_path: Path | None = None,
-    authority: Mapping[str, Any] | None = None,
-    qualified_membership: Sequence[Mapping[str, Any]] | None = None,
     repository_authority: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     preview = preview_generation4_cohort(
         source_root=source_root,
         gold_path=gold_path,
-        authority=authority,
-        qualified_membership=qualified_membership,
         repository_authority=repository_authority,
     )
     if preview["content_sha256"] != expected_content_sha256:
