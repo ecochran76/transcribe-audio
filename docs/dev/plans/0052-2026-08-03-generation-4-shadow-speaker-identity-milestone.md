@@ -115,10 +115,10 @@ private feasibility preview hash is
 `b59c9f6e665f8ff238362b411ed7317764d5a62fae21016983201601b6ec2af3`
 and immutable manifest hash is
 `e5dea7c7d0ede0478ce97c5152e3e2e15122cbdc0aa57001c0cb4e51bc6bc487`.
-G1A remains at the private-gold review gate; the supplemental-pool option is
-unconsumed. A two-for-two original-pool substitution reduces the unresolved
-operator review from 13 to 10 speaker labels while preserving seven recordings
-and structural population capacity. Private review bundle hash is
+G1A remains at the private-gold review gate. A two-for-two original-pool
+substitution reduced the initial unresolved operator review from 13 to 10
+speaker labels while preserving seven recordings and structural population
+capacity. Private review bundle hash is
 `c826f642f47e915ff3afd5476615e342f53b8ff5981b8a6ec0ddac1b641d3d2d`;
 its 12 short clips and review page are all `0600`. Both prior operator
 assertions were corrected through immutable overlays with content hashes
@@ -127,21 +127,24 @@ and
 `66a3a684fe6e15f85fac50f16aaf2e9d7fdd202cfc1b0d0c13705d10b8ab56be`;
 the original assertions remain preserved. The corrected labels are prefilled,
 the two pre-existing enrolled identity names remain private review hints, and
-one corrected prefill matches an enrolled identity. The operator's complete
-response was normalized with both corrections taking precedence and imported
-as private, unfrozen GOLD_SCHEMA content
-`4534fbb173c5ae8d261d3df6783e3f8908d48ef514979dff800bb24db6af7534`;
+one corrected prefill matches an enrolled identity. The complete nine-recording
+original pool is now operator-reviewed under private, unfrozen GOLD_SCHEMA
+content
+`2876ae8dacba1311968386abab9b0adfa325dce35f8ca719250c4ebc1a925b6a`;
 the private file hash is
-`02624aec6bca8106a18f508b57bcfd7f3250e0760a36cc8565ecaca0f813022a`.
-Six population gates pass: seven conversations, seven people, 11 same-person
+`eab00331c61182f4a86d1d12dfbdff4bdfb3cab81f1bc62fac3d39faec6e49d9`.
+Six population gates pass: nine conversations, ten people, 22 same-person
 session pairs, complete gold, zero overlap, and all sources within authority.
 The population remains non-passing because only one enrolled person has two
-sessions. The two remaining original-pool recordings now have a five-label
-private review under plan hash
-`eef4a765aaf1c95979a0df1225c3d05365f60054450eebae4e00956660f92e5a`.
-The supplemental-pool option remains unconsumed. J1 and all later actions
-remain false. No private-gold reveal to a prediction worker, prediction, or
-evaluation-model execution has started.
+sessions. The one bounded 12-candidate supplemental pool is now consumed: all
+12 candidates passed the frozen media policy under qualification preview
+`cc405f40414f69bea012559d5ca4c10098ed4ab0d4e4efc37264a361c26f82d9`
+and qualified-set hash
+`09ae99141880df95b3531563b484008ea411ccafab411b4da311627d5e16d994`.
+A first two-conversation, seven-label supplemental review is ready under plan
+hash `ec029c56462ea749b4d801a8347414c0e2e008cf5cfb75a464cc483cff035f21`.
+J1 and all later actions remain false. No private-gold reveal to a prediction
+worker, prediction, or evaluation-model execution has started.
 
 ## Scope
 
@@ -272,22 +275,17 @@ open-set coverage, same-person sessions, label completeness, and every overlap
 dimension without exposing gold to prediction workers. Terminal: passing
 population proposal, one supplemental-pool request, or `stop`.
 
-Checkpoint: private-gold review required. The original pool is sufficient to
-propose a seven-recording subset without consuming the supplemental option.
-The feasibility apply is immutable and replays full-body with private
-`0700/0600` modes, but it deliberately freezes neither cohort nor gold. Its
-only authorized next action is completion of the private gold review. A
-private, local-only batch listening sheet presented 12 labels across the best
-seven-recording original-pool substitution. Corrections were immutable overlays
-bound to the base gap packet, speaker reference, prior identity hash, and
-correction content hash; the original packet was not mutated. The complete
-operator response imported deterministically into one private, unfrozen
-GOLD_SCHEMA packet. Population evaluation proved every gate except the
-two-sessions requirement for the second enrolled person. The only authorized
-next action is a five-label review of the two remaining transcript-linked
-original-pool recordings, published through the authorized preview service.
-The copy control now exposes a selectable answer block when clipboard access
-fails. No supplemental media use occurred.
+Checkpoint: supplemental private-gold review required. All nine
+transcript-linked original-pool recordings are operator-reviewed in one
+immutable, private, unfrozen GOLD_SCHEMA packet. Population evaluation proved
+every gate except the two-sessions requirement for the second enrolled person.
+That complete-original-pool failure authorized and consumed the plan's single
+supplemental pool. Twelve explicit candidates passed full probe, decode,
+duration-drift, prior-overlap, and uniqueness policy without retained decoded
+audio or model use. The only authorized next action is bounded operator review
+within that frozen supplemental pool, beginning with seven labels across two
+independent conversations. Full-page copied text is accepted because preview
+clipboard JavaScript is not reliable. Neither cohort nor gold is frozen.
 
 ### G1B | Acoustic Evidence Contract
 

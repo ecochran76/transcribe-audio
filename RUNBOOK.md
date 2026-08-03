@@ -2,6 +2,54 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 300 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-SUPPLEMENT | Complete original gold and consume bounded supplemental pool
+
+State transition: `OPEN/G1A-original-remainder-review-required -> OPEN/G1A-supplemental-review-required`.
+
+- Imported all five remaining original-pool labels, applying the operator's
+  immediate spelling correction before the first immutable write. Combined
+  nine-case private GOLD_SCHEMA content is
+  `2876ae8dacba1311968386abab9b0adfa325dce35f8ca719250c4ebc1a925b6a`;
+  its `0600` file hash is
+  `eab00331c61182f4a86d1d12dfbdff4bdfb3cab81f1bc62fac3d39faec6e49d9`.
+- Complete-original-pool evaluation has nine conversations, ten people, 22
+  same-person session pairs, complete gold, zero overlap, and all sources
+  inside authority. It still fails only the second enrolled person's
+  two-session requirement. G1A supplemental-request preview is
+  `96b62b5254917f958440efa7c2b239c96f3596cb9cd12d6744b8a4d15c91e281`.
+- Read-only calendar reconciliation found one strong eligible meeting but did
+  not by itself prove a second independent session. Consumed the one authorized
+  12-candidate supplemental pool using context-ranked, prior-disjoint sources.
+  All 12 qualified under preview
+  `cc405f40414f69bea012559d5ca4c10098ed4ab0d4e4efc37264a361c26f82d9`,
+  manifest
+  `c34a4ebd2d78fef8193aec18f15c97146f06f99c32d2c29d81066719954ab677`,
+  and qualified-set hash
+  `09ae99141880df95b3531563b484008ea411ccafab411b4da311627d5e16d994`.
+- Generated a first two-conversation, seven-label supplemental review under
+  plan hash
+  `ec029c56462ea749b4d801a8347414c0e2e008cf5cfb75a464cc483cff035f21`
+  and published preview session `1979c73bd128`. Full-page copied text is now an
+  explicit supported fallback because clipboard JavaScript remains unreliable.
+- Supplemental page support and fallback guidance pass 9 focused tests and the
+  full 754-test suite in 78.29 seconds. Commit `ab885d7` is pushed and
+  upstream-even.
+- No acoustic model, prediction, private-gold reveal, cohort/gold freeze,
+  profile mutation, or retained decoded audio occurred. J1 remains false.
+
+Next:
+
+- Operator reviews the seven supplemental labels and returns either the answer
+  block or the full copied page. Import immutably and re-run G1A; continue
+  within the already frozen supplemental pool only if enrolled-session coverage
+  is still incomplete.
+
 ## Turn 299 | 2026-08-03
 
 Plan:
