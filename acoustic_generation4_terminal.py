@@ -27,10 +27,10 @@ REPLAY_SCHEMA = "transcribe-audio.generation4-terminal-replay.v1"
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0052/g6")
 MODULE_NAME = Path(__file__).name
 G2_PREVIEW_SHA256 = (
-    "cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee"
+    "6d6e86094c809c34c45694c311063c06570020348eccd6f65a420535167e3d41"
 )
 G2_MANIFEST_SHA256 = (
-    "ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41"
+    "20cb311ebf436ffdd382c4715de2987d854d1d5b5c56974739d1c4f94c96ae61"
 )
 FAILED_SOURCE_SHA256 = (
     "843ad4d9effde8b7"  # Exact full value is resolved from frozen private membership.
