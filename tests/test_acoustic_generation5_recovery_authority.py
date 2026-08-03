@@ -1,4 +1,5 @@
 import json
+import hashlib
 
 import pytest
 
@@ -7,7 +8,7 @@ import acoustic_generation5_recovery_authority as r0
 
 REPOSITORY = {
     "commit": "1" * 40,
-    "module_sha256": {name: "2" * 64 for name in r0.MODULES},
+    "module_sha256": {name: hashlib.sha256(b"module").hexdigest() for name in r0.MODULES},
     "clean": True,
     "upstream_ahead": 0,
     "upstream_behind": 0,
@@ -77,7 +78,14 @@ def test_r0_stops_when_fewer_than_eight_are_eligible() -> None:
 
 def test_r0_apply_replay_is_private_and_idempotent(tmp_path, monkeypatch) -> None:
     preview = _preview()
-    monkeypatch.setattr(r0, "preview_generation5_recovery_authority", lambda: preview)
+    monkeypatch.setattr(
+        r0, "preview_generation5_recovery_authority", lambda **kwargs: preview
+    )
+    monkeypatch.setattr(
+        r0,
+        "_git",
+        lambda arguments, binary=False: b"module" if arguments[0] == "show" else "",
+    )
 
     applied = r0.apply_generation5_recovery_authority(
         preview, expected_content_sha256=preview["content_sha256"], runtime_root=tmp_path

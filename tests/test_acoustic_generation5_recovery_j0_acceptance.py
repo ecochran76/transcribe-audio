@@ -1,7 +1,9 @@
+import hashlib
+
 import acoustic_generation5_recovery_j0_acceptance as j0
 
 
-REPO = {"commit": "1" * 40, "module_sha256": "2" * 64, "clean": True, "upstream_ahead": 0, "upstream_behind": 0}
+REPO = {"commit": "1" * 40, "module_sha256": hashlib.sha256(b"module").hexdigest(), "clean": True, "upstream_ahead": 0, "upstream_behind": 0}
 PARENT = {"content_sha256": j0.R0_PREVIEW_SHA256, "selected_membership_sha256": j0.SELECTED_MEMBERSHIP_SHA256, "did_decode_audio": False}
 
 
@@ -20,6 +22,12 @@ def test_j0_authorizes_only_exact_r1_r2():
 def test_j0_private_apply_replay(tmp_path, monkeypatch):
     preview = _preview()
     monkeypatch.setattr(j0, "preview_generation5_recovery_j0", lambda: preview)
+    monkeypatch.setattr(j0.r0, "replay_generation5_recovery_authority", lambda value: {"idempotent_replay": True})
+    monkeypatch.setattr(
+        j0,
+        "_git",
+        lambda arguments, binary=False: b"module" if arguments[0] == "show" else "",
+    )
     applied = j0.apply_generation5_recovery_j0(preview, expected_content_sha256=preview["content_sha256"], runtime_root=tmp_path)
     replayed = j0.replay_generation5_recovery_j0(preview["content_sha256"], runtime_root=tmp_path)
     assert applied["idempotent_replay"] is False

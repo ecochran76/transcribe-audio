@@ -513,14 +513,31 @@ def apply_generation5_recovery_authority(
 def replay_generation5_recovery_authority(
     expected_content_sha256: str, *, runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
-    preview = preview_generation5_recovery_authority()
-    if preview["content_sha256"] != expected_content_sha256:
-        raise Generation5RecoveryAuthorityError("R0 authority drifted.")
     paths = _paths(runtime_root, expected_content_sha256)
     require_private_file(paths["manifest"], paths["root"])
     require_private_file(paths["receipt"], paths["root"])
     manifest = _read_json(paths["manifest"])
     receipt = _read_json(paths["receipt"])
+    preview = manifest.get("preview")
+    if not isinstance(preview, Mapping):
+        raise Generation5RecoveryAuthorityError("R0 preview is missing.")
+    preview = dict(preview)
+    repository = preview.get("repository_authority")
+    if not isinstance(repository, Mapping):
+        raise Generation5RecoveryAuthorityError("Recorded repository authority is missing.")
+    commit = str(repository.get("commit") or "")
+    module_hashes = repository.get("module_sha256")
+    if not re.fullmatch(r"[a-f0-9]{40}", commit) or not isinstance(module_hashes, Mapping):
+        raise Generation5RecoveryAuthorityError("Recorded repository authority is invalid.")
+    for name, expected_hash in module_hashes.items():
+        body = _git(["show", f"{commit}:{name}"], binary=True)
+        if not isinstance(body, bytes) or hashlib.sha256(body).hexdigest() != expected_hash:
+            raise Generation5RecoveryAuthorityError("Recorded module authority drifted.")
+    if _git(["merge-base", "--is-ancestor", commit, "HEAD"]) != "":
+        raise Generation5RecoveryAuthorityError("Recorded commit is not an ancestor.")
+    recomputed = preview_generation5_recovery_authority(repository_authority=repository)
+    if recomputed != preview or preview.get("content_sha256") != expected_content_sha256:
+        raise Generation5RecoveryAuthorityError("R0 authority drifted.")
     expected_manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
     expected_receipt = {**_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]), "mode": "0600"}
     if manifest != expected_manifest or receipt != expected_receipt:

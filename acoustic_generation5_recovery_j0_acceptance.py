@@ -151,12 +151,28 @@ def apply_generation5_recovery_j0(reviewed_preview: Mapping[str, Any], *, expect
 
 
 def replay_generation5_recovery_j0(expected_content_sha256: str, *, runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> dict[str, Any]:
-    preview = preview_generation5_recovery_j0()
-    if preview["content_sha256"] != expected_content_sha256:
-        raise Generation5RecoveryJ0Error("J0 authority drifted.")
     paths = _paths(runtime_root, expected_content_sha256)
     require_private_file(paths["manifest"], paths["root"]); require_private_file(paths["receipt"], paths["root"])
     manifest = _read_json(paths["manifest"]); receipt = _read_json(paths["receipt"])
+    preview = manifest.get("preview")
+    if not isinstance(preview, Mapping):
+        raise Generation5RecoveryJ0Error("J0 preview is missing.")
+    preview = dict(preview)
+    core = {key: value for key, value in preview.items() if key != "content_sha256"}
+    repository = preview.get("repository_authority")
+    if not isinstance(repository, Mapping):
+        raise Generation5RecoveryJ0Error("Recorded repository authority is missing.")
+    commit = str(repository.get("commit") or "")
+    body = _git(["show", f"{commit}:{MODULE_NAME}"], binary=True) if re.fullmatch(r"[a-f0-9]{40}", commit) else b""
+    r0.replay_generation5_recovery_authority(R0_PREVIEW_SHA256)
+    if (
+        preview.get("content_sha256") != expected_content_sha256
+        or _canonical_hash(core) != expected_content_sha256
+        or not isinstance(body, bytes)
+        or hashlib.sha256(body).hexdigest() != repository.get("module_sha256")
+        or _git(["merge-base", "--is-ancestor", commit, "HEAD"]) != ""
+    ):
+        raise Generation5RecoveryJ0Error("J0 authority drifted.")
     expected_manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
     expected_receipt = {**_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]), "mode": "0600"}
     if manifest != expected_manifest or receipt != expected_receipt:
