@@ -111,3 +111,88 @@ def test_prior_reader_conservatively_extracts_hashes_from_legacy_text(tmp_path) 
 
     assert hashes == {"c" * 64}
     assert mode == "raw_sha256_token_fallback"
+
+
+def test_sidecar_accepts_canonical_working_media_binding(tmp_path) -> None:
+    media = tmp_path / "one.m4a"
+    media.write_bytes(b"fixture")
+    sidecar = tmp_path / "one.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "working_media_path": str(media),
+                "recording_start": "2026-01-01T10:00:00-06:00",
+            }
+        )
+    )
+
+    result = r0._sidecars(tmp_path)
+
+    assert list(result) == [media.resolve()]
+    assert result[media.resolve()][0]["matched_source_fields"] == ["working_media_path"]
+
+
+def test_sidecar_equal_fields_make_one_binding(tmp_path) -> None:
+    media = tmp_path / "one.m4a"
+    media.write_bytes(b"fixture")
+    (tmp_path / "one.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "source_media_path": str(media),
+                "working_media_path": str(media),
+                "recording_start": "2026-01-01T10:00:00-06:00",
+            }
+        )
+    )
+
+    result = r0._sidecars(tmp_path)
+
+    assert list(result) == [media.resolve()]
+    assert result[media.resolve()][0]["matched_source_fields"] == [
+        "source_media_path", "working_media_path"
+    ]
+    assert result[media.resolve()][0]["ambiguous_field_targets"] is False
+
+
+def test_sidecar_different_valid_fields_are_ambiguous(tmp_path) -> None:
+    source = tmp_path / "source.m4a"
+    working = tmp_path / "working.m4a"
+    source.write_bytes(b"source")
+    working.write_bytes(b"working")
+    (tmp_path / "one.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "source_media_path": str(source),
+                "working_media_path": str(working),
+                "recording_start": "2026-01-01T10:00:00-06:00",
+            }
+        )
+    )
+
+    result = r0._sidecars(tmp_path)
+
+    assert set(result) == {source.resolve(), working.resolve()}
+    assert all(rows[0]["ambiguous_field_targets"] is True for rows in result.values())
+
+
+def test_sidecar_invalid_working_path_uses_valid_source(tmp_path) -> None:
+    source = tmp_path / "source.m4a"
+    source.write_bytes(b"source")
+    (tmp_path / "one.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "source_media_path": str(source),
+                "working_media_path": str(tmp_path / "missing.m4a"),
+                "recording_start": "2026-01-01T10:00:00-06:00",
+            }
+        )
+    )
+
+    result = r0._sidecars(tmp_path)
+
+    assert list(result) == [source.resolve()]
+    assert result[source.resolve()][0]["matched_source_fields"] == ["source_media_path"]

@@ -221,26 +221,42 @@ def _sidecars(source_root: Path) -> dict[Path, list[dict[str, Any]]]:
             continue
         if not isinstance(value, Mapping) or value.get("schema_version") not in {1, 2}:
             continue
-        raw_source = str(value.get("source_media_path") or "").strip()
         start = _recording_start(value.get("recording_start"))
-        if not raw_source or start is None:
+        if start is None:
             continue
-        candidate = Path(raw_source).expanduser()
-        try:
-            resolved_source = candidate.resolve(strict=True)
-            relative = resolved_source.relative_to(resolved_root)
-        except (OSError, ValueError):
+        matched_sources: dict[Path, list[str]] = {}
+        for field in ("source_media_path", "working_media_path"):
+            raw_source = str(value.get(field) or "").strip()
+            if not raw_source:
+                continue
+            candidate = Path(raw_source).expanduser()
+            try:
+                resolved_source = candidate.resolve(strict=True)
+                relative = resolved_source.relative_to(resolved_root)
+            except (OSError, ValueError):
+                continue
+            if len(relative.parts) == 1 and resolved_source.suffix.lower() == ".m4a":
+                matched_sources.setdefault(resolved_source, []).append(field)
+        if not matched_sources:
             continue
-        if len(relative.parts) != 1 or resolved_source.suffix.lower() != ".m4a":
-            continue
-        found.setdefault(resolved_source, []).append(
-            {
-                "transcript_path": str(path.resolve()),
-                "transcript_sha256": sha256_file(path),
-                "recording_start_original": start[0],
-                "recording_start_utc": start[1],
-            }
-        )
+        transcript_sha256 = sha256_file(path)
+        raw_field_hashes = {
+            field: hashlib.sha256(str(value.get(field) or "").encode("utf-8")).hexdigest()
+            for field in ("source_media_path", "working_media_path")
+        }
+        ambiguous_field_targets = len(matched_sources) > 1
+        for resolved_source, matched_fields in matched_sources.items():
+            found.setdefault(resolved_source, []).append(
+                {
+                    "transcript_path": str(path.resolve()),
+                    "transcript_sha256": transcript_sha256,
+                    "matched_source_fields": sorted(matched_fields),
+                    "raw_source_field_sha256": raw_field_hashes,
+                    "ambiguous_field_targets": ambiguous_field_targets,
+                    "recording_start_original": start[0],
+                    "recording_start_utc": start[1],
+                }
+            )
     return found
 
 
@@ -325,7 +341,7 @@ def _inventory(source_root: Path, prior_root: Path) -> tuple[list[dict[str, Any]
             rows.append(row)
             continue
         matches = sidecars.get(source.resolve(), [])
-        if len(matches) != 1:
+        if len(matches) != 1 or any(match.get("ambiguous_field_targets") is True for match in matches):
             row["reason_code"] = "sidecar_missing" if not matches else "sidecar_ambiguous"
             rows.append(row)
             continue
@@ -412,6 +428,7 @@ def preview_generation5_recovery_authority(
             "top_level_only": True,
             "extension": ".m4a",
             "sidecar_schema_versions": [1, 2],
+            "sidecar_source_fields": ["source_media_path", "working_media_path"],
             "recording_start": "offset_aware_rfc3339_required_no_fallback",
             "metadata_probe": "one_aac_stream_one_or_two_channels_positive_rate",
             "minimum_duration_seconds": MINIMUM_DURATION_SECONDS,

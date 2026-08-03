@@ -74,8 +74,14 @@ unauthorized until J0 accepts its proposed membership and fault contract.
 - R0 enumerates only top-level, regular, non-symlink `.m4a` files under exact
   root `/mnt/c/Users/ecoch/Documents/Sound Recordings`. Each must have exactly
   one top-level JSON sidecar of schema 1 or 2 whose resolved
-  `source_media_path` equals the media path and whose `recording_start` is a
-  valid offset-aware RFC 3339 timestamp. Missing, duplicate, ambiguous, or
+  `source_media_path` or `working_media_path` equals the media path and whose
+  `recording_start` is a valid offset-aware RFC 3339 timestamp. Both field
+  names are existing canonical transcript-schema bindings; the matched field
+  set and hashes of both raw field values are retained. If both fields resolve
+  to the same media, that is one binding; if both resolve to different
+  top-level media, the sidecar is ambiguous and binds neither. An invalid
+  `working_media_path` may fall back to one valid `source_media_path`.
+  Multiple matching sidecar files are also ambiguous. Missing, ambiguous, or
   unparsable sidecars fail eligibility; there is no filesystem-time fallback.
 - Pre-J0 probing is metadata-only: exactly one AAC audio stream, one or two
   channels, positive sample rate, and declared duration at least 60 seconds.
