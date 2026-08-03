@@ -17,6 +17,7 @@ import acoustic_content_preservation as preservation
 SCHEMA_VERSION = "transcribe-audio.content-preservation-adversarial.v1"
 DEVELOPMENT_SEED = "generation5-duration-development-v1"
 HOLDOUT_SEED = "generation5-duration-holdout-v1"
+RECOVERY_HOLDOUT_SEED = "generation5-duration-recovery-holdout-v1"
 SEGMENT_SECONDS = 12
 DEVELOPMENT_TAIL_LOSS_FRAMES = (2, 320, 4_000, 16_000)
 HOLDOUT_TAIL_LOSS_FRAMES = (2, 800, 8_000, 32_000)
@@ -422,6 +423,23 @@ def run_holdout_adversaries(
         expected_source_sha256=expected_source_sha256,
         channel_policy_authority_sha256=channel_policy_authority_sha256,
         seed=HOLDOUT_SEED,
+        tail_loss_frames=HOLDOUT_TAIL_LOSS_FRAMES,
+        timestamp_gap_samples=HOLDOUT_TIMESTAMP_GAP_SAMPLES,
+    )
+
+
+def run_recovery_adversaries(
+    source: Path,
+    *,
+    expected_source_sha256: str,
+    channel_policy_authority_sha256: str,
+) -> dict[str, Any]:
+    """Execute the separately seeded Plan-0054 recovery negative family."""
+    return _run_adversaries(
+        source,
+        expected_source_sha256=expected_source_sha256,
+        channel_policy_authority_sha256=channel_policy_authority_sha256,
+        seed=RECOVERY_HOLDOUT_SEED,
         tail_loss_frames=HOLDOUT_TAIL_LOSS_FRAMES,
         timestamp_gap_samples=HOLDOUT_TIMESTAMP_GAP_SAMPLES,
     )
