@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: CLOSED — Plan 0052 terminal `STOP` during frozen G3 preparation
+State: OPEN — Plan 0053 Generation-5 duration validation and blind evaluation
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -533,6 +533,17 @@ profile mutation, integration, and historical reprocessing are `not_run`.
 Acoustic and combined voice-context maturity therefore remain at their prior
 levels. Any successor evaluation requires fresh authority rather than a Plan
 0052 repair or retry.
+
+Plan 0053 opens that fresh authority in
+`docs/dev/plans/0053-2026-08-03-generation-5-duration-validation-and-blind-evaluation.md`.
+It first separates known duration failures and healthy controls from a sealed
+diagnostic holdout, then requires a sample-preservation rule justified by
+audio timing and decode semantics rather than a larger case-fitted tolerance.
+Only after independent holdout acceptance may it enumerate a fresh,
+diagnostic-disjoint evaluation cohort and run the complete blind context-only
+versus separately voice-augmented comparison. The lane remains open until one
+immutable Generation-5 terminal decision; a decoder fix, passing holdout,
+cohort freeze, or model score is not closure.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

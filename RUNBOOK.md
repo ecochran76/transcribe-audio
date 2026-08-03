@@ -2,6 +2,48 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 304 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0053-2026-08-03-generation-5-duration-validation-and-blind-evaluation.md`,
+version 1
+
+Packet: P10-G5-PLAN | Fresh diagnostic and full blind-evaluation authority
+
+State transition: `CLOSED/Plan-0052-stop -> OPEN/Plan-0053-G0`.
+
+- Opened a fresh successor rather than modifying Plan 0052. The new plan must
+  explain the `0.1739795`-second Generation-4 discrepancy and distinguish it
+  from the `89.776791`-second Generation-3 loss.
+- The diagnostic design freezes a five-source development set containing both
+  known failures and the three lowest-hash Plan 0051 healthy controls, plus a
+  disjoint holdout containing the other seven Plan 0051-qualified sources.
+  The replacement rule must be based on sample/timestamp/resampling semantics,
+  not an observed maximum or a constant chosen to admit a named case.
+- Diagnostic media are permanently excluded from Generation-5 evaluation.
+  After independent J1/J2 acceptance only, the plan may enumerate one bounded
+  oldest-forward fresh pool and carry a population-valid cohort through blind
+  context-only and separately voice-augmented predictions, one reveal, full
+  acoustic scoring, independent audit, and one terminal decision.
+- Automatic assignment, enrollment, profile/reference mutation, default
+  integration, and historical reprocessing remain unauthorized.
+- Fresh independent reviewer `/root/g5_plan_review` first returned `STOP` on
+  acoustic ordering, incomplete prior-evaluation exclusions, cohort
+  hand-selection risk, weak held-out negatives, circular duration evidence,
+  undefined gold/worker isolation, and ambiguous milestone success. The plan
+  now freezes gold-blind acoustic scores before augmented prediction, complete
+  exclusions, deterministic cohort construction, disjoint seeded negative
+  families at the derived boundary, non-circular packet/decode/output/content
+  evidence, isolated stateless paired workers, and separate administrative
+  closure versus product success. The re-review returned `PASS` for design
+  only; G0 and later execution remain unproven.
+
+Next:
+
+- Execute G0: replay current authorities, derive exact diagnostic development
+  and holdout membership without decoding, freeze the measurements and
+  negative actions, then begin development-only diagnosis.
+
 ## Turn 303 | 2026-08-03
 
 Plan:
