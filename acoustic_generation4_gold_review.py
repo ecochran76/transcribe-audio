@@ -52,8 +52,22 @@ def _read_private_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _read_source_json(path: Path) -> dict[str, Any]:
+    """Read an existing bound source transcript without changing its mode."""
+    selected = path.expanduser().absolute()
+    if not selected.is_file() or selected.is_symlink():
+        raise Generation4GoldReviewError("Source transcript is unavailable.")
+    try:
+        value = json.loads(selected.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Generation4GoldReviewError("Source transcript is unreadable.") from exc
+    if not isinstance(value, dict):
+        raise Generation4GoldReviewError("Source transcript must be an object.")
+    return value
+
+
 def _utterance_plan(transcript_path: Path, speaker_label: str) -> dict[str, Any]:
-    transcript = _read_private_json(transcript_path)
+    transcript = _read_source_json(transcript_path)
     utterances = transcript.get("utterances")
     if not isinstance(utterances, list):
         raise Generation4GoldReviewError("Transcript utterances are unavailable.")

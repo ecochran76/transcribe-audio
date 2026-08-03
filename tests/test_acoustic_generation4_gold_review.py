@@ -141,3 +141,20 @@ def test_plan_rejects_missing_best_subset_case(tmp_path: Path):
         assert "best-subset case" in str(exc)
     else:
         raise AssertionError("missing private membership must fail closed")
+
+
+def test_existing_source_transcript_mode_does_not_block_private_derivative(tmp_path: Path):
+    transcript = tmp_path / "source-transcript.json"
+    transcript.write_text(
+        json.dumps({
+            "utterances": [
+                {"speaker": "A", "start": 0, "end": 3000, "text": "sample"}
+            ]
+        }),
+        encoding="utf-8",
+    )
+    transcript.chmod(0o644)
+
+    result = review._utterance_plan(transcript, "A")
+
+    assert result["duration_seconds"] == 4.5
