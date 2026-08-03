@@ -37,8 +37,11 @@ not merely repairing the fixture, passing another holdout, or freezing a cohort.
   nor any of its development or negative fixtures may be reused.
 - The inherited Plan 0053 contract is pinned to plan version 2 and file SHA-256
   `4ff5b5673bdefb7b61025691ad89c1f79b008887e07382c83588a6250c297073`.
-  R0 must also bind the immutable J2 STOP preview and manifest hashes recorded
-  after its terminal module is applied; a mutable path is not authority.
+  Immutable J2 STOP preview
+  `058a36ebebc5a9b743f6db6d856ea5cc2e0c0e123bc8e936bbd1e8597cf5fb3e`
+  and manifest
+  `4033452c29812527209b478b5218b9e773e76726deeffc42a004183b78a994a5`
+  replay full-body; a mutable path is not authority.
 - J1 accepted content-preservation contract
   `2b3c988ffedebb8a0070499cc779795bea8bd44236b1234128e18859a6d8b7e9`.
   It uses AAC access-unit/sample accounting, skip/discard reconciliation,
@@ -55,7 +58,8 @@ not merely repairing the fixture, passing another holdout, or freezing a cohort.
 
 Plan 0053 is closed at J2. The accepted content-preservation rule is unchanged,
 the corrupt-tail expected reason is now literal in code, and focused recovery
-tests pass. No Plan 0054 recovery authority, fresh holdout membership,
+tests pass. The terminal J2 STOP now has an immutable replaying artifact under
+the hashes above. No Plan 0054 recovery authority, fresh holdout membership,
 validation result, candidate pool, gold, prediction, model score, metric, or
 terminal decision exists. R0 is the only next packet; new audio decode remains
 unauthorized until J0 accepts its proposed membership and fault contract.
@@ -153,10 +157,12 @@ rule changes. Terminal: R1/R2-only acceptance or `stop`.
 
 ### R1-R2 | Fresh Holdout Freeze And Validation
 
-Freeze the first seven eligible sources before decode. Then run the accepted
-validator once on all seven and instantiate the recovery-seeded negative grid
-once. Every positive must pass and every negative must reject for its literal
-predeclared reason. Terminal: immutable J2 packet or `stop`.
+Verify the exact J0-signed rows 2 through 8 as the seven positive holdouts;
+row 1 is used only as the recovery-negative construction source. Then run the
+accepted validator once on all seven positives and instantiate the
+recovery-seeded negative grid once from row 1. Every positive must pass and
+every negative must reject for its literal predeclared reason. Terminal:
+immutable J2 packet or `stop`.
 
 ### J2 | Independent Validation Audit
 

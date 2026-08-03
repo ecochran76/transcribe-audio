@@ -37,6 +37,11 @@
 - Plan 0053 is closed. No candidate, gold, model, prediction, mutation,
   integration, or reprocessing action ran. The code now predeclares
   `measurement_error`, but the revealed Plan 0053 holdout cannot be reused.
+- The terminal result is now immutable: J2 STOP preview
+  `058a36ebebc5a9b743f6db6d856ea5cc2e0c0e123bc8e936bbd1e8597cf5fb3e`
+  and manifest
+  `4033452c29812527209b478b5218b9e773e76726deeffc42a004183b78a994a5`
+  replay full-body with every downstream action false.
 
 ## Turn 306: Generation-5 development diagnosis measured (2026-08-03)
 
