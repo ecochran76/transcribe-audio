@@ -1,6 +1,6 @@
 # Plan 0051 | Generation-4 Media Qualification
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -75,3 +75,22 @@ runtime authority exists.
 - Fewer than seven passing candidates closes without cohort authorization.
 - Any source or repository drift stops before authority write.
 - Any partial, nonprivate, or non-replayable authority is a plan failure.
+
+## Outcome
+
+Implemented preview/apply/replay authority at clean pushed commit `6d7ad4c`.
+The complete 12-candidate no-write preview left the Generation-4 runtime empty
+and froze preview hash
+`af5bcf2d8e60b811bcddbb875dd1044f69a090346c6118525c5c5dd80bc49974`.
+Ten candidates passed every rule; two were rejected only as shorter than 60
+seconds. There were zero prior-evidence overlaps, duplicate-byte candidates,
+stream-shape failures, decode failures, or duration-drift failures.
+
+The immutable private manifest hash is
+`8b115bb92930916b087f114ab396f43f08d40b39f5faff8e1254d30a709c29fe`;
+qualified-set hash is
+`e3c908f80c922365ead50795728feb959d8aa93e542ee2882be79efc456e48be`.
+Authority-driven full-body replay re-decodes the exact private candidates while
+retaining no audio. Runtime directories and files are `0700` and `0600`.
+Only a separate Generation-4 cohort preview is authorized. This plan does not
+prove speaker coverage or acoustic identity quality.

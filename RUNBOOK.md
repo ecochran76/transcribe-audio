@@ -2,6 +2,41 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 290 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0051-2026-08-02-generation-4-media-qualification.md`,
+version 1
+
+Packet: P10-G4-A2 | Qualified media-pool freeze
+
+State transition: `OPEN/Generation-4-media-qualification ->
+CLOSED/qualified-pool-frozen`.
+
+- Added the Generation-4 qualification authority and 14 focused adversarial
+  tests at clean pushed commit `6d7ad4c`.
+- Production no-write preview evaluated 12 explicit top-level candidates and
+  left the Generation-4 runtime unchanged. Preview hash is
+  `af5bcf2d8e60b811bcddbb875dd1044f69a090346c6118525c5c5dd80bc49974`.
+- Ten candidates qualified; two were below the 60-second minimum. No candidate
+  failed overlap, duplicate, stream, decode, or duration-drift checks.
+- Applied manifest hash is
+  `8b115bb92930916b087f114ab396f43f08d40b39f5faff8e1254d30a709c29fe`;
+  qualified-set hash is
+  `e3c908f80c922365ead50795728feb959d8aa93e542ee2882be79efc456e48be`.
+- Authority-driven replay recovered the private candidate list and fully
+  re-decoded every source without retaining audio. Runtime permissions are
+  `0700`/`0600`.
+- Only `build_generation4_cohort_preview` is newly true. Gold, preparation,
+  models, trials, scores, metrics, selection, profile mutation, integration,
+  and reprocessing remain false.
+
+Next:
+
+- Open a separate Generation-4 cohort/gold feasibility plan over the qualified
+  pool. Require conversation identity and enrolled-speaker coverage before
+  cohort freeze.
+
 ## Turn 289 | 2026-08-02
 
 Plan:

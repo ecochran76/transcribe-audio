@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0051 Generation-4 media qualification
+State: PLANNED — Generation-4 cohort and gold design
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -498,13 +498,20 @@ default integration, and historical reprocessing are `not_run`. A future
 attempt requires a new evaluation generation and authority, not a Generation 3
 repair or retry.
 
-Plan 0051 opens the next bounded step under the durable speaker-identity
+Plan 0051 opened the next bounded step under the durable speaker-identity
 roadmap in
 `docs/dev/notes/0051-2026-08-02-speaker-identity-product-roadmap.md`. It
 qualifies a fresh, explicit Generation-4 media pool before cohort or gold
 freeze, including full decoded-duration validation that would have rejected
 the malformed Generation-3 source. It does not run biometrics or authorize
 speaker identity.
+
+Plan 0051 is now closed. Its pushed qualification authority froze 10 healthy,
+unique, prior-disjoint recordings from 12 explicit candidates; two short files
+were excluded. Full source re-decode replay passes with no retained audio.
+Only a separate cohort-preview action is authorized. The next bounded slice
+must determine conversation identity, enrolled-speaker coverage, and private
+gold feasibility before freezing any Generation-4 cohort.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
