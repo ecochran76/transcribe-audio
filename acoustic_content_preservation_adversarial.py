@@ -19,7 +19,7 @@ DEVELOPMENT_SEED = "generation5-duration-development-v1"
 SEGMENT_SECONDS = 12
 TAIL_LOSS_FRAMES = (2, 320, 4_000, 16_000)
 MIDDLE_REMOVAL_FRAMES = 1_024
-TIMESTAMP_GAP_SECONDS = 0.1
+TIMESTAMP_GAP_SAMPLES = (1_024, 4_800)
 CORRUPT_SOURCE_TAIL_BYTES = 4_096
 
 
@@ -36,6 +36,32 @@ def _run(arguments: list[str]) -> None:
     result = subprocess.run(arguments, capture_output=True, text=True, check=False)
     if result.returncode:
         raise AdversarialValidationError("Adversarial fixture construction failed.")
+
+
+def _packet_location(path: Path, ffprobe_path: str) -> tuple[int, int]:
+    result = subprocess.run(
+        [
+            ffprobe_path, "-v", "error", "-select_streams", "a:0",
+            "-show_packets", "-show_entries", "packet=pos,size", "-of", "json",
+            str(path),
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    try:
+        packets = json.loads(result.stdout).get("packets") if result.returncode == 0 else None
+    except json.JSONDecodeError as exc:
+        raise AdversarialValidationError("Compressed packet inventory is invalid.") from exc
+    if not isinstance(packets, list) or len(packets) < 3:
+        raise AdversarialValidationError("Compressed packet inventory is incomplete.")
+    packet = packets[len(packets) // 2]
+    try:
+        position = int(packet["pos"])
+        size = int(packet["size"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AdversarialValidationError("Compressed packet location is invalid.") from exc
+    if position < 0 or size <= 0:
+        raise AdversarialValidationError("Compressed packet location is invalid.")
+    return position, size
 
 
 def _segment_start_seconds(source_sha256: str) -> int:
@@ -85,6 +111,34 @@ def _case(case_id: str, measurement: dict[str, Any], expected_reason: str) -> di
         "expected_reason": expected_reason,
         "expected_reason_observed": expected_reason in reasons,
         "measurement_sha256": measurement.get("content_sha256"),
+        "output_sample_error": measurement.get("output_sample_error"),
+        "maximum_pts_delta": (measurement.get("packets") or {}).get("maximum_pts_delta"),
+        "discontinuity_limit_ticks_numerator": (
+            measurement.get("packets") or {}
+        ).get("discontinuity_limit_ticks_numerator"),
+        "discontinuity_limit_ticks_denominator": (
+            measurement.get("packets") or {}
+        ).get("discontinuity_limit_ticks_denominator"),
+        "_private_measurement": measurement,
+    }
+
+
+def _exception_case(
+    case_id: str, error: preservation.ContentPreservationError, expected_reason: str
+) -> dict[str, Any]:
+    return {
+        "case_id": case_id,
+        "status": "rejected",
+        "reason_codes": [error.reason_code],
+        "expected_reason": expected_reason,
+        "expected_reason_observed": error.reason_code == expected_reason,
+        "measurement_sha256": None,
+        "exception_class": type(error).__name__,
+        "_private_measurement": {
+            "exception_class": type(error).__name__,
+            "reason_code": error.reason_code,
+            "message": str(error),
+        },
     }
 
 
@@ -168,6 +222,29 @@ def run_development_adversaries(
         )
         private_fixture_hashes["middle_packet_equivalent_removal"] = p1.sha256_file(removed)
 
+        packet_position, packet_size = _packet_location(
+            segment, str(segment_plan["recipe"]["probe_path"])
+        )
+        segment_bytes = segment.read_bytes()
+        compressed_removed = root / "compressed-packet-removal.m4a"
+        compressed_removed.write_bytes(
+            segment_bytes[:packet_position] + segment_bytes[packet_position + packet_size :]
+        )
+        try:
+            preservation.measure(
+                compressed_removed,
+                expected_source_sha256=segment_sha256,
+                channel_policy_authority_sha256=channel_policy_authority_sha256,
+            )
+        except preservation.ContentPreservationError as exc:
+            compressed_case = _exception_case(
+                "compressed_packet_removal", exc, "source_hash_mismatch"
+            )
+        else:
+            raise AdversarialValidationError("Compressed packet removal was not rejected.")
+        cases.append(compressed_case)
+        private_fixture_hashes["compressed_packet_removal"] = p1.sha256_file(compressed_removed)
+
         corrupted_frames = bytearray(frames)
         corrupted_frames[-1] ^= 0x01
         corrupt_output = root / "corrupt-tail-content.wav"
@@ -183,25 +260,27 @@ def run_development_adversaries(
         )
         private_fixture_hashes["corrupt_output_tail_content"] = p1.sha256_file(corrupt_output)
 
-        timestamp_gap = root / "timestamp-gap.m4a"
-        _run(
-            [
-                ffmpeg_path,
-                "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-                "-i", str(segment), "-map", "0:a:0", "-af",
-                f"asetpts=PTS+gte(T\\,4)*{TIMESTAMP_GAP_SECONDS}/TB",
-                "-ac", "2", "-ar", "48000", "-c:a", "aac", "-b:a", "128k",
-                str(timestamp_gap),
-            ]
-        )
-        timestamp_hash = p1.sha256_file(timestamp_gap)
-        timestamp_measurement = preservation.measure(
-            timestamp_gap,
-            expected_source_sha256=timestamp_hash,
-            channel_policy_authority_sha256=channel_policy_authority_sha256,
-        )
-        cases.append(_case("timestamp_discontinuity", timestamp_measurement, "timeline_discontinuity"))
-        private_fixture_hashes["timestamp_discontinuity"] = timestamp_hash
+        for gap_samples in TIMESTAMP_GAP_SAMPLES:
+            timestamp_gap = root / f"timestamp-gap-{gap_samples}.m4a"
+            _run(
+                [
+                    ffmpeg_path,
+                    "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(segment), "-map", "0:a:0", "-af",
+                    f"asetpts=PTS+gte(T\\,4)*{gap_samples}/48000/TB",
+                    "-ac", "2", "-ar", "48000", "-c:a", "aac", "-b:a", "128k",
+                    str(timestamp_gap),
+                ]
+            )
+            timestamp_hash = p1.sha256_file(timestamp_gap)
+            timestamp_measurement = preservation.measure(
+                timestamp_gap,
+                expected_source_sha256=timestamp_hash,
+                channel_policy_authority_sha256=channel_policy_authority_sha256,
+            )
+            case_id = f"timestamp_discontinuity_{gap_samples}_samples"
+            cases.append(_case(case_id, timestamp_measurement, "timeline_discontinuity"))
+            private_fixture_hashes[case_id] = timestamp_hash
 
         wrong_stream = root / "wrong-stream.m4a"
         _run(
@@ -213,19 +292,19 @@ def run_development_adversaries(
             ]
         )
         wrong_stream_hash = p1.sha256_file(wrong_stream)
-        wrong_stream_metadata = preservation._stream_metadata(
-            wrong_stream, str(segment_plan["recipe"]["probe_path"])
-        )
-        cases.append(
-            {
-                "case_id": "wrong_stream_count",
-                "status": "rejected",
-                "reason_codes": ["audio_stream_count_not_one"],
-                "expected_reason": "audio_stream_count_not_one",
-                "expected_reason_observed": wrong_stream_metadata["audio_stream_count"] == 2,
-                "measurement_sha256": preservation.canonical_hash(wrong_stream_metadata),
-            }
-        )
+        try:
+            preservation.measure(
+                wrong_stream,
+                expected_source_sha256=wrong_stream_hash,
+                channel_policy_authority_sha256=channel_policy_authority_sha256,
+            )
+        except preservation.ContentPreservationError as exc:
+            wrong_stream_case = _exception_case(
+                "wrong_stream_count", exc, "audio_stream_count_not_one"
+            )
+        else:
+            raise AdversarialValidationError("Wrong-stream fixture was not rejected.")
+        cases.append(wrong_stream_case)
         private_fixture_hashes["wrong_stream_count"] = wrong_stream_hash
 
         corrupt_source = root / "corrupt-source-tail.m4a"
@@ -237,26 +316,24 @@ def run_development_adversaries(
                 expected_source_sha256=corrupt_source_hash,
                 channel_policy_authority_sha256=channel_policy_authority_sha256,
             )
-        except (preservation.ContentPreservationError, p1.AudioDerivativeError):
-            corrupt_case = {
-                "case_id": "corrupt_source_tail",
-                "status": "rejected",
-                "reason_codes": ["measurement_error"],
-                "expected_reason": "measurement_error",
-                "expected_reason_observed": True,
-                "measurement_sha256": None,
-            }
+        except preservation.ContentPreservationError as exc:
+            corrupt_case = _exception_case(
+                "corrupt_source_tail", exc, exc.reason_code
+            )
         else:
             corrupt_case = _case("corrupt_source_tail", corrupt_source_measurement, "decode_warning")
         cases.append(corrupt_case)
         private_fixture_hashes["corrupt_source_tail"] = corrupt_source_hash
 
-    expected_count = len(TAIL_LOSS_FRAMES) + 5
+    expected_count = len(TAIL_LOSS_FRAMES) + len(TIMESTAMP_GAP_SAMPLES) + 5
     passed = (
         len(cases) == expected_count
         and all(item["status"] == "rejected" for item in cases)
         and all(item["expected_reason_observed"] is True for item in cases)
     )
+    private_case_measurements = {
+        str(item["case_id"]): item.pop("_private_measurement") for item in cases
+    }
     core = {
         "schema_version": SCHEMA_VERSION,
         "seed": DEVELOPMENT_SEED,
@@ -264,10 +341,18 @@ def run_development_adversaries(
         "segment_seconds": SEGMENT_SECONDS,
         "tail_loss_frames": list(TAIL_LOSS_FRAMES),
         "middle_removal_frames": MIDDLE_REMOVAL_FRAMES,
-        "timestamp_gap_seconds": TIMESTAMP_GAP_SECONDS,
+        "timestamp_gap_samples": list(TIMESTAMP_GAP_SAMPLES),
+        "compressed_packet_removal_bytes": packet_size,
+        "tool_identity": {
+            "decoder_path": plan["recipe"]["decoder_path"],
+            "decoder_revision": plan["recipe"]["decoder_revision"],
+            "probe_path": plan["recipe"]["probe_path"],
+            "probe_revision": plan["recipe"]["probe_revision"],
+        },
         "case_count": len(cases),
         "cases": cases,
         "all_expected_rejections_observed": passed,
         "private_fixture_hashes": private_fixture_hashes,
+        "private_case_measurements": private_case_measurements,
     }
     return {**core, "content_sha256": _canonical_hash(core)}

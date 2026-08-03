@@ -178,10 +178,11 @@ def preview_generation5_development(
     results = list(measurements if measurements is not None else _collect_measurements(authority))
     negative = dict(adversarial_result or _collect_adversaries(authority))
     _validate_development(results)
-    if negative.get("case_count") != 9 or negative.get("all_expected_rejections_observed") is not True:
+    if negative.get("case_count") != 11 or negative.get("all_expected_rejections_observed") is not True:
         raise Generation5DevelopmentError("Development adversarial family did not pass.")
     public_negative = {
-        key: value for key, value in negative.items() if key != "private_fixture_hashes"
+        key: value for key, value in negative.items()
+        if key not in {"private_fixture_hashes", "private_case_measurements"}
     }
     diagnosis = {
         "container_duration_is_not_decodable_sample_authority": True,

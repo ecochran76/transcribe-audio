@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+from fractions import Fraction
 from pathlib import Path
 
 import acoustic_audio_derivatives as p1
@@ -33,7 +34,7 @@ def test_real_adversarial_grid_rejects_every_fault(tmp_path: Path) -> None:
         channel_policy_authority_sha256="a" * 64,
     )
 
-    assert result["case_count"] == 9
+    assert result["case_count"] == 11
     for item in result["cases"]:
         assert item["status"] == "rejected", item
         assert item["expected_reason_observed"] is True, item
@@ -44,8 +45,19 @@ def test_real_adversarial_grid_rejects_every_fault(tmp_path: Path) -> None:
         "tail_loss_4000_frames",
         "tail_loss_16000_frames",
         "middle_packet_equivalent_removal",
+        "compressed_packet_removal",
         "corrupt_output_tail_content",
-        "timestamp_discontinuity",
+        "timestamp_discontinuity_1024_samples",
+        "timestamp_discontinuity_4800_samples",
         "wrong_stream_count",
         "corrupt_source_tail",
     }
+    boundary = next(
+        item for item in result["cases"]
+        if item["case_id"] == "timestamp_discontinuity_1024_samples"
+    )
+    limit = Fraction(
+        boundary["discontinuity_limit_ticks_numerator"],
+        boundary["discontinuity_limit_ticks_denominator"],
+    )
+    assert Fraction(boundary["maximum_pts_delta"]) == limit

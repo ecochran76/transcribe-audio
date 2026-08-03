@@ -40,10 +40,11 @@ def _measurements() -> list[dict]:
 
 def _negative() -> dict:
     return {
-        "case_count": 9,
+        "case_count": 11,
         "all_expected_rejections_observed": True,
-        "cases": [{"status": "rejected"}] * 9,
+        "cases": [{"status": "rejected"}] * 11,
         "private_fixture_hashes": {"one": "b" * 64},
+        "private_case_measurements": {"one": {"source_sha256": "d" * 64}},
         "content_sha256": "c" * 64,
     }
 
@@ -68,6 +69,7 @@ def test_preview_freezes_diagnosis_without_authorizing_holdout() -> None:
     assert preview["did_measure_holdout"] is False
     assert "private_evidence" not in portable
     assert "private_fixture_hashes" not in json.dumps(portable)
+    assert "private_case_measurements" not in json.dumps(portable)
 
 
 def test_preview_rejects_case_failing_development_result() -> None:

@@ -28,6 +28,10 @@ MAX_PACKET_INTERVALS_WITHOUT_DISCONTINUITY = 2
 class ContentPreservationError(ValueError):
     """Raised when content preservation cannot be measured exactly."""
 
+    def __init__(self, message: str, *, reason_code: str = "measurement_error") -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
 
 def canonical_hash(value: Any) -> str:
     body = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -153,7 +157,7 @@ def _packet_metrics(
     minimum_delta = min(deltas)
     discontinuity_limit = nominal_ticks * MAX_PACKET_INTERVALS_WITHOUT_DISCONTINUITY
     discontinuity_count = sum(
-        count for delta, count in deltas.items() if Fraction(delta) > discontinuity_limit
+        count for delta, count in deltas.items() if Fraction(delta) >= discontinuity_limit
     )
     return {
         "packet_count": packet_count,
@@ -248,6 +252,8 @@ def contract() -> dict[str, Any]:
         "maximum_packet_intervals_without_discontinuity": (
             MAX_PACKET_INTERVALS_WITHOUT_DISCONTINUITY
         ),
+        "discontinuity_comparator": "greater_than_or_equal",
+        "discontinuity_boundary_meaning": "one_complete_aac_access_unit_interval_missing",
         "reference_paths": [
             "ffprobe_packet_pts_and_duration",
             "native_rate_decode_to_raw_pcm",
@@ -329,16 +335,31 @@ def measure(
     production_wav: Path | None = None,
 ) -> dict[str, Any]:
     if p1.sha256_file(source) != expected_source_sha256:
-        raise ContentPreservationError("Source hash does not match authority.")
-    plan, _ = p1._build_plan(
-        source,
-        expected_source_sha256=expected_source_sha256,
-        channel_policy=channel_policy,
-        channel_policy_authority_sha256=channel_policy_authority_sha256,
-    )
+        raise ContentPreservationError(
+            "Source hash does not match authority.", reason_code="source_hash_mismatch"
+        )
+    ffprobe_preflight = p1._tool("ffprobe")
+    preflight = _stream_metadata(source, ffprobe_preflight)
+    if preflight["audio_stream_count"] != 1:
+        raise ContentPreservationError(
+            "Source must contain exactly one audio stream.",
+            reason_code="audio_stream_count_not_one",
+        )
+    try:
+        plan, _ = p1._build_plan(
+            source,
+            expected_source_sha256=expected_source_sha256,
+            channel_policy=channel_policy,
+            channel_policy_authority_sha256=channel_policy_authority_sha256,
+        )
+    except p1.AudioDerivativeError as exc:
+        raise ContentPreservationError(
+            "Source probe or deterministic recipe construction failed.",
+            reason_code="source_probe_or_recipe_error",
+        ) from exc
     ffmpeg_path = str(plan["recipe"]["decoder_path"])
     ffprobe_path = str(plan["recipe"]["probe_path"])
-    metadata = _stream_metadata(source, ffprobe_path)
+    metadata = preflight
     stream = metadata["stream"]
     try:
         sample_rate = int(stream.get("sample_rate") or 0)

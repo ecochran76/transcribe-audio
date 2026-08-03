@@ -87,3 +87,11 @@ def test_contract_does_not_use_container_duration_as_authority() -> None:
     assert value["maximum_resampler_error_samples"] == 1
     assert value["maximum_packet_intervals_without_discontinuity"] == 2
     assert value["ambiguous_timeline_discontinuity_policy"] == "reject"
+
+
+def test_error_has_stable_reason_code() -> None:
+    error = preservation.ContentPreservationError(
+        "wrong stream", reason_code="audio_stream_count_not_one"
+    )
+
+    assert error.reason_code == "audio_stream_count_not_one"
