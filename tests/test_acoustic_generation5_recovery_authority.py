@@ -101,3 +101,13 @@ def test_prior_reader_accepts_concatenated_json_documents(tmp_path) -> None:
 
     assert len(values) == 2
     assert r0._all_hashes(values) == {"a" * 64, "b" * 64}
+
+
+def test_prior_reader_conservatively_extracts_hashes_from_legacy_text(tmp_path) -> None:
+    path = tmp_path / "legacy.json"
+    path.write_text("legacy preface\n" + "c" * 64 + "\nnot-json\n")
+
+    hashes, mode = r0._evidence_hashes(path)
+
+    assert hashes == {"c" * 64}
+    assert mode == "raw_sha256_token_fallback"

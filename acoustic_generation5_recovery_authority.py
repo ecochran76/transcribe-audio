@@ -152,12 +152,26 @@ def _read_json_sequence(path: Path) -> list[Any]:
     return values
 
 
+def _evidence_hashes(path: Path) -> tuple[set[str], str]:
+    try:
+        values = _read_json_sequence(path)
+    except Generation5RecoveryAuthorityError:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise Generation5RecoveryAuthorityError("Prior evidence is unreadable.") from exc
+        tokens = set(re.findall(r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])", text))
+        return tokens, "raw_sha256_token_fallback"
+    return _all_hashes(values), "structured_json"
+
+
 def _exclusion_union(prior_root: Path) -> dict[str, Any]:
     root = prior_root.expanduser().absolute()
     if not root.is_dir() or root.is_symlink():
         raise Generation5RecoveryAuthorityError("Prior evidence root is invalid.")
     hashes: set[str] = set()
     file_hashes: list[str] = []
+    parse_mode_counts: dict[str, int] = {}
     for path in sorted(root.rglob("*.json")):
         try:
             relative = path.relative_to(root)
@@ -165,8 +179,9 @@ def _exclusion_union(prior_root: Path) -> dict[str, Any]:
             raise Generation5RecoveryAuthorityError("Prior evidence escaped its root.") from exc
         if not path.is_file() or path.is_symlink() or (relative.parts and relative.parts[0] == "plan-0054"):
             continue
-        values = _read_json_sequence(path)
-        hashes.update(_all_hashes(values))
+        found, parse_mode = _evidence_hashes(path)
+        hashes.update(found)
+        parse_mode_counts[parse_mode] = parse_mode_counts.get(parse_mode, 0) + 1
         file_hashes.append(sha256_file(path))
     if not hashes or not file_hashes:
         raise Generation5RecoveryAuthorityError("Prior exclusion evidence is empty.")
@@ -176,6 +191,7 @@ def _exclusion_union(prior_root: Path) -> dict[str, Any]:
         "json_file_set_sha256": _canonical_hash(sorted(file_hashes)),
         "excluded_hash_count": len(hashes),
         "excluded_hash_set_sha256": _canonical_hash(sorted(hashes)),
+        "parse_mode_counts": parse_mode_counts,
     }
 
 
