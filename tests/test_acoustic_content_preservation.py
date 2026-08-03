@@ -9,6 +9,12 @@ def _measurement() -> dict:
             "audio_stream_count": 1,
             "stream": {"codec_name": "aac"},
         },
+        "tool_identity": {
+            "decoder_path": "/usr/bin/ffmpeg",
+            "decoder_version": "ffmpeg test",
+            "probe_path": "/usr/bin/ffprobe",
+            "probe_version": "ffprobe test",
+        },
         "packets": {
             "non_monotonic_count": 0,
             "discontinuity_count": 0,

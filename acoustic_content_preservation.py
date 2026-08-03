@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import subprocess
 import tempfile
 import wave
@@ -98,8 +99,8 @@ def _packet_metrics(
             "-v", "error",
             "-select_streams", "a:0",
             "-show_packets",
-            "-show_entries", "packet=pts,duration,flags",
-            "-of", "csv=p=0",
+            "-show_entries", "packet=pts,duration,flags,side_data_list",
+            "-of", "compact=p=0:nk=0",
             str(source),
         ],
         stdout=subprocess.PIPE,
@@ -115,15 +116,21 @@ def _packet_metrics(
     deltas: Counter[int] = Counter()
     durations: Counter[int] = Counter()
     non_monotonic_count = 0
+    skip_samples = 0
+    discard_padding = 0
     for line in process.stdout:
-        fields = line.strip().split(",")
-        if len(fields) < 2:
+        pts_match = re.search(r"(?:^|\|)pts=(-?\d+)(?:\||$)", line)
+        duration_match = re.search(r"(?:^|\|)duration=(\d+)(?:\||$)", line)
+        if pts_match is None or duration_match is None:
             continue
-        try:
-            pts = int(fields[0])
-            duration = int(fields[1])
-        except ValueError:
-            continue
+        pts = int(pts_match.group(1))
+        duration = int(duration_match.group(1))
+        skip_match = re.search(r"(?:^|:)skip_samples=(\d+)(?:\||$)", line)
+        discard_match = re.search(r"(?:^|:)discard_padding=(\d+)(?:\||$)", line)
+        if skip_match is not None:
+            skip_samples += int(skip_match.group(1))
+        if discard_match is not None:
+            discard_padding += int(discard_match.group(1))
         if first_pts is None:
             first_pts = pts
         if previous_pts is not None:
@@ -163,6 +170,8 @@ def _packet_metrics(
         "discontinuity_limit_ticks_denominator": discontinuity_limit.denominator,
         "packet_duration_value_count": len(durations),
         "maximum_packet_duration_ticks": max(durations),
+        "skip_samples": skip_samples,
+        "discard_padding_samples": discard_padding,
         "packet_pts_extent_seconds": float(Fraction(last_pts - first_pts, 1) * time_base),
     }
 
@@ -248,9 +257,11 @@ def contract() -> dict[str, Any]:
         "container_duration_is_decision_authority": False,
         "requires_exact_source_hash": True,
         "requires_source_hash_unchanged_after_measurement": True,
+        "requires_exact_tool_versions": True,
         "requires_one_audio_stream": True,
         "requires_zero_decode_warnings": True,
         "requires_packet_to_native_sample_equality": True,
+        "reconciles_packet_skip_samples_and_discard_padding": True,
         "requires_reference_to_wav_pcm_hash_equality": True,
         "ambiguous_timeline_discontinuity_policy": "reject",
     }
@@ -265,12 +276,18 @@ def validate_measurement(value: Mapping[str, Any]) -> dict[str, Any]:
     native = value.get("native_decode") or {}
     reference = value.get("recipe_reference_decode") or {}
     output = value.get("production_wav") or {}
+    tools = value.get("tool_identity") or {}
     if value.get("source_unchanged") is not True:
         reasons.append("source_changed_during_measurement")
     if metadata.get("audio_stream_count") != 1:
         reasons.append("audio_stream_count_not_one")
     if stream.get("codec_name") != SUPPORTED_CODEC:
         reasons.append("unsupported_codec")
+    if not all(
+        isinstance(tools.get(field), str) and tools.get(field)
+        for field in ("decoder_path", "decoder_version", "probe_path", "probe_version")
+    ):
+        reasons.append("tool_identity_missing")
     if native.get("returncode") != 0 or reference.get("returncode") != 0:
         reasons.append("decode_error")
     if native.get("warning_line_count") != 0 or reference.get("warning_line_count") != 0:
@@ -309,6 +326,7 @@ def measure(
     expected_source_sha256: str,
     channel_policy: str = "stereo_average_to_mono",
     channel_policy_authority_sha256: str,
+    production_wav: Path | None = None,
 ) -> dict[str, Any]:
     if p1.sha256_file(source) != expected_source_sha256:
         raise ContentPreservationError("Source hash does not match authority.")
@@ -351,10 +369,13 @@ def measure(
             "-ar", str(p1.TARGET_SAMPLE_RATE),
         ],
     )
-    with tempfile.TemporaryDirectory(prefix="content-preservation-") as directory:
-        output_path = Path(directory) / "production.wav"
-        p1._decode(source, output_path, plan["recipe"])
-        output = _wav_pcm_metrics(output_path)
+    if production_wav is None:
+        with tempfile.TemporaryDirectory(prefix="content-preservation-") as directory:
+            output_path = Path(directory) / "production.wav"
+            p1._decode(source, output_path, plan["recipe"])
+            output = _wav_pcm_metrics(output_path)
+    else:
+        output = _wav_pcm_metrics(production_wav)
     native_samples = int(native["sample_count_per_channel"])
     expected_output = round(Fraction(native_samples * p1.TARGET_SAMPLE_RATE, sample_rate))
     format_duration = float((metadata.get("format") or {}).get("duration") or 0)
@@ -363,6 +384,12 @@ def measure(
         "schema_version": MEASUREMENT_SCHEMA,
         "contract_sha256": contract()["content_sha256"],
         "source_sha256": expected_source_sha256,
+        "tool_identity": {
+            "decoder_path": plan["recipe"]["decoder_path"],
+                "decoder_version": plan["recipe"]["decoder_revision"],
+            "probe_path": plan["recipe"]["probe_path"],
+                "probe_version": plan["recipe"]["probe_revision"],
+        },
         "metadata": metadata,
         "packets": packets,
         "native_decode": native,
@@ -370,6 +397,8 @@ def measure(
         "production_wav": output,
         "packet_expected_native_samples": (
             int(packets["packet_count"]) * AAC_ACCESS_UNIT_SAMPLES
+            - int(packets["skip_samples"])
+            - int(packets["discard_padding_samples"])
         ),
         "expected_output_samples": expected_output,
         "output_sample_error": int(output["frame_count"]) - expected_output,
@@ -382,6 +411,7 @@ def measure(
             else math.inf
         ),
         "source_unchanged": p1.sha256_file(source) == expected_source_sha256,
+        "used_injected_production_fixture": production_wav is not None,
     }
     decision = validate_measurement(core)
     return {**core, **decision, "content_sha256": canonical_hash({**core, **decision})}
