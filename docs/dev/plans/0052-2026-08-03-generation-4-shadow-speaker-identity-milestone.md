@@ -1,6 +1,6 @@
 # Plan 0052 | Generation-4 Shadow Speaker Identity Milestone
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -90,80 +90,40 @@ capability beyond shadow evidence.
 
 ## Current State
 
-G0 is complete. Plan 0051's exact 12-candidate authority replays full-body: 10
-recordings remain qualified, two remain rejected only as shorter than 60
-seconds, and the qualified-set and private-manifest hashes match. The six
-active successor profiles and all nine frozen calibration thresholds replay in
-the pinned `.venv` without audio or model execution. G0 preview hash is
-`aa179741e735247e87cc6143c6526669670734c8c562ed166160eb0c6d605010`;
-immutable manifest hash is
-`ad9e26b59502508c8810e11648d519d99860579aea1ca731445459b196836d22`.
-Full replay passes with private `0700/0600` modes. G1C is complete under
-context-contract hash
-`f539146dfccc3a8025d20713b5cf02762d7d5a5d25cb01f4886f6dedda44bb18`,
-prompt hash
-`4afbdde84707b2cf2308535a8b4e01b1878c7f3065f2f954dc9180bfc01f5584`,
-and rubric hash
-`a624429790a6a4868c295d3188a033157f9314bdeeedb21d3bf794c44e8370cc`.
-G1B is complete under acoustic-contract hash
-`eae21ec7842803a8cf6aa695b5146927ee9da33e2133ab542cd446fcdc039aab`;
-its single selected opaque factor contract is
-`4cebdb5140cae4c592d99622447b39ae60d04e428d06e376094685b20a886a54`.
-G1A has proved that the original pool can propose seven transcript-linked
-recordings with 15 speaker slots and a theoretical capacity of 21 pairs. Its
-private feasibility preview hash is
-`b59c9f6e665f8ff238362b411ed7317764d5a62fae21016983201601b6ec2af3`
-and immutable manifest hash is
-`e5dea7c7d0ede0478ce97c5152e3e2e15122cbdc0aa57001c0cb4e51bc6bc487`.
-G1A remains at the private-gold review gate. A two-for-two original-pool
-substitution reduced the initial unresolved operator review from 13 to 10
-speaker labels while preserving seven recordings and structural population
-capacity. Private review bundle hash is
-`c826f642f47e915ff3afd5476615e342f53b8ff5981b8a6ec0ddac1b641d3d2d`;
-its 12 short clips and review page are all `0600`. Both prior operator
-assertions were corrected through immutable overlays with content hashes
-`c0e2c19a9d61f5e20f43e59c1a88804f673f68b05515c0a59204820832ecc178`
-and
-`66a3a684fe6e15f85fac50f16aaf2e9d7fdd202cfc1b0d0c13705d10b8ab56be`;
-the original assertions remain preserved. The corrected labels are prefilled,
-the two pre-existing enrolled identity names remain private review hints, and
-one corrected prefill matches an enrolled identity. The complete nine-recording
-original pool is now operator-reviewed under private, unfrozen GOLD_SCHEMA
-content
-`2876ae8dacba1311968386abab9b0adfa325dce35f8ca719250c4ebc1a925b6a`;
-the private file hash is
-`eab00331c61182f4a86d1d12dfbdff4bdfb3cab81f1bc62fac3d39faec6e49d9`.
-Six population gates pass: nine conversations, ten people, 22 same-person
-session pairs, complete gold, zero overlap, and all sources within authority.
-The population remains non-passing because only one enrolled person has two
-sessions. The one bounded 12-candidate supplemental pool is now consumed: all
-12 candidates passed the frozen media policy under qualification preview
-`cc405f40414f69bea012559d5ca4c10098ed4ab0d4e4efc37264a361c26f82d9`
-and qualified-set hash
-`09ae99141880df95b3531563b484008ea411ccafab411b4da311627d5e16d994`.
-The first two-conversation, seven-label supplemental review imported under
-combined private-gold content
-`baf0fa93dee6b936564fa3827a735e9ba10304cd4d2f3b418b81a17300bdc6ca`.
-A final three-label review of one context-supported independent recording was
-imported under private content
-`d1575a9bcdca79f7cb1193fb936382bdc5a4153ae11bb16aaad43c5e6ba3d64d`.
-The combined 12-case private gold has content hash
-`37f3a2da83cdbecaa936fbad477490c234c3d25ba55243f68a413f06dee4557a`
-and `0600` file hash
-`5b43119baddb24c794ebfe3224b735d182bc7b10e374166d71f68c9ea61ef65d`.
-All population gates now pass across 12 recordings, 15 people, 47
-same-person session pairs, two enrolled people with two independent sessions,
-complete gold, zero overlap, and source authority. The proposed seven-recording
-G1A cohort contains nine people and 17 same-person session pairs and also
-passes every gate. Its combined qualified-set hash is
-`460fa3dd3befa17e249860b70477474580202577a599a357e7b7c641609cd4c2`,
-preview hash is
-`1bd697995ebfcfa3d8018f77b99c4a1c28e82ce4df32b86dc514cc8d3557ee76`,
-and replay-idempotent private manifest hash is
-`08d134ada150775e5da64b3dc18ab5a59a8ad25bf90524e738257d80042d7a98`.
-G1A is complete and only submission to independent J1 is now true. No
-private-gold reveal to a prediction worker, cohort/gold freeze, prediction, or
-evaluation-model execution has started.
+Closed with immutable terminal decision `stop` at G3 blind preparation. G0,
+G1A, G1B, and G1C completed. The single supplemental pool produced a valid
+seven-recording cohort with nine people, 17 same-person session pairs, both
+enrolled people in two independent sessions, complete gold, zero overlap, and
+all sources within the exact 10-original plus 12-supplemental authority.
+
+The first J1 review found that G1A trusted caller-injected combined authority.
+The one permitted rework removed those inputs, pinned and validated both media
+manifests, recomputed the disjoint 22-source union, bound every member to its
+origin, and added tamper-negative replay tests. Replacement G1A preview
+`9648201f4d3e70f65d396bb1fe82fb9aad57603ff077ccd99b7d61532a0889d7`
+and private manifest
+`fed08c49b26024b041774b9df7b067ae9d156022fd8a7a16dbf0df8b85451c0f`
+replay exactly. Independent J1 then signed acceptance.
+
+G2 froze the exact cohort, private-gold commitment, selected factor, complete
+nine-unit contract, contextual prompt/rubric, negative actions, metrics, and
+terminal policy. Its preview is
+`cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee`
+and private manifest is
+`ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41`.
+
+G3 executed one frozen prediction-blind preparation attempt. Three cases
+completed all 15 P1/P2 method cells. The fourth P1 source duration was
+`5138.648667` seconds, while the frozen decode produced `5138.4746875`
+seconds: drift `0.17397950000031415` exceeded the immutable `0.05`-second
+tolerance. Cohort substitution and recipe relaxation were forbidden after G2,
+so the remaining three cases were not attempted. Terminal preview
+`fd1a1bed2c6b300e7bc829277465b7820aee8d3c7a7f7d570683ab1f3823333c`
+and private manifest
+`b75aefda1bbf2c38c6c33c7054fc39d05f3631777e4409bc248411f32b0f47ea`
+replay full-body. Gold was never revealed to prediction workers; no contextual
+prediction, biometric model, acoustic score, profile mutation, integration,
+or reprocessing action ran. A successor requires fresh authority.
 
 ## Scope
 
@@ -339,6 +299,11 @@ gold remains isolated, calibration selects the acoustic factor, and no lane
 silently broadens authority. One bounded rework cycle is allowed. Terminal:
 signed design acceptance or `stop`.
 
+Outcome: accepted after the one allowed rework cycle. The first review stopped
+on caller-injected source authority. The repaired full-body replay derives both
+immutable media manifests, exact counts and set hashes, disjoint union, and
+per-member origin. The resubmission signed G2-only authorization.
+
 ### G2 | Cohort, Gold Commitment, And Policy Envelope
 
 Owner: primary agent. Freeze exact cohort membership, private gold commitment,
@@ -347,6 +312,11 @@ nine-unit matrix, thresholds, conditions, window/trial rules, prompts,
 rubrics, candidate union, metrics, negative actions, and terminal policy.
 Terminal: immutable pre-model authority or `stop`.
 
+Outcome: complete. The exact seven-recording cohort, private-gold commitment,
+population proof, selected acoustic factor, nine-unit matrix contract,
+contextual contract, metrics, negative actions, and terminal precedence are
+frozen and replay-idempotent. Only G3 was authorized.
+
 ### G3 | Blind Preparation And Context Baseline
 
 Owner: primary agent with stateless leaf workers where safe. Run P1/P2 on all
@@ -354,12 +324,19 @@ members, validate media drift, produce replayable windows and exact-trial
 children without scores, and freeze context-only predictions while gold is
 unread. Terminal: complete blinded baseline or `stop`.
 
+Outcome: terminal `stop`. Three cases completed all P1/P2 methods. The fourth
+case reproducibly exceeded frozen P1 duration tolerance: `0.1739795` seconds
+observed versus `0.05` allowed. No context provider turn was sent. The
+remaining cases were not attempted after the hard gate failed.
+
 ### G4 | Acoustic Evidence And Augmented Predictions
 
 Owner: primary agent. Execute the selected acoustic factor without gold,
 render separately cited acoustic evidence, and freeze augmented predictions
 under the unchanged G2 prompt and rubric. Do not score or tune. Terminal:
 complete blinded paired packet or `stop`.
+
+Outcome: `not_run_dependency_g3_stop`.
 
 ### J2 | Blindness And Completeness Audit
 
@@ -369,6 +346,8 @@ and no-change guarantees. One bounded rework cycle is permitted only for
 non-semantic packaging defects; predictions cannot be regenerated. Terminal:
 reveal authorization or `stop`.
 
+Outcome: `not_run_dependency_g3_stop`; reveal remained false.
+
 ### G5 | Reveal, Exact Trials, And Scoring
 
 Owner: primary agent. Reveal gold once, construct and replay the frozen exact
@@ -377,12 +356,16 @@ metrics, and score paired contextual outcomes including errors, abstentions,
 review, conflict, and candidate recall. Terminal: immutable result packet or
 `stop`.
 
+Outcome: `not_run_dependency_g3_stop`.
+
 ### J3 | Independent Result Audit
 
 Owner: independent reviewer. Recompute aggregate metrics from immutable child
 evidence, verify every denominator and terminal-policy input, and reject any
 post-reveal mutation or omitted outcome. No model/prompt rerun is permitted.
 Terminal: signed result acceptance or `stop`.
+
+Outcome: `not_run_dependency_g3_stop`.
 
 ### G6 | Terminal Decision And Closeout
 
@@ -391,6 +374,10 @@ one of `advance_to_limited_pilot_plan`, `keep_shadow_and_refine`,
 `reject_acoustic_factor`, or `stop`; update plan, roadmap, runbook, receipts,
 and durable memory when appropriate; validate; commit; push; and prove clean
 upstream parity. A successor plan requires fresh authority.
+
+Outcome: complete with immutable `stop` under the first terminal-policy rule.
+All mutation and integration actions remain false; fresh successor authority
+is required for any new evaluation generation.
 
 ## Validation
 

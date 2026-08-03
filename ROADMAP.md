@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0052 Generation-4 shadow speaker identity milestone
+State: CLOSED — Plan 0052 terminal `STOP` during frozen G3 preparation
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -513,18 +513,26 @@ Only a separate cohort-preview action is authorized. The next bounded slice
 must determine conversation identity, enrolled-speaker coverage, and private
 gold feasibility before freezing any Generation-4 cohort.
 
-Plan 0052, governed by
-`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
-opens the full meaningful Generation-4 milestone rather than only that next
-slice. It must carry the qualified pool through cohort and private gold
-feasibility, one frozen unseen acoustic evaluation, and a paired shadow
-comparison of the existing Plan 0025 context-only workflow against the same
-workflow with separately visible acoustic evidence. Completion requires one
-immutable terminal decision: advance to a separately governed limited-pilot
-plan, keep the factor in shadow and refine, reject the factor, or stop. Cohort
-freeze, passing tests, acoustic scores, or an intermediate packet do not close
-the plan. Automatic assignment, enrollment, profile mutation, default
-integration, and historical reprocessing remain unauthorized.
+Plan 0052 is closed with immutable terminal `STOP`. Private review and the one
+bounded supplemental pool produced a valid seven-recording cohort with nine
+people, 17 same-person session pairs, both enrolled people represented twice,
+complete gold, zero overlap, and exact original-plus-supplemental authority.
+The first independent J1 review found caller-injected source authority; the one
+allowed rework pinned both manifests, exact set hashes, disjoint union, and
+per-member origin, after which J1 signed acceptance. G2 froze the exact cohort,
+private-gold commitment, selected acoustic factor, nine-unit contract,
+contextual prompt/rubric, metrics, negative actions, and terminal policy.
+
+G3 completed all five P2 methods on three cases. The fourth P1 decode drifted
+`0.1739795` seconds from its frozen source duration, exceeding the immutable
+`0.05`-second tolerance. Post-freeze substitution and recipe relaxation were
+forbidden, so the remaining three cases were not attempted and the first
+terminal-policy rule recorded `STOP`. Gold was never revealed to prediction
+workers; contextual predictions, biometric execution, acoustic scores,
+profile mutation, integration, and historical reprocessing are `not_run`.
+Acoustic and combined voice-context maturity therefore remain at their prior
+levels. Any successor evaluation requires fresh authority rather than a Plan
+0052 repair or retry.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

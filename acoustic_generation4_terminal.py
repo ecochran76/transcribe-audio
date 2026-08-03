@@ -25,6 +25,7 @@ MANIFEST_SCHEMA = "transcribe-audio.generation4-terminal-manifest.v1"
 RECEIPT_SCHEMA = "transcribe-audio.generation4-terminal-receipt.v1"
 REPLAY_SCHEMA = "transcribe-audio.generation4-terminal-replay.v1"
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0052/g6")
+MODULE_NAME = Path(__file__).name
 G2_PREVIEW_SHA256 = (
     "cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee"
 )
@@ -70,11 +71,28 @@ def _repository_authority() -> dict[str, Any]:
     if status.returncode or status.stdout or parity.returncode or parity.stdout.split() != ["0", "0"]:
         raise Generation4TerminalError("Repository must be clean and upstream-even.")
     commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
+        ["git", "log", "-1", "--format=%H", "--", MODULE_NAME],
+        cwd=root, capture_output=True, text=True, check=True,
     ).stdout.strip()
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    blob = subprocess.run(
+        ["git", "show", f"{commit}:{MODULE_NAME}"],
+        cwd=root, capture_output=True, check=False,
+    )
+    module_sha256 = hashlib.sha256(blob.stdout).hexdigest()
+    if (
+        not commit
+        or ancestor.returncode
+        or blob.returncode
+        or module_sha256 != sha256_file(Path(__file__).resolve())
+    ):
+        raise Generation4TerminalError("Committed module authority drifted.")
     return {
         "commit": commit,
-        "module_sha256": sha256_file(Path(__file__).resolve()),
+        "module_sha256": module_sha256,
         "clean": True,
         "upstream_ahead": 0,
         "upstream_behind": 0,

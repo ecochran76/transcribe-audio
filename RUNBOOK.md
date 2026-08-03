@@ -2,6 +2,62 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 303 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-J1-G2-G3-G6 | Authority repair, pre-model freeze, and terminal preparation stop
+
+State transition: `OPEN/J1-independent-design-reconciliation -> CLOSED/G6-stop`.
+
+- Independent J1 first returned bounded `STOP`: G1A accepted caller-injected
+  authority and membership, so replay proved caller self-consistency rather
+  than exact source lineage. The one allowed rework removed those public
+  inputs, pinned and validated original and supplemental manifests, recomputed
+  their exact disjoint 22-source union, bound every member to its authority
+  origin, and added manifest, set-hash, cap, origin, replay-broadening, and
+  transcript-drift tests. Commit `0f793fb` is pushed.
+- Replacement G1A preview
+  `9648201f4d3e70f65d396bb1fe82fb9aad57603ff077ccd99b7d61532a0889d7`
+  and `0600` manifest
+  `fed08c49b26024b041774b9df7b067ae9d156022fd8a7a16dbf0df8b85451c0f`
+  replay idempotently. The exact authority is 10 original plus 12
+  supplemental sources with zero intersection and combined set
+  `460fa3dd3befa17e249860b70477474580202577a599a357e7b7c641609cd4c2`.
+  Independent J1 resubmission signed design acceptance and authorized only G2.
+- G2 froze the exact seven-recording cohort, private-gold commitment,
+  population proof, selected acoustic factor, full nine-unit contract,
+  contextual contract, metrics, negative actions, and terminal policy at
+  commit `473a67c`. Preview
+  `cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee`
+  and private manifest
+  `ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41`
+  replay idempotently. Gold reveal and biometric models remained false.
+- G3 ran one frozen prediction-blind preparation attempt. Three cases
+  completed and replayed all 15 P1/P2 method cells. The fourth source probed
+  at `5138.648667` seconds and decoded at `5138.4746875` seconds. Drift
+  `0.17397950000031415` exceeded the immutable `0.05`-second P1 tolerance.
+  The remaining three cases were not attempted after the hard gate failed.
+- G6 mechanically applied terminal precedence one. Commit `4e44d9c` freezes
+  terminal preview
+  `fd1a1bed2c6b300e7bc829277465b7820aee8d3c7a7f7d570683ab1f3823333c`,
+  failure evidence
+  `98c8dd4921383113719bbfc5573f62c38789dc36cc0416b80df4ad353b7c4906`,
+  and `0600` private manifest
+  `b75aefda1bbf2c38c6c33c7054fc39d05f3631777e4409bc248411f32b0f47ea`.
+  Full-body replay returns terminal decision `stop`.
+- The full suite passed `764` tests. No contextual or augmented prediction
+  turn, gold reveal, biometric execution, acoustic score, profile/reference
+  mutation, default integration, or historical reprocessing occurred.
+
+Next:
+
+- Plan 0052 is terminal. Any new evaluation generation requires a fresh plan
+  and authority; do not retry, substitute the cohort, or relax the frozen P1
+  recipe under this plan.
+
 ## Turn 302 | 2026-08-03
 
 Plan:
