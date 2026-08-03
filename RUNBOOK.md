@@ -2,6 +2,33 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 289 | 2026-08-02
+
+Plan:
+`docs/dev/plans/0051-2026-08-02-generation-4-media-qualification.md`,
+version 1
+
+Packet: P10-G4-A1 | Media qualification plan opening
+
+State transition: `CLOSED/Generation-3-terminal-stop ->
+OPEN/Generation-4-media-qualification`.
+
+- Recorded the durable multi-stage speaker-identity roadmap in
+  `docs/dev/notes/0051-2026-08-02-speaker-identity-product-roadmap.md`.
+- Graphiti discovery was healthy and returned 10 facts across five episodes;
+  it surfaced the existing Plan 0025 speaker-clue workflow. Current repository
+  authority confirms Plan 0025 is closed and reusable as the future contextual
+  integration boundary.
+- File-searcher bounded refresh confirmed 276 audio files under the explicit
+  `Documents/Sound Recordings` root.
+- Opened Plan 0051 to fully decode and qualify at most 12 explicit top-level
+  candidates before any Generation-4 cohort, gold, or biometric work.
+
+Next:
+
+- Implement, test, freeze, and replay the private media-qualification
+  authority. Authorize cohort preview only if at least seven candidates pass.
+
 ## Turn 288 | 2026-08-02
 
 Plan:
