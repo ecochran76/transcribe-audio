@@ -32,6 +32,12 @@ G2_PREVIEW_SHA256 = (
 G2_MANIFEST_SHA256 = (
     "20cb311ebf436ffdd382c4715de2987d854d1d5b5c56974739d1c4f94c96ae61"
 )
+G3_EXECUTION_G2_PREVIEW_SHA256 = (
+    "cc3668c01d7f731ddc340c6bf39dd4983a4bb63b26da9314a6a1da14e14198ee"
+)
+G3_EXECUTION_G2_MANIFEST_SHA256 = (
+    "ccd46ba08725ccccaaabc35e41bd1f56db8cae44e4afaa294150951de2e70a41"
+)
 FAILED_SOURCE_SHA256 = (
     "843ad4d9effde8b7"  # Exact full value is resolved from frozen private membership.
 )
@@ -117,6 +123,32 @@ def _g2_preview() -> dict[str, Any]:
     return dict(preview)
 
 
+def _g3_execution_g2_preview(current: Mapping[str, Any]) -> dict[str, Any]:
+    paths = g2._paths(g2.DEFAULT_RUNTIME_ROOT, G3_EXECUTION_G2_PREVIEW_SHA256)
+    require_private_file(paths["manifest"], paths["root"].expanduser().absolute())
+    manifest = _read_json(paths["manifest"])
+    preview = manifest.get("preview")
+    if (
+        sha256_file(paths["manifest"]) != G3_EXECUTION_G2_MANIFEST_SHA256
+        or not isinstance(preview, Mapping)
+        or preview.get("content_sha256") != G3_EXECUTION_G2_PREVIEW_SHA256
+    ):
+        raise Generation4TerminalError("G3 execution authority drifted.")
+    old_semantics = {
+        key: value
+        for key, value in preview.items()
+        if key not in {"repository_authority", "content_sha256"}
+    }
+    current_semantics = {
+        key: value
+        for key, value in current.items()
+        if key not in {"repository_authority", "content_sha256"}
+    }
+    if old_semantics != current_semantics:
+        raise Generation4TerminalError("Renewed G2 semantics differ from G3 execution authority.")
+    return dict(preview)
+
+
 def _failed_member(g2_preview: Mapping[str, Any]) -> dict[str, Any]:
     members = g2_preview.get("private_evidence", {}).get("cohort_membership")
     if not isinstance(members, list) or len(members) != 7:
@@ -146,6 +178,7 @@ def _failed_member(g2_preview: Mapping[str, Any]) -> dict[str, Any]:
 
 def _failure_evidence() -> dict[str, Any]:
     frozen = _g2_preview()
+    execution_g2 = _g3_execution_g2_preview(frozen)
     member = _failed_member(frozen)
     source = Path(str(member["source_path"]))
     plan, paths = p1._build_plan(
@@ -154,7 +187,7 @@ def _failure_evidence() -> dict[str, Any]:
         source_blob_id="g4-source-" + str(member["source_sha256"])[:24],
         expected_source_sha256=str(member["source_sha256"]),
         channel_policy="stereo_average_to_mono",
-        channel_policy_authority_sha256=G2_PREVIEW_SHA256,
+        channel_policy_authority_sha256=str(execution_g2["content_sha256"]),
     )
     require_private_file(paths["dry_run"], paths["root"])
     if paths["manifest"].exists() or paths["apply_receipt"].exists():
@@ -193,6 +226,8 @@ def _failure_evidence() -> dict[str, Any]:
     return {
         "g2_preview_sha256": G2_PREVIEW_SHA256,
         "g2_manifest_sha256": G2_MANIFEST_SHA256,
+        "g3_execution_g2_preview_sha256": G3_EXECUTION_G2_PREVIEW_SHA256,
+        "g3_execution_g2_manifest_sha256": G3_EXECUTION_G2_MANIFEST_SHA256,
         "failed_source_sha256": member["source_sha256"],
         "failed_source_path": str(source),
         "failed_p1_run_id": plan["run_id"],
