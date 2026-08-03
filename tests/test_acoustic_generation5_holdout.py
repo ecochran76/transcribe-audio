@@ -82,7 +82,8 @@ def test_g2_rejects_any_positive_holdout_failure() -> None:
 
 def test_g2_apply_replay_is_private_and_idempotent(tmp_path, monkeypatch) -> None:
     preview = _preview()
-    monkeypatch.setattr(g2, "preview_generation5_holdout", lambda: preview)
+    monkeypatch.setattr(g2, "_repository_authority", lambda: REPOSITORY)
+    monkeypatch.setattr(g2, "_parent_authorities", lambda: (G0, J1))
 
     applied = g2.apply_generation5_holdout(
         preview, expected_content_sha256=preview["content_sha256"], runtime_root=tmp_path

@@ -259,8 +259,21 @@ def apply_generation5_holdout(
     reviewed_preview: Mapping[str, Any], *, expected_content_sha256: str,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
-    preview = preview_generation5_holdout()
-    if dict(reviewed_preview) != preview or preview["content_sha256"] != expected_content_sha256:
+    preview = dict(reviewed_preview)
+    core = {key: value for key, value in preview.items() if key != "content_sha256"}
+    parent_g0, parent_j1 = _parent_authorities()
+    if (
+        preview.get("content_sha256") != expected_content_sha256
+        or _canonical_hash(core) != expected_content_sha256
+        or preview.get("repository_authority") != _repository_authority()
+        or preview.get("g0_preview_sha256") != parent_g0.get("content_sha256")
+        or preview.get("j1_preview_sha256") != parent_j1.get("content_sha256")
+        or preview.get("status") != "ready_for_independent_j2_audit"
+        or preview.get("positive_holdout_count") != 7
+        or preview.get("positive_holdout_pass_count") != 7
+        or preview.get("did_measure_holdout") is not True
+        or preview.get("did_instantiate_heldout_negative_family") is not True
+    ):
         raise Generation5HoldoutError("Reviewed G2 preview is stale.")
     paths = _paths(runtime_root, expected_content_sha256)
     if paths["manifest"].exists() or paths["receipt"].exists():
@@ -278,14 +291,19 @@ def apply_generation5_holdout(
 def replay_generation5_holdout(
     expected_content_sha256: str, *, runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
-    preview = preview_generation5_holdout()
-    if preview["content_sha256"] != expected_content_sha256:
-        raise Generation5HoldoutError("G2 authority drifted.")
     paths = _paths(runtime_root, expected_content_sha256)
     require_private_file(paths["manifest"], paths["root"])
     require_private_file(paths["receipt"], paths["root"])
     manifest = _read_json(paths["manifest"])
     receipt = _read_json(paths["receipt"])
+    preview = manifest.get("preview")
+    if not isinstance(preview, Mapping):
+        raise Generation5HoldoutError("G2 preview is missing.")
+    preview = dict(preview)
+    core = {key: value for key, value in preview.items() if key != "content_sha256"}
+    _parent_authorities()
+    if preview.get("content_sha256") != expected_content_sha256 or _canonical_hash(core) != expected_content_sha256:
+        raise Generation5HoldoutError("G2 authority drifted.")
     expected_manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
     expected_receipt = {
         **_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]), "mode": "0600"
