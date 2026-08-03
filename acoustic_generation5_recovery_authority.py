@@ -492,6 +492,23 @@ def _paths(runtime_root: Path, content_sha256: str) -> dict[str, Path]:
     return {"root": root, "run": run, "manifest": run / "private-manifest.json", "receipt": run / "receipt.json"}
 
 
+def _validate_recorded_membership(selected: list[dict[str, Any]]) -> set[str]:
+    selected_hashes: set[str] = set()
+    for member in selected:
+        source = Path(str(member.get("path") or ""))
+        transcript = Path(str(member.get("transcript_path") or ""))
+        source_hash = str(member.get("source_sha256") or "")
+        transcript_hash = str(member.get("transcript_sha256") or "")
+        if (
+            not source.is_file() or source.is_symlink() or sha256_file(source) != source_hash
+            or not transcript.is_file() or transcript.is_symlink()
+            or sha256_file(transcript) != transcript_hash
+        ):
+            raise Generation5RecoveryAuthorityError("Recorded R0 source binding drifted.")
+        selected_hashes.add(source_hash)
+    return selected_hashes
+
+
 def apply_generation5_recovery_authority(
     reviewed_preview: Mapping[str, Any], *, expected_content_sha256: str,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
@@ -535,8 +552,19 @@ def replay_generation5_recovery_authority(
             raise Generation5RecoveryAuthorityError("Recorded module authority drifted.")
     if _git(["merge-base", "--is-ancestor", commit, "HEAD"]) != "":
         raise Generation5RecoveryAuthorityError("Recorded commit is not an ancestor.")
-    recomputed = preview_generation5_recovery_authority(repository_authority=repository)
-    if recomputed != preview or preview.get("content_sha256") != expected_content_sha256:
+    core = {key: value for key, value in preview.items() if key != "content_sha256"}
+    _plan0053_terminal()
+    if preservation.contract()["content_sha256"] != CONTRACT_SHA256:
+        raise Generation5RecoveryAuthorityError("Content-preservation contract drifted.")
+    private = preview.get("private_evidence")
+    selected = private.get("selected_membership") if isinstance(private, Mapping) else None
+    if not isinstance(selected, list) or len(selected) != REQUIRED_MEMBERS:
+        raise Generation5RecoveryAuthorityError("Recorded R0 membership is invalid.")
+    selected_hashes = _validate_recorded_membership(selected)
+    current_exclusions = _exclusion_union(DEFAULT_PRIOR_ROOT)
+    if selected_hashes & current_exclusions["hashes"]:
+        raise Generation5RecoveryAuthorityError("Recorded R0 membership now overlaps prior evidence.")
+    if _canonical_hash(core) != expected_content_sha256 or preview.get("content_sha256") != expected_content_sha256:
         raise Generation5RecoveryAuthorityError("R0 authority drifted.")
     expected_manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
     expected_receipt = {**_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]), "mode": "0600"}

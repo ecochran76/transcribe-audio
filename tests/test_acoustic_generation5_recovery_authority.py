@@ -86,6 +86,17 @@ def test_r0_apply_replay_is_private_and_idempotent(tmp_path, monkeypatch) -> Non
         "_git",
         lambda arguments, binary=False: b"module" if arguments[0] == "show" else "",
     )
+    monkeypatch.setattr(
+        r0,
+        "_validate_recorded_membership",
+        lambda selected: {item["source_sha256"] for item in selected},
+    )
+    monkeypatch.setattr(r0, "_plan0053_terminal", lambda: TERMINAL)
+    monkeypatch.setattr(
+        r0,
+        "_exclusion_union",
+        lambda root: {"hashes": set(), **EXCLUSIONS},
+    )
 
     applied = r0.apply_generation5_recovery_authority(
         preview, expected_content_sha256=preview["content_sha256"], runtime_root=tmp_path
