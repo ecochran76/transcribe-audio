@@ -2,6 +2,46 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 295 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1AB | Feasibility and acoustic-contract checkpoint
+
+State transition: `OPEN/G1AB-running -> OPEN/G1A-private-gold-review-required`.
+
+- G1A now proposes seven original-pool recordings from nine transcript-linked
+  qualified recordings, with 15 speaker slots and theoretical capacity for 21
+  pairs. This is a feasibility result, not a frozen cohort or gold set.
+- G1A preview
+  `b59c9f6e665f8ff238362b411ed7317764d5a62fae21016983201601b6ec2af3`
+  and manifest
+  `e5dea7c7d0ede0478ce97c5152e3e2e15122cbdc0aa57001c0cb4e51bc6bc487`
+  replay exactly. Runtime directories are `0700` and files are `0600`.
+- The supplemental-pool option remains unconsumed. G1A authorizes only the
+  private gold review and exposes no portable paths, membership, or gold.
+- G1B replayed the persisted calibration authority without audio, model load,
+  Generation-4 gold, or holdout access. Acoustic-contract hash is
+  `eae21ec7842803a8cf6aa695b5146927ee9da33e2133ab542cd446fcdc039aab`;
+  selected opaque factor contract is
+  `4cebdb5140cae4c592d99622447b39ae60d04e428d06e376094685b20a886a54`.
+- G1B retained all nine factor units and enables only J1 design
+  reconciliation. Its returned evidence hash is
+  `66d9c3385d8a1cdd02779225787ab42e236a32c54197914a8e41b4881197e1ef`.
+- The two bounded workers reached their declared terminals and the primary
+  reconciled both outputs. G1C remains complete. J1 and G2 through G6 remain
+  false pending passing private-gold population evidence.
+- The committed implementation authority is `71b7ce8`; the full suite passed
+  745 tests before the production replays recorded here.
+
+Next:
+
+- Complete the isolated private gold review for the proposed seven-recording
+  subset, then either publish a passing population proposal or consume the one
+  supplemental-pool option. Do not start J1 until G1A passes.
+
 ## Turn 294 | 2026-08-03
 
 Plan:

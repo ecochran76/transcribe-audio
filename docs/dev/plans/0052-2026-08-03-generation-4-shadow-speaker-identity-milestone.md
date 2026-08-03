@@ -105,9 +105,19 @@ prompt hash
 `4afbdde84707b2cf2308535a8b4e01b1878c7f3065f2f954dc9180bfc01f5584`,
 and rubric hash
 `a624429790a6a4868c295d3188a033157f9314bdeeedb21d3bf794c44e8370cc`.
-G1A and G1B are running in their disjoint authorized lanes. J1 and all later
-actions remain false. No private-gold reveal, prediction, or evaluation-model
-execution has started.
+G1B is complete under acoustic-contract hash
+`eae21ec7842803a8cf6aa695b5146927ee9da33e2133ab542cd446fcdc039aab`;
+its single selected opaque factor contract is
+`4cebdb5140cae4c592d99622447b39ae60d04e428d06e376094685b20a886a54`.
+G1A has proved that the original pool can propose seven transcript-linked
+recordings with 15 speaker slots and a theoretical capacity of 21 pairs. Its
+private feasibility preview hash is
+`b59c9f6e665f8ff238362b411ed7317764d5a62fae21016983201601b6ec2af3`
+and immutable manifest hash is
+`e5dea7c7d0ede0478ce97c5152e3e2e15122cbdc0aa57001c0cb4e51bc6bc487`.
+G1A remains at the private-gold review gate; the supplemental-pool option is
+unconsumed. J1 and all later actions remain false. No private-gold reveal to a
+prediction worker, prediction, or evaluation-model execution has started.
 
 ## Scope
 
@@ -238,11 +248,24 @@ open-set coverage, same-person sessions, label completeness, and every overlap
 dimension without exposing gold to prediction workers. Terminal: passing
 population proposal, one supplemental-pool request, or `stop`.
 
+Checkpoint: private-gold review required. The original pool is sufficient to
+propose a seven-recording subset without consuming the supplemental option.
+The feasibility apply is immutable and replays full-body with private
+`0700/0600` modes, but it deliberately freezes neither cohort nor gold. Its
+only authorized next action is completion of the private gold review.
+
 ### G1B | Acoustic Evidence Contract
 
 Owner: acoustic-contract worker. Write only the versioned evidence schema,
 calibration-only factor-selection rule, condition taxonomy, denominator proof,
 and exact-trial/replay specification. Terminal: complete contract or `stop`.
+
+Outcome: complete. Persisted Generation-3 calibration scores replayed without
+audio, models, Generation-4 gold, or holdout access. The frozen calibration
+objective selected one opaque factor contract, all nine factor units remain in
+the evidence matrix, and denominator minima, condition taxonomy, and exact
+trial replay contracts are content-addressed. Only submission to J1 is true;
+reveal, prediction, mutation, integration, and reprocessing remain false.
 
 ### G1C | Contextual Visibility Contract
 
