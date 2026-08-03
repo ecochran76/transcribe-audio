@@ -87,8 +87,21 @@ duration is not the correct reference.
 The present implementation compares output WAV frame count divided by 16 kHz
 to a single ffprobe stream-or-format duration. That metadata may represent a
 container timeline rather than the exact count of decodable audio samples.
-The cause has not yet been proven. No Generation-5 diagnostic source set,
-rule, holdout result, evaluation cohort, prediction, score, or decision exists.
+The cause has not yet been proven. G0 is complete: Generation-3 and Plan 0052
+terminal evidence replayed, and the exact five-source development plus
+seven-source positive-holdout membership is frozen without decoding or
+holdout measurement. G0 preview
+`5f765a67810bc4cb58c9c3a8d78aaa25aba4a67650e4fd242d456b9a54d55096`
+and `0600` manifest
+`4c85505c18b12d6acf939d1cbe2dfa1f5d1e37de03fba40c99fd1b86d37dd818`
+replay idempotently. Development-set hash is
+`349079a147343b5653a4b1e1454392b57f4b70a0b80a8dbc3cce4edb53eb1944`;
+holdout-set hash is
+`696bde15e5a1d5f006fb596dee49d55c704c1d2e61ae9e2b8bd544413f29ccae`;
+the complete diagnostic-set hash is
+`b058dc52433884da25d0011053e8b6579c362c1bc3ffa5489358d6093ff8df2a`.
+Only G1 development diagnosis is authorized. No rule, holdout result,
+evaluation cohort, prediction, score, or decision exists.
 Independent plan reviewer `/root/g5_plan_review` initially returned `STOP` on
 seven scientific, ordering, exclusion, worker-isolation, and completion
 defects. Version 1 was repaired before execution, and the reviewer then issued
@@ -266,6 +279,12 @@ decoding; prove
 disjointness; freeze membership, tool identities, measurements to collect,
 privacy flags, and negative actions. Terminal: immutable diagnostic authority
 or `stop`.
+
+Outcome: complete. Both inherited terminal authorities replayed full-body.
+The exact 5/7 development/holdout split, hypotheses, measurement fields,
+non-circular reference paths, disjoint negative-family seeds, privacy flags,
+and negative actions are immutable under the hashes in Current State. No audio
+was decoded while constructing G0 and only G1 is authorized.
 
 ### G1 | Development Diagnosis And Contract
 

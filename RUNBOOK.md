@@ -2,6 +2,39 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 305 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0053-2026-08-03-generation-5-duration-validation-and-blind-evaluation.md`,
+version 1
+
+Packet: P10-G5-G0 | Sealed duration-diagnostic authority
+
+State transition: `OPEN/Plan-0053-G0 -> OPEN/Plan-0053-G1`.
+
+- Replayed the immutable Generation-3 preparation STOP and Plan 0052 terminal
+  STOP before deriving successor authority.
+- Frozen G0 preview
+  `5f765a67810bc4cb58c9c3a8d78aaa25aba4a67650e4fd242d456b9a54d55096`
+  and `0600` private manifest
+  `4c85505c18b12d6acf939d1cbe2dfa1f5d1e37de03fba40c99fd1b86d37dd818`
+  replay idempotently.
+- Development contains two known failures plus the three lowest-hash Plan 0051
+  qualified controls under set hash
+  `349079a147343b5653a4b1e1454392b57f4b70a0b80a8dbc3cce4edb53eb1944`.
+  The other seven Plan 0051-qualified sources remain sealed and unmeasured
+  under holdout-set hash
+  `696bde15e5a1d5f006fb596dee49d55c704c1d2e61ae9e2b8bd544413f29ccae`.
+- G0 performed no decode. Only G1 development diagnosis is true; holdout
+  measurement, candidate enumeration, predictions, gold reveal, biometric
+  models, scoring, mutation, integration, and reprocessing remain false.
+
+Next:
+
+- Diagnose development media only, implement the non-circular packet/decode-
+  to-null/output/content validator and development negative family, then stop
+  at independent J1 before any holdout access.
+
 ## Turn 304 | 2026-08-03
 
 Plan:
