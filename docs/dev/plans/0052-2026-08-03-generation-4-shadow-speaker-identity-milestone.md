@@ -144,13 +144,26 @@ and qualified-set hash
 The first two-conversation, seven-label supplemental review imported under
 combined private-gold content
 `baf0fa93dee6b936564fa3827a735e9ba10304cd4d2f3b418b81a17300bdc6ca`.
-Eleven reviewed conversations now represent 15 people and 37 same-person
-session pairs, but the second enrolled person has only one session. A narrowed
-three-label review of one context-supported independent recording is ready
-under plan hash
-`1387295c900b32f92c11af1c3733af2aa50abae79ad1615e694d90e7cf1de2d0`.
-J1 and all later actions remain false. No private-gold reveal to a prediction
-worker, prediction, or evaluation-model execution has started.
+A final three-label review of one context-supported independent recording was
+imported under private content
+`d1575a9bcdca79f7cb1193fb936382bdc5a4153ae11bb16aaad43c5e6ba3d64d`.
+The combined 12-case private gold has content hash
+`37f3a2da83cdbecaa936fbad477490c234c3d25ba55243f68a413f06dee4557a`
+and `0600` file hash
+`5b43119baddb24c794ebfe3224b735d182bc7b10e374166d71f68c9ea61ef65d`.
+All population gates now pass across 12 recordings, 15 people, 47
+same-person session pairs, two enrolled people with two independent sessions,
+complete gold, zero overlap, and source authority. The proposed seven-recording
+G1A cohort contains nine people and 17 same-person session pairs and also
+passes every gate. Its combined qualified-set hash is
+`460fa3dd3befa17e249860b70477474580202577a599a357e7b7c641609cd4c2`,
+preview hash is
+`1bd697995ebfcfa3d8018f77b99c4a1c28e82ce4df32b86dc514cc8d3557ee76`,
+and replay-idempotent private manifest hash is
+`08d134ada150775e5da64b3dc18ab5a59a8ad25bf90524e738257d80042d7a98`.
+G1A is complete and only submission to independent J1 is now true. No
+private-gold reveal to a prediction worker, cohort/gold freeze, prediction, or
+evaluation-model execution has started.
 
 ## Scope
 
@@ -281,20 +294,16 @@ open-set coverage, same-person sessions, label completeness, and every overlap
 dimension without exposing gold to prediction workers. Terminal: passing
 population proposal, one supplemental-pool request, or `stop`.
 
-Checkpoint: supplemental private-gold review required. All nine
-transcript-linked original-pool recordings are operator-reviewed in one
-immutable, private, unfrozen GOLD_SCHEMA packet. Population evaluation proved
-every gate except the two-sessions requirement for the second enrolled person.
-That complete-original-pool failure authorized and consumed the plan's single
-supplemental pool. Twelve explicit candidates passed full probe, decode,
-duration-drift, prior-overlap, and uniqueness policy without retained decoded
-audio or model use. The only authorized next action is bounded operator review
-within that frozen supplemental pool, beginning with seven labels across two
-independent conversations. Full-page copied text is accepted because preview
-clipboard JavaScript is not reliable. Neither cohort nor gold is frozen.
-The first tranche added one enrolled-person session but did not yet meet the
-two-session gate. Context inspection then selected a single three-label
-recording from the same frozen pool as the smallest next review tranche.
+Outcome: complete. All nine transcript-linked original-pool recordings and
+three recordings from the single consumed supplemental pool are
+operator-reviewed in immutable private GOLD_SCHEMA packets. The combined
+12-recording population passes every gate with 15 people, 47 same-person
+session pairs, both enrolled people represented in two independent sessions,
+complete gold, zero overlap, and all sources within authority. The proposed
+seven-recording cohort independently passes with nine people and 17
+same-person session pairs. The proposal and manifest are content-addressed and
+replay-idempotent. Only submission to J1 is true; cohort/gold freeze, reveal,
+model sends, prediction, mutation, integration, and reprocessing remain false.
 
 ### G1B | Acoustic Evidence Contract
 

@@ -2,6 +2,47 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 302 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-PASS | Complete supplemental import and passing cohort proposal
+
+State transition: `OPEN/G1A-supplemental-second-session-review -> OPEN/J1-independent-design-reconciliation`.
+
+- Imported the final three-label supplemental response under private packet
+  content
+  `d1575a9bcdca79f7cb1193fb936382bdc5a4153ae11bb16aaad43c5e6ba3d64d`;
+  its file hash is
+  `a6cf9837101fe24049635461db641c7d25af102e9884e5c573fa35ef5c2c5c8d`.
+  Combined 12-case private GOLD_SCHEMA content is
+  `37f3a2da83cdbecaa936fbad477490c234c3d25ba55243f68a413f06dee4557a`;
+  its `0600` file hash is
+  `5b43119baddb24c794ebfe3224b735d182bc7b10e374166d71f68c9ea61ef65d`.
+- The full population passes every gate: 12 recordings, 15 people, 47
+  same-person session pairs, both enrolled people in two independent sessions,
+  complete gold, zero overlap, and all sources within authority. The proposed
+  seven-recording cohort also passes with nine people and 17 same-person
+  session pairs.
+- Sealed combined qualified-set hash
+  `460fa3dd3befa17e249860b70477474580202577a599a357e7b7c641609cd4c2`,
+  G1A preview hash
+  `1bd697995ebfcfa3d8018f77b99c4a1c28e82ce4df32b86dc514cc8d3557ee76`,
+  and replay-idempotent private manifest hash
+  `08d134ada150775e5da64b3dc18ab5a59a8ad25bf90524e738257d80042d7a98`.
+- No acoustic model, prediction, private-gold reveal, cohort/gold freeze,
+  profile mutation, new supplemental candidate, or retained decoded audio
+  occurred. Only submission to independent J1 is now true.
+
+Next:
+
+- Run independent J1 reconciliation of the completed G1A, G1B, and G1C
+  contracts. Do not authorize G2 freeze unless J1 accepts the exact combined
+  source authority, private-gold isolation, calibration-only acoustic factor,
+  and negative action vector.
+
 ## Turn 301 | 2026-08-03
 
 Plan:
