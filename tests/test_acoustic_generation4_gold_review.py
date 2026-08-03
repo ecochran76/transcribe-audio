@@ -75,10 +75,17 @@ def test_build_plan_preserves_case_numbers_and_marks_replacements(tmp_path: Path
         rows=rows, gap_packet=gap, swap_packet=swap,
         enrolled_identity_names=("Enrolled One", "Enrolled Two"),
     )
+    supplemental_plan = review.build_generation4_gold_review_plan(
+        rows=rows,
+        gap_packet=gap,
+        swap_packet=swap,
+        replacement_prefix="Supplemental",
+    )
 
     assert [card["display_case"] for card in plan["cards"]] == [
         "Case 1", "Case 2", "Replacement A"
     ]
+    assert supplemental_plan["cards"][-1]["display_case"] == "Supplemental A"
     assert plan["cards"][0]["prefilled_name"] == "Known Person"
     assert plan["cards"][1]["prefilled_name"] == ""
     assert plan["manual_label_count"] == 2
@@ -192,6 +199,7 @@ def test_apply_bundle_writes_private_html_audio_and_copy_template(tmp_path: Path
     assert 'id="answers"' in html
     assert "Clipboard access unavailable" in html
     assert "document.execCommand('copy')" in html
+    assert "copy the entire page" in html
     assert "private transcript clue" in html
     assert "Case 1 / Speaker A =" in html
     assert "Enrolled people to look for:" in html

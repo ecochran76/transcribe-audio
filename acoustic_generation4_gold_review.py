@@ -127,8 +127,12 @@ def build_generation4_gold_review_plan(
     swap_packet: Mapping[str, Any],
     enrolled_identity_names: Sequence[str] = (),
     operator_corrections: Sequence[Mapping[str, Any]] = (),
+    replacement_prefix: str = "Replacement",
 ) -> dict[str, Any]:
     """Join the opaque best subset to private transcripts and review labels."""
+    display_prefix = " ".join(str(replacement_prefix or "").split())
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9 -]{0,40}", display_prefix):
+        raise Generation4GoldReviewError("Replacement display prefix is invalid.")
     row_by_case: dict[str, dict[str, Any]] = {}
     for raw in rows:
         row = dict(raw)
@@ -204,7 +208,7 @@ def build_generation4_gold_review_plan(
         correction_hashes.append(claimed)
     replacement_ids = sorted(case_id for case_id in best if case_id not in old_case_numbers)
     replacement_names = {
-        case_id: f"Replacement {chr(65 + index)}"
+        case_id: f"{display_prefix} {chr(65 + index)}"
         for index, case_id in enumerate(replacement_ids)
     }
     ordered_ids = sorted(
@@ -329,7 +333,7 @@ def _render_page(plan: Mapping[str, Any]) -> str:
     )
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Generation-4 private speaker review</title>
 <style>body{{font:16px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;background:#f6f7f9;color:#18202a}}.card{{background:white;padding:1rem 1.2rem;margin:1rem 0;border-radius:12px;box-shadow:0 1px 5px #0002}}audio{{width:100%}}input{{display:block;width:min(95%,34rem);padding:.55rem;margin-top:.35rem}}button{{font-size:1rem;padding:.7rem 1rem}}textarea{{display:block;width:95%;min-height:10rem;margin:.75rem 0;padding:.6rem}}.hint{{color:#59636e;font-size:.9rem}}</style></head>
-<body><h1>Private speaker-label review</h1><p>Listen to each clip and identify the speaker. Reuse an identity or stable alias when the same person appears again. Prefilled answers came from your prior operator statements.</p>{enrolled_notice}
+<body><h1>Private speaker-label review</h1><p>Listen to each clip and identify the speaker. Reuse an identity or stable alias when the same person appears again. Prefilled answers came from your prior operator statements. If the copy button does nothing, copy the entire page; the full page text is accepted.</p>{enrolled_notice}
 <button id="copy" type="button">Copy all answers</button><span id="status"></span>
 <textarea id="answers" readonly hidden aria-label="Selectable answer block"></textarea>{''.join(cards)}
 <script>document.getElementById('copy').onclick=async()=>{{
