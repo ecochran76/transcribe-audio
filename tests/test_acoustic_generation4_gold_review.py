@@ -86,6 +86,61 @@ def test_build_plan_preserves_case_numbers_and_marks_replacements(tmp_path: Path
     assert plan["cards"][0]["clip"]["duration_seconds"] <= 25
 
 
+def test_operator_correction_supersedes_prefill_without_mutating_gap(tmp_path: Path):
+    source = hashlib.sha256(b"correction-source").hexdigest()
+    transcript = hashlib.sha256(b"correction-transcript").hexdigest()
+    case_id = review._case_id(source, transcript)
+    media_path = tmp_path / "source.m4a"
+    media_path.write_bytes(b"media")
+    transcript_path = _write_private(
+        tmp_path / "transcript.json",
+        {"utterances": [{"speaker": "A", "start": 0, "end": 5000, "text": "sample"}]},
+    )
+    gap_core = {
+        "schema_version": "transcribe-audio.generation4-private-gold-review-gap.v1",
+        "cases": [{
+            "case_id": case_id,
+            "speaker_reviews": [{"speaker_ref": "opaque-case-1-a"}],
+        }],
+        "review_gaps": [],
+        "supported_operator_assertions": [{
+            "speaker_ref": "opaque-case-1-a",
+            "speaker_label": "A",
+            "person_display_name": "Prior Name",
+        }],
+    }
+    gap = {**gap_core, "content_sha256": review._canonical_hash(gap_core)}
+    correction = review.build_generation4_operator_correction(
+        gap_packet=gap,
+        speaker_ref="opaque-case-1-a",
+        corrected_identity_display="Correct Name",
+        operator_statement="Case 1 Speaker A is Correct Name, not Prior Name.",
+    )
+    rows = [{
+        "source_sha256": source,
+        "transcript_sha256": transcript,
+        "source_path": str(media_path),
+        "transcript_path": str(transcript_path),
+        "speaker_labels": ["A"],
+    }]
+    swap = {"opaque_best_subset_case_ids": [case_id]}
+
+    plan = review.build_generation4_gold_review_plan(
+        rows=rows,
+        gap_packet=gap,
+        swap_packet=swap,
+        operator_corrections=[correction],
+    )
+    receipt = review.apply_generation4_operator_correction(
+        correction, output_root=tmp_path / "corrections"
+    )
+
+    assert gap["supported_operator_assertions"][0]["person_display_name"] == "Prior Name"
+    assert plan["cards"][0]["prefilled_name"] == "Correct Name"
+    assert plan["operator_correction_sha256s"] == [correction["content_sha256"]]
+    assert Path(receipt["private_correction_path"]).stat().st_mode & 0o777 == 0o600
+
+
 def test_apply_bundle_writes_private_html_audio_and_copy_template(tmp_path: Path):
     source_sha = hashlib.sha256(b"source").hexdigest()
     transcript_sha = hashlib.sha256(b"transcript").hexdigest()

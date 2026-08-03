@@ -18,6 +18,10 @@ RECEIPT_SCHEMA = "transcribe-audio.generation4-private-gold-review-receipt.v1"
 GOLD_SCHEMA = "transcribe-audio.generation4-private-gold-feasibility.v1"
 GOLD_RECEIPT_SCHEMA = "transcribe-audio.generation4-private-gold-answer-receipt.v1"
 GENERATION3_GOLD_MANIFEST_SCHEMA = "transcribe-audio.generation3-gold-manifest.v1"
+CORRECTION_SCHEMA = "transcribe-audio.generation4-operator-assertion-correction.v1"
+CORRECTION_RECEIPT_SCHEMA = (
+    "transcribe-audio.generation4-operator-assertion-correction-receipt.v1"
+)
 _CASE_RE = re.compile(r"g1a-case-[a-f0-9]{20}")
 
 
@@ -122,6 +126,7 @@ def build_generation4_gold_review_plan(
     gap_packet: Mapping[str, Any],
     swap_packet: Mapping[str, Any],
     enrolled_identity_names: Sequence[str] = (),
+    operator_corrections: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Join the opaque best subset to private transcripts and review labels."""
     row_by_case: dict[str, dict[str, Any]] = {}
@@ -170,6 +175,33 @@ def build_generation4_gold_review_plan(
         for item in gap_packet.get("supported_operator_assertions") or []
         if isinstance(item, Mapping)
     }
+    correction_hashes = []
+    corrected_refs: set[str] = set()
+    for raw_correction in operator_corrections:
+        correction = dict(raw_correction)
+        claimed = str(correction.pop("content_sha256", ""))
+        reference = str(raw_correction.get("speaker_ref") or "")
+        prior_name = supported.get(reference)
+        if (
+            raw_correction.get("schema_version") != CORRECTION_SCHEMA
+            or claimed != _canonical_hash(correction)
+            or raw_correction.get("base_gap_content_sha256")
+            != gap_packet.get("content_sha256")
+            or reference in corrected_refs
+            or not prior_name
+            or raw_correction.get("speaker_label") != label_by_ref.get(reference)
+            or raw_correction.get("prior_identity_sha256")
+            != hashlib.sha256(_normalized_identity(prior_name).encode()).hexdigest()
+        ):
+            raise Generation4GoldReviewError("Operator correction authority drifted.")
+        corrected_name = " ".join(
+            str(raw_correction.get("corrected_identity_display") or "").split()
+        )
+        if not corrected_name:
+            raise Generation4GoldReviewError("Corrected operator identity is empty.")
+        supported[reference] = corrected_name
+        corrected_refs.add(reference)
+        correction_hashes.append(claimed)
     replacement_ids = sorted(case_id for case_id in best if case_id not in old_case_numbers)
     replacement_names = {
         case_id: f"Replacement {chr(65 + index)}"
@@ -230,6 +262,7 @@ def build_generation4_gold_review_plan(
         "speaker_label_count": len(cards),
         "manual_label_count": sum(not card["prefilled_name"] for card in cards),
         "enrolled_identity_names": enrolled_names,
+        "operator_correction_sha256s": sorted(correction_hashes),
         "cards": cards,
         "contains_paths": True,
         "contains_private_membership": True,
@@ -381,6 +414,95 @@ class _private_dirs:
 def _normalized_identity(value: Any) -> str:
     text = unicodedata.normalize("NFKC", str(value or ""))
     return " ".join(text.split()).casefold()
+
+
+def build_generation4_operator_correction(
+    *,
+    gap_packet: Mapping[str, Any],
+    speaker_ref: str,
+    corrected_identity_display: str,
+    operator_statement: str,
+) -> dict[str, Any]:
+    """Bind one explicit operator correction without mutating prior evidence."""
+    assertions = gap_packet.get("supported_operator_assertions")
+    if not isinstance(assertions, list):
+        raise Generation4GoldReviewError("Supported operator assertions are unavailable.")
+    prior = next(
+        (
+            dict(item)
+            for item in assertions
+            if isinstance(item, Mapping) and item.get("speaker_ref") == speaker_ref
+        ),
+        None,
+    )
+    corrected = " ".join(str(corrected_identity_display or "").split())
+    statement = " ".join(str(operator_statement or "").split())
+    prior_name = " ".join(str((prior or {}).get("person_display_name") or "").split())
+    if (
+        not isinstance(prior, dict)
+        or not corrected
+        or not statement
+        or _normalized_identity(corrected) == _normalized_identity(prior_name)
+    ):
+        raise Generation4GoldReviewError("Operator correction is invalid or unchanged.")
+    core = {
+        "schema_version": CORRECTION_SCHEMA,
+        "status": "operator_identity_correction_recorded_not_gold",
+        "base_gap_content_sha256": gap_packet.get("content_sha256"),
+        "speaker_ref": speaker_ref,
+        "speaker_label": prior.get("speaker_label"),
+        "prior_identity_sha256": hashlib.sha256(
+            _normalized_identity(prior_name).encode()
+        ).hexdigest(),
+        "corrected_identity_display": corrected,
+        "corrected_identity_sha256": hashlib.sha256(
+            _normalized_identity(corrected).encode()
+        ).hexdigest(),
+        "operator_statement_sha256": hashlib.sha256(statement.encode()).hexdigest(),
+        "contains_private_identity": True,
+        "did_freeze_cohort_or_gold": False,
+        "did_run_acoustic_models": False,
+        "did_reveal_gold_to_prediction_workers": False,
+    }
+    return {**core, "content_sha256": _canonical_hash(core)}
+
+
+def apply_generation4_operator_correction(
+    correction: Mapping[str, Any], *, output_root: Path
+) -> dict[str, Any]:
+    """Persist one immutable private operator correction."""
+    value = dict(correction)
+    claimed = str(value.pop("content_sha256", ""))
+    if (
+        correction.get("schema_version") != CORRECTION_SCHEMA
+        or claimed != _canonical_hash(value)
+        or correction.get("did_freeze_cohort_or_gold") is not False
+        or correction.get("did_run_acoustic_models") is not False
+        or correction.get("did_reveal_gold_to_prediction_workers") is not False
+    ):
+        raise Generation4GoldReviewError("Operator correction packet drifted.")
+    root = output_root.expanduser().absolute()
+    run = root / f"generation4-operator-correction-{claimed[:24]}"
+    with _private_dirs(root, run):
+        pass
+    path = run / "private-correction.json"
+    body = json.dumps(dict(correction), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") != body:
+        raise Generation4GoldReviewError("Operator correction changed in place.")
+    if not path.exists():
+        path.write_text(body, encoding="utf-8")
+        os.chmod(path, 0o600)
+    return {
+        "schema_version": CORRECTION_RECEIPT_SCHEMA,
+        "status": "operator_identity_correction_recorded_not_gold",
+        "content_sha256": claimed,
+        "private_correction_path": str(path),
+        "private_correction_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "contains_paths": True,
+        "contains_private_identity": False,
+        "did_freeze_cohort_or_gold": False,
+        "mode": "0600",
+    }
 
 
 def _validated_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
