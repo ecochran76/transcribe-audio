@@ -107,6 +107,21 @@ seven scientific, ordering, exclusion, worker-isolation, and completion
 defects. Version 1 was repaired before execution, and the reviewer then issued
 `PASS` for plan design only. No execution packet is implied complete.
 
+G1 development measurement is now complete but not yet frozen or independently
+accepted. All five development sources decoded with exact native AAC access-unit
+sample accounting, exact 48 kHz to 16 kHz output-frame arithmetic, and identical
+reference-versus-production PCM fingerprints. The Generation-3 source alone has
+one 4,311,372-tick packet timestamp discontinuity and is rejected as an ambiguous
+timeline; its container timeline exceeds decoded content by about 89.777 seconds.
+The Plan 0052 source has no discontinuity, no decode warning, zero output-sample
+error, and complete content even though its container timeline exceeds decoded
+content by about 0.174 seconds. The three healthy controls likewise have complete
+content and differences of about -0.031, -0.015, and -0.002 seconds. This supports
+the standards-derived diagnosis that AAC access units and decoded samples—not
+container wall-clock duration—are the preservation authority. Commit `3d8071d`
+contains the proposed validator; 770 repository tests pass. G1 remains open until
+the development adversarial family, immutable packet, and J1 review are complete.
+
 ## Hard Bounds And Checkpoint Contract
 
 - Persist a checkpoint after every packet and at least every 60 minutes during

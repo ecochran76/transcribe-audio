@@ -1,5 +1,21 @@
 # Runbook
 
+## Turn 306: Generation-5 development diagnosis measured (2026-08-03)
+
+- Ran the committed content-preservation validator from `3d8071d` against only
+  the five G0 development members; the seven positive-holdout members remained
+  unmeasured.
+- All five inputs reconciled `packet_count * 1024` to native decoded samples,
+  native samples to the mathematically expected 16 kHz frame count with zero
+  error, and reference PCM to production PCM by exact fingerprint.
+- The Generation-3 source was rejected for one 4,311,372-tick timestamp
+  discontinuity. The Plan 0052 source passed with no discontinuity or content
+  loss, proving that its approximately 0.174-second difference was container
+  clock cadence rather than truncation.
+- The complete suite passed: `770 passed in 46.13s`.
+- G1 is not frozen and J1 has not accepted the contract. Do not measure the
+  seven-member positive holdout or instantiate the held-out negative family.
+
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
 ## Turn 305 | 2026-08-03
