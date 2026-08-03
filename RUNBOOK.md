@@ -2,6 +2,42 @@
 
 `RUNBOOK.md` is the dated execution log for this repo. Use it to record policy adoption, roadmap changes, implementation slices, validation evidence, and operational incidents that should survive chat history.
 
+## Turn 301 | 2026-08-03
+
+Plan:
+`docs/dev/plans/0052-2026-08-03-generation-4-shadow-speaker-identity-milestone.md`,
+version 1
+
+Packet: P10-G4-G1A-SUPPLEMENT-REVIEW | First supplemental import and narrowed second tranche
+
+State transition: `OPEN/G1A-supplemental-review-required -> OPEN/G1A-supplemental-second-session-review`.
+
+- Imported the first two-conversation, seven-label supplemental response under
+  private packet content
+  `a19d7c59b74a5760196ee18a599d04f94e762a77ce1d3c6cbc643c992a0b3005`.
+  Combined 11-case private GOLD_SCHEMA content is
+  `baf0fa93dee6b936564fa3827a735e9ba10304cd4d2f3b418b81a17300bdc6ca`;
+  its `0600` file hash is
+  `9a3f9d1157be49ca74ffaaa9fa7b28617a8bb50ae9bd711909dcebf961bd5be2`.
+- Eleven conversations now represent 15 people and 37 same-person session
+  pairs with complete gold, zero overlap, and all sources inside the combined
+  original-plus-supplemental authority. The only failing gate remains the
+  second enrolled person's coverage, which improved from zero to one session.
+- Inspected only transcript context inside the already frozen supplemental
+  pool and selected one independent three-speaker recording that explicitly
+  introduces the missing enrolled person into the call. Generated review plan
+  `1387295c900b32f92c11af1c3733af2aa50abae79ad1615e694d90e7cf1de2d0`
+  and published preview session `f8a5bca4e1d0`.
+- No acoustic model, prediction, private-gold reveal, cohort/gold freeze,
+  profile mutation, new supplemental candidate, or retained decoded audio
+  occurred. J1 remains false.
+
+Next:
+
+- Operator returns the three labels by copying the entire filled page. Import
+  them immutably and re-run the combined G1A population gate; submit to J1 only
+  if the second enrolled person reaches two independent sessions.
+
 ## Turn 300 | 2026-08-03
 
 Plan:

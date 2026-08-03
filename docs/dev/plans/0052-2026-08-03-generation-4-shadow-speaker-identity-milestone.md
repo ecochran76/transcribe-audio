@@ -141,8 +141,14 @@ sessions. The one bounded 12-candidate supplemental pool is now consumed: all
 `cc405f40414f69bea012559d5ca4c10098ed4ab0d4e4efc37264a361c26f82d9`
 and qualified-set hash
 `09ae99141880df95b3531563b484008ea411ccafab411b4da311627d5e16d994`.
-A first two-conversation, seven-label supplemental review is ready under plan
-hash `ec029c56462ea749b4d801a8347414c0e2e008cf5cfb75a464cc483cff035f21`.
+The first two-conversation, seven-label supplemental review imported under
+combined private-gold content
+`baf0fa93dee6b936564fa3827a735e9ba10304cd4d2f3b418b81a17300bdc6ca`.
+Eleven reviewed conversations now represent 15 people and 37 same-person
+session pairs, but the second enrolled person has only one session. A narrowed
+three-label review of one context-supported independent recording is ready
+under plan hash
+`1387295c900b32f92c11af1c3733af2aa50abae79ad1615e694d90e7cf1de2d0`.
 J1 and all later actions remain false. No private-gold reveal to a prediction
 worker, prediction, or evaluation-model execution has started.
 
@@ -286,6 +292,9 @@ audio or model use. The only authorized next action is bounded operator review
 within that frozen supplemental pool, beginning with seven labels across two
 independent conversations. Full-page copied text is accepted because preview
 clipboard JavaScript is not reliable. Neither cohort nor gold is frozen.
+The first tranche added one enrolled-person session but did not yet meet the
+two-session gate. Context inspection then selected a single three-label
+recording from the same frozen pool as the smallest next review tranche.
 
 ### G1B | Acoustic Evidence Contract
 
