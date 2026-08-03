@@ -328,10 +328,16 @@ def _render_page(plan: Mapping[str, Any]) -> str:
         else ""
     )
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Generation-4 private speaker review</title>
-<style>body{{font:16px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;background:#f6f7f9;color:#18202a}}.card{{background:white;padding:1rem 1.2rem;margin:1rem 0;border-radius:12px;box-shadow:0 1px 5px #0002}}audio{{width:100%}}input{{display:block;width:min(95%,34rem);padding:.55rem;margin-top:.35rem}}button{{font-size:1rem;padding:.7rem 1rem}}.hint{{color:#59636e;font-size:.9rem}}</style></head>
+<style>body{{font:16px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;background:#f6f7f9;color:#18202a}}.card{{background:white;padding:1rem 1.2rem;margin:1rem 0;border-radius:12px;box-shadow:0 1px 5px #0002}}audio{{width:100%}}input{{display:block;width:min(95%,34rem);padding:.55rem;margin-top:.35rem}}button{{font-size:1rem;padding:.7rem 1rem}}textarea{{display:block;width:95%;min-height:10rem;margin:.75rem 0;padding:.6rem}}.hint{{color:#59636e;font-size:.9rem}}</style></head>
 <body><h1>Private speaker-label review</h1><p>Listen to each clip and identify the speaker. Reuse an identity or stable alias when the same person appears again. Prefilled answers came from your prior operator statements.</p>{enrolled_notice}
-<button id="copy">Copy all answers</button><span id="status"></span>{''.join(cards)}
-<script>document.getElementById('copy').onclick=async()=>{{const lines=[...document.querySelectorAll('[data-answer]')].map(x=>`${{x.dataset.ref}} = ${{x.value.trim()||'UNANSWERED'}}`);await navigator.clipboard.writeText(lines.join('\n'));document.getElementById('status').textContent=' Copied—paste into chat.';}};</script></body></html>"""
+<button id="copy" type="button">Copy all answers</button><span id="status"></span>
+<textarea id="answers" readonly hidden aria-label="Selectable answer block"></textarea>{''.join(cards)}
+<script>document.getElementById('copy').onclick=async()=>{{
+const lines=[...document.querySelectorAll('[data-answer]')].map(x=>`${{x.dataset.ref}} = ${{x.value.trim()||'UNANSWERED'}}`);
+const text=lines.join('\n');const box=document.getElementById('answers');const status=document.getElementById('status');box.value=text;
+try{{if(!navigator.clipboard||!navigator.clipboard.writeText)throw new Error('clipboard unavailable');await navigator.clipboard.writeText(text);status.textContent=' Copied—paste into chat.';}}
+catch(error){{box.hidden=false;box.focus();box.select();let copied=false;try{{copied=document.execCommand('copy');}}catch(ignored){{}}status.textContent=copied?' Copied—paste into chat.':' Clipboard access unavailable—copy the selected block below.';}}
+}};</script></body></html>"""
 
 
 def apply_generation4_gold_review_bundle(

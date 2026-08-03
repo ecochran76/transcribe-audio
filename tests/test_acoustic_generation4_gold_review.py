@@ -189,6 +189,9 @@ def test_apply_bundle_writes_private_html_audio_and_copy_template(tmp_path: Path
     assert clip.stat().st_mode & 0o777 == 0o600
     html = page.read_text(encoding="utf-8")
     assert "Copy all answers" in html
+    assert 'id="answers"' in html
+    assert "Clipboard access unavailable" in html
+    assert "document.execCommand('copy')" in html
     assert "private transcript clue" in html
     assert "Case 1 / Speaker A =" in html
     assert "Enrolled people to look for:" in html
