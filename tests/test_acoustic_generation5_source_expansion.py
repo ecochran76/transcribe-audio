@@ -85,3 +85,20 @@ def test_preview_rejects_required_hash_drift(tmp_path, monkeypatch):
             prior_root=prior, ffprobe_path="ffprobe", probe=probe,
             repository_authority=authority,
         )
+
+
+def test_apply_forces_private_zoom_copy_to_0600(tmp_path, monkeypatch):
+    zoom, parent, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
+    preview = s0.preview_generation5_source_expansion(
+        zoom_source=zoom, zoom_parent=parent, archive_required=required, archive_root=archive,
+        prior_root=prior, ffprobe_path="ffprobe", probe=probe,
+        repository_authority=authority,
+    )
+    monkeypatch.setattr(s0, "_repository_authority", lambda: authority)
+    runtime = tmp_path / "runtime"
+    receipt = s0.apply_generation5_source_expansion(
+        preview, expected_content_sha256=preview["content_sha256"], runtime_root=runtime,
+    )
+    copied = s0._paths(runtime, preview["content_sha256"])["zoom_copy"]
+    assert copied.stat().st_mode & 0o777 == 0o600
+    assert receipt["did_copy_required_zoom_to_private_runtime"] is True

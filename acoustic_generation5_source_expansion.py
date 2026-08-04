@@ -300,6 +300,7 @@ def apply_generation5_source_expansion(
         raise Generation5SourceExpansionError("Required Zoom parent drifted.")
     ensure_private_tree(paths["root"], paths["run"])
     shutil.copy2(zoom, paths["zoom_copy"])
+    paths["zoom_copy"].chmod(0o600)
     if sha256_file(paths["zoom_copy"]) != ZOOM_SHA256:
         raise Generation5SourceExpansionError("Private Zoom copy drifted.")
     manifest = {"schema_version": MANIFEST_SCHEMA, "status": "frozen", "preview": preview}
