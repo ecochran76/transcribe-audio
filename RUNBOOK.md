@@ -2,17 +2,18 @@
 
 ## Turn 310: Plan 0054 E1 population-infeasible stop (2026-08-04)
 
-- Imported the complete 29-speaker private operator review. One unresolved
-  personal name was retained as a stable organization-and-role alias rather
-  than guessed or conflated with either named representative.
+- Imported the complete 29-speaker private operator review. The operator then
+  narrowed the one initially unresolved organization representative to the
+  named meeting facilitator, superseding the provisional alias packet with a
+  new content-addressed corrected packet.
 - Recomputed every exact seven-recording subset in frozen order. All 330
   combinations failed only `both_enrolled_people_have_two_recordings`; the
   maximum enrolled count meeting two-recording coverage was one. The other six
   population gates were satisfiable.
 - Applied immutable E1 stop preview
-  `822a12a1d194a979f199f8e04b32e1b67fad694ada0be631a2f7b296446ceb1d`
+  `e72b56b061af7e3acaf34e7ce03fda26c4d7f2da68b79b68af68eb8e9e2ce1ac`
   and manifest
-  `ab08f4a0d37fcaa43e38da67a79555c75dd48ff6df6e0c25b1ae2ff287fd8d53`;
+  `64ad7fee943da484b015ba25ceb56509acb1da129f47e441cd48c56e7581369a`;
   exact replay is idempotent.
 - Plan 0054 closes at `population_infeasible_stop`. Cohort/gold freeze, J3,
   models, predictions, profile/reference mutation, integration, and historical
