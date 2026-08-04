@@ -566,6 +566,15 @@ prediction ran, and no cohort or gold was frozen. A successor may reopen the
 paired-evaluation milestone only after freezing a newly authorized,
 prior-disjoint source expansion that can supply the missing second recording;
 it must not hand-substitute into Plan 0054's revealed candidate pool.
+Plan 0055 is that successor. It predeclares two hash-bound,
+operator-identified, prior-disjoint recordings as required population strata,
+including one Zoom audio artifact accessed through the existing
+bastion-mounted SyncThing route. It will freeze a bounded archive expansion
+before transcription, require private listening confirmation and complete
+gold, and then run the original seven-recording context-only versus
+voice-augmented comparison. Plan 0055 is open at S0 source-authority
+construction; no new source has been decoded or submitted to a transcription
+or identity model yet.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

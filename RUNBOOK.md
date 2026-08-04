@@ -1,5 +1,26 @@
 # Runbook
 
+## Turn 311: Open Plan 0055 source-expanded blind successor (2026-08-04)
+
+- Resolved the operator's exact Zoom path through the existing bastion-mounted
+  SyncThing route after the local Cloud disk was unavailable. Metadata-only
+  inspection found a 110-minute mono AAC stream plus a separate audio-only
+  artifact.
+- Bound the audio-only artifact, its parent MP4, and one separately located
+  unused archived recording by SHA-256. None of the three hashes or source
+  identities appears in current repo or private runtime manifests.
+- The operator states that both recordings contain the two enrolled speakers.
+  Plan 0055 treats that as pre-model stratified candidate authority, not gold;
+  private listening review must confirm both people in both recordings.
+- Opened Plan 0055 to freeze those exact required sources plus a deterministic,
+  bounded, prior-disjoint archive expansion before transcription or decode.
+  The new plan excludes every Plan 0054 candidate and retains the full blind
+  paired-evaluation milestone, worker isolation, one reveal, and all negative
+  mutation actions.
+- Current gate: commit and independently accept S0 source authority before
+  copying or decoding content, transcription, diarization, review, model work,
+  or prediction.
+
 ## Turn 310: Plan 0054 E1 population-infeasible stop (2026-08-04)
 
 - Imported the complete 29-speaker private operator review. The operator then
