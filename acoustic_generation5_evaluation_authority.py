@@ -168,7 +168,7 @@ def _speaker_cards(row: Mapping[str, Any], ordinal: int) -> list[dict[str, Any]]
         }
     )
     if not labels:
-        raise Generation5EvaluationAuthorityError("An E1 candidate has no speaker labels.")
+        raise Generation5EvaluationAuthorityError("candidate_has_no_usable_speaker_utterance")
     case_id = "g5-case-" + _canonical_hash({"source": source_hash, "transcript": transcript_hash})[:20]
     cards = []
     for label in labels:
@@ -189,7 +189,7 @@ def _speaker_cards(row: Mapping[str, Any], ordinal: int) -> list[dict[str, Any]]
                     }
                 )
         if not candidates:
-            raise Generation5EvaluationAuthorityError("An E1 speaker has no usable utterance.")
+            continue
         ranked = sorted(candidates, key=lambda item: item["rank"], reverse=True)
         best = ranked[0]
         start_seconds = max(0.0, best["start_milliseconds"] / 1000 - 1.5)
@@ -215,6 +215,8 @@ def _speaker_cards(row: Mapping[str, Any], ordinal: int) -> list[dict[str, Any]]
                 },
             }
         )
+    if not cards:
+        raise Generation5EvaluationAuthorityError("candidate_has_no_usable_speaker_utterance")
     return cards
 
 
@@ -238,21 +240,48 @@ def preview_generation5_evaluation_authority(
     rows = [dict(row) for row in (candidate_rows if candidate_rows is not None else _candidate_rows())]
     if not 1 <= len(rows) <= MAX_CANDIDATES:
         raise Generation5EvaluationAuthorityError("E1 candidate count is outside authority.")
-    cards = [card for ordinal, row in enumerate(rows, start=1) for card in _speaker_cards(row, ordinal)]
-    source_hashes = [str(row.get("source_sha256") or "") for row in rows]
-    transcript_hashes = [str(row.get("transcript_sha256") or "") for row in rows]
-    if len(set(source_hashes)) != len(rows) or len(set(transcript_hashes)) != len(rows):
+    enumerated_source_hashes = [str(row.get("source_sha256") or "") for row in rows]
+    enumerated_transcript_hashes = [str(row.get("transcript_sha256") or "") for row in rows]
+    if len(set(enumerated_source_hashes)) != len(rows) or len(set(enumerated_transcript_hashes)) != len(rows):
         raise Generation5EvaluationAuthorityError("E1 candidate membership overlaps.")
+    cards = []
+    reviewable_rows = []
+    rejection_ledger = []
+    for ordinal, row in enumerate(rows, start=1):
+        try:
+            row_cards = _speaker_cards(row, ordinal)
+        except Generation5EvaluationAuthorityError as exc:
+            if str(exc) != "candidate_has_no_usable_speaker_utterance":
+                raise
+            rejection_ledger.append(
+                {
+                    "enumerated_ordinal": ordinal,
+                    "source_sha256": str(row.get("source_sha256") or ""),
+                    "transcript_sha256": str(row.get("transcript_sha256") or ""),
+                    "reason_code": str(exc),
+                }
+            )
+            continue
+        reviewable_rows.append((ordinal, row))
+        cards.extend(row_cards)
+    if len(reviewable_rows) < 7:
+        raise Generation5EvaluationAuthorityError("Fewer than seven E1 candidates are reviewable.")
+    source_hashes = [str(row.get("source_sha256") or "") for _, row in reviewable_rows]
+    transcript_hashes = [str(row.get("transcript_sha256") or "") for _, row in reviewable_rows]
     membership = [
         {
-            "ordinal": index,
-            "source_sha256": source_hashes[index - 1],
-            "transcript_sha256": transcript_hashes[index - 1],
+            "enumerated_ordinal": ordinal,
+            "source_sha256": str(row.get("source_sha256") or ""),
+            "transcript_sha256": str(row.get("transcript_sha256") or ""),
             "recording_start_utc": str(row.get("recording_start_utc") or ""),
         }
-        for index, row in enumerate(rows, start=1)
+        for ordinal, row in reviewable_rows
     ]
-    private = {"candidate_membership": membership, "cards": cards}
+    private = {
+        "candidate_membership": membership,
+        "candidate_rejection_ledger": rejection_ledger,
+        "cards": cards,
+    }
     actions = {
         "materialize_private_review_clips": True,
         "request_operator_identity_review": True,
@@ -277,7 +306,12 @@ def preview_generation5_evaluation_authority(
             "cohort_rule": "lexicographically_first_seven_combination_passing_all_population_gates",
         },
         "tool_identity": dict(tool_identity or _tool_identity()),
-        "candidate_count": len(rows),
+        "enumerated_candidate_count": len(rows),
+        "candidate_count": len(reviewable_rows),
+        "rejected_candidate_count": len(rejection_ledger),
+        "candidate_rejection_reason_counts": {
+            "candidate_has_no_usable_speaker_utterance": len(rejection_ledger)
+        },
         "speaker_label_count": len(cards),
         "candidate_membership_sha256": _canonical_hash(membership),
         "candidate_source_set_sha256": _canonical_hash(sorted(source_hashes)),
@@ -372,6 +406,8 @@ def _portable(preview: Mapping[str, Any]) -> dict[str, Any]:
         "status": "awaiting_private_operator_identity_review",
         "preview_content_sha256": preview["content_sha256"],
         "candidate_count": preview["candidate_count"],
+        "enumerated_candidate_count": preview["enumerated_candidate_count"],
+        "rejected_candidate_count": preview["rejected_candidate_count"],
         "speaker_label_count": preview["speaker_label_count"],
         "candidate_membership_sha256": preview["candidate_membership_sha256"],
         "candidate_source_set_sha256": preview["candidate_source_set_sha256"],

@@ -57,8 +57,28 @@ def test_preview_is_candidate_review_only(tmp_path):
     assert preview["did_load_or_run_models"] is False
 
 
+def test_preview_rejects_only_candidate_without_usable_speech(tmp_path):
+    rows = [_row(tmp_path, index) for index in range(1, 9)]
+    transcript = Path(rows[3]["transcript_path"])
+    transcript.write_text(
+        json.dumps({"utterances": [{"speaker": "A", "start": 0, "end": 1000, "text": ""}]}),
+        encoding="utf-8",
+    )
+    rows[3]["transcript_sha256"] = e1.sha256_file(transcript)
+    preview = e1.preview_generation5_evaluation_authority(
+        candidate_rows=rows,
+        j2_authority=J2,
+        repository_authority=REPO,
+        tool_identity={"ffmpeg_path": "/usr/bin/ffmpeg", "ffmpeg_revision": "test"},
+    )
+    assert preview["enumerated_candidate_count"] == 8
+    assert preview["candidate_count"] == 7
+    assert preview["rejected_candidate_count"] == 1
+    assert preview["private_evidence"]["candidate_rejection_ledger"][0]["reason_code"] == "candidate_has_no_usable_speaker_utterance"
+
+
 def test_apply_and_replay_are_private_and_idempotent(tmp_path, monkeypatch):
-    rows = [_row(tmp_path, index) for index in range(1, 3)]
+    rows = [_row(tmp_path, index) for index in range(1, 8)]
     preview = e1.preview_generation5_evaluation_authority(
         candidate_rows=rows,
         j2_authority=J2,
@@ -85,7 +105,7 @@ def test_apply_and_replay_are_private_and_idempotent(tmp_path, monkeypatch):
     replayed = e1.replay_generation5_evaluation_authority(
         preview["content_sha256"], runtime_root=tmp_path / "runtime"
     )
-    assert applied["clip_count"] == 2
+    assert applied["clip_count"] == 7
     assert replayed["idempotent_replay"] is True
     paths = e1._paths(tmp_path / "runtime", preview["content_sha256"])
     assert paths["manifest"].stat().st_mode & 0o777 == 0o600
