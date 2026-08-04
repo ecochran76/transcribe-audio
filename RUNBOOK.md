@@ -1,5 +1,29 @@
 # Runbook
 
+## Turn 309: Plan 0054 recovery PASS and E1 private review (2026-08-03)
+
+- R0 froze a fresh eight-record diagnostic membership; J0 accepted the exact
+  selection, exclusions, reason contract, tool binding, and privacy boundary.
+- The one-pass R2 run passed all 7 fresh positives and rejected all 11 recovery
+  negatives for their literal predeclared reasons. Independent J2 recomputed
+  the full denominator and returned `PASS`.
+- E1-only acceptance preview
+  `52321890681eb56a5ee515aae5abcf708984ac7fa80f0e5886953d7a480b7a54`
+  and manifest
+  `2ee51c793fa8ac349e5ab41a50841c19bd311419ff8e04dbf242d38c042c30e8`
+  replay idempotently.
+- E1 enumerated all 12 remaining fresh ordered records. One failed private-gold
+  feasibility because it had no usable speech utterance; 11 records remain,
+  represented by 29 private listening cards. Preview
+  `eab13de1ac89ffafef8dca228368ddbe792341b9796d4a0f503ce3d5405dd6e1`
+  and manifest
+  `63e62c3199c6e2c02688ff365fc29c9926f40202fe03c8c49b1a2646912f2700`
+  replay idempotently.
+- Current gate: complete the private operator identity review, then select the
+  first seven-recording combination passing every population rule and submit
+  the frozen cohort/gold feasibility packet to J3. No model, prediction,
+  profile/reference mutation, integration, or reprocessing action ran.
+
 ## Turn 308: Open Plan 0054 fresh-holdout recovery (2026-08-03)
 
 - Opened

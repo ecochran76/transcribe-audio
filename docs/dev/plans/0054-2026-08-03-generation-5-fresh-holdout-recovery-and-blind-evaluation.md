@@ -4,7 +4,7 @@ State: OPEN
 
 Lane: P10
 
-Plan Version: 1
+Plan Version: 2
 
 Execution Mode: `/goal`-compatible, bounded, checkpointed
 
@@ -56,13 +56,26 @@ not merely repairing the fixture, passing another holdout, or freezing a cohort.
 
 ## Current State
 
-Plan 0053 is closed at J2. The accepted content-preservation rule is unchanged,
-the corrupt-tail expected reason is now literal in code, and focused recovery
-tests pass. The terminal J2 STOP now has an immutable replaying artifact under
-the hashes above. No Plan 0054 recovery authority, fresh holdout membership,
-validation result, candidate pool, gold, prediction, model score, metric, or
-terminal decision exists. R0 is the only next packet; new audio decode remains
-unauthorized until J0 accepts its proposed membership and fault contract.
+Plan 0053 remains closed at J2. Plan 0054 R0 froze a fresh deterministic
+eight-record diagnostic membership and comprehensive exclusion union. J0
+accepted it, and the one-pass R2 run then produced 7/7 valid positive results
+and 11/11 literal negative rejections. Independent J2 recomputed those exact
+denominators and returned `PASS`; immutable E1-only acceptance preview
+`52321890681eb56a5ee515aae5abcf708984ac7fa80f0e5886953d7a480b7a54`
+and manifest
+`2ee51c793fa8ac349e5ab41a50841c19bd311419ff8e04dbf242d38c042c30e8`
+replay idempotently.
+
+E1 enumerated the 12 remaining fresh ordered recordings. One was rejected
+because its only diarization label had no usable speech utterance; the other
+11 produced 29 private listening cards. E1 preview
+`eab13de1ac89ffafef8dca228368ddbe792341b9796d4a0f503ce3d5405dd6e1`
+and manifest
+`63e62c3199c6e2c02688ff365fc29c9926f40202fe03c8c49b1a2646912f2700`
+replay with no model execution or cohort/gold freeze. The private operator
+identity review is the current gate. After complete answers, E1 must select
+the lexicographically first seven-case population-valid subset and stop at J3
+before any model or prediction work.
 
 ## Freshness, Selection, And Privacy Contract
 
