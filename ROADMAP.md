@@ -554,13 +554,18 @@ mutation, integration, and reprocessing never ran. Plan 0054 opens a fresh
 successor with a predeclared corrupt-tail reason, a newly selected disjoint
 positive holdout, and the same end-to-end paired evaluation milestone in
 `docs/dev/plans/0054-2026-08-03-generation-5-fresh-holdout-recovery-and-blind-evaluation.md`.
-Plan 0054 has now recovered the duration-validation evidence: an independently
+Plan 0054 recovered the duration-validation evidence: an independently
 accepted fresh run passed 7/7 positive recordings and 11/11 predeclared
 negative controls. E1 then enumerated 12 further fresh recordings, rejected
 one with no usable speech, and materialized 29 private listening cards across
-the remaining 11. Operator identity review is the current gate before the
-deterministic seven-recording population-valid selection and J3. No evaluation
-model or prediction has run, and no cohort or gold is frozen yet.
+the remaining 11. The operator completed all 29 identities, but exhaustive
+selection of all 330 seven-recording combinations proved population
+infeasibility: only one enrolled person had the required two-recording
+coverage. Plan 0054 is closed at an immutable E1 stop. No evaluation model or
+prediction ran, and no cohort or gold was frozen. A successor may reopen the
+paired-evaluation milestone only after freezing a newly authorized,
+prior-disjoint source expansion that can supply the missing second recording;
+it must not hand-substitute into Plan 0054's revealed candidate pool.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

@@ -1,10 +1,10 @@
 # Plan 0054 | Generation-5 Fresh-Holdout Recovery And Blind Evaluation
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
-Plan Version: 2
+Plan Version: 3
 
 Execution Mode: `/goal`-compatible, bounded, checkpointed
 
@@ -76,6 +76,19 @@ replay with no model execution or cohort/gold freeze. The private operator
 identity review is the current gate. After complete answers, E1 must select
 the lexicographically first seven-case population-valid subset and stop at J3
 before any model or prediction work.
+
+The operator subsequently completed all 29 identities, using one stable
+organization-and-role alias where the person's name remained unresolved. The
+deterministic selector evaluated all 330 exact seven-recording combinations.
+Every combination failed the same single gate: only one of the two enrolled
+people appeared in two different recordings. The other six population gates
+were satisfiable. Immutable E1 stop preview
+`822a12a1d194a979f199f8e04b32e1b67fad694ada0be631a2f7b296446ceb1d`
+and manifest
+`ab08f4a0d37fcaa43e38da67a79555c75dd48ff6df6e0c25b1ae2ff287fd8d53`
+replay idempotently. Plan 0054 therefore closes truthfully at
+`population_infeasible_stop`; no cohort or gold was frozen and no model,
+prediction, profile mutation, integration, or reprocessing action ran.
 
 ## Freshness, Selection, And Privacy Contract
 

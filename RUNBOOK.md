@@ -1,5 +1,30 @@
 # Runbook
 
+## Turn 310: Plan 0054 E1 population-infeasible stop (2026-08-04)
+
+- Imported the complete 29-speaker private operator review. One unresolved
+  personal name was retained as a stable organization-and-role alias rather
+  than guessed or conflated with either named representative.
+- Recomputed every exact seven-recording subset in frozen order. All 330
+  combinations failed only `both_enrolled_people_have_two_recordings`; the
+  maximum enrolled count meeting two-recording coverage was one. The other six
+  population gates were satisfiable.
+- Applied immutable E1 stop preview
+  `822a12a1d194a979f199f8e04b32e1b67fad694ada0be631a2f7b296446ceb1d`
+  and manifest
+  `ab08f4a0d37fcaa43e38da67a79555c75dd48ff6df6e0c25b1ae2ff287fd8d53`;
+  exact replay is idempotent.
+- Plan 0054 closes at `population_infeasible_stop`. Cohort/gold freeze, J3,
+  models, predictions, profile/reference mutation, integration, and historical
+  reprocessing remain false.
+- A read-only availability check found a larger nested corpus inside the
+  already authorized recordings folder and at least one previously unused
+  recording contextually associated with both enrolled people. That is only a
+  successor lead: the current plan permits top-level media only, and a valid
+  successor still needs prior-source exclusion, deterministic enumeration,
+  transcript authority, and evidence of a second prior-disjoint recording for
+  the underrepresented enrolled person before any new review or model work.
+
 ## Turn 309: Plan 0054 recovery PASS and E1 private review (2026-08-03)
 
 - R0 froze a fresh eight-record diagnostic membership; J0 accepted the exact
