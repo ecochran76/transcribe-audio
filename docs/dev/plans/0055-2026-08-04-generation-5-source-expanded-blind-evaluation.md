@@ -60,6 +60,19 @@ The operator states that both recordings contain the two enrolled speakers.
 That statement authorizes stratified candidate inclusion; it is not gold and
 must be confirmed by private listening review.
 
+S0 has now frozen the exact required pair plus ten deterministic additional
+recordings under ordered source-set hash
+`a66ba8bc5d7358bf9b831ff08d07707e87be8ea8973e08b252a1db940db19733`.
+Independent J0 accepted the repaired packet, and immutable S0 preview
+`7e2a99d8957b3e952c45454ac13fd4033f0b004e258c1700446f93a7b79c8f07`
+replays with the private Zoom copy byte-identical and mode `0600`. S1 has
+transcribed and diarized only those twelve candidates and materialized 40
+non-empty listening cards under preview
+`5a3f9fc9848a5e0b669bc37796e5a55b4f9dcd7bf0f55609aefa886e4caabcf9`.
+The plan is awaiting complete private operator labels before J1 population
+selection and gold review. No acoustic identity model, prediction, cohort or
+gold freeze, profile/reference mutation, integration, or reprocessing ran.
+
 ## Source, Freshness, And Selection Contract
 
 - Required source A is the exact audio-only Zoom artifact at the

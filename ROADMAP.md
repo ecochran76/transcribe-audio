@@ -572,9 +572,12 @@ including one Zoom audio artifact accessed through the existing
 bastion-mounted SyncThing route. It will freeze a bounded archive expansion
 before transcription, require private listening confirmation and complete
 gold, and then run the original seven-recording context-only versus
-voice-augmented comparison. Plan 0055 is open at S0 source-authority
-construction; no new source has been decoded or submitted to a transcription
-or identity model yet.
+voice-augmented comparison. Plan 0055 S0 is independently accepted with two
+required plus ten additional prior-disjoint recordings, and S1 has produced a
+private 40-card listening surface from source-hash-bound diarized transcripts.
+The current gate is complete operator labeling followed by independent J1
+population and gold review; no acoustic identity model, prediction, cohort or
+gold freeze, mutation, integration, or reprocessing has run.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

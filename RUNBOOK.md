@@ -1,5 +1,30 @@
 # Runbook
 
+## Turn 312: Plan 0055 S0 accepted and S1 review opened (2026-08-04)
+
+- S0 froze the two required and ten deterministic additional recordings under
+  ordered source-set hash
+  `a66ba8bc5d7358bf9b831ff08d07707e87be8ea8973e08b252a1db940db19733`.
+  The comprehensive exclusion union covered 2,648 prior JSON artifacts and
+  3,017 evidence hashes. Independent J0 accepted the repaired source packet.
+- The first S0 apply exposed that `copy2` retained the SMB source mode. The
+  exact private Zoom copy was corrected to `0600`, the importer now enforces
+  that mode, and immutable preview
+  `7e2a99d8957b3e952c45454ac13fd4033f0b004e258c1700446f93a7b79c8f07`
+  replays idempotently with byte identity intact.
+- S1 transcribed and diarized only the twelve frozen candidates. Provider job
+  records and full results remain private and source-hash-bound. No acoustic
+  identity model, gold access, profile/reference mutation, integration, or
+  historical reprocessing ran.
+- Materialized 40 non-empty private listening clips and a browser review page
+  under preview
+  `5a3f9fc9848a5e0b669bc37796e5a55b4f9dcd7bf0f55609aefa886e4caabcf9`.
+  All 40 HTTP players returned 200 with non-empty content; the full suite
+  passed `815 passed in 59.39s`.
+- Current gate: the operator must identify all 40 speaker cards and confirm
+  Chris Williams and Eric Cochran in both Required A and Required B. Then J1
+  can independently select and freeze the first population-valid cohort.
+
 ## Turn 311: Open Plan 0055 source-expanded blind successor (2026-08-04)
 
 - Resolved the operator's exact Zoom path through the existing bastion-mounted
