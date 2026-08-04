@@ -14,6 +14,8 @@ def _sha(path: Path) -> str:
 def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     zoom = tmp_path / "zoom.m4a"
     zoom.write_bytes(b"zoom-new-source")
+    parent = tmp_path / "zoom.mp4"
+    parent.write_bytes(b"zoom-parent-source")
     archive = tmp_path / "archive"
     archive.mkdir()
     required = archive / "required.m4a"
@@ -24,6 +26,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     prior.mkdir()
     (prior / "evidence.json").write_text(json.dumps({"source_sha256": "a" * 64}))
     monkeypatch.setattr(s0, "ZOOM_SHA256", _sha(zoom))
+    monkeypatch.setattr(s0, "ZOOM_PARENT_SHA256", _sha(parent))
     monkeypatch.setattr(s0, "ARCHIVE_REQUIRED_SHA256", _sha(required))
     monkeypatch.setattr(
         s0.r0, "_evidence_hashes", lambda _path: ({"a" * 64}, "structured_json")
@@ -37,13 +40,13 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "plan_sha256": "d" * 64, "clean": True,
         "upstream_ahead": 0, "upstream_behind": 0,
     }
-    return zoom, required, archive, prior, probe, authority
+    return zoom, parent, required, archive, prior, probe, authority
 
 
 def test_preview_binds_two_required_and_ordered_additional_sources(tmp_path, monkeypatch):
-    zoom, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
+    zoom, parent, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
     preview = s0.preview_generation5_source_expansion(
-        zoom_source=zoom, archive_required=required, archive_root=archive,
+        zoom_source=zoom, zoom_parent=parent, archive_required=required, archive_root=archive,
         prior_root=prior, ffprobe_path="ffprobe", probe=probe,
         repository_authority=authority,
     )
@@ -53,28 +56,32 @@ def test_preview_binds_two_required_and_ordered_additional_sources(tmp_path, mon
     assert preview["candidate_count"] == 9
     assert preview["action_vector"]["transcribe_or_diarize"] is False
     assert preview["action_vector"]["run_models_or_predictions"] is False
+    assert preview["action_vector"]["copy_required_zoom_to_private_runtime"] is True
+    assert preview["contains_identity_names_or_aliases"] is True
+    assert preview["did_copy_required_zoom_to_private_runtime"] is False
+    assert preview["private_evidence"]["required_sources"][0]["parent_container_sha256"] == _sha(parent)
     names = [row["archive_relative_path"] for row in preview["private_evidence"]["additional_candidates"]]
     assert names == sorted(names)
 
 
 def test_preview_rejects_required_prior_overlap(tmp_path, monkeypatch):
-    zoom, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
+    zoom, parent, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
     zoom_hash = _sha(zoom)
     monkeypatch.setattr(s0.r0, "_evidence_hashes", lambda _path: ({zoom_hash}, "structured_json"))
     with pytest.raises(s0.Generation5SourceExpansionError, match="required_zoom_prior_evidence_overlap"):
         s0.preview_generation5_source_expansion(
-            zoom_source=zoom, archive_required=required, archive_root=archive,
+            zoom_source=zoom, zoom_parent=parent, archive_required=required, archive_root=archive,
             prior_root=prior, ffprobe_path="ffprobe", probe=probe,
             repository_authority=authority,
         )
 
 
 def test_preview_rejects_required_hash_drift(tmp_path, monkeypatch):
-    zoom, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
+    zoom, parent, required, archive, prior, probe, authority = _fixture(tmp_path, monkeypatch)
     monkeypatch.setattr(s0, "ZOOM_SHA256", "f" * 64)
     with pytest.raises(s0.Generation5SourceExpansionError, match="required_zoom_hash_drift"):
         s0.preview_generation5_source_expansion(
-            zoom_source=zoom, archive_required=required, archive_root=archive,
+            zoom_source=zoom, zoom_parent=parent, archive_required=required, archive_root=archive,
             prior_root=prior, ffprobe_path="ffprobe", probe=probe,
             repository_authority=authority,
         )

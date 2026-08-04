@@ -31,11 +31,13 @@ DEFAULT_ZOOM_SOURCE = Path(
     "/mnt/bastion-mnt/data2024/syncthing/Cloud/Google/Video/Zoom/"
     "2021-10-25 15.05.15 Eric Cochran's Personal Meeting Room 4671813693/audio_only.m4a"
 )
+DEFAULT_ZOOM_PARENT = DEFAULT_ZOOM_SOURCE.with_name("zoom_0.mp4")
 DEFAULT_ARCHIVE_REQUIRED = Path(
     "/mnt/c/Users/ecoch/Documents/Sound Recordings/Transcribed/"
     "2025-09-25 Agritalk Radio Show Chis and Eric My recording 31.m4a"
 )
 ZOOM_SHA256 = "06ff1b6b21736d3bb47c2d2789f30c5ae0e9c9998788f93d72cc54ce46840b12"
+ZOOM_PARENT_SHA256 = "e770dbd5eadd51185d76653c95e38a3990a2417efa43b2919133a62ba84476f0"
 ARCHIVE_REQUIRED_SHA256 = "cc0cd45469d3de0d9e336dbdd4abba2458bd555916328f06115008aed1ff913b"
 MAX_ADDITIONAL = 10
 MINIMUM_DURATION_SECONDS = 60.0
@@ -182,6 +184,7 @@ def _additional_rows(
 
 def preview_generation5_source_expansion(
     *, zoom_source: Path = DEFAULT_ZOOM_SOURCE,
+    zoom_parent: Path = DEFAULT_ZOOM_PARENT,
     archive_required: Path = DEFAULT_ARCHIVE_REQUIRED,
     archive_root: Path = DEFAULT_ARCHIVE_ROOT,
     prior_root: Path = DEFAULT_PRIOR_ROOT,
@@ -193,10 +196,19 @@ def preview_generation5_source_expansion(
     if not ffprobe:
         raise Generation5SourceExpansionError("ffprobe_unavailable")
     exclusion = _exclusion_union(prior_root)
+    parent = zoom_parent.expanduser().absolute()
+    if not parent.is_file() or parent.is_symlink():
+        raise Generation5SourceExpansionError("required_zoom_parent_missing")
+    if sha256_file(parent) != ZOOM_PARENT_SHA256:
+        raise Generation5SourceExpansionError("required_zoom_parent_hash_drift")
+    if ZOOM_PARENT_SHA256 in exclusion["hashes"]:
+        raise Generation5SourceExpansionError("required_zoom_parent_prior_evidence_overlap")
     required = [
         _required_row(zoom_source, ZOOM_SHA256, "required_zoom", exclusion["hashes"], ffprobe, probe),
         _required_row(archive_required, ARCHIVE_REQUIRED_SHA256, "required_archive", exclusion["hashes"], ffprobe, probe),
     ]
+    required[0]["parent_container_path"] = str(parent)
+    required[0]["parent_container_sha256"] = ZOOM_PARENT_SHA256
     additional, rejection_counts = _additional_rows(
         archive_root, {row["source_sha256"] for row in required}, exclusion["hashes"], ffprobe, probe,
     )
@@ -215,7 +227,7 @@ def preview_generation5_source_expansion(
         "private_evidence": {"required_sources": required, "additional_candidates": additional},
         "action_vector": {
             "submit_exact_source_authority_to_j0": True,
-            "copy_required_zoom_to_private_runtime": False,
+            "copy_required_zoom_to_private_runtime": True,
             "decode_audio": False,
             "transcribe_or_diarize": False,
             "access_or_freeze_gold": False,
@@ -226,7 +238,8 @@ def preview_generation5_source_expansion(
         },
         "contains_paths": True,
         "contains_private_membership": True,
-        "contains_identity_names_or_aliases": False,
+        "contains_identity_names_or_aliases": True,
+        "did_copy_required_zoom_to_private_runtime": False,
         "did_decode_audio": False,
         "did_run_models": False,
     }
@@ -247,6 +260,7 @@ def _portable(preview: Mapping[str, Any]) -> dict[str, Any]:
         "additional_source_set_sha256": preview["additional_source_set_sha256"],
         "ordered_candidate_set_sha256": preview["ordered_candidate_set_sha256"],
         "action_vector": preview["action_vector"],
+        "contains_identity_names_or_aliases": preview["contains_identity_names_or_aliases"],
         "did_decode_audio": False,
         "did_run_models": False,
     }
@@ -279,8 +293,11 @@ def apply_generation5_source_expansion(
     if not isinstance(required, list) or len(required) != 2:
         raise Generation5SourceExpansionError("Required source authority is incomplete.")
     zoom = Path(str(required[0].get("path") or ""))
+    zoom_parent = Path(str(required[0].get("parent_container_path") or ""))
     if sha256_file(zoom) != ZOOM_SHA256:
         raise Generation5SourceExpansionError("Required Zoom source drifted.")
+    if sha256_file(zoom_parent) != ZOOM_PARENT_SHA256:
+        raise Generation5SourceExpansionError("Required Zoom parent drifted.")
     ensure_private_tree(paths["root"], paths["run"])
     shutil.copy2(zoom, paths["zoom_copy"])
     if sha256_file(paths["zoom_copy"]) != ZOOM_SHA256:
@@ -290,6 +307,7 @@ def apply_generation5_source_expansion(
     receipt = {
         **_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]),
         "private_zoom_copy_sha256": ZOOM_SHA256, "mode": "0600",
+        "did_copy_required_zoom_to_private_runtime": True,
     }
     write_immutable_private_json(paths["receipt"], receipt)
     return {**receipt, "idempotent_replay": False}
@@ -311,6 +329,7 @@ def replay_generation5_source_expansion(
     expected_receipt = {
         **_portable(preview), "manifest_sha256": sha256_file(paths["manifest"]),
         "private_zoom_copy_sha256": ZOOM_SHA256, "mode": "0600",
+        "did_copy_required_zoom_to_private_runtime": True,
     }
     repository = preview.get("repository_authority")
     repository = dict(repository) if isinstance(repository, Mapping) else {}
