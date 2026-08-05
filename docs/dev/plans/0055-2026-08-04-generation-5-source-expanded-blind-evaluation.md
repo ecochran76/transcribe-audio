@@ -69,9 +69,17 @@ replays with the private Zoom copy byte-identical and mode `0600`. S1 has
 transcribed and diarized only those twelve candidates and materialized 40
 non-empty listening cards under preview
 `5a3f9fc9848a5e0b669bc37796e5a55b4f9dcd7bf0f55609aefa886e4caabcf9`.
-The plan is awaiting complete private operator labels before J1 population
-selection and gold review. No acoustic identity model, prediction, cohort or
-gold freeze, profile/reference mutation, integration, or reprocessing ran.
+The 40-card review is complete with 39 operator-supplied labels and one
+transcript-context-derived identity, Mark Mba-Wright. Independent J1 accepted
+the first permitted combination, Required A/B plus Candidates 3–7, with seven
+distinct recordings, 11 people, 25 same-person session pairs, both enrolled
+people in at least two recordings, and zero overlap. J1 freeze preview
+`b0c642d5989df72e876abbbf10427148e72c1cf3b2c8fac69eaf90e5062ff3a3`
+and private-gold manifest
+`617b98be57f28770e1b22ecaaf29568518806c73b0906c4c3abd1f84493c0aac`
+are applied. The plan is now at gold-blind paired-worker preparation. Gold has
+not been revealed, and no prediction, profile/reference mutation, integration,
+or reprocessing ran.
 
 ## Source, Freshness, And Selection Contract
 

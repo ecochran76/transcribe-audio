@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 313: Plan 0055 private gold and cohort frozen (2026-08-04)
+
+- Imported 39 complete operator labels and resolved the one remaining card,
+  Candidate 8 / Speaker C, as context-derived `Mark Mba-Wright`. The frozen
+  transcript directly addresses that speaker as Mark; later project evidence
+  and Iowa State's faculty record align the LCA researcher role with Mark
+  Mba-Wright. No acoustic identity model assisted gold creation.
+- Canonicalized only explicit aliases and misspellings: Jeffrey Dikis,
+  Dr. Dikis' Nurse, and Alexandra Hoen. The immutable population proposal is
+  `9cd1a5c41920de2f0dc562c868268c6eaa9091be9cd7e88794969e460858f971`
+  with manifest
+  `b4cadac5f76d3279f9c48ae7559fc37ab3071be043dcc889c8a92c7b6b21cde5`.
+- The first permitted combination passed immediately: Required A, Required B,
+  and Candidates 3–7. It has seven distinct recordings/conversations, 11
+  people, 25 same-person session pairs, both enrolled people in at least two
+  recordings, and zero overlap.
+- Independent J1 recomputed the complete 12-case/40-label denominator,
+  selection ordering, population gates, private modes, and replay, then
+  returned PASS. J1 freeze preview
+  `b0c642d5989df72e876abbbf10427148e72c1cf3b2c8fac69eaf90e5062ff3a3`
+  and private-gold manifest
+  `617b98be57f28770e1b22ecaaf29568518806c73b0906c4c3abd1f84493c0aac`
+  are applied.
+- Gold remains unrevealed. Models, predictions, profile/reference mutation,
+  integration, and historical reprocessing remain false. Current gate: prepare
+  isolated gold-blind context-only and voice-augmented worker inputs before
+  either worker runs.
+
 ## Turn 312: Plan 0055 S0 accepted and S1 review opened (2026-08-04)
 
 - S0 froze the two required and ten deterministic additional recordings under
