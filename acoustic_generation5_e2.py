@@ -51,7 +51,9 @@ THRESHOLD_APPLICATION = Path(
 )
 THRESHOLD_APPLICATION_SHA256 = "308f326d3fe9baa175ed32c90df4255a8d4bfc1924c6f925eab490ae2832f4d1"
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0055/e2")
-DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_PROVIDER = "openrouter"
+DEFAULT_MODEL = "openai/gpt-5.2"
+DEFAULT_WORKER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 MODULE_NAME = Path(__file__).name
 SELECTED_ORDINALS = (1, 2, 3, 4, 5, 6, 7)
 EXPECTED_SPEAKER_COUNT = 22
@@ -349,6 +351,18 @@ def preview_generation5_e2(
         "context_worker_packet_sha256": context_packet["content_sha256"],
         "threshold_application_sha256": THRESHOLD_APPLICATION_SHA256,
         "threshold_unit_set_sha256": _canonical_hash(private["threshold_units"]),
+        "worker_runtime": {
+            "provider": DEFAULT_PROVIDER, "model": DEFAULT_MODEL,
+            "endpoint_sha256": hashlib.sha256(DEFAULT_WORKER_ENDPOINT.encode()).hexdigest(),
+            "tools_enabled": False, "provider_storage_requested": False,
+            "provider_fallbacks_allowed": False, "structured_output_required": True,
+        },
+        "superseded_no_output_attempt": {
+            "provider": "openai", "model": "gpt-5.2", "attempt_count": 1,
+            "status": "failed_no_output", "reason_code": "http_429",
+            "prediction_captured": False, "acoustic_models_ran": False,
+            "gold_revealed": False,
+        },
         "private_evidence": private,
         "action_vector": actions,
         "contains_private_paths": True,
@@ -368,6 +382,7 @@ def _portable(preview: Mapping[str, Any]) -> dict[str, Any]:
         "selected_transcript_set_sha256", "speaker_count", "acoustic_matrix_count",
         "acoustic_trial_count", "context_worker_packet_sha256",
         "threshold_application_sha256", "threshold_unit_set_sha256", "action_vector",
+        "worker_runtime", "superseded_no_output_attempt",
     )}
 
 
@@ -596,9 +611,48 @@ def openai_worker(
     return parsed
 
 
+def openrouter_worker(
+    packet: Mapping[str, Any], *, model: str = DEFAULT_MODEL,
+    api_key: str | None = None, timeout_seconds: float = 600,
+) -> dict[str, Any]:
+    """Run one exact-model, no-tools OpenRouter structured-output turn."""
+    key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        raise Generation5E2Error("OPENROUTER_API_KEY is unavailable for the isolated worker.")
+    refs = [str(item["speaker_ref"]) for item in packet["speakers"]]
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": json.dumps(packet, ensure_ascii=False)}],
+        "reasoning": {"effort": "high"},
+        "max_completion_tokens": 16_000,
+        "provider": {"allow_fallbacks": False},
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "speaker_predictions", "strict": True,
+            "schema": _prediction_json_schema(refs),
+        }},
+    }
+    request = urllib.request.Request(
+        DEFAULT_WORKER_ENDPOINT, data=json.dumps(body).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            result = json.loads(response.read())
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise Generation5E2Error("The isolated OpenRouter worker failed.") from exc
+    try:
+        content = result["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise Generation5E2Error("The OpenRouter worker returned invalid structured output.") from exc
+    if not isinstance(parsed, dict):
+        raise Generation5E2Error("The isolated worker output must be an object.")
+    return parsed
+
+
 def execute_generation5_e2(
     expected_content_sha256: str, *, runtime_root: Path = DEFAULT_RUNTIME_ROOT,
-    worker: Callable[[Mapping[str, Any]], Mapping[str, Any]] = openai_worker,
+    worker: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Freeze both workers and all matrices before any gold reveal."""
     replay_generation5_e2(expected_content_sha256, runtime_root=runtime_root)
@@ -606,6 +660,7 @@ def execute_generation5_e2(
     if paths["execution"].exists():
         return replay_generation5_e2_execution(expected_content_sha256, runtime_root=runtime_root)
     preview = _read_json(paths["manifest"])["preview"]
+    selected_worker = worker or openrouter_worker
     context_packet = preview["private_evidence"]["context_worker_packet"]
     expected_refs = [str(item["speaker_ref"]) for item in context_packet["speakers"]]
 
@@ -615,7 +670,7 @@ def execute_generation5_e2(
     else:
         print("Running isolated context-only prediction worker...", flush=True)
         context_predictions = validate_predictions(
-            worker(context_packet), expected_refs=expected_refs, worker_lane="context_only",
+            selected_worker(context_packet), expected_refs=expected_refs, worker_lane="context_only",
         )
         write_immutable_private_json(paths["context_predictions"], context_predictions)
 
@@ -627,7 +682,7 @@ def execute_generation5_e2(
     else:
         print("Running isolated voice-augmented prediction worker...", flush=True)
         augmented_predictions = validate_predictions(
-            worker(augmented_packet), expected_refs=expected_refs, worker_lane="voice_augmented",
+            selected_worker(augmented_packet), expected_refs=expected_refs, worker_lane="voice_augmented",
         )
         write_immutable_private_json(paths["augmented_predictions"], augmented_predictions)
 
@@ -636,6 +691,7 @@ def execute_generation5_e2(
         "schema_version": EXECUTION_SCHEMA,
         "status": "gold_blind_paired_predictions_frozen",
         "authority_content_sha256": expected_content_sha256,
+        "worker_runtime": preview["worker_runtime"],
         "context_worker_packet_sha256": context_packet["content_sha256"],
         "context_predictions_sha256": context_predictions["content_sha256"],
         "augmented_worker_packet_sha256": augmented_packet["content_sha256"],

@@ -112,4 +112,7 @@ def test_live_preview_binds_frozen_denominators_without_gold() -> None:
     assert preview["acoustic_trial_count"] == 396
     assert preview["contains_gold"] is False
     assert preview["did_run_workers_or_models"] is False
-
+    assert preview["worker_runtime"]["provider"] == "openrouter"
+    assert preview["worker_runtime"]["model"] == "openai/gpt-5.2"
+    assert preview["worker_runtime"]["tools_enabled"] is False
+    assert preview["superseded_no_output_attempt"]["prediction_captured"] is False
