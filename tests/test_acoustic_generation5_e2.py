@@ -116,3 +116,6 @@ def test_live_preview_binds_frozen_denominators_without_gold() -> None:
     assert preview["worker_runtime"]["model"] == "openai/gpt-5.2"
     assert preview["worker_runtime"]["tools_enabled"] is False
     assert preview["superseded_no_output_attempt"]["prediction_captured"] is False
+    assert preview["preserved_context_prediction"]["reuse_exact_prediction"] is True
+    assert preview["preserved_context_prediction"]["rerun_context_worker"] is False
+    assert preview["preserved_context_prediction"]["acoustic_models_ran_after_prediction"] is False

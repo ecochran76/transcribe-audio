@@ -19,7 +19,7 @@ from typing import Any
 import acoustic_audio_derivatives as p1
 import acoustic_generation3_recalibration as recalibration
 import acoustic_generation4_acoustic_contract as acoustic_contract
-import acoustic_generation5_source_gold as source_gold
+import acoustic_generation5_evaluation_gold as evaluation_gold
 import acoustic_generation5_source_j1_acceptance as j1
 import acoustic_generation5_source_review as s1
 import acoustic_speech_preparation as p2
@@ -59,6 +59,12 @@ SELECTED_ORDINALS = (1, 2, 3, 4, 5, 6, 7)
 EXPECTED_SPEAKER_COUNT = 22
 EXPECTED_MATRIX_COUNT = 9
 EXPECTED_TRIAL_COUNT = 396
+PRESERVED_CONTEXT_PREDICTION = Path(
+    "~/.local/state/transcribe-audio/plan-0055/e2/"
+    "generation5-e2-aeb87c4527f1bc2f2fff5112/context-predictions.json"
+)
+PRESERVED_CONTEXT_PREDICTION_FILE_SHA256 = "7624869095f4d2473854c20ed51da22914a7e80256c201352dc0457740c0384e"
+PRESERVED_CONTEXT_PREDICTION_CONTENT_SHA256 = "3bea4134ab9ebc67970c1266e9ce98d648f1453624a0c196d4a9e0b7161740d4"
 FORBIDDEN_WORKER_KEYS = {
     "answer_sha256", "enrolled_subject_id", "identity_authority", "person_id",
     "population", "population_result", "private_gold", "private_identity_display",
@@ -363,6 +369,15 @@ def preview_generation5_e2(
             "prediction_captured": False, "acoustic_models_ran": False,
             "gold_revealed": False,
         },
+        "preserved_context_prediction": {
+            "content_sha256": PRESERVED_CONTEXT_PREDICTION_CONTENT_SHA256,
+            "file_sha256": PRESERVED_CONTEXT_PREDICTION_FILE_SHA256,
+            "speaker_count": EXPECTED_SPEAKER_COUNT, "worker_lane": "context_only",
+            "source_authority_sha256": "aeb87c4527f1bc2f2fff51129d33e32ee5b84bd5a01d22660b2c489b882d2d3f",
+            "reuse_exact_prediction": True, "rerun_context_worker": False,
+            "subsequent_failure_reason": "enrolled_identity_helper_reference_error",
+            "acoustic_models_ran_after_prediction": False, "gold_revealed": False,
+        },
         "private_evidence": private,
         "action_vector": actions,
         "contains_private_paths": True,
@@ -383,6 +398,7 @@ def _portable(preview: Mapping[str, Any]) -> dict[str, Any]:
         "acoustic_trial_count", "context_worker_packet_sha256",
         "threshold_application_sha256", "threshold_unit_set_sha256", "action_vector",
         "worker_runtime", "superseded_no_output_attempt",
+        "preserved_context_prediction",
     )}
 
 
@@ -497,7 +513,7 @@ def _profile_inventory() -> tuple[list[dict[str, Any]], dict[str, Any], dict[str
         p3_runtime_root=recalibration.DEFAULT_P3_RUNTIME_ROOT,
     )
     adapters = verification.adapter_registry()
-    enrolled = source_gold._enrolled_identity_map()
+    enrolled = evaluation_gold._enrolled_identity_map()
     subject_to_name = {subject: name.title() for name, subject in enrolled.items()}
     subject_to_name.update({enrolled.get("chris williams", ""): "Chris Williams",
                             enrolled.get("eric cochran", ""): "Eric Cochran"})
@@ -667,6 +683,22 @@ def execute_generation5_e2(
     if paths["context_predictions"].exists():
         require_private_file(paths["context_predictions"], paths["root"])
         context_predictions = _read_json(paths["context_predictions"])
+    elif preview.get("preserved_context_prediction", {}).get("reuse_exact_prediction") is True:
+        inherited_path = PRESERVED_CONTEXT_PREDICTION.expanduser().absolute()
+        require_private_file(inherited_path, inherited_path.parents[2])
+        inherited = _read_json(inherited_path)
+        validated = validate_predictions(
+            {"predictions": inherited.get("predictions")},
+            expected_refs=expected_refs, worker_lane="context_only",
+        )
+        if (
+            sha256_file(inherited_path) != PRESERVED_CONTEXT_PREDICTION_FILE_SHA256
+            or inherited != validated
+            or inherited.get("content_sha256") != PRESERVED_CONTEXT_PREDICTION_CONTENT_SHA256
+        ):
+            raise Generation5E2Error("The preserved context prediction drifted.")
+        context_predictions = inherited
+        write_immutable_private_json(paths["context_predictions"], context_predictions)
     else:
         print("Running isolated context-only prediction worker...", flush=True)
         context_predictions = validate_predictions(
