@@ -1,5 +1,55 @@
 # Runbook
 
+## Turn 317: Implement Plan 0056 P0 identity guard (2026-08-05)
+
+Summary: Implemented and validated the pre-model authority needed to run the
+enrolled-only acoustic pilot without creating duplicate identities or mutating
+contact, relationship, profile, reference, or provider state.
+
+Actions:
+
+- Added `acoustic_plan0056_pilot.py` with a small public seam for previewing,
+  freezing, replaying, and portably reviewing the Plan 0056 authority.
+- Enforced exact matching against the two stable enrolled subject IDs. Names,
+  aliases, titles, role labels, and provider identifiers cannot be used as
+  machine identities; abstentions carry no identity.
+- Added read-only SQLite cardinality and generation snapshots for the primary
+  transcript store, conversation-identity shadow store, acoustic profile
+  registry, and biometric reference registry.
+- Bound the existing nine-unit threshold application and predeclared a
+  conservative assignment rule: at least six supporting units across at least
+  two candidate families, with zero opposing units; every result still requires
+  human review and no assignment is applied.
+- Added private immutable authority receipts under a `0700` runtime tree with
+  `0600` files and replay-time source hash verification.
+- Proved that all five user-named Chris/Eric recordings already occur in prior
+  acoustic evidence and therefore cannot be called fresh. Identified one
+  2026-08-05 business recording as hash-fresh; it remains unfrozen pending the
+  clean committed authority gate.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_acoustic_plan0056_pilot.py` passed:
+  7 tests.
+- `.venv/bin/python -m pytest -q` passed: 847 tests.
+- `.venv/bin/python -m py_compile acoustic_plan0056_pilot.py
+  tests/test_acoustic_plan0056_pilot.py` passed.
+- `git diff --check` passed.
+- The active planning audit returned `ok: true` and recognized Plan 0056 as an
+  `OPEN` P10 plan.
+
+Safety state:
+
+- No pilot audio was decoded, transcribed, diarized, or scored.
+- No pilot outcome gold was read or created.
+- No person, contact, alias, role, relationship, profile, reference, speaker
+  assignment, or provider record was created or mutated.
+
+Next:
+
+- Commit and push P0, then freeze the exact hash-fresh source and before-state
+  inventory from that clean upstream-even revision before any model action.
+
 ## Turn 316: Activate Plan 0056 enrolled-only pilot (2026-08-05)
 
 Summary: Activated the bounded Plan 0056 execution authority without running

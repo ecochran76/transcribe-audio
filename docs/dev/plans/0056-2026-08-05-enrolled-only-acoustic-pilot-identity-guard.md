@@ -54,10 +54,22 @@ source under the P09 conversation-knowledge architecture, but live authority
 cutover and cross-provider reconciliation are intentionally deferred.
 
 Execution is activated on 2026-08-05 from clean, upstream-even commit
-`d139ba7`. The first packet must freeze the exact two-subject allowlist,
+`8f6c1d0`. The first packet must freeze the exact two-subject allowlist,
 pre-execution cardinality/generation snapshot, prior-evidence exclusion union,
 fresh source set, scoring policy, private paths, and all negative actions
 before any pilot audio decode or model execution.
+
+The P0 implementation checkpoint now provides that fail-closed authority in
+`acoustic_plan0056_pilot.py`. It accepts only exact allowlisted acoustic
+subject IDs, forces role-only and non-enrolled identities to abstain, freezes
+read-only contact/person/relationship/profile/reference cardinalities, rejects
+any source hash found in prior evidence including Plan 0055, binds the existing
+nine-unit threshold authority plus a conservative six-support/no-opposition
+consensus rule, and replays from a private `0700`/`0600` tree. The current
+source search rejected every user-named Chris/Eric recording because each was
+already present in training or evaluation evidence. One 2026-08-05 business
+recording is hash-fresh and remains only a candidate until a clean committed
+P0 authority freezes it; no pilot audio has been decoded or scored yet.
 
 ## Critical Path
 
