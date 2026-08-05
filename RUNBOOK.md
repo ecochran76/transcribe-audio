@@ -1,5 +1,56 @@
 # Runbook
 
+## Turn 316: Activate Plan 0056 enrolled-only pilot (2026-08-05)
+
+Summary: Activated the bounded Plan 0056 execution authority without running
+audio decode, models, identity creation, or mutations.
+
+Authority Consulted:
+
+- `VISION.md`, Plan 0056, the P10 roadmap lane, Turn 315, the contact/role/
+  relationship sequencing note, and the relevant runtime, memory, planning,
+  validation, worktree, commit, and preview policies.
+- Graphiti group `transcribe_audio_main`; current sourced facts confirmed the
+  Plan 0055 planning-only terminal decision, human-confirmation requirement,
+  and prohibition on autonomous learning.
+
+Decisions And Changes:
+
+- Changed Plan 0056 from `PLANNED` to `OPEN` and wired P10 to the active plan.
+- Required the first implementation packet to freeze the exact two-subject
+  allowlist, pre-execution store/profile cardinalities, prior-evidence
+  exclusions, fresh source set, scoring policy, private paths, and every
+  negative action before pilot audio decode or model execution.
+- Preserved the scope boundary: no GWS/Odollo/receipts reconciliation,
+  relationship inference, graph mutation, profile learning, provider write,
+  automatic assignment, integration, or historical reprocessing.
+
+Validation Evidence:
+
+- Starting repository state was clean and upstream-even at `d139ba7`.
+- Graphiti runtime doctor was healthy.
+- CodeGraph index was healthy with 228 files, 7,025 nodes, and 23,164 edges.
+
+State Movement:
+
+- Plan 0056: `PLANNED` -> `OPEN`.
+- No runtime pilot authority or execution artifact exists yet.
+
+Subagent Status And Reconciliation:
+
+- No subagent was started; one critical-path owner remains active.
+
+Graphiti Write Status:
+
+- No write for activation alone; the existing Plan 0056 planning episode
+  remains current until a material runtime checkpoint is accepted.
+
+Next:
+
+- Implement and independently test the pre-execution identity guard and fresh
+  pilot authority, then freeze it from a clean pushed commit before any model
+  run.
+
 ## Turn 315: Contact, role, relationship, and pilot sequencing (2026-08-05)
 
 Summary: Memorialized the canonical identity and relationship-graph contract

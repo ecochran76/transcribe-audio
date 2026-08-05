@@ -1,6 +1,6 @@
 # Plan 0056 | Enrolled-only acoustic pilot identity guard
 
-State: PLANNED
+State: OPEN
 
 Lane: P10
 
@@ -52,6 +52,12 @@ other Plan 0055 identities are evaluation-only labels.
 The durable person/external-identity/relationship model already exists in
 source under the P09 conversation-knowledge architecture, but live authority
 cutover and cross-provider reconciliation are intentionally deferred.
+
+Execution is activated on 2026-08-05 from clean, upstream-even commit
+`d139ba7`. The first packet must freeze the exact two-subject allowlist,
+pre-execution cardinality/generation snapshot, prior-evidence exclusion union,
+fresh source set, scoring policy, private paths, and all negative actions
+before any pilot audio decode or model execution.
 
 ## Critical Path
 

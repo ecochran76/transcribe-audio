@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0056 enrolled-only acoustic pilot identity guard planned
+State: OPEN — Plan 0056 enrolled-only acoustic pilot identity guard active
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -589,7 +589,7 @@ production integration, or historical reprocessing.
 Canonical closure:
 `docs/dev/plans/0055-2026-08-04-generation-5-source-expanded-blind-evaluation.md`.
 
-Plan 0056 is the planned bounded pilot in
+Plan 0056 is the active bounded pilot in
 `docs/dev/plans/0056-2026-08-05-enrolled-only-acoustic-pilot-identity-guard.md`.
 It permits proposals only for the two existing enrolled subject IDs, requires
 human confirmation, and prohibits person/contact/alias/role/relationship or
