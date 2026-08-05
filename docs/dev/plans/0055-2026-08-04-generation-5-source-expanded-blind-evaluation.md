@@ -1,6 +1,6 @@
 # Plan 0055 | Generation-5 Source-Expanded Blind Evaluation
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -77,9 +77,18 @@ people in at least two recordings, and zero overlap. J1 freeze preview
 `b0c642d5989df72e876abbbf10427148e72c1cf3b2c8fac69eaf90e5062ff3a3`
 and private-gold manifest
 `617b98be57f28770e1b22ecaaf29568518806c73b0906c4c3abd1f84493c0aac`
-are applied. The plan is now at gold-blind paired-worker preparation. Gold has
-not been revealed, and no prediction, profile/reference mutation, integration,
-or reprocessing ran.
+are applied. E2 then froze a 22-speaker context-only prediction, nine complete
+acoustic matrices containing all 396 model/profile trials, and a separately
+isolated voice-augmented prediction. E3 revealed gold exactly once to the
+scoring custodian. Context-only produced 0/22 correct assignments; voice
+augmentation produced 6/22, including 6/9 enrolled-speaker appearances, with
+zero wrong assignments, zero high-confidence wrong identities, and zero
+introduced errors. Independent J2 recomputed membership, matrices, trials,
+prediction hashes, the single reveal, metrics, privacy, and replay, then
+returned PASS. Terminal precedence froze `advance_to_limited_pilot_plan` under
+preview `7a93a9e318889e061ceff7498cb147f9ee589bb1cb7fb4f12364bf5a7b9e366a`.
+Profile/reference mutation, automatic assignment, default integration, and
+historical reprocessing remain false.
 
 ## Source, Freshness, And Selection Contract
 
@@ -150,11 +159,23 @@ acoustic score matrix before gold reveal. Workers receive no gold, answer
 hashes, population-derived identities, or competing worker outputs. Terminal:
 scoring-custodian handoff or `stop`.
 
+Outcome: complete. E2 authority
+`9d5762fab9aea852835f4dbfd0575f33aeb36df90e66a46dcd4b69b3b140fef6`
+froze both 22-speaker predictions and nine matrices with 396/396 trials under
+execution hash
+`3b00b9462c0aae1d8016e9e6f7e4c9b0e35d75ad838ce19ac6386c2d609e0d82`.
+
 ### E3 | One Reveal And Paired Scoring
 
 Reveal gold once to the scoring custodian. Compute complete denominators,
 correctness, recall, abstention/review resolution, high-confidence wrong
 identity counts, and paired deltas. Terminal: independent audit or `stop`.
+
+Outcome: complete. Exactly one scoring-custodian reveal is bound by
+`ba78c1dc0c74f36ed4ae78ae694702e2057e7f19cb39dc7d1d4f571535bcd202`;
+paired score
+`2aa5943aff2a7d72e1bc090347a517e3afa10df479422c0007aa372bcb309450`
+replays idempotently.
 
 ### J2/E4 | Independent Audit And Terminal Decision
 
@@ -165,6 +186,11 @@ reduced correctness/recall; `advance_to_limited_pilot_plan` only for no
 regression, zero augmented high-confidence errors, and either one corrected
 baseline error or two safely resolved baseline review/abstentions; otherwise
 `keep_shadow_and_refine`.
+
+Outcome: PASS. Independent reviewer `/root/plan0055_j0_review` recomputed the
+complete evidence and terminal precedence. The frozen decision is
+`advance_to_limited_pilot_plan`: plan a bounded pilot next, with no present
+production, mutation, assignment, integration, or reprocessing authority.
 
 ## Parallel And Critical-Path Design
 

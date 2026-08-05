@@ -1,5 +1,46 @@
 # Runbook
 
+## Turn 314: Plan 0055 paired evaluation terminal PASS (2026-08-04)
+
+- Closed
+  `docs/dev/plans/0055-2026-08-04-generation-5-source-expanded-blind-evaluation.md`
+  after the complete paired milestone and independent terminal audit.
+- E2 froze the exact 22-speaker context-only prediction at
+  `3bea4134ab9ebc67970c1266e9ce98d648f1453624a0c196d4a9e0b7161740d4`,
+  then completed all nine acoustic matrices and 396/396 unique
+  model/profile trials under matrix set
+  `8b52e50baa3c3541a0bb56460c20fc39df226b83b55c2c4fb3a834fa1a016164`.
+  The separately isolated augmented prediction is
+  `c96bbd56cbce52c3eda352c2f3c34747f061b5d6286b91cb18ac45327962afb2`.
+  Neither worker received gold or competing output.
+- The direct OpenAI worker route returned HTTP 429 with no output. A reviewed
+  successor authority bound exact OpenRouter model `openai/gpt-5.2`, disabled
+  tools and provider fallbacks, requested no provider storage, and preserved
+  the completed context prediction across two local pre-model custody defects.
+- E3 revealed gold exactly once to the scoring custodian. Context-only made
+  0/22 correct assignments. Voice augmentation made 6/22 correct assignments,
+  including 6/9 enrolled-speaker appearances, with 0 wrong assignments, 0
+  high-confidence wrong identities, 12 abstentions, and 4 reviews. It corrected
+  six baseline errors and introduced none. Score
+  `2aa5943aff2a7d72e1bc090347a517e3afa10df479422c0007aa372bcb309450`
+  replays idempotently.
+- Independent J2 recomputed the seven-recording membership, 22 speakers, nine
+  matrices, all 396 trials, prediction hashes, exactly one reveal, metrics,
+  privacy, permissions, negative actions, and replay, then returned PASS.
+  Terminal preview
+  `7a93a9e318889e061ceff7498cb147f9ee589bb1cb7fb4f12364bf5a7b9e366a`
+  freezes `advance_to_limited_pilot_plan`.
+- This decision authorizes only planning the next bounded pilot. Automatic
+  assignment, profile/reference mutation, default integration, and historical
+  reprocessing remain false. The full suite passed `834` tests before the
+  terminal module; the final terminal-focused set passed 18 tests.
+
+Next:
+
+- Open a new bounded limited-pilot plan that preserves human confirmation and
+  defines conservative use of the acoustic factor. Do not enable production
+  defaults or learn from these evaluation predictions.
+
 ## Turn 313: Plan 0055 private gold and cohort frozen (2026-08-04)
 
 - Imported 39 complete operator labels and resolved the one remaining card,

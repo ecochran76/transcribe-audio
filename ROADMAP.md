@@ -575,14 +575,19 @@ gold, and then run the original seven-recording context-only versus
 voice-augmented comparison. Plan 0055 S0 is independently accepted with two
 required plus ten additional prior-disjoint recordings, and S1 has produced a
 private 40-card listening surface from source-hash-bound diarized transcripts.
-The 40-card review is now complete: 39 operator labels plus one transcript-
+The 40-card review completed with 39 operator labels plus one transcript-
 context-derived Mark Mba-Wright identity. Independent J1 accepted and froze
-the first passing cohort, Required A/B plus Candidates 3–7, with seven distinct
-recordings, 11 people, 25 same-person session pairs, both enrolled people in
-at least two recordings, and zero overlap. The current gate is isolated,
-gold-blind context-only and voice-augmented worker preparation. Gold has not
-been revealed; no prediction, profile mutation, integration, or reprocessing
-has run.
+the first passing cohort, Required A/B plus Candidates 3–7. E2 completed a
+22-speaker paired comparison with nine full acoustic matrices and 396 trials.
+After exactly one scoring-custodian reveal, context-only produced 0/22 correct
+assignments while voice augmentation produced 6/22, including 6/9 enrolled
+appearances, with no wrong or high-confidence wrong augmented assignment.
+Independent J2 returned PASS and Plan 0055 is closed at terminal decision
+`advance_to_limited_pilot_plan`. The next P10 slice is a new bounded pilot plan;
+the decision does not authorize automatic assignment, profile learning,
+production integration, or historical reprocessing.
+Canonical closure:
+`docs/dev/plans/0055-2026-08-04-generation-5-source-expanded-blind-evaluation.md`.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
