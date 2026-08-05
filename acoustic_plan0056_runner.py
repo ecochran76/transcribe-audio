@@ -304,7 +304,7 @@ def _score_matrices(
                 rows_by_unit[(candidate_id, method_id)].append(
                     {"speaker_ref": binding["speaker_ref"], "scores": scores}
                 )
-    ensure_private_tree(paths["root"], paths["run"], paths["matrices"])
+    ensure_private_tree(paths["root"], paths["matrices"])
     matrices = []
     for candidate_id, method_id in sorted(rows_by_unit):
         threshold = thresholds[(candidate_id, method_id)]
@@ -350,7 +350,7 @@ def execute_local_pilot(
         raise Plan0056RunnerError("Identity state drifted before local pilot execution.")
     source_binding = p0_preview["private_evidence"]["sources"][0]
     source = Path(source_binding["path"])
-    ensure_private_tree(paths["root"], paths["authority_run"], paths["run"])
+    ensure_private_tree(paths["root"], paths["run"])
     _decode_private_pcm(source, paths["pcm"])
     timeline = _run_local_diarization(
         paths["pcm"], model_root=Path(preview["local_runtime"]["diarization_model"]["root"]),
@@ -373,7 +373,7 @@ def execute_local_pilot(
     snapshots = Path(authority.DEFAULT_WHISPER_CACHE_ROOT.expanduser().absolute() / "snapshots")
     model_snapshot = next(path for path in sorted(snapshots.iterdir()) if path.is_dir())
     transcripts = _transcribe_clips(bindings, model_snapshot=model_snapshot)
-    ensure_private_tree(paths["root"], paths["run"], paths["transcripts"])
+    ensure_private_tree(paths["root"], paths["transcripts"])
     write_immutable_private_json(paths["transcripts"] / "speaker-transcripts.json", {"rows": transcripts})
     matrices = _score_matrices(bindings, preview=preview, paths=paths)
     proposals = authority.proposals_from_matrices(
