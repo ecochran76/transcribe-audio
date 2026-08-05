@@ -452,10 +452,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 def preview_plan0056_authority(
     *,
     source_paths: Sequence[Path],
@@ -634,3 +630,7 @@ def validate_pilot_proposals(
         "requires_human_review": True,
     }
     return {**core, "content_sha256": _canonical_hash(core)}
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

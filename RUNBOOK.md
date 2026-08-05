@@ -22,6 +22,9 @@ Actions:
   human review and no assignment is applied.
 - Added private immutable authority receipts under a `0700` runtime tree with
   `0600` files and replay-time source hash verification.
+- The first clean live-preview attempt exposed a CLI definition-order defect
+  before source inspection or artifact creation; moved the entry point after
+  all public definitions and reran the focused suite successfully.
 - Proved that all five user-named Chris/Eric recordings already occur in prior
   acoustic evidence and therefore cannot be called fresh. Identified one
   2026-08-05 business recording as hash-fresh; it remains unfrozen pending the
