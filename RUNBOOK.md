@@ -1,5 +1,49 @@
 # Runbook
 
+## Turn 315: Contact, role, relationship, and pilot sequencing (2026-08-05)
+
+Summary: Memorialized the canonical identity and relationship-graph contract
+and separated the minimum acoustic-pilot identity guard from later P09
+conversation-knowledge productization.
+
+Action:
+
+- Confirmed the Plan 0055 selected gold has 22 speaker rows, 11
+  evaluation-only person IDs, 9 enrolled-subject bindings, and zero contact
+  IDs. No contact, person, profile/reference, relationship, or integration
+  mutation occurred.
+- Extended the evergreen conversation-knowledge architecture to make provider
+  contacts source affinities rather than canonical people, model roles as
+  temporal relationships, store relationships as evidence-backed graph edges,
+  support bounded multi-hop discovery, and require host validation before App
+  Intelligence relationship proposals become durable observations.
+- Added the dated sequencing decision in
+  `docs/dev/notes/0052-2026-08-05-contact-role-relationship-sequencing.md`.
+- Created Plan 0056 as `PLANNED`: an enrolled-only, human-confirmed,
+  non-mutating acoustic pilot whose machine identities are restricted to the
+  two existing subject IDs.
+- Deferred GWS/Odollo/receipts contact reconciliation, reviewed merges and
+  splits, full role/relationship graph population, App Intelligence
+  relationship-inference evaluation, multi-hop retrieval, live authority
+  cutover, and historical backfill to the natural P09 productization path.
+
+Validation:
+
+- Repo-local Plan 0055 authority and private gold were read without mutation.
+- Graphiti discovery was healthy; repo-local architecture, plans, artifacts,
+  and source remained operational authority.
+- `git diff --check` passed.
+- The repository-wide planning audit still reports 35 pre-existing structural
+  issues across historical roadmap lanes, runbook ordering, and five older
+  active plans. It reports no issue against Plan 0056 or the new sequencing
+  note; this slice does not broaden into repairing that unrelated baseline.
+
+Next:
+
+- Review and activate Plan 0056, then implement only its identity guard before
+  running the bounded acoustic pilot. Do not absorb the deferred P09 graph and
+  cross-provider contact work into the pilot.
+
 ## Turn 314: Plan 0055 paired evaluation terminal PASS (2026-08-04)
 
 - Closed

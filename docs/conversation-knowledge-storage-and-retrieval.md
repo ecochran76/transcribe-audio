@@ -172,6 +172,19 @@ identifier authority, validity interval, verification state, and source
 record. Matching external identifiers may support person grouping, but names
 alone don't merge people.
 
+Provider contacts are source affinities, not canonical people. A provider
+record is uniquely addressed by provider, account or tenant, record type, and
+provider record ID. Google Workspace, Odollo, receipts repositories, calendar
+attendees, reviewed local contacts, and future sources may therefore retain
+different but compatible records for one canonical person without copying or
+collapsing their source-specific relationship context.
+
+Display names, titles, email addresses, acoustic profile labels, and
+conversation-specific aliases are attributes or evidence. They must never
+become the durable cross-source person key. Historical aliases remain
+addressable after a reviewed merge, and merge/split decisions retain an
+auditable redirect and reversal path.
+
 ### Source record and source context
 
 A source record is the representation returned by one account, tenant, or
@@ -206,6 +219,35 @@ A relationship is an evidence-backed observation or derived projection, not an
 unqualified fact. It records type, direction, source, temporal interval,
 review state, confidence assessment when applicable, and supporting evidence
 IDs.
+
+### Roles and relationship graph
+
+A role is a contextual, temporal relationship, not a field on `person` and not
+a reason to create another person. Examples include employee of an
+organization, attorney for a client or matter, physician for a patient,
+project investigator, vendor representative, meeting host, or caller. The same
+person may hold several concurrent or historical roles, and one provider may
+expose only one of them.
+
+Store people, organizations, projects, matters, conversations, recordings,
+events, and source records as graph-addressable nodes. Store typed,
+directional relationships such as `WORKS_FOR`, `REPRESENTS`,
+`COLLABORATES_WITH`, `PARTICIPATED_IN`, `ADVISES`, `SUPPLIES`, `OWNS`, and
+`DISCUSSED` as edges with evidence and temporal metadata. SQLite node and edge
+tables may implement the authoritative graph initially; the domain contract
+must not depend on one graph engine.
+
+Role-only labels such as "meeting host", "company manager", or "doctor's
+nurse" remain unresolved role observations until evidence supports a person
+link. They do not silently create canonical people or contacts.
+
+Relationship retrieval is bounded graph traversal. A request begins with
+candidate people or other exact anchors, expands only the policy-approved
+number of typed hops, preserves direction and source scope, and returns the
+path plus supporting evidence IDs. Graphiti may receive compact accepted
+projections for broader discovery, but the private conversation knowledge
+store remains authoritative for identities, edges, evidence, and review
+history.
 
 ### Topic and term
 
@@ -354,6 +396,22 @@ A retrieval request records:
 9. Enforce per-source and total packet budgets.
 10. Persist the request, selected evidence IDs, rejected candidate reasons,
     ranking version, and bundle hash before model reasoning.
+
+### App Intelligence relationship inference
+
+App Intelligence should endeavor to infer useful relationship and role
+candidates from the immutable bounded evidence bundle. Its structured output
+may propose relationship type and direction, the entities involved, temporal
+scope, supporting and conflicting evidence IDs, confidence, alternatives, and
+unresolved questions. Transcript language, introductions, calendar context,
+provider contacts, CRM records, prior conversations, messages, documents, and
+accepted graph neighborhoods may contribute when the host has prepared them.
+
+These outputs are proposals, not graph mutations. Host validation checks every
+entity and evidence reference, prevents circular identity/relationship
+corroboration, applies review or acceptance policy, and only then appends an
+observation and rebuildable relationship projection. Uncertain proposals stay
+reviewable and may be strengthened, contradicted, or superseded later.
 
 ### Evidence bundle
 

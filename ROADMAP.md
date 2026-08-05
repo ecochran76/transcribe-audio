@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0054 fresh-holdout recovery and Generation-5 blind evaluation
+State: OPEN — Plan 0056 enrolled-only acoustic pilot identity guard planned
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -588,6 +588,17 @@ the decision does not authorize automatic assignment, profile learning,
 production integration, or historical reprocessing.
 Canonical closure:
 `docs/dev/plans/0055-2026-08-04-generation-5-source-expanded-blind-evaluation.md`.
+
+Plan 0056 is the planned bounded pilot in
+`docs/dev/plans/0056-2026-08-05-enrolled-only-acoustic-pilot-identity-guard.md`.
+It permits proposals only for the two existing enrolled subject IDs, requires
+human confirmation, and prohibits person/contact/alias/role/relationship or
+profile creation and mutation. The broader canonical-person, provider-contact,
+role, evidence-backed relationship-graph, App Intelligence inference, and
+bounded multi-hop retrieval contract is memorialized in
+`docs/dev/notes/0052-2026-08-05-contact-role-relationship-sequencing.md` and
+remains deferred to the P09 conversation-knowledge path rather than becoming a
+prerequisite for this enrolled-only non-mutating pilot.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
