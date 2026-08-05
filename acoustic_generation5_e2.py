@@ -375,7 +375,10 @@ def preview_generation5_e2(
             "speaker_count": EXPECTED_SPEAKER_COUNT, "worker_lane": "context_only",
             "source_authority_sha256": "aeb87c4527f1bc2f2fff51129d33e32ee5b84bd5a01d22660b2c489b882d2d3f",
             "reuse_exact_prediction": True, "rerun_context_worker": False,
-            "subsequent_failure_reason": "enrolled_identity_helper_reference_error",
+            "subsequent_failure_reasons": [
+                "enrolled_identity_helper_reference_error",
+                "preserved_prediction_private_root_too_broad",
+            ],
             "acoustic_models_ran_after_prediction": False, "gold_revealed": False,
         },
         "private_evidence": private,
@@ -685,7 +688,7 @@ def execute_generation5_e2(
         context_predictions = _read_json(paths["context_predictions"])
     elif preview.get("preserved_context_prediction", {}).get("reuse_exact_prediction") is True:
         inherited_path = PRESERVED_CONTEXT_PREDICTION.expanduser().absolute()
-        require_private_file(inherited_path, inherited_path.parents[2])
+        require_private_file(inherited_path, inherited_path.parents[1])
         inherited = _read_json(inherited_path)
         validated = validate_predictions(
             {"predictions": inherited.get("predictions")},
