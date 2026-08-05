@@ -96,11 +96,10 @@ def select_review_segments(
                 break
             chosen.append({"start": start, "end": end})
             total += end - start
-        if total < minimum_usable_seconds_per_speaker:
-            raise Plan0056RunnerError(
-                f"{speaker} has insufficient usable diarized speech for review."
-            )
-        selected[speaker] = chosen
+        if total >= minimum_usable_seconds_per_speaker:
+            selected[speaker] = chosen
+    if not selected:
+        raise Plan0056RunnerError("No diarized speaker has enough usable speech for review.")
     return selected
 
 
@@ -173,6 +172,7 @@ def _run_local_diarization(
     model_root: Path,
     minimum_speakers: int,
     maximum_speakers: int,
+    compute_device: str,
 ) -> list[dict[str, Any]]:
     import torch
     from pyannote.audio import Pipeline
@@ -187,6 +187,7 @@ def _run_local_diarization(
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     try:
         pipeline = Pipeline.from_pretrained(str(pipeline_root))
+        pipeline.to(torch.device(compute_device))
         result = pipeline(
             {"waveform": torch.tensor(samples).unsqueeze(0), "sample_rate": sample_rate},
             min_speakers=minimum_speakers,
@@ -356,6 +357,7 @@ def execute_local_pilot(
         paths["pcm"], model_root=Path(preview["local_runtime"]["diarization_model"]["root"]),
         minimum_speakers=preview["diarization_policy"]["minimum_speakers"],
         maximum_speakers=preview["diarization_policy"]["maximum_speakers"],
+        compute_device=preview["local_runtime"]["compute_device"],
     )
     policy = preview["review_clip_policy"]
     selected = select_review_segments(

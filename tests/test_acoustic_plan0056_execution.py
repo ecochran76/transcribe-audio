@@ -106,6 +106,8 @@ def test_execution_authority_allows_only_local_pilot_actions() -> None:
             "network_required": False,
             "diarization_model_local": True,
             "transcription_model_local": True,
+            "compute_device": "cuda",
+            "compute_device_name": "test-gpu",
         },
         threshold_units=[
             {
@@ -150,6 +152,8 @@ def test_execution_authority_freezes_and_replays_privately(tmp_path: Path) -> No
             "network_required": False,
             "diarization_model_local": True,
             "transcription_model_local": True,
+            "compute_device": "cuda",
+            "compute_device_name": "test-gpu",
         },
         threshold_units=[
             {

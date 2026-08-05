@@ -150,6 +150,8 @@ def local_runtime_inventory(
     diarization_root: Path = DEFAULT_DIARIZATION_ROOT,
     whisper_cache_root: Path = DEFAULT_WHISPER_CACHE_ROOT,
 ) -> dict[str, Any]:
+    import torch
+
     distributions = {}
     for name in ("pyannote.audio", "faster-whisper", "torch", "torchaudio"):
         try:
@@ -173,6 +175,10 @@ def local_runtime_inventory(
         "network_required": False,
         "diarization_model_local": True,
         "transcription_model_local": True,
+        "compute_device": "cuda" if torch.cuda.is_available() else "cpu",
+        "compute_device_name": (
+            torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+        ),
     }
     return {**core, "runtime_sha256": _canonical_hash(core)}
 
@@ -331,6 +337,7 @@ def preview_plan0056_execution(
         local_runtime.get("network_required") is not False
         or local_runtime.get("diarization_model_local") is not True
         or local_runtime.get("transcription_model_local") is not True
+        or local_runtime.get("compute_device") not in {"cpu", "cuda"}
         or not local_runtime.get("runtime_sha256")
     ):
         raise Plan0056ExecutionError("The local speech runtime is incomplete.")
@@ -550,6 +557,8 @@ def portable_execution_authority(preview: Mapping[str, Any]) -> dict[str, Any]:
                 "transcription_model", {}
             ).get("file_set_sha256"),
             "network_required": runtime.get("network_required"),
+            "compute_device": runtime.get("compute_device"),
+            "compute_device_name": runtime.get("compute_device_name"),
         },
         "threshold_unit_set_sha256": preview.get("threshold_unit_set_sha256"),
         "diarization_policy": preview.get("diarization_policy"),

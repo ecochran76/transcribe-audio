@@ -13,6 +13,7 @@ def test_select_review_segments_is_deterministic_and_bounded() -> None:
         {"speaker": "raw-a", "start": 10.0, "end": 20.0},
         {"speaker": "raw-b", "start": 30.0, "end": 33.0},
         {"speaker": "raw-a", "start": 40.0, "end": 41.0},
+        {"speaker": "raw-c", "start": 50.0, "end": 52.5},
     ]
 
     selected = runner.select_review_segments(
@@ -31,6 +32,7 @@ def test_select_review_segments_is_deterministic_and_bounded() -> None:
         {"start": 20.0, "end": 25.0},
         {"start": 30.0, "end": 33.0},
     ]
+    assert "SPEAKER_3" not in selected
 
 
 def test_write_speaker_clip_concatenates_only_selected_audio(tmp_path: Path) -> None:
