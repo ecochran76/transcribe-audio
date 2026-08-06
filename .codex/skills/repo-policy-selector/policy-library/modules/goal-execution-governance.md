@@ -16,6 +16,17 @@ tags:
   slices, context windows, sessions, or human/runtime gates.
 - Preserve the user-approved objective as the stable goal contract. Do not
   silently narrow, expand, or rewrite it to match the work already completed.
+- Treat that approved goal as standing authority for ordinary in-envelope
+  implementation, validation, repair, retest, worker replacement, integration,
+  and bounded successor packets. A packet hard stop ends that execution window;
+  it does not revoke the approved goal or create a new approval gate by itself.
+- Ask for new authorization only for a significant departure: changing the
+  objective, acceptance criteria, or non-goals; adding a new system, tenant, or
+  private-data class; widening mutation scope; taking a destructive, external,
+  legal, financial, publication, release, or public action; materially raising
+  cost or resource ceilings; weakening a safety control; or continuing after
+  repeated no-progress evidence. Preserve any stricter explicit human,
+  runtime, security, provider, or live-operation gate.
 - Allow the campaign plan to stay high-level and derive bounded execution
   packets just in time under `planning-discipline`.
 - Model execution as explicit states and transitions even when no graph
@@ -30,10 +41,13 @@ tags:
 - Before execution, record the current authority, unmet acceptance criteria,
   owned worktree scope, current evidence, ready work units, blocked units,
   delegation plan, checkpoint cadence, and human/runtime/security gates.
-- Choose concrete hard bounds before starting: work-unit attempts, review/rework
+- Choose concrete bounds before starting: work-unit attempts, review/rework
   cycles, consecutive hardening/no-progress checkpoints, and maximum time,
   slices, or available runtime budget between durable checkpoints. If one
   metric is unavailable, another observable bound must still cover the loop.
+  Treat these as renewable execution windows when the latest checkpoint proves
+  outcome progress or blocker reduction and the approved envelope is unchanged.
+  Bounds prevent runaway work; they are not consumable approval tokens.
 - Keep one primary orchestrator responsible for authority, the critical path,
   work-unit selection, integration, progress classification, and the final
   completion claim.
@@ -51,17 +65,25 @@ tags:
   risky mutation, independent audit, human gate, or closeout. Record owned
   changes, validation evidence, state transitions, remaining criteria, and the
   next ready unit or exact stop reason in a durable repo artifact.
-- A failed final review transitions the unit to split, reframe, block, or
-  escalation; it does not silently reopen an unbounded review cycle.
+- A failed closed-world verification of an accepted blocking finding transitions
+  the unit to split, reframe, block, or escalation; it does not silently reopen
+  an unbounded review cycle.
+- Allow one broad fresh-context drift-discovery pass per approved goal
+  objective. After the primary adjudicates its candidate findings, verification
+  is closed-world against the accepted finding ledger plus critical regressions
+  introduced by remediation. Plan versions and successor packets inherit this
+  discovery budget rather than resetting it.
 - Stop autonomous execution when any configured drift guard fires, including:
   repeated hardening without outcome movement; repeated failure on the same
   invariant; stale evidence being reused for a current claim; an oversized or
-  cyclic unit without a covering bound; an unresolved critical audit finding;
+  cyclic unit without a covering bound; an unresolved adjudicated blocking finding;
   an unsafe or unowned dirty worktree; a required human/runtime/security gate;
   or remaining work that is unbounded polish rather than goal capability.
-- A goal may continue only when the latest checkpoint shows outcome progress or
-  verified blocker reduction and names a bounded ready unit. Otherwise close,
-  block, cancel, or obtain explicit approval for a new plan version.
+- Continue automatically under standing authority when the latest checkpoint
+  shows outcome progress or verified blocker reduction and names a bounded
+  ready unit inside the approved envelope. Otherwise close, block, cancel, or
+  request authorization while citing the exact significant departure or
+  pre-existing gate that requires it.
 - Completion requires current evidence for every acceptance criterion. Token
   spend, elapsed time, test count, schema growth, documentation volume, and
   completed slice count are not completion evidence by themselves.
@@ -86,7 +108,13 @@ max_work_unit_attempts: <positive integer>
 max_review_rework_cycles: <positive integer>
 max_hardening_checkpoints: <positive integer>
 checkpoint_interval: <positive integer> <minutes|slices|tokens>
-checkpoint_record_fields: plan_version, state_transition, progress_classification, evidence, subagent_status, next_action_or_stop_reason
+authorization_gate: significant_departure_only
+retry_budget_mode: renewable_execution_window
+review_discovery_passes: 1
+review_verification_mode: closed_world
+review_finding_fields: criterion, evidence, consequence, reproducer, confidence, suggested_disposition
+review_disposition_values: blocking | nonblocking_backlog | rejected | needs_evidence
+checkpoint_record_fields: plan_version, state_transition, progress_classification, evidence, subagent_status, authority_classification, review_disposition_summary, next_action_or_stop_reason
 ```
 
 The selector bundle's planning auditor supports `--goal-only` to verify this
