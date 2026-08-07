@@ -1,5 +1,52 @@
 # Runbook
 
+## Turn 319: Open Plan 0057 acoustic shadow review integration (2026-08-06)
+
+Summary: Opened the separate bounded P10 successor authorized by Plan 0056
+closure. Plan 0057 integrates enrolled-only acoustic proposals into the
+ordinary transcript identity-review read path as non-authoritative evidence
+and binds one exact three-recording fresh batch without authorizing any
+assignment or identity/profile/provider mutation.
+
+Plan: `docs/dev/plans/0057-2026-08-06-enrolled-only-acoustic-shadow-review-integration.md`.
+
+Authority and discovery:
+
+- Current branch began clean and upstream-even at `6cfe127`.
+- Graphiti runtime and MCP were healthy. Repo group `transcribe_audio_main`
+  returned the sourced Plan 0056 closeout episode
+  `47d49786-d95a-49e0-810d-e7200d956aa4`, which confirms a separate successor
+  is required.
+- The deterministic policy selector returned `already-aligned` for the
+  `skill-repo-maintainer` profile with the full planning, memory, CodeGraph,
+  validation, and preview module set.
+- The active planning-contract audit returned `ok: true` before Plan 0057 was
+  created.
+- CodeGraph was healthy with 238 indexed files. Structural inspection located
+  the read-side integration seam in `conversation_identity_review()` and
+  confirmed that `record_speaker_identity_review()` is mutating and therefore
+  outside this plan.
+
+Population preflight:
+
+- Read-only transcript-store and media inspection found three already-ingested
+  recordings: one later 2026-08-05 recording and two 2026-08-06 recordings.
+- The three media hashes are unique, postdate the Plan 0056 source recording,
+  span at least two meeting contexts, and have zero overlap in retained Plan
+  0037 and Plan 0056 JSON evidence.
+- Exact paths, document IDs, transcript content, private audio, and later human
+  labels remain outside the repository and will be bound only in private P0
+  authority.
+
+Execution state:
+
+- Plan 0057 is `OPEN`; P0 authority has not been frozen and no model has run.
+- Delegation receipt: `not_spawned`; proactive delegation is disabled by the
+  current runtime policy and the immediate authority seam is tightly coupled.
+- Next: audit, commit, push, and verify this plan authority clean and
+  upstream-even; then implement and test the read-only shadow-evidence module
+  before freezing or executing P0/P2 private authority.
+
 ## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
 
 Summary: Completed the human-confirmed two-speaker shadow pilot, independently
