@@ -146,9 +146,13 @@ G1/P3 gate readiness:
   suite passes: 94 tests.
 - Full `.venv/bin/python -m pytest -q --tb=short` passes: 894 tests in
   71.29 seconds. Python compilation and live 15-card evidence validation pass.
-- Next: commit and push this clean gate implementation, then wait for all 15
-  literal session decisions before any review receipt, correctness score, or
-  terminal decision is frozen.
+- Commit `5632cc1c46fde061749a4fd1e1f329695d66cf55` contains the gate
+  implementation and is pushed clean/upstream-even. Both review and audit
+  repository authorities bind that commit, and live execution replay still
+  validates the complete 15-speaker manifest.
+- A post-commit feedback read still returned zero entries. Next: wait for all
+  15 literal session decisions before any review receipt, correctness score,
+  or terminal decision is frozen.
 
 ## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
 
