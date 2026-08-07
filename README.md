@@ -660,6 +660,49 @@ The API exposes `/api/library`, `/api/conversations`, `/api/review-queue`, `/api
 
 The M1/M2/P09 conversation workspace also exposes local-only review-loop actions. `GET /api/conversations/<id>/first-pass-summary`, `/identity-review`, `/context-workbench`, and `/final-preview` return selected-summary state, speaker/contact review state, provenance context, participant identity state, and deposition/memory preview summaries for the selected conversation. `POST /api/conversations/<id>/first-pass-summary/prepare` writes a one-request dry-run manifest scoped to the conversation source transcript and includes the participant identity bundle for the readout provider; `/submit` still requires `approval_token=SUBMIT_FIRST_PASS_SUMMARY_BATCH`, `/run` prepares and submits that selected initial-summary request in one reviewed call using the same token, and `/status` can materialize completed readouts back into the store. `POST /api/conversations/<id>/identity-review` records confirm/defer decisions in the user-scoped SQLite contact/speaker tables and queues deferred speaker work under `~/.local/state/transcribe-audio/review-queue/`. `POST /api/conversations/<id>/context-workbench/preview` and `/queue` write local context-run manifests with the participant identity bundle and any reviewed contact selections; the queue path requires `approval_token=QUEUE_CONTEXT_WORKBENCH_RUN` and does not run providers. Contact workbench selection is local-first: `POST /api/conversations/<id>/context-workbench/contact-selection-batch` persists staged select/exclude/clear/manual actions in one batch, `GET /context-workbench/contact-search` is cache-only by default, `POST /context-workbench/contact-refresh/preview` and `/contact-refresh` explicitly refresh configured read-only sources into user-scoped cache/job records, `/contact-affinity` and `/contact-affinity/refresh` expose cached relationship recency/frequency ranking facts, and `/contact-merge-batch` records reviewed merge/split decisions. These endpoints accept `actor_type=operator` or `actor_type=app_intelligence` where decisions are supported and perform no provider, CRM, memory, or external write unless an explicit read-only refresh is requested. `POST /api/conversations/<id>/final-preview/queue` requires `approval_token=QUEUE_DEPOSITION_MEMORY_PREVIEW`, creates a no-write deposition/memory preview only when identity/context warnings are resolved, and queues it for human review without Drive, Odoo, Graphiti, or filesystem apply.
 
+### Plan 0057 acoustic shadow review
+
+The bounded Plan 0057 batch is reviewed from an exact private answer file. Each
+nonblank line must use the card ID shown in the published review session:
+
+```text
+<document-id>::SPEAKER_1 = subject-7c24e8f41409c6f517291fe7
+<document-id>::SPEAKER_2 = subject-df34bc192c07bd86566fff12
+<document-id>::SPEAKER_3 = neither_enrolled
+<document-id>::SPEAKER_4 = unknown
+```
+
+`Chris Williams`, `Eric Cochran`, `Neither enrolled person`, and `UNKNOWN` are
+also accepted as exact display values. A private label may accompany only a
+non-enrolled decision, for example
+`Neither enrolled person (review-only label)`. Missing, duplicated, unknown,
+or title-derived values fail closed.
+
+After the review and audit modules are committed on a clean upstream-even
+branch, preview and freeze the complete review, then independently recompute
+and freeze the terminal decision:
+
+```bash
+python acoustic_plan0057_review.py preview --answers-file /private/plan0057-answers.txt
+python acoustic_plan0057_review.py freeze \
+  --answers-file /private/plan0057-answers.txt \
+  --expected-content-sha256 <review-preview-hash>
+python acoustic_plan0057_review.py replay \
+  --review-content-sha256 <review-preview-hash>
+
+python acoustic_plan0057_audit.py preview \
+  --review-content-sha256 <review-preview-hash>
+python acoustic_plan0057_audit.py freeze \
+  --review-content-sha256 <review-preview-hash> \
+  --expected-content-sha256 <terminal-preview-hash>
+python acoustic_plan0057_audit.py replay \
+  --audit-content-sha256 <terminal-preview-hash>
+```
+
+These commands write only private review and audit receipts. They do not apply
+speaker assignments or mutate identities, contacts, profiles, references,
+providers, defaults, or historical transcripts.
+
 ### Speaker identity preprocessing
 
 The Speakers workspace provides a reviewed two-pass App Intelligence flow.

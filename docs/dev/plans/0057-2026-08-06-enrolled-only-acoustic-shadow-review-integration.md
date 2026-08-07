@@ -83,6 +83,14 @@ unchanged. The plan is awaiting a literal human decision for each of the 15
 private review cards before any correctness metric or terminal decision is
 computed.
 
+The exact G1 importer and P3 independent audit are implemented behind two small
+interfaces. The importer rejects partial, duplicate, unknown-card, inexact,
+mutation-bearing, or acoustically inconsistent evidence and writes only a
+private immutable review receipt. The audit independently recomputes all 15
+speaker outcomes, yield, correctness, abstention, review-burden, mutation, and
+terminal denominators and freezes no assignment. Both are ready for the
+already-published feedback; no feedback exists yet.
+
 ## Execution Graph
 
 | Unit | Depends on | Outcome | Write surface | Terminal condition |

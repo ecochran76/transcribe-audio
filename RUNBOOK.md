@@ -123,6 +123,33 @@ Execution state:
   review session, collect one literal decision per card, then run P3 independent
   audit and freeze the terminal decision.
 
+G1/P3 gate readiness:
+
+- Published one authenticated private review session, ID `488e06d2f6da`, with
+  all 15 playable cards and exact decision instructions. A fresh feedback read
+  returned zero entries, so no identity decision was inferred or recorded.
+- Added `acoustic_plan0057_review.py`, which accepts exactly the 15 frozen card
+  IDs and four literal identity outcomes, validates the nine-unit proposal
+  evidence independently of display labels, and freezes/replays a private
+  complete-review receipt without applying assignments.
+- Added `acoustic_plan0057_audit.py`, which independently recomputes the exact
+  recording/speaker/decision denominator, proposal confirmations and
+  rejections, abstention correctness, wrong and high-confidence-wrong
+  dispositions, enrolled recall, proposal precision, review burden, stop
+  reasons, mutation guards, and the frozen terminal rule.
+- Closed-world hardening rejects rehashed mutation-bearing review or audit
+  action vectors, inconsistent support-unit counts, identity-state drift,
+  incomplete decisions, and non-allowlisted identities.
+- Live preflight through both new interfaces validates all 15 frozen proposal
+  cards and zero stop reasons without reading or inventing human decisions.
+- Focused G1/P3 tests pass: 13 tests. The joined Plan 0057 and transcript API
+  suite passes: 94 tests.
+- Full `.venv/bin/python -m pytest -q --tb=short` passes: 894 tests in
+  71.29 seconds. Python compilation and live 15-card evidence validation pass.
+- Next: commit and push this clean gate implementation, then wait for all 15
+  literal session decisions before any review receipt, correctness score, or
+  terminal decision is frozen.
+
 ## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
 
 Summary: Completed the human-confirmed two-speaker shadow pilot, independently
