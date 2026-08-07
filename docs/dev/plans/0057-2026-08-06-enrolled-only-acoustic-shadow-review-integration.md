@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: awaiting G1 human review
+Checkpoint: blocked at G1 pending literal human review
 
 Lane: P10
 
@@ -90,6 +90,12 @@ private immutable review receipt. The audit independently recomputes all 15
 speaker outcomes, yield, correctness, abstention, review-burden, mutation, and
 terminal denominators and freezes no assignment. Both are ready for the
 already-published feedback; no feedback exists yet.
+
+The G1 gate has now repeated across three consecutive goal turns with zero
+session feedback. All safe in-envelope implementation, validation, replay, and
+review preparation is complete. Automatic progress stops here: the plan cannot
+truthfully compute correctness or freeze a terminal decision until the operator
+supplies one literal decision for every card.
 
 ## Execution Graph
 
