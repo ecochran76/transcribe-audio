@@ -77,23 +77,51 @@ Closed drift ledger:
   conversation binding. Review loading now validates the activation filename,
   execution hash, complete unique binding denominator, document key,
   conversation key, and bundle/execution relationship before exposure.
+- `F0057-05`, nonblocking repair, fixed after execution: the review HTML's clip
+  URLs were relative to the batch root rather than its `review/` directory.
+  Future artifacts now use the required parent-relative URL, with a regression
+  test; the frozen artifact is preserved and receives a review-only clip
+  derivative for publication.
+- `F0057-06`, nonblocking repair, fixed after execution: the CLI exposed batch
+  replay but no distinct execution-authority replay verb. Added
+  `replay-execution-authority`; the frozen authority had already replayed
+  idempotently through the same public function.
 
 Validation:
 
-- `.venv/bin/python -m pytest -q --tb=short` passed: 879 tests in 85.43 seconds.
+- `.venv/bin/python -m pytest -q --tb=short` passed after the review-shell
+  repairs: 881 tests in 72.83 seconds.
 - The Plan 0057, acoustic shadow-evidence, and transcript API focused set passed:
-  79 tests.
+  81 tests.
 - `.venv/bin/python -m py_compile acoustic_plan0057.py
   acoustic_shadow_evidence.py transcript_api.py` passed.
 - `git diff --check` passed.
 
 Execution state:
 
-- Plan 0057 remains `OPEN`; P0 and execution authorities have not been frozen
-  and no Plan 0057 model execution has run.
-- Next: complete frontend/planning validation, commit and push the integration,
-  verify clean upstream parity, then freeze and replay both private authorities
-  before the single bounded execution attempt.
+- Commit `e087b45189a8257c5ea9da4ca71a160255f6506e` supplied the clean,
+  upstream-even execution authority.
+- P0 hash `4fe89d673771af9ae51ab278a31215e07f24fb7fd1041fe20be82e3c09a90682`
+  froze 3 recordings across 2 contexts with zero prior overlap and unchanged
+  identity-state hash
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+- Execution authority hash
+  `42a443a1185b31e494562a060129fae03e11e0b1a800f0863352380cd256094e`
+  authorized exactly one local attempt and replayed idempotently.
+- Execution content hash
+  `089d0213153bd001a86669141e3b7a0a72b7b7aa8638d71e3d8f8dc5c32b41e4`
+  completed 3/3 recordings and 15/15 eligible speakers with zero stop reasons.
+  Per-recording speaker counts are 3, 6, and 6.
+- The shadow result contains 2 medium-confidence enrolled-subject proposals and
+  13 abstentions. These are evidence dispositions, not human-confirmed
+  identities or applied assignments.
+- Three projections became visible together under activation hash
+  `244ed8c07da429fa21cbb2c27a00c218c4777a124e2e67ac45b1ab0e374b9a76`.
+  Replay succeeded; all three ordinary review reads report `available`, and
+  identity state remains unchanged.
+- Plan 0057 is `OPEN` at G1. Next: publish the private 15-card audio/transcript
+  review session, collect one literal decision per card, then run P3 independent
+  audit and freeze the terminal decision.
 
 ## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
 

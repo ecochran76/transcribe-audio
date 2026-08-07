@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0057 enrolled-only shadow review integration active
+State: OPEN — Plan 0057 awaiting 15-card private human review
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4

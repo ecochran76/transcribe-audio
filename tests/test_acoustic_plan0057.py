@@ -263,3 +263,52 @@ def test_build_execution_manifest_requires_complete_source_and_speaker_yield() -
             identity_state_before={"snapshot_sha256": "b" * 64},
             identity_state_after={"snapshot_sha256": "b" * 64},
         )
+
+
+def test_review_artifact_links_clips_from_review_subdirectory(tmp_path: Path) -> None:
+    execution_paths = plan._execution_paths(tmp_path, "a" * 64)
+    clip_path = execution_paths["run"] / "sources" / "source-1" / "clips" / "SPEAKER_1.wav"
+    clip_path.parent.mkdir(parents=True)
+    clip_path.write_bytes(b"review clip")
+    clip_path.chmod(0o600)
+    manifest = {
+        "content_sha256": "b" * 64,
+        "source_results": [
+            {
+                "document_id": "document-1",
+                "review_rows": [
+                    {
+                        "speaker_ref": "SPEAKER_1",
+                        "clip_path": str(clip_path),
+                        "transcript": "Short review clue.",
+                        "proposal": {
+                            "subject_id": None,
+                            "confidence_band": "none",
+                            "supporting_unit_count": 0,
+                            "opposing_unit_count": 0,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    artifact = plan._render_review_artifact(
+        execution_manifest=manifest,
+        execution_paths=execution_paths,
+    )
+
+    page = Path(artifact["index_path"]).read_text(encoding="utf-8")
+    assert "src='../sources/source-1/clips/SPEAKER_1.wav'" in page
+
+
+def test_cli_has_distinct_execution_authority_replay_command() -> None:
+    args = plan._parser().parse_args(
+        [
+            "replay-execution-authority",
+            "--authority-content-sha256",
+            "a" * 64,
+        ]
+    )
+
+    assert args.command == "replay-execution-authority"

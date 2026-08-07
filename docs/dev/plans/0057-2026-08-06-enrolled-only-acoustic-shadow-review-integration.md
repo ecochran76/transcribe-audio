@@ -2,6 +2,8 @@
 
 State: OPEN
 
+Checkpoint: awaiting G1 human review
+
 Lane: P10
 
 ## Scope
@@ -70,10 +72,16 @@ review payload: a dedicated acoustic shadow-evidence module will validate and
 attach immutable private evidence without calling
 `record_speaker_identity_review()` or writing the transcript database.
 
-Read-only preflight found three available source hashes with zero overlap in
-retained Plan 0037 and Plan 0056 evidence. The exact paths and document IDs are
-private runtime inputs. No Plan 0057 authority, model execution, review, or
-audit receipt exists yet.
+P0 authority `4fe89d673771af9ae51ab278a31215e07f24fb7fd1041fe20be82e3c09a90682`
+and execution authority
+`42a443a1185b31e494562a060129fae03e11e0b1a800f0863352380cd256094e`
+are frozen and replayable. The single batch attempt completed all three
+recordings and all 15 eligible speakers with no stop reason; execution content
+`089d0213153bd001a86669141e3b7a0a72b7b7aa8638d71e3d8f8dc5c32b41e4`
+atomically activated three read-only projections. Identity state remained
+unchanged. The plan is awaiting a literal human decision for each of the 15
+private review cards before any correctness metric or terminal decision is
+computed.
 
 ## Execution Graph
 

@@ -896,7 +896,7 @@ def _render_review_artifact(
             subject_id = proposal.get("subject_id")
             display = SUBJECT_REVIEW_LABELS.get(subject_id, "No enrolled subject")
             clip_path = Path(str(row["clip_path"]))
-            clip_url = clip_path.relative_to(execution_paths["run"]).as_posix()
+            clip_url = "../" + clip_path.relative_to(execution_paths["run"]).as_posix()
             card_id = f"{result['document_id']}::{row['speaker_ref']}"
             cards.append(
                 "<article class='card'>"
@@ -1314,6 +1314,18 @@ def _parser() -> argparse.ArgumentParser:
     replay = subparsers.add_parser("replay")
     replay.add_argument("--authority-content-sha256", required=True)
     replay.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
+    replay_execution_authority_parser = subparsers.add_parser(
+        "replay-execution-authority"
+    )
+    replay_execution_authority_parser.add_argument(
+        "--authority-content-sha256",
+        required=True,
+    )
+    replay_execution_authority_parser.add_argument(
+        "--runtime-root",
+        type=Path,
+        default=DEFAULT_RUNTIME_ROOT,
+    )
     for command in ("preview-execution", "freeze-execution"):
         child = subparsers.add_parser(command)
         child.add_argument("--p0-content-sha256", required=True)
@@ -1336,6 +1348,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "replay":
         result = replay_authority(
+            args.authority_content_sha256,
+            runtime_root=args.runtime_root,
+        )
+    elif args.command == "replay-execution-authority":
+        result = replay_execution_authority(
             args.authority_content_sha256,
             runtime_root=args.runtime_root,
         )
