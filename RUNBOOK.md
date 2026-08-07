@@ -1,5 +1,68 @@
 # Runbook
 
+## Turn 320: Close Plan 0057 integrated acoustic shadow review (2026-08-07)
+
+Summary: Resumed the literal G1 human gate, froze and replayed all 15 private
+decisions, independently audited the complete three-recording batch, and
+closed Plan 0057 at `plan_next_bounded_milestone` without applying or creating
+identity state.
+
+Human review and receipts:
+
+- Bound the operator's ordered decisions to the frozen 3/6/6 card sequence:
+  two cards resolve to the enrolled Eric subject and 13 resolve to
+  `neither_enrolled`. Supplied non-enrolled names and role descriptions remain
+  private review-only labels and are not repository or canonical identity data.
+- Froze and replayed review content
+  `5e12d4fb2bf332e370b38a5888ce26bfe483355425e728db9924f05705c4fcee`
+  with 15/15 decisions and a mutation-negative action vector.
+- Froze and replayed terminal preview
+  `c859b3d217f027ddf14c4630a283a3aa111e2e87ab5a18609a9d92ef9b99f85a`
+  and independent audit content
+  `f8402069597495a9eddce9dafb4dd1a2baf53ed8c324811fc9b06b20c9dfecc5`.
+- Private review/audit directories are `0700`; retained manifests and receipts
+  are `0600`.
+
+Terminal evidence:
+
+- 3/3 eligible recordings entered and 15/15 eligible speakers were covered.
+- The two medium-confidence enrolled proposals were both correct; all 13
+  abstentions were correct. Proposal precision and enrolled recall are `1.0`.
+- Wrong and high-confidence-wrong proposal dispositions, unknown identities,
+  stop reasons, identity creations, assignments, profile/reference mutations,
+  and provider writes are all zero.
+- Review burden is `1.0`; manual-resolution burden is `13/15`. This proves
+  Level 2 integrated-shadow behavior, not operational automatic assignment.
+- Before, after, and current identity state remains
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+
+Review finding disposition:
+
+- `F0057-07`, `nonblocking_backlog`: the published artifact had no per-card
+  entry controls. Direct literal decisions completed the denominator. Future
+  packets should render explicit fields and an importable answer block.
+- `F0057-08`, `needs_evidence`: the operator reported missing audio for many
+  cards. Both retained and published trees contain all 15 non-empty WAV files,
+  and authenticated reads return HTTP 200 `audio/x-wav` for every path. The
+  browser playback failure was not reproduced and should be diagnosed before
+  the next human review gate.
+
+Validation:
+
+- Review and terminal receipts replayed idempotently with unchanged state.
+- Focused Plan 0057, shadow-evidence, and transcript API suite: 94 passed in
+  19.77 seconds.
+- Full repository suite: 894 passed in 84.89 seconds.
+- Graphiti runtime/MCP and Previews health checks passed; Graphiti returned no
+  sourced Plan 0057 fact, so repo/runtime evidence remained authoritative.
+
+Next:
+
+- Plan one separate bounded P10 successor from the terminal result. Keep
+  assignment, learning, production integration, provider writes, and
+  historical reprocessing unauthorized; repair and browser-validate the human
+  review surface before its next literal gate.
+
 ## Turn 319: Open Plan 0057 acoustic shadow review integration (2026-08-06)
 
 Summary: Opened the separate bounded P10 successor authorized by Plan 0056

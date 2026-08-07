@@ -1,8 +1,8 @@
 # Plan 0057 | Enrolled-only acoustic shadow review integration
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: blocked at G1 pending literal human review
+Checkpoint: P3 terminal audit frozen at `plan_next_bounded_milestone`
 
 Lane: P10
 
@@ -78,24 +78,29 @@ and execution authority
 are frozen and replayable. The single batch attempt completed all three
 recordings and all 15 eligible speakers with no stop reason; execution content
 `089d0213153bd001a86669141e3b7a0a72b7b7aa8638d71e3d8f8dc5c32b41e4`
-atomically activated three read-only projections. Identity state remained
-unchanged. The plan is awaiting a literal human decision for each of the 15
-private review cards before any correctness metric or terminal decision is
-computed.
+atomically activated three read-only projections.
 
-The exact G1 importer and P3 independent audit are implemented behind two small
-interfaces. The importer rejects partial, duplicate, unknown-card, inexact,
-mutation-bearing, or acoustically inconsistent evidence and writes only a
-private immutable review receipt. The audit independently recomputes all 15
-speaker outcomes, yield, correctness, abstention, review-burden, mutation, and
-terminal denominators and freezes no assignment. Both are ready for the
-already-published feedback; no feedback exists yet.
+The operator supplied all 15 literal decisions in the frozen card order: two
+cards resolve to the enrolled Eric subject and 13 resolve to
+`neither_enrolled`. Any supplied non-enrolled names or role descriptions remain
+private review-only display labels; they did not create people, contacts,
+aliases, roles, relationships, profiles, references, or assignments. Human
+review content
+`5e12d4fb2bf332e370b38a5888ce26bfe483355425e728db9924f05705c4fcee`
+froze and replayed idempotently.
 
-The G1 gate has now repeated across three consecutive goal turns with zero
-session feedback. All safe in-envelope implementation, validation, replay, and
-review preparation is complete. Automatic progress stops here: the plan cannot
-truthfully compute correctness or freeze a terminal decision until the operator
-supplies one literal decision for every card.
+The independent audit covered 3/3 recordings and 15/15 speakers. Both acoustic
+proposals were correct, all 13 abstentions were correct, enrolled recall and
+proposal precision were each `1.0`, and wrong/high-confidence-wrong proposal
+counts were zero. Before, after, and current identity snapshots remain exactly
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+Terminal preview content
+`c859b3d217f027ddf14c4630a283a3aa111e2e87ab5a18609a9d92ef9b99f85a`
+and independent audit content
+`f8402069597495a9eddce9dafb4dd1a2baf53ed8c324811fc9b06b20c9dfecc5`
+are frozen and replayable. Plan 0057 is complete without any identity,
+assignment, profile/reference, integration, historical, Graphiti, or provider
+mutation.
 
 ## Execution Graph
 
@@ -249,10 +254,34 @@ departure described by repo policy or an explicit safeguard/hard stop. Human
 identity decisions remain a literal G1 gate; standing authority cannot invent
 or infer them.
 
+## Review Finding Disposition
+
+- `F0057-07`, `nonblocking_backlog`: the published decision surface displayed
+  card IDs and instructions but provided no entry controls. The operator
+  supplied the complete ordered decisions directly, so the omission did not
+  leave an incomplete denominator or alter terminal scoring. A future review
+  surface should render one explicit identity control per card and produce a
+  copyable/importable answer block.
+- `F0057-08`, `needs_evidence`: the operator reported missing audio for many
+  cards. The retained and published artifact trees each contain all 15
+  non-empty WAV files, and authenticated reads return HTTP 200 with
+  `audio/x-wav` for every referenced path. This rules out missing publication
+  files but does not reproduce the browser playback failure. A successor
+  review-surface slice should inspect browser media/range behavior before
+  another human gate; the current literal decisions make this nonblocking for
+  Plan 0057 closure.
+
 ## Terminal Decision
 
-Pending. One of `stop`, `refine`, or `plan_next_bounded_milestone` will be
-frozen only after complete human review and independent audit. Opening and
-implementing this plan does not authorize automatic assignment, production
-integration, profile learning, identity creation, provider write-back,
-relationship inference, or historical reprocessing.
+`plan_next_bounded_milestone`, frozen after complete human review and
+independent audit. The exact outcome is 3/3 entered recordings, 15/15 covered
+speakers, 2/2 confirmed correct proposals, 13/13 correct abstentions, enrolled
+recall `1.0`, proposal precision `1.0`, zero unknown identities, zero wrong or
+high-confidence-wrong dispositions, and unchanged identity state. Review
+burden is `1.0` and manual-resolution burden is `13/15`, so this remains Level
+2 integrated-shadow evidence rather than operational automatic assignment.
+
+This decision authorizes planning one separate bounded successor. It does not
+authorize automatic assignment, production integration, profile learning,
+identity creation, provider write-back, relationship inference, or historical
+reprocessing.

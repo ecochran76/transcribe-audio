@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0057 awaiting 15-card private human review
+State: OPEN — Plan 0057 closed; next bounded milestone remains separate
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -607,16 +607,21 @@ remains deferred to the P09 conversation-knowledge path rather than becoming a
 prerequisite for this enrolled-only non-mutating pilot. A separate plan is
 required before the next P10 integration step begins.
 
-Plan 0057 opens that separate bounded integration step in
+Plan 0057 closed that separate bounded integration step in
 `docs/dev/plans/0057-2026-08-06-enrolled-only-acoustic-shadow-review-integration.md`.
-It will attach validated, non-authoritative acoustic subject-ID evidence to the
-ordinary transcript identity-review payload and measure one exact
-three-recording fresh batch across at least two meeting contexts. The cohort is
-post-Plan-0056 and hash-disjoint from retained Plan 0037/0056 evidence. All
-speaker assignments, identity/contact/relationship records, profiles,
-references, provider writes, default integration, and historical reprocessing
-remain false. Human review and independent audit are required before its
-terminal `stop`, `refine`, or `plan_next_bounded_milestone` decision.
+It attached validated, non-authoritative acoustic subject-ID evidence to the
+ordinary transcript identity-review payload and measured one exact
+three-recording fresh batch across at least two meeting contexts. Complete
+private review found two enrolled Eric speakers and 13 neither-enrolled
+speakers. Both proposals and all 13 abstentions were correct; enrolled recall
+and proposal precision were `1.0`, with zero wrong/high-confidence-wrong
+dispositions and unchanged identity state. The terminal decision is
+`plan_next_bounded_milestone`. Missing decision-entry controls and operator-
+reported unreliable audio playback remain review-surface follow-up findings;
+they did not change the complete denominator. All speaker assignments,
+identity/contact/relationship records, profiles, references, provider writes,
+default integration, and historical reprocessing remained false. A separate
+plan is required before any next P10 milestone.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
