@@ -1,5 +1,57 @@
 # Runbook
 
+## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
+
+Summary: Completed the human-confirmed two-speaker shadow pilot, independently
+recomputed its identity guard and metrics, and closed Plan 0056 at terminal
+decision `plan_next_bounded_integration_milestone`.
+
+Actions:
+
+- Recorded Speaker 1 as neither enrolled person. The supplied non-enrolled
+  name is retained only as a private review display label and did not create or
+  merge an identity.
+- Confirmed Speaker 2 as the proposed enrolled subject.
+- Froze and replayed human-review content hash
+  `6e900e6ef73520d11487840ece2ff1c40336af1e22024a4568069b64322aa399`.
+- Froze independent audit hash
+  `b53fb1b545b54525ea64916fb85cd274f7cb7a890c03c721a76d6a01a21c3107`
+  under terminal preview hash
+  `77b900f2245eaea73ea9f92a2f618a57164a139b137562f9470633f447c9d870`.
+- Preserved the contact, role, relationship, and canonical-person model as a
+  deferred P09 concern; Plan 0056 made no such writes.
+
+Results:
+
+- 2 proposals: 1 confirmed and 1 rejected.
+- 1/1 enrolled speaker correctly assigned as a disposition; enrolled recall
+  `1.0` and proposal precision `0.5`.
+- 0 wrong assignments, 0 high-confidence wrong assignments, 1 review, and 0
+  abstentions.
+- 0 identity creations and 0 profile/reference mutations.
+- The frozen before, after, and current identity-state snapshot hash is
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+- No speaker assignment was applied; no provider write, default integration,
+  profile learning, relationship inference, or historical reprocessing ran.
+
+Validation:
+
+- P0, P1 execution, human-review, and terminal-audit receipts replayed
+  idempotently.
+- Private directories remained `0700` and retained files `0600`.
+- `.venv/bin/python -m pytest -q tests/test_acoustic_plan0056_review.py
+  tests/test_acoustic_plan0056_audit.py tests/test_acoustic_plan0056_runner.py
+  tests/test_acoustic_plan0056_pilot.py` passed: 15 tests.
+- `.venv/bin/python -m pytest -q` passed: 859 tests.
+- The active planning-contract audit returned `ok: true` with Plan 0056
+  correctly excluded as closed.
+
+Next:
+
+- Open a separate bounded plan for the next shadow integration milestone. It
+  must define its own authority and must not infer automatic assignment or
+  profile learning from this pilot result.
+
 ## Turn 317: Implement Plan 0056 P0 identity guard (2026-08-05)
 
 Summary: Implemented and validated the pre-model authority needed to run the

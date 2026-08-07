@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0056 enrolled-only acoustic pilot identity guard active
+State: OPEN — Plan 0056 closed; next bounded integration milestone unplanned
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -589,16 +589,23 @@ production integration, or historical reprocessing.
 Canonical closure:
 `docs/dev/plans/0055-2026-08-04-generation-5-source-expanded-blind-evaluation.md`.
 
-Plan 0056 is the active bounded pilot in
+Plan 0056 is closed in
 `docs/dev/plans/0056-2026-08-05-enrolled-only-acoustic-pilot-identity-guard.md`.
-It permits proposals only for the two existing enrolled subject IDs, requires
-human confirmation, and prohibits person/contact/alias/role/relationship or
-profile creation and mutation. The broader canonical-person, provider-contact,
-role, evidence-backed relationship-graph, App Intelligence inference, and
-bounded multi-hop retrieval contract is memorialized in
+Its two-speaker shadow run produced one human-confirmed correct enrolled
+assignment disposition and one human-rejected enrolled-person proposal, with
+zero wrong or high-confidence wrong assignments. Independent audit reported
+enrolled recall `1.0`, proposal precision `0.5`, and zero identity creation or
+profile/reference mutation. Frozen before, after, and current identity state
+are identical. The terminal decision is
+`plan_next_bounded_integration_milestone`; it does not authorize automatic
+assignment, profile learning, production integration, provider write-back, or
+historical reprocessing. The broader canonical-person, provider-contact, role,
+evidence-backed relationship-graph, App Intelligence inference, and bounded
+multi-hop retrieval contract is memorialized in
 `docs/dev/notes/0052-2026-08-05-contact-role-relationship-sequencing.md` and
 remains deferred to the P09 conversation-knowledge path rather than becoming a
-prerequisite for this enrolled-only non-mutating pilot.
+prerequisite for this enrolled-only non-mutating pilot. A separate plan is
+required before the next P10 integration step begins.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

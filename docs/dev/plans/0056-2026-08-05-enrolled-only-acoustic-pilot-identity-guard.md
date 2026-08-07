@@ -1,6 +1,6 @@
 # Plan 0056 | Enrolled-only acoustic pilot identity guard
 
-State: OPEN
+State: CLOSED
 
 Lane: P10
 
@@ -51,25 +51,37 @@ other Plan 0055 identities are evaluation-only labels.
 
 The durable person/external-identity/relationship model already exists in
 source under the P09 conversation-knowledge architecture, but live authority
-cutover and cross-provider reconciliation are intentionally deferred.
+cutover and cross-provider reconciliation remain intentionally deferred.
 
-Execution is activated on 2026-08-05 from clean, upstream-even commit
-`8f6c1d0`. The first packet must freeze the exact two-subject allowlist,
-pre-execution cardinality/generation snapshot, prior-evidence exclusion union,
-fresh source set, scoring policy, private paths, and all negative actions
-before any pilot audio decode or model execution.
+Plan 0056 completed one frozen, hash-fresh, two-speaker shadow pilot. P0
+authority content hash
+`7477fed61e2e2b8035523a91a0afd763306493423d6ddeebfa96e274d9a9522d`
+bound the two enrolled subject IDs, prior-evidence exclusion, identity-state
+snapshot, private paths, nine acoustic units, and all negative actions. P1
+execution authority content hash
+`67e667eae5440738e4cea05e457d2ddce386dcbefb74d8f8ade9ca2c8b84a8ca`
+produced two reviewable proposals and nine complete acoustic matrices without
+applying an assignment or mutating identity state.
 
-The P0 implementation checkpoint now provides that fail-closed authority in
-`acoustic_plan0056_pilot.py`. It accepts only exact allowlisted acoustic
-subject IDs, forces role-only and non-enrolled identities to abstain, freezes
-read-only contact/person/relationship/profile/reference cardinalities, rejects
-any source hash found in prior evidence including Plan 0055, binds the existing
-nine-unit threshold authority plus a conservative six-support/no-opposition
-consensus rule, and replays from a private `0700`/`0600` tree. The current
-source search rejected every user-named Chris/Eric recording because each was
-already present in training or evaluation evidence. One 2026-08-05 business
-recording is hash-fresh and remains only a candidate until a clean committed
-P0 authority freezes it; no pilot audio has been decoded or scored yet.
+The operator rejected Speaker 1 as either enrolled person and supplied a
+non-enrolled display label, retained only as a private human-review attribute.
+The operator confirmed Speaker 2 as the proposed enrolled subject. Human
+review content hash
+`6e900e6ef73520d11487840ece2ff1c40336af1e22024a4568069b64322aa399`
+is complete and replayable. It created no canonical identity, contact, alias,
+role, relationship, profile, reference, or provider record.
+
+Independent audit content hash
+`b53fb1b545b54525ea64916fb85cd274f7cb7a890c03c721a76d6a01a21c3107`
+recomputed the guard and froze terminal preview hash
+`77b900f2245eaea73ea9f92a2f618a57164a139b137562f9470633f447c9d870`.
+The audit found 2 proposals, 1 confirmation, 1 rejection, 1 correct enrolled
+assignment disposition, 0 wrong assignments, 0 high-confidence wrong
+assignments, 1 review disposition, 0 abstentions, enrolled recall `1.0`, and
+proposal precision `0.5`. Identity creation and profile/reference mutation
+counts are both zero. The frozen pre-execution, post-execution, and current
+identity-state hash is
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
 
 ## Critical Path
 
@@ -121,3 +133,24 @@ P0 authority freezes it; no pilot audio has been decoded or scored yet.
   non-replayable output, or a high-confidence wrong assignment.
 - Stop rather than widening to additional people or building the deferred
   relationship/contact system inside this plan.
+
+## Terminal Decision
+
+`plan_next_bounded_integration_milestone`
+
+Plan 0056 closes at Level 2 bounded-pilot evidence. The decision permits a
+separate successor plan to define the next shadow integration milestone. It
+does not authorize automatic assignment, default integration, profile
+learning, identity creation, provider write-back, relationship inference, or
+historical reprocessing.
+
+## Validation Evidence
+
+- P0, P1 execution, human review, and terminal audit replay idempotently.
+- The private authority, review, and audit directories are `0700`; retained
+  files are `0600`.
+- Read-only current-state verification exactly matches the frozen before and
+  after identity-state snapshots.
+- The independent audit recomputed every required denominator and the identity
+  guard before freezing the terminal decision.
+- Focused and full-suite test results are recorded in `RUNBOOK.md` Turn 318.
