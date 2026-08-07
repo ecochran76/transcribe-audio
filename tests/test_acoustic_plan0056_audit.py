@@ -46,12 +46,14 @@ def review_preview() -> dict:
                 "actual_identity": "neither_enrolled",
                 "proposal_decision": "reject",
                 "proposed_subject_id": CHRIS,
+                "review_display_label": "Nam Tran",
             },
             {
                 "speaker_ref": "SPEAKER_2",
                 "actual_identity": ERIC,
                 "proposal_decision": "confirm",
                 "proposed_subject_id": ERIC,
+                "review_display_label": None,
             },
         ],
     }
@@ -83,6 +85,9 @@ def test_independent_audit_recomputes_complete_pilot_denominators() -> None:
     }
     assert result["terminal_decision"] == "plan_next_bounded_integration_milestone"
     assert result["independent_guard_recomputed"] is True
+    assert result["rows"][0]["actual_identity"] == "neither_enrolled"
+    assert result["rows"][0]["review_display_label"] == "Nam Tran"
+    assert result["metrics"]["identity_creation_count"] == 0
 
 
 def test_independent_audit_refines_after_wrong_assignment() -> None:

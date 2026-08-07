@@ -83,8 +83,8 @@ def _canonical_hash(value: Any) -> str:
     return hashlib.sha256(body).hexdigest()
 
 
-def _parse_answers(answer_text: str) -> dict[str, str]:
-    answers: dict[str, str] = {}
+def _parse_answers(answer_text: str) -> dict[str, dict[str, str | None]]:
+    answers: dict[str, dict[str, str | None]] = {}
     for raw_line in answer_text.splitlines():
         line = raw_line.strip()
         if not line:
@@ -96,12 +96,23 @@ def _parse_answers(answer_text: str) -> dict[str, str]:
         speaker_ref = {"Speaker 1": "SPEAKER_1", "Speaker 2": "SPEAKER_2"}.get(
             display_ref
         )
-        identity = _DISPLAY_REVIEW_IDENTITIES.get(raw_identity.strip())
+        supplied_identity = raw_identity.strip()
+        review_display_label: str | None = None
+        if supplied_identity.startswith("Neither enrolled person (") and supplied_identity.endswith(")"):
+            review_display_label = supplied_identity[len("Neither enrolled person ("):-1].strip()
+            if not review_display_label or len(review_display_label) > 120:
+                raise Plan0056ReviewError("A non-enrolled review label is invalid.")
+            identity = "neither_enrolled"
+        else:
+            identity = _DISPLAY_REVIEW_IDENTITIES.get(supplied_identity)
         if not speaker_ref or not identity or speaker_ref in answers:
             raise Plan0056ReviewError(
                 "Review answers are incomplete, duplicated, or not exact identities."
             )
-        answers[speaker_ref] = identity
+        answers[speaker_ref] = {
+            "actual_identity": identity,
+            "review_display_label": review_display_label,
+        }
     if set(answers) != {"SPEAKER_1", "SPEAKER_2"}:
         raise Plan0056ReviewError("Both pilot speakers require an explicit decision.")
     return answers
@@ -149,7 +160,7 @@ def preview_plan0056_review(
         proposed_subject_id = proposal.get("subject_id")
         if proposed_subject_id not in {CHRIS_SUBJECT_ID, ERIC_SUBJECT_ID}:
             raise Plan0056ReviewError("A non-abstaining proposal is not allowlisted.")
-        actual_identity = answers[speaker_ref]
+        actual_identity = answers[speaker_ref]["actual_identity"]
         decisions.append(
             {
                 "speaker_ref": speaker_ref,
@@ -158,6 +169,7 @@ def preview_plan0056_review(
                     "confirm" if actual_identity == proposed_subject_id else "reject"
                 ),
                 "proposed_subject_id": proposed_subject_id,
+                "review_display_label": answers[speaker_ref]["review_display_label"],
             }
         )
     core = {
@@ -170,7 +182,10 @@ def preview_plan0056_review(
         "decision_count": len(decisions),
         "decisions": decisions,
         "review_complete": True,
-        "contains_display_names": False,
+        "contains_display_names": any(
+            item["review_display_label"] is not None for item in decisions
+        ),
+        "display_names_are_review_attributes_only": True,
         "action_vector": {
             "record_human_review": True,
             "apply_speaker_assignments": False,

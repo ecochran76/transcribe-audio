@@ -41,7 +41,7 @@ def execution_manifest() -> dict:
 
 def test_review_preview_resolves_display_names_without_creating_identities() -> None:
     preview = review.preview_plan0056_review(
-        "Speaker 1 = Neither enrolled person\nSpeaker 2 = Eric Cochran",
+        "Speaker 1 = Neither enrolled person (Nam Tran)\nSpeaker 2 = Eric Cochran",
         execution_manifest=execution_manifest(),
         repository_authority={
             "commit": "a" * 40,
@@ -57,14 +57,17 @@ def test_review_preview_resolves_display_names_without_creating_identities() -> 
             "actual_identity": "neither_enrolled",
             "proposal_decision": "reject",
             "proposed_subject_id": CHRIS,
+            "review_display_label": "Nam Tran",
         },
         {
             "speaker_ref": "SPEAKER_2",
             "actual_identity": ERIC,
             "proposal_decision": "confirm",
             "proposed_subject_id": ERIC,
+            "review_display_label": None,
         },
     ]
+    assert preview["display_names_are_review_attributes_only"] is True
     assert preview["action_vector"]["apply_speaker_assignments"] is False
     assert preview["action_vector"]["create_or_mutate_identities"] is False
     assert preview["review_complete"] is True

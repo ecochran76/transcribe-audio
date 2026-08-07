@@ -119,12 +119,22 @@ def recompute_plan0056_audit(
         disposition = proposal.get("disposition")
         proposed_subject = proposal.get("subject_id")
         actual_identity = decision.get("actual_identity")
+        review_display_label = decision.get("review_display_label")
         if (
             disposition not in {"assign", "review", "abstain"}
             or (disposition != "abstain" and proposed_subject not in ALLOWLIST)
             or (disposition == "abstain" and proposed_subject is not None)
             or actual_identity not in ALLOWLIST | NON_ENROLLED_IDENTITIES
             or decision.get("proposed_subject_id") != proposed_subject
+            or (
+                review_display_label is not None
+                and (
+                    actual_identity != "neither_enrolled"
+                    or not isinstance(review_display_label, str)
+                    or not review_display_label.strip()
+                    or len(review_display_label) > 120
+                )
+            )
         ):
             raise Plan0056AuditError("A proposal or review identity is invalid.")
         expected_review = (
@@ -144,6 +154,7 @@ def recompute_plan0056_audit(
                 "confidence_band": proposal.get("confidence_band"),
                 "proposed_subject_id": proposed_subject,
                 "actual_identity": actual_identity,
+                "review_display_label": review_display_label,
                 "proposal_confirmed": confirmed,
                 "correct_assignment": correct_assignment,
                 "wrong_assignment": wrong_assignment,
