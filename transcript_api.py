@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 import intelligence_config
 import automation_config
 import app_intelligence_ledger
+import acoustic_shadow_evidence
 import codex_app_server_client
 import conversation_identity_policy
 import conversation_processing
@@ -414,6 +415,12 @@ def identity_cache_fingerprint(
             for contact in contacts
         ],
         "assignments": assignments,
+        "acoustic_shadow_evidence": acoustic_shadow_evidence.review_fingerprint(
+            document_id=str(source.get("id") or ""),
+            conversation_key=conversation_key,
+            source_path=str(source.get("source_path") or ""),
+            state_root=state_root,
+        ),
         "contact_config": contact_config,
         "contact_aliases": contact_aliases,
         "contact_settings": contact_settings,
@@ -533,6 +540,12 @@ def conversation_identity_review(
         )
         cache_meta = {**cache_meta, "status": "stored", "path": cache_path}
     speakers = identity_bundle["speakers"]
+    shadow_evidence = acoustic_shadow_evidence.load_for_review(
+        document_id=str((source_document or {}).get("id") or ""),
+        conversation_key=conversation_key,
+        source_path=str((source_document or {}).get("source_path") or ""),
+        state_root=resolved_state_root,
+    )
     return {
         "schema_version": "transcribe-audio.identity-review.v1",
         "conversation_key": conversation_key,
@@ -542,6 +555,7 @@ def conversation_identity_review(
         "participants": participants,
         "identity_bundle": identity_bundle,
         "identity_cache": cache_meta,
+        "acoustic_shadow_evidence": shadow_evidence,
         "pending_count": sum(1 for speaker in speakers if speaker["review_required"]),
         "confirmed_count": sum(1 for speaker in speakers if speaker["status"] == "confirmed"),
         "deferred_count": sum(1 for speaker in speakers if speaker["status"] == "deferred"),

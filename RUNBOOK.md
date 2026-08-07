@@ -38,14 +38,62 @@ Population preflight:
   labels remain outside the repository and will be bound only in private P0
   authority.
 
+Implementation checkpoint:
+
+- Added a fail-closed, content-addressed acoustic shadow-evidence projection
+  for the ordinary conversation identity-review read path. Machine-readable
+  evidence carries only recording-local speaker references and the exact two
+  enrolled subject IDs; it remains non-authoritative and requires human review.
+- Added atomic batch activation. Individual immutable bundles remain invisible
+  to ordinary review reads until one complete three-document activation index
+  binds every document, conversation, bundle, and execution hash.
+- Added separate P0 and execution authorities. P0 cannot decode or run models;
+  the execution authority permits only local decode, diarization, transcription,
+  proposal generation, and read-only publication while every identity,
+  assignment, profile, provider, default, and historical mutation stays false.
+- Added the bounded Plan 0057 runner, complete-denominator manifest and receipt,
+  deterministic replay, unchanged-state guard, private human-review HTML and
+  answer template, and a hard stop for any abandoned partial execution tree.
+- Added the ordinary review UI card and cache-fingerprint binding. No acoustic
+  evidence is silently aligned to Assembly transcript speaker labels; this
+  recording-local-label limitation is explicit and nonblocking for this shadow
+  milestone.
+- Delegation receipt: `not_spawned`; proactive delegation is disabled by the
+  current runtime policy and this authority/integration slice is tightly
+  coupled.
+
+Closed drift ledger:
+
+- `F0057-01`, blocking, fixed: the original P0 negative action vector could not
+  authorize the runner's local model work. A separately frozen execution
+  authority now grants only the bounded local/read-only actions.
+- `F0057-02`, blocking, fixed: per-document publication could expose a partial
+  batch. One immutable complete-batch activation index is now required before
+  any bundle is review-visible.
+- `F0057-03`, blocking, fixed: a crash before the final receipt could invite an
+  implicit second model attempt. A nonempty partial execution tree now stops
+  rather than retries.
+- `F0057-04`, blocking, fixed: a rehashed activation index could drift its
+  conversation binding. Review loading now validates the activation filename,
+  execution hash, complete unique binding denominator, document key,
+  conversation key, and bundle/execution relationship before exposure.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q --tb=short` passed: 879 tests in 85.43 seconds.
+- The Plan 0057, acoustic shadow-evidence, and transcript API focused set passed:
+  79 tests.
+- `.venv/bin/python -m py_compile acoustic_plan0057.py
+  acoustic_shadow_evidence.py transcript_api.py` passed.
+- `git diff --check` passed.
+
 Execution state:
 
-- Plan 0057 is `OPEN`; P0 authority has not been frozen and no model has run.
-- Delegation receipt: `not_spawned`; proactive delegation is disabled by the
-  current runtime policy and the immediate authority seam is tightly coupled.
-- Next: audit, commit, push, and verify this plan authority clean and
-  upstream-even; then implement and test the read-only shadow-evidence module
-  before freezing or executing P0/P2 private authority.
+- Plan 0057 remains `OPEN`; P0 and execution authorities have not been frozen
+  and no Plan 0057 model execution has run.
+- Next: complete frontend/planning validation, commit and push the integration,
+  verify clean upstream parity, then freeze and replay both private authorities
+  before the single bounded execution attempt.
 
 ## Turn 318: Close Plan 0056 enrolled-only acoustic pilot (2026-08-06)
 

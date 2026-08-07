@@ -17,6 +17,7 @@ from urllib.request import Request, urlopen
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app_intelligence_ledger
+import acoustic_shadow_evidence
 import participant_identity
 import transcript_api
 import transcript_store
@@ -392,6 +393,81 @@ def test_conversation_detail_includes_identity_and_context_state(tmp_path: Path)
     assert payload["first_pass_summary"]["status"] == "summary_ready"
     assert payload["first_pass_summary"]["summary_document_id"]
     assert payload["review_state"]["context_status"] == "contextual_readout_ready"
+
+
+def test_conversation_detail_adds_read_only_acoustic_shadow_evidence(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    state_root = tmp_path / "state"
+    transcript = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    initial = transcript_api.get_conversation_detail(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+    )
+    review = initial["identity_review"]
+    assert review["acoustic_shadow_evidence"]["status"] == "absent"
+    initial_fingerprint = review["identity_cache"]["fingerprint"]
+    source_document = initial["transcript_document"]
+    with transcript_api.connect(store_root) as con:
+        before = {
+            "contacts": con.execute("SELECT count(*) FROM contacts").fetchone()[0],
+            "assignments": con.execute(
+                "SELECT count(*) FROM speaker_assignments"
+            ).fetchone()[0],
+        }
+
+    bundle = acoustic_shadow_evidence.build_shadow_bundle(
+        document_id=source_document["id"],
+        conversation_key=initial["conversation"]["key"],
+        source_path=source_document["source_path"],
+        source_media_sha256="a" * 64,
+        execution_content_sha256="b" * 64,
+        identity_state_sha256="c" * 64,
+        rows=[
+            {
+                "speaker_ref": "SPEAKER_1",
+                "disposition": "review",
+                "subject_id": "subject-df34bc192c07bd86566fff12",
+                "confidence_band": "low",
+                "supporting_unit_count": 1,
+                "supporting_candidate_family_count": 1,
+                "opposing_unit_count": 0,
+                "rationale": "Frozen consensus evidence.",
+            }
+        ],
+    )
+    acoustic_shadow_evidence.publish_shadow_bundle(
+        bundle,
+        source_path=source_document["source_path"],
+        state_root=state_root,
+    )
+
+    refreshed = transcript_api.get_conversation_detail(
+        transcript.id,
+        root=store_root,
+        state_root=state_root,
+    )
+    shadow = refreshed["identity_review"]["acoustic_shadow_evidence"]
+    assert shadow["status"] == "available"
+    assert shadow["content_sha256"] == bundle["content_sha256"]
+    assert shadow["rows"][0]["subject_id"] == "subject-df34bc192c07bd86566fff12"
+    assert shadow["will_apply_speaker_assignments"] is False
+    assert refreshed["identity_review"]["identity_cache"]["fingerprint"] != initial_fingerprint
+    with transcript_api.connect(store_root) as con:
+        after = {
+            "contacts": con.execute("SELECT count(*) FROM contacts").fetchone()[0],
+            "assignments": con.execute(
+                "SELECT count(*) FROM speaker_assignments"
+            ).fetchone()[0],
+        }
+    assert after == before
 
 
 def test_conversation_identity_bundle_uses_configured_contact_provenance(tmp_path: Path, monkeypatch) -> None:

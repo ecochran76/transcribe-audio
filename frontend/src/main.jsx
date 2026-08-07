@@ -5017,6 +5017,7 @@ function ConversationWorkflowModal({
   const risks = Array.isArray(payload.risks) ? payload.risks : [];
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
+  const acousticShadowEvidence = activeIdentityReview.acoustic_shadow_evidence || {};
   const stagedSpeakerCount = Object.keys(speakerLocalAssignments || {}).length;
   const speakersForDisplay = useMemo(
     () => (activeIdentityReview.speakers || []).map((speaker) => {
@@ -6360,6 +6361,39 @@ function ConversationWorkflowModal({
                   </div>
                 </div>
                 <div className="workflow-action-panel speaker-preprocessing-panel">
+                  <div className="workflow-prep-card acoustic-shadow-card">
+                    <div>
+                      <span>Acoustic shadow evidence</span>
+                      <strong>{statusLabel(acousticShadowEvidence.status || "absent")}</strong>
+                      <p>
+                        Enrolled subject-ID proposals are read-only evidence. They do not
+                        create contacts, apply speaker assignments, or update voice profiles.
+                      </p>
+                    </div>
+                    {acousticShadowEvidence.status === "available" ? (
+                      <div className="identity-list preprocessing-proposals">
+                        {(acousticShadowEvidence.rows || []).map((row) => (
+                          <article key={`${acousticShadowEvidence.content_sha256}-${row.speaker_ref}`}>
+                            <strong>{row.speaker_ref}</strong>
+                            <small>
+                              {statusLabel(row.disposition)} · {statusLabel(row.confidence_band)}
+                              {row.subject_id ? ` · ${row.subject_id}` : " · no enrolled subject"}
+                            </small>
+                            <p>{row.rationale}</p>
+                            <small>
+                              {row.supporting_unit_count} supporting units across {row.supporting_candidate_family_count} model families · {row.opposing_unit_count} opposing units
+                            </small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">
+                        {acousticShadowEvidence.status === "rejected"
+                          ? "Private acoustic evidence was rejected because its binding or integrity could not be verified."
+                          : "No validated acoustic shadow evidence is bound to this transcript."}
+                      </p>
+                    )}
+                  </div>
                   <div className="workflow-prep-card">
                     <div>
                       <span>App Intelligence preprocessing</span>
