@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: A0 activated; P1 review preparation ready
+Checkpoint: P2 review session published; P3 blocked on literal human decisions
 
 Lane: P09
 
@@ -35,12 +35,14 @@ instruction then activated A0 after the exact readbacks below.
 
 ## Current state
 
-A0 is complete and Plan 0061 is `OPEN` for P1 review preparation. The sealed
+A0, P1, and P2 are complete. Plan 0061 remains `OPEN` at the literal human
+decision gate. The sealed
 Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
 and 30 condition views; no review choice is preselected and apply remains
-disabled. No source or private review artifact existed at activation. P1 may
-now add reusable renderer/parser code and a private minimum-copy worksheet.
-P3 human-gold capture remains blocked on a literal complete operator export.
+disabled. The authenticated worksheet exposes all ten choices and produces a
+strict hash-bound export only after 10/10 selections. P3 human-gold capture
+remains blocked on the operator's literal complete export; current decision
+count is zero and preview feedback is empty.
 
 ## A0 activation checkpoint
 
@@ -71,6 +73,53 @@ authenticated. No preview session or private artifact was created during A0.
 Progress classification: `outcome_progress`; authority classification:
 activated inside the minimum-copy private/read-only envelope; accepted finding
 ledger: empty; next ready unit: P1 review preparation.
+
+## P1-P2 human-review checkpoint
+
+Reusable review authority and tests landed at `9b935e7`. The renderer validates
+the exact P4 denominator, strips candidate email and raw media/transcript,
+exposes candidate labels plus condition evidence, links each recording to the
+existing local transcript console, and keeps all choices in browser memory.
+The strict parser accepts only the exact 3 hash headers and 10 ordered,
+allowlisted decision rows. Partial, duplicate, stale, out-of-set, or preselected
+input fails closed. Focused review/join/API validation passed 16 tests; the full
+suite passed 934 tests; compilation, planning audit, and diff check passed.
+
+The first immutable worksheet attempt had worksheet SHA-256
+`1c03c0e577cee2a21751a2efdd0c3dfa05f055ad3dcbfc338fb38c8228d64266`.
+Browser smoke found that two Python string literals emitted raw newlines into
+the inline JavaScript, causing a syntax error: controls could change but the
+progress counter stayed 0/10. No decision was submitted or frozen, no preview
+was published, and no live state changed. That private attempt is retained as
+failed evidence. The second and final bounded attempt fixed the escaping and
+added a Node syntax regression check at commit `8f3469e`.
+
+The successful private worksheet has SHA-256
+`297212523e319006468023ef54af70178325fcfd5fc4164c7130bb36c3e471bc`,
+receipt content SHA-256
+`3f1a45860cdddf9633764f6d09860b645a7626d861475f6465a36df5a631f021`,
+and manifest SHA-256
+`1a998821b7dcc568a1d6dd3b4d4b3b1cfea652616ef0c8d4c3af9f08ca2efe7f`.
+Replay is idempotent; private directories are `0700`, files are `0600`; raw
+audio, raw transcript, candidate email, human decisions, preselections, apply,
+and live mutations are all absent.
+
+The second browser smoke verified 3 local recording links, 10 blank controls,
+30 condition headings, disabled incomplete export, 10/10 progress after sample
+browser-local choices, a 13-line hash-bound export, enabled copy/download,
+zero page errors, zero POST requests, and a clear action that restored 0/10 and
+an empty export. The smoke choices were cleared and the browser was closed;
+they are not human gold.
+
+Authenticated Previews session `c9c4d5d5fbd0` now contains the exact worksheet
+artifact `3b0953db8981` and non-sensitive instructions `ec776a3816e0`. Current
+feedback is empty. This is the P2 approval surface, not a decision receipt.
+P3 cannot start until the operator returns the complete exported block.
+
+Progress classification: `outcome_progress`; authority classification:
+private/authenticated minimum-copy review only; finding ledger: one blocking
+JavaScript escape defect `accepted/fixed` within attempt bound; next action:
+literal operator review or stop.
 
 ## Vision outcomes and maturity movement
 

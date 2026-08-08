@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 335: Publish Plan 0061 human review (2026-08-08)
+
+Summary: Implemented, hardened, froze, browser-verified, and published the
+authenticated ten-slot Plan 0061 worksheet. The page has no submit/apply path;
+P3 remains blocked on the operator's complete literal decision export.
+
+Evidence:
+
+- Renderer/parser authority landed at `9b935e7`; focused validation passed 16
+  tests and the full suite passed 934. Partial, duplicate, stale, out-of-set,
+  preselected, or incomplete gold fails closed.
+- Browser smoke rejected the first immutable worksheet because malformed
+  newline escaping caused a JavaScript syntax error and a stuck 0/10 counter.
+  No preview, human decision, or live effect occurred. The fix plus Node syntax
+  regression landed at `8f3469e`, within the second and final attempt.
+- Successful worksheet SHA-256 is `29721252...`; receipt content is
+  `3f1a4586...`; manifest is `1a998821...`. Replay passes; directories/files
+  are `0700`/`0600`; raw audio/transcript and candidate email are absent.
+- Second browser proof: 3 recording links, 10 blank controls, 30 condition
+  views, disabled incomplete export, 10/10 completion, exact 13-line export,
+  enabled copy/download, zero page errors, zero POST requests, and clean reset
+  to 0/10. Sample choices were cleared and the browser was closed.
+- Authenticated Previews session `c9c4d5d5fbd0` contains worksheet artifact
+  `3b0953db8981` plus instructions `ec776a3816e0`. Feedback and human decision
+  counts remain zero.
+
+Checkpoint: `OPEN/A0 -> OPEN/P2-human-gate`; progress `outcome_progress`;
+authority stayed private/authenticated and non-applying; one blocking finding
+was `accepted/fixed`; no subagent. Next: operator reviews all ten slots and
+returns the complete exported block; absent that literal input, stop.
+
 ## Turn 334: Activate Plan 0061 human review (2026-08-08)
 
 Summary: Activated the bounded Plan 0061 successor from the clean, pushed
