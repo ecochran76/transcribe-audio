@@ -1,5 +1,66 @@
 # Runbook
 
+## Turn 327: Close Plan 0059 with terminal refine (2026-08-08)
+
+Summary: Executed the bounded P2 acoustic/context adapter slice, preserved
+three failed/partial private attempts, hardened every observed boundary, and
+closed Plan 0059 as `refine` when the P2B attempt limit was reached. No live
+identity, transcript, provider, watcher, or authority state changed.
+
+Evidence:
+
+- Added `speaker_identity_evidence_execution.py` and focused tests for exact
+  acoustic normalization, millisecond-to-second transcript timing, explicit
+  operator-authored provider scopes, durable candidate UUID mapping, dedicated
+  context copies, and stable host-owned provider lineage IDs.
+- P2 attempt one failed closed because transcript millisecond offsets entered a
+  seconds-based clip cutter. The full private attempt was archived; the unit
+  conversion regression is fixed and tested.
+- P2B attempt one failed closed because P1 review-only candidate handles were
+  not durable UUIDs. The active P1 shadow was preserved, restored from its
+  proven backup, and replayed exactly before the next bounded attempt.
+- P2B attempt two persisted one bounded request, two evidence snapshots, one
+  bundle, and two bundle items in a dedicated disposable context database,
+  then failed closed on an empty provider-native source-record handle. Zero
+  people, source records, or external identities were created. The host-owned
+  opaque normalization is now implemented and covered by a regression test.
+- Two corrected acoustic recomputations for the first recording bind the same
+  execution content SHA-256
+  `88a402b776051907b4065ec10df507ed9b475493994a14d8d1c61a30209c1bd8`
+  across four speakers. This is only 1/3 recordings and 4/10 speaker refs, so
+  P2A remains partial; P3 through P6 were not run.
+- Terminal private receipt content SHA-256 is
+  `d32df6f83b75112d89144b3abdd0c87951b24a3471faceac9e45e18b5d08e705`;
+  manifest SHA-256 is
+  `1da847394ef4cf1d19541e7b7ffb266598d709e50800772e1e00022f1f7fb8f3`.
+  Replay is idempotent.
+- The hardened focused adapter/context/acoustic set passed 32/32; the final
+  contract-focused set passed 12/12; Python compilation passed; the full
+  repository suite passed 917/917 in 98.62 seconds; the frontend production
+  build passed; `git diff --check` passed; and the active-only planning audit
+  returned `ok: True`.
+
+Checkpoint:
+
+- State transition: `active/P2A-P2B -> closed/refine`.
+- Progress classification: `outcome_progress` for hardened reusable adapter
+  boundaries; cohort integration outcome remains incomplete.
+- Authority classification: all writes stayed repo-local, private-copy, or
+  content-addressed private evidence; no significant departure occurred.
+- Review disposition: `needs_evidence` for the complete P2A/P2B denominator;
+  no integrated discovery pass or human gold was used.
+- Runtime readback: live SQLite quick-check `ok`, 466 documents, 2 contacts, 3
+  assignments, no knowledge schema state; identity snapshot remains
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
+  `transcribe-watch.service` and `transcripts.service` are active/running with
+  zero restarts.
+- Privacy and non-effects: every Plan 0059 directory is `0700`, every file is
+  `0600`, and live assignment/person/contact/role/relationship/profile/
+  reference/provider/Graphiti/default/authority/history mutation counts are
+  zero.
+- Next action: create a new bounded successor only if the operator wants the
+  hardened adapters executed across all 3 recordings/10 speakers before P3.
+
 ## Turn 326: Complete Plan 0059 P1 private shadow rehearsal (2026-08-08)
 
 Summary: Completed schema migration, selected-cohort projection,

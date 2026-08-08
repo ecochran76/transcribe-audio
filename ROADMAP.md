@@ -224,13 +224,16 @@ Milestone Focus:
   operator input can resolve missing identities, and the resulting
   participant/context bundle feeds high-powered readout providers before
   deposition work.
-- Active milestone M3 is the P09/P10 speaker-identity foundation and shadow
+- Closed milestone M3 is the P09/P10 speaker-identity foundation and shadow
   join in Plan 0059. It freezes the acoustic, context, canonical-person, and
   decision contracts; rehearses schema migration and reconciliation on a
   private live-database copy; and compares context-only, acoustic-only, and
   combined evidence in the selected-conversation review path. Note 0055 is the
-  architecture authority. Plan 0059 is `OPEN` with P1 complete and P2A/P2B ready;
-  it authorizes no live
+  architecture authority. Plan 0059 is closed with terminal `refine`: A0/P0/P1
+  completed, while bounded P2 execution exposed and hardened transcript-time,
+  candidate-UUID, and provider-lineage adapter boundaries without completing
+  the 3-recording/10-speaker denominator. A new bounded successor is required.
+  Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
@@ -419,7 +422,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0058 is closed; Plan 0059 P1 is complete and P2A/P2B are ready
+State: OPEN — Plan 0058 is closed; Plan 0059 closed with terminal `refine`
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -649,9 +652,14 @@ not run a fresh acoustic cohort, modify Previews, or authorize any identity,
 assignment, profile, provider, integration, or historical mutation. A separate
 bounded plan is required for any next P10 milestone.
 
-Plan 0059 is the active cross-lane successor in
+Plan 0059 was the cross-lane successor recorded in
 `docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`.
-It moves the canonical-person store, bounded context collection, acoustic
+It completed A0/P0/P1 but closed `refine` after bounded P2 adapter attempts
+reached their limit. One recording/four speakers produced deterministic
+acoustic evidence twice; the full 3-recording/10-speaker denominator and P3+
+join/review/comparison work were not run. A new bounded successor plan is
+required before further execution.
+It moved the canonical-person store, bounded context collection, acoustic
 evidence, and review join toward one Level 2 selected-conversation shadow
 workflow. It deliberately stops before live schema migration, background
 watcher integration, assignment or relationship apply, profile learning,

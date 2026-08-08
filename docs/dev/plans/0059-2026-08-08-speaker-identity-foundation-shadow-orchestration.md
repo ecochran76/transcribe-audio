@@ -1,8 +1,8 @@
 # Plan 0059 | Speaker identity foundation and shadow orchestration
 
-State: OPEN
+State: CLOSED — refine
 
-Checkpoint: P1 complete; P2A and P2B ready
+Checkpoint: terminal refine audit complete; P2A and P2B require a successor
 
 Lane: P09
 
@@ -264,6 +264,61 @@ The live database remained schema version 0, sidecar-authoritative, clean, with
 2 contacts and 3 speaker assignments. All forbidden mutation counters remain
 zero. Progress classification: `outcome_progress`; P2A and P2B are now ready
 against the frozen contracts and active private-shadow interface.
+
+## Terminal refine checkpoint
+
+Plan 0059 closed with terminal decision `refine` after reaching the bounded
+P2B work-unit attempt limit. A0, P0, and P1 are complete. P2A and P2B are
+partial; P3, P4, P5, and the comparative P6 audit were not run. The private,
+content-addressed terminal receipt is
+`d32df6f83b75112d89144b3abdd0c87951b24a3471faceac9e45e18b5d08e705`;
+its manifest SHA-256 is
+`1da847394ef4cf1d19541e7b7ffb266598d709e50800772e1e00022f1f7fb8f3`.
+Receipt replay is idempotent.
+
+The first acoustic attempt exposed a real adapter defect: persisted utterance
+offsets are milliseconds while the inherited clip cutter consumes seconds.
+The failed attempt was preserved privately, the conversion was corrected, and
+a regression test now binds the unit boundary. Two later recomputations of the
+first frozen recording produced the same acoustic execution content SHA-256
+`88a402b776051907b4065ec10df507ed9b475493994a14d8d1c61a30209c1bd8`
+over all four recording-local speakers. That is only 1/3 recordings and 4/10
+speaker refs, so P2A is not complete and no cohort-wide acoustic claim is made.
+
+P2B attempt one exposed the mismatch between P1's review-only
+`person-preview-*` handles and the evidence repository's durable UUID contract.
+The adapter now maps those handles deterministically into a private UUID
+namespace without promoting a provider or evaluation label. P2B attempt two
+then retrieved and persisted one bounded request, two evidence snapshots, one
+bundle, and two bundle items in its dedicated disposable context copy, but the
+Plan 0059 lineage boundary rejected an empty provider-native source-record
+handle. No person, source-record, or external-identity row was created. The
+adapter now replaces provider-native handles with stable host-owned opaque IDs,
+and focused regression tests pass, but the plan did not take an unauthorized
+third P2B execution attempt.
+
+Terminal independent readback confirms the live database still passes
+`PRAGMA quick_check`, contains 466 documents, 2 contacts, and 3 speaker
+assignments, and has no knowledge schema state. The complete identity/profile/
+reference snapshot remains
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+`transcribe-watch.service` and `transcripts.service` are both active/running
+with zero restarts. P1 still replays exactly; all Plan 0059 private directories
+are `0700`, all private files are `0600`, and every forbidden mutation counter
+remains zero.
+
+Final validation passed: Python compilation, the 32-test hardened adapter and
+retrieval regression set, the 12-test final contract-focused set, all 917
+repository tests, the frontend production build, `git diff --check`, and the
+active-only planning-contract audit. These checks validate the safe `refine`
+closeout; they do not convert the partial P2 denominator into acceptance.
+
+This `refine` result does not authorize a retry, live shadow, UI join, human
+gold collection, assignment apply, provider write, profile learning, or any
+other successor action. A new bounded successor must start from the hardened
+time-unit, UUID, provider-lineage, and dedicated-context-copy adapters; freeze
+a fresh execution authority; and complete all 3 recordings/10 speaker refs
+before P3 may begin.
 
 ## Data and authority boundaries
 
