@@ -56,6 +56,7 @@ MODULE_PATH = Path(__file__).name
 DEFAULT_PLAN0060_ROOT = Path("~/.local/state/transcribe-audio/plan-0060")
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0061")
 DEFAULT_LIVE_STORE_ROOT = Path("~/.transcripts")
+REVIEW_CONSOLE_BASE_URL = "https://transcripts.ecochran.dyndns.org"
 
 SPEAKER_RE = re.compile(r"SPEAKER_[1-9][0-9]*")
 OPAQUE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,255}")
@@ -418,7 +419,7 @@ def normalized_review_cases(manifest: Mapping[str, Any]) -> list[dict[str, Any]]
                 "case_ordinal": case_ordinal,
                 "document_id": document_id,
                 "recording_id": recording_id,
-                "review_url": f"http://transcripts.localhost/?{query}",
+                "review_url": f"{REVIEW_CONSOLE_BASE_URL}/?{query}",
                 "candidates": candidates,
                 "warnings": [
                     _text(item, field="case warning", maximum=600) for item in warnings
@@ -540,7 +541,7 @@ def render_review_worksheet(manifest: Mapping[str, Any]) -> str:
             f"<h2>Recording {case['case_ordinal']}</h2>"
             '<p><a class="listen-link" target="_blank" rel="noopener noreferrer" '
             f'href="{html.escape(case["review_url"], quote=True)}">'
-            "Open this recording in the local transcript console</a>. Listen, inspect "
+            "Open this recording in the authenticated transcript console</a>. Listen, inspect "
             "the transcript, and use its Speakers view; then return here to decide.</p>"
             f"<p><strong>Case warnings:</strong> {html.escape(warnings)}</p>"
             f"<p><strong>Case source failures:</strong> {html.escape(failures)}</p>"
@@ -878,6 +879,7 @@ def prepare_live_worksheet(
         "status": "human_review_worksheet_prepared",
         "worksheet_schema_version": WORKSHEET_SCHEMA,
         "worksheet_sha256": worksheet_sha256,
+        "review_console_base_url": REVIEW_CONSOLE_BASE_URL,
         "source_bindings": bindings,
         "repository_authority": repository,
         "recording_count": EXPECTED_RECORDINGS,
@@ -897,6 +899,7 @@ def prepare_live_worksheet(
         "schema_version": WORKSHEET_RECEIPT_SCHEMA,
         "status": "human_review_worksheet_prepared",
         "worksheet_sha256": worksheet_sha256,
+        "review_console_base_url": REVIEW_CONSOLE_BASE_URL,
         "manifest_sha256": sha256_file(paths["manifest"]),
         "p4_content_sha256": PLAN0060_P4_CONTENT_SHA256,
         "p4_manifest_sha256": PLAN0060_P4_MANIFEST_SHA256,
@@ -950,12 +953,14 @@ def replay_live_worksheet(
         or manifest != expected_manifest
         or manifest.get("schema_version") != WORKSHEET_MANIFEST_SCHEMA
         or manifest.get("worksheet_sha256") != selected_sha256
+        or manifest.get("review_console_base_url") != REVIEW_CONSOLE_BASE_URL
         or manifest.get("preselected_decision_count") != 0
         or manifest.get("human_decision_count") != 0
         or manifest.get("apply_enabled") is not False
         or manifest.get("negative_actions") != NEGATIVE_ACTIONS
         or receipt.get("schema_version") != WORKSHEET_RECEIPT_SCHEMA
         or receipt.get("worksheet_sha256") != selected_sha256
+        or receipt.get("review_console_base_url") != REVIEW_CONSOLE_BASE_URL
         or receipt.get("manifest_sha256") != sha256_file(paths["manifest"])
         or receipt.get("content_sha256") != canonical_artifact_hash(receipt_core)
     ):

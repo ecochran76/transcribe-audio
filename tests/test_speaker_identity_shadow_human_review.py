@@ -131,7 +131,9 @@ def test_renderer_is_complete_unselected_and_client_only() -> None:
 
     assert page.count("data-review-slot") == 10
     assert page.count("data-decision ") == 10
-    assert page.count("Open this recording in the local transcript console") == 3
+    assert page.count("Open this recording in the authenticated transcript console") == 3
+    assert page.count("https://transcripts.ecochran.dyndns.org/?") == 3
+    assert "http://transcripts.localhost" not in page
     assert "must-not-appear@example.com" not in page
     assert "also-private@example.com" not in page
     assert "</script><script>alert(1)</script>" not in page
@@ -236,5 +238,6 @@ def test_private_worksheet_freezes_and_replays_without_decisions(
     assert replay["preselected_decision_count"] == 0
     assert replay["human_decision_count"] == 0
     assert replay["apply_enabled"] is False
+    assert replay["review_console_base_url"] == review.REVIEW_CONSOLE_BASE_URL
     for path_key in ("worksheet_path", "manifest_path"):
         assert os.stat(replay[path_key]).st_mode & 0o777 == 0o600
