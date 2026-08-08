@@ -15,6 +15,7 @@ from speaker_identity_orchestration import IdentityOrchestrationError, negative_
 from speaker_identity_shadow_join_execution import (
     ACTIVATION_VERSION,
     _lane_paths,
+    _validate_ui_smoke,
     replay_plan0060_activation,
 )
 
@@ -85,3 +86,38 @@ def test_unknown_lane_fails_closed(tmp_path: Path) -> None:
         _lane_paths(tmp_path, "a" * 64, "p2")
 
     assert excinfo.value.reason_code == "invalid_plan0060_lane"
+
+
+def test_ui_smoke_requires_blank_decisions_and_disabled_apply() -> None:
+    evidence = {
+        "api_status": "sealed_pending_human_review",
+        "sample_speaker_slot_count": 4,
+        "decision_control_count": 4,
+        "blank_decision_count": 4,
+        "joined_heading_visible": True,
+        "apply_control_count": 1,
+        "apply_controls_disabled": True,
+        "browser_error_count": 0,
+        "external_write_performed": False,
+    }
+
+    assert _validate_ui_smoke(evidence) == evidence
+
+
+def test_ui_smoke_rejects_preselected_decision() -> None:
+    with pytest.raises(IdentityOrchestrationError) as excinfo:
+        _validate_ui_smoke(
+            {
+                "api_status": "sealed_pending_human_review",
+                "sample_speaker_slot_count": 4,
+                "decision_control_count": 4,
+                "blank_decision_count": 3,
+                "joined_heading_visible": True,
+                "apply_control_count": 1,
+                "apply_controls_disabled": True,
+                "browser_error_count": 0,
+                "external_write_performed": False,
+            }
+        )
+
+    assert excinfo.value.reason_code == "plan0060_ui_smoke_invalid"

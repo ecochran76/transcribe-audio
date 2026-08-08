@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import stat
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -24,6 +25,7 @@ from speaker_identity_evidence_execution import (
     _model_versions,
     _source_case,
     _stable_id,
+    _systemd_service_state,
     adapt_acoustic_review,
     normalize_explicit_provider_scopes,
 )
@@ -40,6 +42,7 @@ from speaker_identity_orchestration import (
     IdentityOrchestrationError,
     _fail,
     _quick_check,
+    _readonly_connection,
     _sqlite_backup,
     confidence_cap,
     negative_action_vector,
@@ -58,6 +61,7 @@ P3_MANIFEST_VERSION = "transcribe-audio.plan0060-p3-blinded-join-manifest.v1"
 P3_RECEIPT_VERSION = "transcribe-audio.plan0060-p3-blinded-join-receipt.v1"
 P4_MANIFEST_VERSION = "transcribe-audio.plan0060-p4-review-packet-manifest.v1"
 P4_RECEIPT_VERSION = "transcribe-audio.plan0060-p4-review-packet-receipt.v1"
+P6_AUDIT_VERSION = "transcribe-audio.plan0060-review-ready-audit.v1"
 JOIN_POLICY_VERSION = "plan0060-conservative-shadow-join-v1"
 EXPECTED_RECORDINGS = 3
 EXPECTED_SPEAKERS = 10
@@ -1077,6 +1081,190 @@ def replay_review_packet(
     return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": True}
 
 
+def _terminal_paths(runtime_root: Path, activation_sha256: str) -> dict[str, Path]:
+    root = runtime_root.expanduser().absolute()
+    run = root / f"terminal-review-ready-{activation_sha256[:24]}"
+    return {
+        "root": root,
+        "run": run,
+        "manifest": run / "private-manifest.json",
+        "receipt": run / "receipt.json",
+    }
+
+
+def _validate_ui_smoke(ui_smoke: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = {
+        "api_status": str(ui_smoke.get("api_status") or ""),
+        "sample_speaker_slot_count": int(ui_smoke.get("sample_speaker_slot_count") or 0),
+        "decision_control_count": int(ui_smoke.get("decision_control_count") or 0),
+        "blank_decision_count": int(ui_smoke.get("blank_decision_count") or 0),
+        "joined_heading_visible": ui_smoke.get("joined_heading_visible") is True,
+        "apply_control_count": int(ui_smoke.get("apply_control_count") or 0),
+        "apply_controls_disabled": ui_smoke.get("apply_controls_disabled") is True,
+        "browser_error_count": int(ui_smoke.get("browser_error_count") or 0),
+        "external_write_performed": ui_smoke.get("external_write_performed") is True,
+    }
+    if (
+        normalized["api_status"] != "sealed_pending_human_review"
+        or normalized["sample_speaker_slot_count"] <= 0
+        or normalized["decision_control_count"]
+        != normalized["sample_speaker_slot_count"]
+        or normalized["blank_decision_count"]
+        != normalized["decision_control_count"]
+        or normalized["joined_heading_visible"] is not True
+        or normalized["apply_control_count"] <= 0
+        or normalized["apply_controls_disabled"] is not True
+        or normalized["browser_error_count"] != 0
+        or normalized["external_write_performed"] is not False
+    ):
+        _fail("plan0060_ui_smoke_invalid", "P4 review UI smoke evidence is incomplete or unsafe.")
+    return normalized
+
+
+def freeze_review_ready_audit(
+    *,
+    runtime_root: Path,
+    live_store_root: Path,
+    activation_sha256: str,
+    audited_at: str,
+    ui_smoke: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Freeze Plan 0060 at the literal human-decision boundary."""
+
+    activation = replay_plan0060_activation(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    acoustic = replay_acoustic_lane(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    context = replay_context_lane(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    join = replay_blinded_join(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    review = replay_review_packet(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    ui_evidence = _validate_ui_smoke(ui_smoke)
+    paths = _terminal_paths(runtime_root, activation_sha256)
+    if paths["receipt"].exists():
+        manifest, receipt = _read_lane(paths)
+        if manifest.get("status") != "review_ready" or manifest.get("ui_smoke") != ui_evidence:
+            _fail("plan0060_terminal_replay_invalid", "Terminal review-ready audit drifted.")
+        return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": True}
+    if paths["run"].exists():
+        _fail("incomplete_plan0060_p6", "P6 directory exists without a receipt.")
+
+    live_database = live_store_root.expanduser().resolve() / "transcripts.sqlite3"
+    with _readonly_connection(live_database) as connection:
+        live_counts = {
+            table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+            for table in ("documents", "contacts", "speaker_assignments")
+        }
+        live_quick_check = str(connection.execute("PRAGMA quick_check").fetchone()[0])
+        live_knowledge_state = (
+            "absent"
+            if connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='knowledge_store_state'"
+            ).fetchone()
+            is None
+            else "present"
+        )
+    frozen_live = activation["manifest"].get("live") or {}
+    if live_counts != {
+        "documents": int(frozen_live.get("documents") or 0),
+        "contacts": int(frozen_live.get("contacts") or 0),
+        "speaker_assignments": int(frozen_live.get("speaker_assignments") or 0),
+    } or live_quick_check != frozen_live.get("quick_check") or live_knowledge_state != frozen_live.get(
+        "knowledge_schema_state"
+    ):
+        _fail("plan0060_live_state_drift", "Live transcript state changed during Plan 0060.")
+
+    identity_state = acoustic_plan0057._current_identity_state()
+    if identity_state.get("snapshot_sha256") != frozen_live.get("identity_state_sha256"):
+        _fail("plan0060_identity_state_drift", "Identity/profile/reference state changed.")
+    services = [
+        _systemd_service_state(str(item["unit"]))
+        for item in activation["manifest"].get("services") or []
+    ]
+    if services != list(activation["manifest"].get("services") or []):
+        _fail("plan0060_runtime_service_drift", "Transcript runtime continuity changed.")
+
+    unsafe_directories = []
+    unsafe_files = []
+    for path in paths["root"].rglob("*"):
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if path.is_dir() and mode != 0o700:
+            unsafe_directories.append(str(path))
+        elif path.is_file() and mode != 0o600:
+            unsafe_files.append(str(path))
+    if unsafe_directories or unsafe_files:
+        _fail("plan0060_private_mode_drift", "Plan 0060 private artifacts have unsafe modes.")
+
+    manifest = {
+        "schema_version": P6_AUDIT_VERSION,
+        "status": "review_ready",
+        "audited_at": audited_at,
+        "activation_sha256": activation_sha256,
+        "completed_units": ["A0", "P2A", "P2B", "P3", "P4", "P6"],
+        "human_decision_boundary": {
+            "unit": "P5",
+            "status": "not_started",
+            "required_decision_count": EXPECTED_SPEAKERS,
+            "recorded_decision_count": 0,
+            "reason": "literal_human_gold_required",
+        },
+        "lane_content_sha256": {
+            "P2A": acoustic["content_sha256"],
+            "P2B": context["content_sha256"],
+            "P3": join["content_sha256"],
+            "P4": review["content_sha256"],
+        },
+        "denominator": {
+            "recording_count": EXPECTED_RECORDINGS,
+            "speaker_ref_count": EXPECTED_SPEAKERS,
+            "blinded_evaluation_count": 30,
+            "abstention_count": 30,
+            "proposal_count": 0,
+        },
+        "ui_smoke": ui_evidence,
+        "live_state": {
+            "counts": live_counts,
+            "quick_check": live_quick_check,
+            "knowledge_schema_state": live_knowledge_state,
+        },
+        "identity_state_sha256": identity_state["snapshot_sha256"],
+        "services": services,
+        "private_modes": {"unsafe_directory_count": 0, "unsafe_file_count": 0},
+        "live_mutation_count": 0,
+        "graphiti_write_performed": False,
+        "negative_actions": negative_action_vector(),
+    }
+    ensure_private_tree(paths["root"], paths["run"])
+    write_immutable_private_json(paths["manifest"], manifest)
+    receipt = {
+        "schema_version": P6_AUDIT_VERSION,
+        "status": "review_ready",
+        "content_sha256": canonical_artifact_hash(manifest),
+        "manifest_sha256": sha256_file(paths["manifest"]),
+        "completed_unit_count": 6,
+        "human_decision_count": 0,
+        "live_mutation_count": 0,
+        "identity_state_unchanged": True,
+        "runtime_continuity_preserved": True,
+        "private_modes_preserved": True,
+        "negative_actions_preserved": True,
+    }
+    write_immutable_private_json(paths["receipt"], receipt)
+    return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": False}
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Execute Plan 0060 independent evidence lanes.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1101,6 +1289,12 @@ def _parser() -> argparse.ArgumentParser:
         review = subparsers.add_parser(command)
         review.add_argument("--runtime-root", type=Path, required=True)
         review.add_argument("--activation-sha256", required=True)
+    terminal = subparsers.add_parser("freeze-review-ready")
+    terminal.add_argument("--runtime-root", type=Path, required=True)
+    terminal.add_argument("--live-store-root", type=Path, required=True)
+    terminal.add_argument("--activation-sha256", required=True)
+    terminal.add_argument("--audited-at", required=True)
+    terminal.add_argument("--ui-smoke-json", required=True)
     return parser
 
 
@@ -1149,10 +1343,18 @@ def main(argv: Iterable[str] | None = None) -> int:
                 runtime_root=args.runtime_root,
                 activation_sha256=args.activation_sha256,
             )
-        else:
+        elif args.command == "replay-review-packet":
             result = replay_review_packet(
                 runtime_root=args.runtime_root,
                 activation_sha256=args.activation_sha256,
+            )
+        else:
+            result = freeze_review_ready_audit(
+                runtime_root=args.runtime_root,
+                live_store_root=args.live_store_root,
+                activation_sha256=args.activation_sha256,
+                audited_at=args.audited_at,
+                ui_smoke=json.loads(args.ui_smoke_json),
             )
     except IdentityOrchestrationError as exc:
         print(json.dumps({"status": "error", "reason_code": exc.reason_code, "error": str(exc)}, sort_keys=True))
