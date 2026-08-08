@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 333: Plan the Plan 0060 human-gold comparison (2026-08-08)
+
+Summary: Created planning-only Plan 0061 as the immutable successor for Plan
+0060 P5. It preserves the exact sealed 3-recording/10-speaker/30-condition
+packet and adds only an authenticated, client-side human-review and comparison
+layer; Plan 0060 remains closed and unchanged.
+
+Checkpoint:
+
+- State: `PLANNED`; no source change, private review artifact, preview session,
+  human decision, or comparison receipt is authorized by plan creation.
+- Current P4 replay remains exact at 3 recordings, 10 empty decision slots, 30
+  condition views, zero preselection, apply disabled, and content SHA-256
+  `6f6bb30f9073ad706c45561bbf56311457f53e714743d4d905469508ecb82320`.
+- Current live readback remains SQLite `ok` with 466 documents, 2 contacts, 3
+  assignments, absent knowledge schema, unchanged identity-state SHA-256
+  `64e0a7f...`; both transcript services are active/running with zero restarts.
+- The planned worksheet may copy only minimum joined-review fields into an
+  authenticated Previews session. Raw audio/transcripts remain in the existing
+  local console; the page has client-side export and no write/apply request.
+- The present execution is bounded to P2 publication and browser verification,
+  then stops for 10/10 literal operator decisions before P3/P4.
+- Policy selection reports `already-aligned`; no governance adoption patch is
+  needed. Graphiti was advisory and returned no current Plan 0060 P5 authority.
+
+Next: commit and push this planning-only checkpoint, then perform the distinct
+Plan 0061 A0 activation against the unchanged packet and live baselines.
+
 ## Turn 332: Close Plan 0060 review-ready (2026-08-08)
 
 Summary: Completed the blinded join and sealed review surface, verified the

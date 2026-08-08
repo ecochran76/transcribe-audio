@@ -681,6 +681,15 @@ Its A0 checkpoint froze the current runtime, exact three-recording/ten-speaker
 chronological cohort, provider and acoustic permissions, private boundaries,
 human gates, and all-false live mutation contract before implementation.
 
+Plan 0061 is the planning-only human-gold/comparison successor in
+`docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`. It leaves
+Plan 0060 immutable, reuses its exact sealed 3-recording/10-speaker/30-condition
+packet, and introduces only an authenticated client-side worksheet, strict
+10/10 decision capture, and independent three-condition measurement. Its
+present execution stops after publishing and verifying the worksheet; no gold
+may be inferred, and live identity, assignment, knowledge, provider, profile,
+reference, watcher, default, Graphiti, or historical writes remain forbidden.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference
