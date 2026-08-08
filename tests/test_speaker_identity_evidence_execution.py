@@ -154,3 +154,24 @@ def test_provider_lineage_hides_empty_native_record_handle() -> None:
     lineage = normalize_provider_lineage(item)
     assert lineage.source_record_id.startswith("provider-record-")
     assert lineage.source_record_id != item.snapshot.evidence_id
+
+
+def test_provider_lineage_uses_observation_time_when_source_event_is_absent() -> None:
+    item = SimpleNamespace(
+        snapshot=SimpleNamespace(
+            evidence_id="00000000-0000-4000-8000-000000000001",
+            source_profile_id="gws-private",
+            provider_kind="gws",
+            source_record_id="provider-private-record",
+            independence_group_id="00000000-0000-4000-8000-000000000002",
+            source_type="gws_contact",
+            source_event_at="",
+            observed_at=NOW,
+            retrieved_at=NOW,
+            content_hash=SHA_A,
+        )
+    )
+
+    lineage = normalize_provider_lineage(item)
+
+    assert lineage.source_event_at == NOW

@@ -248,6 +248,9 @@ def normalize_provider_lineage(item: Any) -> EvidenceLineage:
     """Keep provider-native record handles private behind stable host IDs."""
 
     snapshot = item.snapshot
+    source_event_at = (
+        snapshot.source_event_at or snapshot.observed_at or snapshot.retrieved_at
+    )
     return EvidenceLineage(
         evidence_id=snapshot.evidence_id,
         source_record_id=_stable_id(
@@ -258,7 +261,7 @@ def normalize_provider_lineage(item: Any) -> EvidenceLineage:
         ),
         independence_group=snapshot.independence_group_id,
         source_type=snapshot.source_type,
-        source_event_at=snapshot.source_event_at,
+        source_event_at=source_event_at,
         observed_at=snapshot.observed_at,
         retrieved_at=snapshot.retrieved_at,
         content_sha256=snapshot.content_hash,
