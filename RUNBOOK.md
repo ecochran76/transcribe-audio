@@ -1,5 +1,34 @@
 # Runbook
 
+## Turn 331: Complete Plan 0060 independent P2 lanes (2026-08-08)
+
+Summary: Completed and replayed independent P2A acoustic and P2B context lanes
+over the exact 3-recording/10-speaker denominator. Each lane has its own
+immutable receipt; neither can erase or block the other's result.
+
+Evidence:
+
+- P2A: 3 acoustic bundles, 3/3 recordings, 10/10 speaker refs, receipt content
+  `2af6b1e92b37d0bbcda4d4c6baa5c26f9bd2d759902a3e86925adc51cb832c81`,
+  manifest `5cee0044586d1e0217662a5488ce27aec60b250156f2deea9083d5fba123a91f`,
+  exact replay, unchanged identity state, and zero live mutation. Recording one
+  reproduced the Plan 0059 execution hash.
+- P2B: 3 context bundles and candidate snapshots, 6 included evidence items,
+  zero provider failures, receipt content
+  `b746a062df7c6120e91fc479f9510e506a7cf6d68f3440f4259e5e3eade88322`,
+  manifest `829550d4ccee797310edfa4f5db08bee527c14f73df6b13468d291193b13bc1e`,
+  exact replay, and zero live mutation.
+- The P2B database is SQLite `ok` with 3 requests, 2 deduplicated snapshots, 3
+  bundles, 6 items, and zero people/source-record/external-identity rows.
+- Hardened two execution defects within bounds: non-variadic private-directory
+  setup and missing provider event times. The first P2B attempt is retained
+  privately; fallback time preserves observed/retrieved provenance. Forty
+  focused tests pass.
+
+Checkpoint: `OPEN/P2 -> OPEN/P3-ready`; progress `outcome_progress`; authority
+remained private/read-only; both findings are `accepted/fixed`; no subagent.
+Gold remains sealed. Next: join exact P2 receipts into 30 blinded evaluations.
+
 ## Turn 330: Correct Plan 0060 acoustic authority binding (2026-08-08)
 
 Summary: The first P2A invocation stopped before execution because A0 bound

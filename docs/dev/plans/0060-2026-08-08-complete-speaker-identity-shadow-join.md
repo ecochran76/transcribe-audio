@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: A0 activated; independent P2A/P2B execution authorized
+Checkpoint: P2A/P2B complete and replayable; P3 join authorized
 
 Lane: P09
 
@@ -128,9 +128,44 @@ activation; this plan does not silently select a new cohort or live snapshot.
 Plan 0060 is `OPEN` at the corrected A0 attempt-2 checkpoint above. The exact inherited cohort,
 P1 private shadow, live-state counters, identity snapshot, local acoustic
 authority, three provider scopes, privacy modes, negative actions, and sealed
-gold gate are hash-bound in the fresh activation receipt. No Plan 0060 P2A or
-P2B execution has run yet, and P3 through P6 remain blocked by their declared
-dependencies.
+gold gate are hash-bound in the fresh activation receipt. P2A and P2B are now
+complete under the checkpoint below. P3 is ready; P4 through P6 remain blocked
+by their declared dependencies.
+
+## P2 evidence-lane checkpoint
+
+P2A completed all 3 recordings and 10 speaker refs under three immutable
+acoustic bundles. Receipt content SHA-256 is
+`2af6b1e92b37d0bbcda4d4c6baa5c26f9bd2d759902a3e86925adc51cb832c81`;
+manifest SHA-256 is
+`5cee0044586d1e0217662a5488ce27aec60b250156f2deea9083d5fba123a91f`.
+Replay is idempotent, identity state is unchanged, and live mutations are zero.
+The first recording reproduced Plan 0059's prior execution SHA-256 exactly;
+the two remaining recordings froze their first complete source-bound outputs.
+
+P2B completed all 3 recordings and 10 speaker refs with 3 context bundles, 3
+candidate snapshots, 6 included evidence items, 3 explicit provider scopes,
+and zero provider failures. Receipt content SHA-256 is
+`b746a062df7c6120e91fc479f9510e506a7cf6d68f3440f4259e5e3eade88322`;
+manifest SHA-256 is
+`829550d4ccee797310edfa4f5db08bee527c14f73df6b13468d291193b13bc1e`.
+Its dedicated database passes quick-check with 3 requests, 2 deduplicated
+snapshots, 3 bundles, and 6 bundle items; person, source-record, and external-
+identity row counts remain zero. Replay is idempotent.
+
+The first P2A call stopped before a lane directory because directory creation
+was passed as an unsupported variadic helper call; the repair is tested and
+the successful bounded run followed. P2B attempt one persisted a healthy
+partial database then failed closed because two provider snapshots lacked
+source-event timestamps. That attempt is retained privately. The lineage
+adapter now uses observed or retrieved time when provider event time is absent,
+without converting either fallback into provider-authored time; 40 focused
+adapter/provider/contract tests pass. P2B attempt two completed.
+
+Progress classification: `outcome_progress`; authority stayed private and
+read-only; accepted findings are the fixed directory-call and event-time
+boundaries. P3 may now join the exact receipts once and must freeze 30 blinded
+evaluations before any human gold.
 
 ## Execution graph
 
