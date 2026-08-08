@@ -232,11 +232,12 @@ Milestone Focus:
   architecture authority. Plan 0059 is closed with terminal `refine`: A0/P0/P1
   completed, while bounded P2 execution exposed and hardened transcript-time,
   candidate-UUID, and provider-lineage adapter boundaries without completing
-  the 3-recording/10-speaker denominator. Open Plan 0060 is the separately bounded
-  successor that must complete independent P2A and P2B receipts across all 3
-  recordings/10 speakers before the blinded join and sealed review packet. It
-  may close `review_ready` at the literal human-decision boundary rather than
-  inventing gold. Plan 0059 authorizes no live
+  the 3-recording/10-speaker denominator. Plan 0060 is the closed
+  `review_ready` successor: independent P2A and P2B receipts cover all 3
+  recordings/10 speakers, P3 froze 30 blinded abstentions, P4 sealed 10 empty
+  decision slots with apply disabled, and P6 proved unchanged live state. P5
+  remains `not_started` until 10/10 literal human decisions exist; no gold was
+  invented. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
@@ -425,7 +426,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0058 is closed; Plan 0059 closed with terminal `refine`
+State: OPEN — Plans 0058 and 0060 are closed; Plan 0059 closed `refine`
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -662,12 +663,14 @@ reached their limit. One recording/four speakers produced deterministic
 acoustic evidence twice; the full 3-recording/10-speaker denominator and P3+
 join/review/comparison work were not run. A new bounded successor plan is
 required before further execution.
-Plan 0060 is that activated successor in
+Plan 0060 is that closed `review_ready` successor in
 `docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md`.
-It keeps the exact inherited cohort and private-copy boundary, executes the
-hardened acoustic and context lanes independently, and requires complete
-replayable P2 receipts before producing 30 blinded evaluations or preparing a
-sealed 10-speaker human-review packet.
+It kept the exact inherited cohort and private-copy boundary, completed the
+hardened acoustic and context lanes independently, froze 30 blinded
+abstentions, and prepared a sealed 10-speaker human-review packet with no
+preselection or apply path. Its terminal audit preserved exact live counters,
+identity state, service continuity, privacy modes, and zero mutations. P5 is
+not started because it requires 10/10 literal human decisions.
 It moved the canonical-person store, bounded context collection, acoustic
 evidence, and review join toward one Level 2 selected-conversation shadow
 workflow. It deliberately stops before live schema migration, background

@@ -1,8 +1,8 @@
 # Plan 0060 | Complete speaker identity shadow join
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: P2A/P2B complete and replayable; P3 join authorized
+Checkpoint: review_ready at the literal human-decision boundary
 
 Lane: P09
 
@@ -125,12 +125,14 @@ activation; this plan does not silently select a new cohort or live snapshot.
 
 ## Current state
 
-Plan 0060 is `OPEN` at the corrected A0 attempt-2 checkpoint above. The exact inherited cohort,
+Plan 0060 is `CLOSED` with terminal `review_ready`. The exact inherited cohort,
 P1 private shadow, live-state counters, identity snapshot, local acoustic
 authority, three provider scopes, privacy modes, negative actions, and sealed
-gold gate are hash-bound in the fresh activation receipt. P2A and P2B are now
-complete under the checkpoint below. P3 is ready; P4 through P6 remain blocked
-by their declared dependencies.
+gold gate remain hash-bound. P2A/P2B completed independently, P3 froze all 30
+blinded evaluations, P4 exposed the sealed packet through the read-only API and
+browser UI, and P6 replayed and audited the result. P5 remains intentionally
+`not_started`: it requires 10/10 literal human decisions and none were inferred
+or synthesized.
 
 ## P2 evidence-lane checkpoint
 
@@ -166,6 +168,51 @@ Progress classification: `outcome_progress`; authority stayed private and
 read-only; accepted findings are the fixed directory-call and event-time
 boundaries. P3 may now join the exact receipts once and must freeze 30 blinded
 evaluations before any human gold.
+
+## P3-P6 review-ready closeout
+
+P3 froze exactly 30 blinded evaluations: 10 context-only, 10 acoustic-only,
+and 10 combined. All 30 abstained and none proposed a person. The reason-coded
+denominator is 10 acoustic subjects without reviewed canonical-person links,
+10 context candidate sets that are not speaker-specific, and 10 combined
+cases missing the required pillar identity link. Human gold remained unread.
+Receipt content SHA-256 is
+`10e203d34f922b894b18096b3196974d8c0c419509387ec4f90852bb3fbda026`;
+manifest SHA-256 is
+`8239267e9af4eefe655a79f3d0684e40518b39f5c114f1a017395673d54f1d57`.
+
+P4 froze a sealed packet containing 3 recordings, 10 decision slots, and 30
+condition views. It contains zero human decisions, zero preselected identities,
+an all-false external-write contract, and no apply path. Receipt content
+SHA-256 is
+`6f6bb30f9073ad706c45561bbf56311457f53e714743d4d905469508ecb82320`;
+manifest SHA-256 is
+`e4883c01af517ee5db4387bdf01ddebd5d876158f7a05478a0968bab3e2808f4`.
+Read-only API smoke returned `sealed_pending_human_review`. A throwaway local
+browser opened a frozen-cohort conversation's Speakers view and verified four
+of four visible decision controls at `Select after review`, the joined-shadow
+heading visible, the apply control disabled, and zero page errors. The browser
+session was closed after inspection.
+
+P6 replayed A0 and every P2-P4 receipt, re-read the live database, identity
+state, services, and private modes, then froze terminal `review_ready`. Its
+content SHA-256 is
+`396f386300dc9b23ce3882a55b76254cfa496cf599689cb412b449305e4cae96`;
+manifest SHA-256 is
+`f0eaac827ba19fc3b8bbd94dbe40b1efa4c525f5d351ba540238524767798a8d`.
+The live database remains SQLite `ok` with 466 documents, 2 contacts, 3 speaker
+assignments, and absent knowledge schema; identity-state SHA-256 remains
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
+both services remain active/running with zero restarts; all private modes are
+`0700`/`0600`; and live mutations remain zero. Full validation passed with 926
+tests, frontend production build, compilation, planning audit, and diff check.
+Graphiti closeout was deliberately not written because this plan's frozen
+negative-action boundary forbids Graphiti writes.
+
+Progress classification: `outcome_progress`. Authority classification:
+completed inside the private/read-only envelope. Review disposition: no
+blocking implementation findings remain; P5 is a human-input gate, not an
+implementation defect. Terminal decision: `review_ready`.
 
 ## Execution graph
 

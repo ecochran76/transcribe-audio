@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 332: Close Plan 0060 review-ready (2026-08-08)
+
+Summary: Completed the blinded join and sealed review surface, verified the
+actual local UI, and closed Plan 0060 at the literal human-decision boundary.
+No identity was proposed or preselected, and no live apply path was opened.
+
+Evidence:
+
+- P3 froze 30/30 blinded evaluations, split 10 each across context-only,
+  acoustic-only, and combined conditions. All 30 abstained with reason codes;
+  proposals and human decisions remained zero. Receipt content is
+  `10e203d34f922b894b18096b3196974d8c0c419509387ec4f90852bb3fbda026`.
+- P4 froze 3 recordings, 10 decision slots, and 30 condition views with zero
+  preselection and apply disabled. Receipt content is
+  `6f6bb30f9073ad706c45561bbf56311457f53e714743d4d905469508ecb82320`.
+- Read-only API smoke reported `sealed_pending_human_review`. A throwaway
+  browser verified the joined-shadow view, four of four sampled blank decision
+  controls, disabled apply, and zero page errors, then closed.
+- P6 terminal content is
+  `396f386300dc9b23ce3882a55b76254cfa496cf599689cb412b449305e4cae96`;
+  replay is exact. SQLite remains `ok` at 466 documents, 2 contacts, and 3
+  assignments with absent knowledge schema. Identity state is unchanged; both
+  transcript services are active/running with zero restarts; private modes and
+  all negative actions pass; live mutation count is zero.
+- Full validation passed: 926 pytest cases, frontend production build, Python
+  compilation, active planning audit, and `git diff --check`.
+- Graphiti discovery informed the initial boundary, but no closeout write was
+  made because Plan 0060 explicitly freezes Graphiti writes off.
+
+Checkpoint: `OPEN/P3-ready -> CLOSED/review_ready`; progress
+`outcome_progress`; authority stayed private/read-only; no blocking findings
+remain; no subagent. P5 is `not_started` and requires 10/10 literal human
+decisions under unchanged packet and baseline hashes.
+
 ## Turn 331: Complete Plan 0060 independent P2 lanes (2026-08-08)
 
 Summary: Completed and replayed independent P2A acoustic and P2B context lanes
