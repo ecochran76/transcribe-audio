@@ -205,6 +205,7 @@ Plans:
 - `docs/dev/plans/0030-2026-07-26-provider-adapters-and-blind-retrieval-evaluation.md`
 - `docs/dev/plans/0035-2026-07-30-blind-combined-speaker-outcome-measurement.md`
 - `docs/dev/plans/0036-2026-07-30-literal-fts-blind-speaker-rerun.md`
+- `docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`
 
 Milestone Focus:
 
@@ -223,6 +224,14 @@ Milestone Focus:
   operator input can resolve missing identities, and the resulting
   participant/context bundle feeds high-powered readout providers before
   deposition work.
+- Planned milestone M3 is the P09/P10 speaker-identity foundation and shadow
+  join in Plan 0059. It freezes the acoustic, context, canonical-person, and
+  decision contracts; rehearses schema migration and reconciliation on a
+  private live-database copy; and compares context-only, acoustic-only, and
+  combined evidence in the selected-conversation review path. Note 0055 is the
+  architecture authority. Plan 0059 is not activated and authorizes no live
+  schema migration, watcher enqueueing, assignment or relationship apply,
+  provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -409,7 +418,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0058 review-surface reliability is closed; no successor is active
+State: OPEN — Plan 0058 is closed; Plan 0059 is planned but not activated
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -638,6 +647,16 @@ with 15 HTTP 200 Media responses, zero failures, and zero 502 responses. It did
 not run a fresh acoustic cohort, modify Previews, or authorize any identity,
 assignment, profile, provider, integration, or historical mutation. A separate
 bounded plan is required for any next P10 milestone.
+
+Plan 0059 is the planned cross-lane successor in
+`docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`.
+It moves the canonical-person store, bounded context collection, acoustic
+evidence, and review join toward one Level 2 selected-conversation shadow
+workflow. It deliberately stops before live schema migration, background
+watcher integration, assignment or relationship apply, profile learning,
+provider write-back, or automatic confirmation. The durable pillar contract is
+`docs/dev/notes/0055-2026-08-08-speaker-identity-pillar-integration-architecture.md`.
+A separate activation checkpoint is required before Plan 0059 becomes `OPEN`.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

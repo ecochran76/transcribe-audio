@@ -1,5 +1,69 @@
 # Runbook
 
+## Turn 323: Plan speaker identity pillar foundation and shadow join (2026-08-08)
+
+Summary: Recorded the durable three-pillar speaker-identity architecture and
+created planning-only Plan 0059 for canonical-person private shadow projection,
+independent acoustic/context evidence, selected-conversation joining, human
+review, and a same-cohort condition comparison.
+
+Authorities:
+
+- Added
+  `docs/dev/notes/0055-2026-08-08-speaker-identity-pillar-integration-architecture.md`
+  as the decision and architecture note for acoustic analysis, bounded context
+  collection, canonical-person/contact/role/relationship knowledge, identity
+  orchestration, authority, failure, rollout, and rollback boundaries.
+- Added
+  `docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`
+  with state `PLANNED`, lane P09, a P10 acoustic dependency, explicit vision
+  maturity movement, execution dependencies, acceptance criteria, validation,
+  safeguards, bounds, activation authority, and terminal decisions.
+- Wired Plan 0059 and planned milestone M3 into P09 and recorded the same
+  cross-lane dependency in P10. Note 0055 supersedes only the stale next-step
+  pointer in Note 0052; it does not rewrite historical Plan 0056 through 0058
+  evidence.
+
+Current evidence:
+
+- The worktree began clean on `plan-0037-campaign`, and the branch was
+  upstream-even.
+- Graphiti runtime and MCP were healthy. Focused `transcribe_audio_main`
+  discovery returned prior source-backed speaker-preprocessing facts; current
+  repo files and runtime readback remained authoritative.
+- CodeGraph was healthy with 250 indexed files, 7,633 nodes, and 25,169 edges.
+  Structural inspection confirmed the existing seams in conversation
+  knowledge storage/projection/evidence, bounded identity retrieval,
+  participant candidates, acoustic shadow evidence, and review transport.
+- `transcribe-watch.service` was active/running with zero restarts.
+- The live conversation knowledge schema remained version 0 with sidecar
+  authority and `dirty=false`; the current store contained 466 documents, 2
+  contacts, and 3 speaker assignments.
+- The deterministic active-plan planning audit passed before and after
+  creation. The post-write audit recognizes Plan 0059 as `PLANNED`, confirms
+  its P09 lane, current-state contract, and Roadmap/Runbook wiring, and reports
+  zero problems. The policy selector reported no validation problem and no
+  plan/note migration requirement.
+- `git diff --check` passed, and every new relative architecture, note, and
+  plan target resolved to a current repo file.
+
+Authority and non-effects:
+
+- This turn created documentation only. Plan 0059 requires a separate
+  activation checkpoint before implementation or private runtime work.
+- No source code, service configuration, live database, transcript, contact,
+  person, role, relationship, assignment, acoustic profile, provider,
+  Graphiti, preview, or historical state changed.
+- Delegation receipt: `not_spawned`; planning and canonical wiring shared one
+  tightly coupled documentation surface, and proactive delegation was not
+  authorized.
+
+Next:
+
+- Keep Plan 0059 `PLANNED`. The recommended next action is a separate
+  current-state and authority checkpoint that explicitly activates A0; this
+  planning closeout grants no implementation or runtime authority.
+
 ## Turn 322: Close Plan 0058 review-surface reliability (2026-08-07)
 
 Summary: Implemented, froze, published, and browser-proved the reusable
