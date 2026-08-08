@@ -1,5 +1,104 @@
 # Runbook
 
+## Turn 325: Complete Plan 0059 P0 contracts (2026-08-08)
+
+Summary: Implemented and validated the immutable Plan 0059 identity-case
+contracts plus the content-addressed private A0 receipt. P0 is complete and P1
+is ready.
+
+Implementation and evidence:
+
+- Added `speaker_identity_orchestration.py` with frozen acoustic, context,
+  canonical-candidate, joined evaluation, shadow decision, lineage, retrieval
+  scope, state transition, confidence cap, identifier, and all-false negative
+  action contracts.
+- Added fail-closed validation for exact conversation/recording/document/
+  speaker/transcript bindings, duplicate or circular evidence, current-run
+  relationship support, required-source failures, invalid condition bindings,
+  unsupported proposals, unbound contradictions, and every forbidden mutation.
+- Added a content-addressed A0 freeze/replay CLI. Private receipt content hash
+  is `5e0578261d592a673438ac73e108fc466449192d242e29f958f80a677e6a10cb`;
+  manifest hash is
+  `a6f191815c22f714fd111aea5b53f41627af6f1f1d2523d77664006bd2cca3b6`.
+  Replay returns the same 3-recording/10-speaker denominator, zero prior source
+  overlap, and preserved negative actions.
+- Corrected the new Plan 0059 runtime root from inherited `0755` to `0700`
+  before accepting the receipt. The authoritative root and run directory are
+  `0700`; both manifest and receipt are `0600`. A regression assertion covers
+  private root, run, and file modes.
+- Python compilation passed. Six P0 tests passed; the combined new,
+  acoustic-shadow, identity-retrieval, and knowledge-store set passed 27/27.
+
+Checkpoint:
+
+- State transition: `active/P0 -> active/P1-ready`.
+- Progress classification: `outcome_progress`.
+- Subagent status: `not_spawned`; proactive subagents remain unavailable and
+  P0 was one coupled contract surface.
+- Authority classification: inside the activated repo-local/private-copy
+  envelope; no significant departure.
+- Review disposition summary: no accepted findings; discovery pass remains
+  unused.
+- Non-effects: no live schema, assignment, person, contact, role,
+  relationship, profile, reference, provider, Graphiti, default, watcher, or
+  historical mutation occurred.
+- Next action: P1 disposable live-database snapshot, migration, selected-cohort
+  projection, reconciliation preview, export, replay, restore, and rollback.
+
+## Turn 324: Activate Plan 0059 shadow orchestration (2026-08-08)
+
+Summary: Reviewed Note 0055 and Plan 0059, accepted the operator's execution
+instruction as the required separate activation decision, and opened Plan
+0059 only after freezing current repo/runtime state, a fresh exact cohort,
+provider/acoustic permissions, private write boundaries, and human gates.
+
+Checkpoint:
+
+- Plan 0059 transitioned `PLANNED -> OPEN`; execution state transitioned
+  `ready -> active`, with A0 complete and P0 ready.
+- The worktree was clean at
+  `395e523de00cea0e327e219770a10b5b4b6d6f50` on
+  `plan-0037-campaign`, upstream `behind=0/ahead=1`, with one owned worktree.
+- CodeGraph reported 250 files, 7,633 nodes, 25,169 edges, and no pending file
+  changes. Graphiti runtime was healthy; discovery in
+  `transcribe_audio_main` returned 10 facts, 5 nodes, and 8 episode previews,
+  but no current Plan 0059 execution episode, so current repo/runtime evidence
+  controlled.
+- `transcribe-watch.service` was `active/running` with zero restarts. The live
+  database passed `PRAGMA quick_check`, remained schema version 0 with sidecar
+  authority and `dirty=false`, and contained 466 documents, 2 contacts, and 3
+  speaker assignments.
+- The frozen cohort is the three 2026-08-07 transcript documents created after
+  Plan 0057, with 10 speaker refs (`4, 3, 3`) and three stored source recordings.
+  Ordered membership SHA-256 is
+  `eeeb4600a5a7aa19812bf119c0f15c238bae209133ce1310863de735a5885c61`;
+  overlap with Plan 0057 source-media hashes is zero. Exact private membership
+  remains outside Git.
+
+Authority and non-effects:
+
+- Existing local models/profiles and exactly two opaque enrolled subject IDs
+  are allowed; enrollment, profile/reference mutation, and name-derived
+  identity remain forbidden.
+- P2B may make bounded host-owned read-only retrievals under explicit
+  GWS/Odollo/local scopes. Provider writes and raw provider-body persistence
+  remain forbidden.
+- Human gold remains sealed until context-only, acoustic-only, and combined
+  outputs are frozen. Review is shadow-only and cannot call the live assignment
+  writer.
+- No source code, database copy, provider/model execution, live database,
+  assignment, identity, contact, role, relationship, profile, reference,
+  provider, Graphiti, default, or historical state changed in this activation
+  checkpoint.
+- Delegation receipt: `not_spawned`; proactive subagents are disabled by the
+  current runtime, and the primary owns the tightly coupled A0/P0 critical
+  path. Accepted finding ledger remains empty; the single discovery pass is
+  reserved for the integrated result.
+
+Progress classification: `outcome_progress`. A0 removed the activation gate
+without widening Plan 0059. Next bounded unit: implement and validate P0
+contracts plus the content-addressed private activation receipt.
+
 ## Turn 323: Plan speaker identity pillar foundation and shadow join (2026-08-08)
 
 Summary: Recorded the durable three-pillar speaker-identity architecture and

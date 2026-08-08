@@ -1,8 +1,8 @@
 # Plan 0059 | Speaker identity foundation and shadow orchestration
 
-State: PLANNED
+State: OPEN
 
-Checkpoint: P0 not activated
+Checkpoint: P0 complete; P1 ready
 
 Lane: P09
 
@@ -29,6 +29,11 @@ and the evergreen storage authority remains
 This plan is planning authority only. It must transition to `OPEN` in a
 separate activation checkpoint before any implementation, provider retrieval,
 private database copy, model execution, or runtime artifact creation begins.
+
+The operator activated this plan on 2026-08-08 with the instruction to review
+Note 0055 and Plan 0059 and execute. The A0 freeze below is the separate
+activation checkpoint; all later work remains constrained by this plan's
+non-goals, safeguards, human gates, and significant-departure boundary.
 
 ## Vision outcomes and maturity movement
 
@@ -144,6 +149,89 @@ interface. Both branches join once at P3. No other fan-out is justified.
 Delegation decision: `not_spawned` for plan creation. When activated, the
 primary orchestrator must record whether independent P2A and P2B ownership is
 safe under the then-current runtime policy and worktree state.
+
+## A0 activation freeze
+
+Activated at `2026-08-08T09:35:32-05:00` from clean commit
+`395e523de00cea0e327e219770a10b5b4b6d6f50` on
+`plan-0037-campaign`. The branch was upstream-ahead by one commit and behind by
+zero; the only worktree was the owned primary checkout. CodeGraph was healthy
+with 250 files, 7,633 nodes, 25,169 edges, and no pending file changes.
+
+Current runtime readback:
+
+- `transcribe-watch.service` was `active/running` with `NRestarts=0`;
+- the live database passed `PRAGMA quick_check`, remained schema version `0`
+  with `authority_mode=sidecar` and `dirty=false`, and contained exactly 466
+  documents, 2 compatibility contacts, and 3 speaker assignments;
+- the live database file was mode `0600`, 447,004,672 bytes, with 109,132
+  4,096-byte pages and zero freelist pages; and
+- the watcher remained enabled only for its existing four configured roots;
+  Plan 0059 adds no watcher path, timer, default, or inline enrichment action.
+
+The exact frozen chronological cohort is the three already-ingested transcript
+documents created on 2026-08-07 after the closed Plan 0057 cohort. It contains
+3 recordings and 10 recording-local speaker references with per-recording
+speaker counts `4, 3, 3`; every recording has one stored source-media blob.
+The ordered membership record binds each opaque document ID, transcript hash,
+generation time, speaker count, source-media hash, and byte count under
+SHA-256 `eeeb4600a5a7aa19812bf119c0f15c238bae209133ce1310863de735a5885c61`.
+Its three source-media hashes have zero overlap with Plan 0057. Exact IDs,
+paths, hashes, and later private evidence remain in the mode-`0700` Plan 0059
+runtime tree rather than this repository.
+
+Permissions and gates:
+
+- acoustic execution is limited to the existing local runtime, existing
+  profiles, and the two opaque Plan 0057 allowlisted subject IDs; no network,
+  enrollment, profile learning, reference mutation, or display-name identity
+  is permitted;
+- P2B may use only host-owned, read-only configured GWS/Odollo/local retrieval
+  under explicit account/tenant/capability/as-of scopes, with the frozen
+  default budget of at most 4 provider calls, 20 records, 12,000 characters,
+  5 records per source, and 1 relationship hop; no provider write is permitted;
+- raw transcripts, provider payloads, audio, clips, model-private features,
+  human gold, and review decisions remain in the private runtime tree;
+- all three blinded condition outputs must freeze before human gold may be
+  collected or read; every eligible speaker then requires one explicit human
+  decision; and no review action may invoke the existing live
+  speaker-assignment writer; and
+- repository writes are limited to focused contracts, adapters,
+  orchestration, review transport/components, redacted fixtures, tests, and
+  durable plan/runbook/roadmap closeout. Runtime writes are limited to the
+  private Plan 0059 tree and a disposable database copy.
+
+Accepted finding ledger: empty. The one allowed fresh-context drift-discovery
+pass is reserved for the integrated result before terminal audit.
+
+Delegation receipt: `not_spawned`; the current agent runtime forbids proactive
+subagent spawning, and A0/P0 remain one tightly coupled critical path. The
+primary agent owns every write and independently validates every result.
+
+## P0 checkpoint
+
+P0 is complete at the first implementation checkpoint. The new focused
+`speaker_identity_orchestration.py` module freezes immutable acoustic, context,
+canonical-candidate, joined evaluation, shadow decision, evidence-lineage,
+retrieval-scope, state-transition, confidence-cap, identifier, and negative-
+action contracts without adding watcher or live apply wiring.
+
+The private A0 receipt is content-addressed by
+`5e0578261d592a673438ac73e108fc466449192d242e29f958f80a677e6a10cb`;
+its manifest SHA-256 is
+`a6f191815c22f714fd111aea5b53f41627af6f1f1d2523d77664006bd2cca3b6`.
+Freeze and replay both report 3 recordings, 10 speaker references, zero prior
+source overlap, preserved negative actions, and idempotent replay. The Plan
+0059 runtime root and receipt directory are mode `0700`; receipt files are
+mode `0600`.
+
+Six focused P0 tests pass, including binding mismatch, current-run circularity,
+forbidden mutation, invalid state transition, reason-coded confidence caps,
+required-source failure, immutable shadow decision, private permissions, and
+receipt replay. The adjoining acoustic/context/store regression set passes
+27/27. Progress classification: `outcome_progress`; next ready unit is P1
+private-copy migration, projection, reconciliation, export, replay, restore,
+and rollback rehearsal.
 
 ## Data and authority boundaries
 
