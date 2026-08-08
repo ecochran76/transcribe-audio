@@ -59,8 +59,8 @@ documents, 2 contacts, 3 speaker assignments, and no knowledge-schema table;
 identity-state SHA-256
 `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
 and `transcribe-watch.service` plus `transcripts.service` active/running with
-zero restarts. The Plan 0057 local execution-authority manifest binds SHA-256
-`7130b7c277c71b0a047ab9491bd4e55b97dda6dfcd6db57b9a6ed8525ebe1584`.
+zero restarts. The closed Plan 0057 shadow-authority manifest binds SHA-256
+`08780ae5e8ab1c5bb4abcd1f28ed0803ff71299962773d6c05ebe3fe18ac00be`.
 Three explicit read-only provider scopes resolve under frozen budget and scope
 hash `01b240689b4f01b753540611b58b3f4e986e12dc79e8226e2a8a9644890f8ab3`.
 
@@ -70,6 +70,17 @@ and manifest SHA-256
 `924e5a7a0565ba87d322b61d88670c069801208be3ccf7c38fac92620a09fcee`.
 Replay matches both hashes; directories are `0700` and files are `0600`.
 Human gold remains sealed until exactly 30 blinded evaluations freeze.
+
+The first A0 receipt was superseded before any P2 lane directory, provider
+read, acoustic execution, or live mutation because it bound Plan 0057's later
+execution receipt rather than the shadow-authority manifest that contains the
+allowlist and local-runtime constraints. The second and final A0 attempt binds
+the correct closed authority. Its content SHA-256 is
+`08afc1b021a30f2a06f6e45bac88cec1b343def65b4e02261845ddff8667cf77` and
+manifest SHA-256 is
+`25c1f94bc1afb2718accd290055f3bae442e79577ce2bcde880ba06863953e52`.
+Replay passes and all current non-effects remained exact. The first receipt is
+retained privately as superseded activation evidence, not execution authority.
 
 Progress classification: `outcome_progress`. Authority classification:
 activated within the planned private/read-only envelope. Accepted finding
@@ -114,7 +125,7 @@ activation; this plan does not silently select a new cohort or live snapshot.
 
 ## Current state
 
-Plan 0060 is `OPEN` at the A0 checkpoint above. The exact inherited cohort,
+Plan 0060 is `OPEN` at the corrected A0 attempt-2 checkpoint above. The exact inherited cohort,
 P1 private shadow, live-state counters, identity snapshot, local acoustic
 authority, three provider scopes, privacy modes, negative actions, and sealed
 gold gate are hash-bound in the fresh activation receipt. No Plan 0060 P2A or

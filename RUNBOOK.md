@@ -1,5 +1,31 @@
 # Runbook
 
+## Turn 330: Correct Plan 0060 acoustic authority binding (2026-08-08)
+
+Summary: The first P2A invocation stopped before execution because A0 bound
+Plan 0057's later execution receipt instead of the closed shadow-authority
+manifest containing the acoustic allowlist and local-runtime constraints. No
+P2 directory, provider read, acoustic execution, or live mutation occurred.
+
+Evidence and disposition:
+
+- Preserved the first immutable activation receipt as superseded evidence.
+- Rechecked live SQLite `ok` with 466 documents, 2 contacts, 3 assignments,
+  absent knowledge schema; unchanged identity-state hash; and both services
+  active/running with zero restarts.
+- Used the second and final A0 attempt to bind closed Plan 0057 shadow-authority
+  SHA-256 `08780ae5e8ab1c5bb4abcd1f28ed0803ff71299962773d6c05ebe3fe18ac00be`.
+- Corrected activation content SHA-256 is
+  `08afc1b021a30f2a06f6e45bac88cec1b343def65b4e02261845ddff8667cf77`;
+  manifest SHA-256 is
+  `25c1f94bc1afb2718accd290055f3bae442e79577ce2bcde880ba06863953e52`.
+  Replay and private modes pass.
+
+Checkpoint remains `OPEN/A0`; progress classification `outcome_progress` for
+an activation hardening repair; authority remains in envelope; finding
+`blocking -> accepted/fixed`; no subagent. Next: rerun P2A once under the
+corrected authority, then execute the independently durable P2B lane.
+
 ## Turn 329: Activate Plan 0060 complete shadow join (2026-08-08)
 
 Summary: Committed and pushed the Plan 0060 planning-only checkpoint, then
