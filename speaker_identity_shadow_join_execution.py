@@ -211,7 +211,8 @@ def execute_acoustic_lane(
         plan0059_activation_sha256=plan0059_activation_sha256,
         plan0057_authority_manifest=plan0057_authority_manifest,
     )
-    ensure_private_tree(paths["root"], paths["run"], paths["sources"])
+    ensure_private_tree(paths["root"], paths["run"])
+    ensure_private_tree(paths["root"], paths["sources"])
     created_at = str(shared["plan0060"]["manifest"]["activated_at"])
     identity_before = shared["identity_state"]
     results = []
@@ -325,7 +326,8 @@ def execute_context_lane(
         plan0059_activation_sha256=plan0059_activation_sha256,
         plan0057_authority_manifest=plan0057_authority_manifest,
     )
-    ensure_private_tree(paths["root"], paths["run"], paths["context_root"])
+    ensure_private_tree(paths["root"], paths["run"])
+    ensure_private_tree(paths["root"], paths["context_root"])
     _sqlite_backup(shared["active_database"], paths["context_database"])
     if _quick_check(paths["context_database"]) != "ok":
         _fail("plan0060_context_shadow_integrity", "P2B copy failed quick_check.")
