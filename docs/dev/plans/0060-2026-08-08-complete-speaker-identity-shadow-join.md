@@ -1,8 +1,8 @@
 # Plan 0060 | Complete speaker identity shadow join
 
-State: PLANNED
+State: OPEN
 
-Checkpoint: planning-only successor to Plan 0059 terminal `refine`
+Checkpoint: A0 activated; independent P2A/P2B execution authorized
 
 Lane: P09
 
@@ -28,6 +28,52 @@ lineage, and dedicated context-copy boundaries.
 This document is planning authority only. A distinct A0 checkpoint must move
 it to `OPEN` before any provider read, acoustic execution, private runtime
 artifact, source change, or review preparation.
+
+The planning-only checkpoint was committed and pushed at
+`f34ed5f9aaaa294c85c89beaa215ee7a454cc1dc`. The operator's prior `plan and
+execute` instruction then activated A0 at `2026-08-08T12:38:43-05:00`.
+
+## A0 activation checkpoint
+
+The branch and upstream were exact and even at `f34ed5f9aaaa294c85c89beaa215ee7a454cc1dc`
+with a clean worktree before activation. CodeGraph was healthy with 254 files,
+7,805 nodes, and 25,922 edges. Graphiti was healthy but advisory; its retained
+Plan 0055/0056 evidence agreed with the repo boundary and supplied no current
+Plan 0059 authority.
+
+All inherited evidence replayed exactly:
+
+- Plan 0059 activation: 3 recordings, 10 speaker refs, membership SHA-256
+  `eeeb4600a5a7aa19812bf119c0f15c238bae209133ce1310863de735a5885c61`;
+- Plan 0059 P1: content SHA-256
+  `3b175d90d4331ef4fa98498cdaed24d82dde184fda931d04167ff6c97c9d1e84`,
+  3 projections/replays/exports, separate ambiguous people, rollback to schema
+  0, and zero live identity mutation; and
+- Plan 0059 terminal refine: content SHA-256
+  `d32df6f83b75112d89144b3abdd0c87951b24a3471faceac9e45e18b5d08e705`,
+  with private modes, runtime continuity, identity state, negative actions, and
+  zero live mutation preserved.
+
+Current independent readback remains exact: SQLite quick-check `ok`; 466
+documents, 2 contacts, 3 speaker assignments, and no knowledge-schema table;
+identity-state SHA-256
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
+and `transcribe-watch.service` plus `transcripts.service` active/running with
+zero restarts. The Plan 0057 local execution-authority manifest binds SHA-256
+`7130b7c277c71b0a047ab9491bd4e55b97dda6dfcd6db57b9a6ed8525ebe1584`.
+Three explicit read-only provider scopes resolve under frozen budget and scope
+hash `01b240689b4f01b753540611b58b3f4e986e12dc79e8226e2a8a9644890f8ab3`.
+
+The fresh private activation receipt has content SHA-256
+`17ea8cb97263dbf628f4808a1adf503e7d6bf36017b52310e93f9fb7b99b7ded`
+and manifest SHA-256
+`924e5a7a0565ba87d322b61d88670c069801208be3ccf7c38fac92620a09fcee`.
+Replay matches both hashes; directories are `0700` and files are `0600`.
+Human gold remains sealed until exactly 30 blinded evaluations freeze.
+
+Progress classification: `outcome_progress`. Authority classification:
+activated within the planned private/read-only envelope. Accepted finding
+ledger: empty. Next ready units: independent P2A and P2B.
 
 ## Vision outcomes and maturity movement
 

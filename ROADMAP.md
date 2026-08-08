@@ -232,7 +232,7 @@ Milestone Focus:
   architecture authority. Plan 0059 is closed with terminal `refine`: A0/P0/P1
   completed, while bounded P2 execution exposed and hardened transcript-time,
   candidate-UUID, and provider-lineage adapter boundaries without completing
-  the 3-recording/10-speaker denominator. Plan 0060 is the separately bounded
+  the 3-recording/10-speaker denominator. Open Plan 0060 is the separately bounded
   successor that must complete independent P2A and P2B receipts across all 3
   recordings/10 speakers before the blinded join and sealed review packet. It
   may close `review_ready` at the literal human-decision boundary rather than
@@ -662,7 +662,7 @@ reached their limit. One recording/four speakers produced deterministic
 acoustic evidence twice; the full 3-recording/10-speaker denominator and P3+
 join/review/comparison work were not run. A new bounded successor plan is
 required before further execution.
-Plan 0060 is that planning-only successor in
+Plan 0060 is that activated successor in
 `docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md`.
 It keeps the exact inherited cohort and private-copy boundary, executes the
 hardened acoustic and context lanes independently, and requires complete

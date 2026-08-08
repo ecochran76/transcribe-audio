@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 329: Activate Plan 0060 complete shadow join (2026-08-08)
+
+Summary: Committed and pushed the Plan 0060 planning-only checkpoint, then
+separately activated A0 from exact inherited Plan 0059 receipts and current
+runtime readbacks. No provider read, acoustic execution, or source change
+occurred before activation.
+
+Evidence:
+
+- Planning commit and upstream are exact at
+  `f34ed5f9aaaa294c85c89beaa215ee7a454cc1dc`; the worktree was clean.
+- Plan 0059 activation, P1, and terminal-refine receipts replayed at content
+  hashes `5e057826...`, `3b175d90...`, and `d32df6f...`, preserving the exact
+  3-recording/10-speaker cohort and private-shadow boundary.
+- Current live readback remains SQLite `ok`, 466 documents, 2 contacts, 3
+  assignments, absent knowledge schema, and identity-state SHA-256
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+  Both transcript services are active/running with zero restarts.
+- Fresh activation content SHA-256 is
+  `17ea8cb97263dbf628f4808a1adf503e7d6bf36017b52310e93f9fb7b99b7ded`;
+  manifest SHA-256 is
+  `924e5a7a0565ba87d322b61d88670c069801208be3ccf7c38fac92620a09fcee`.
+  Replay and private `0700`/`0600` modes pass.
+- Three explicit read-only provider scopes and the local acoustic authority are
+  hash-bound. Gold remains sealed until 30 blinded evaluations freeze.
+
+Checkpoint: `PLANNED -> OPEN/A0`; progress `outcome_progress`; authority is
+inside the planned private/read-only envelope; accepted finding ledger is
+empty; subagents were not spawned. Next: implement independent, replayable P2A
+and P2B execution so neither lane can erase or block the other's receipt.
+
 ## Turn 328: Plan the complete speaker identity shadow join (2026-08-08)
 
 Summary: Created planning-only Plan 0060 at
