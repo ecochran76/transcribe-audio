@@ -1,5 +1,37 @@
 # Runbook
 
+## Turn 336: Repair Plan 0061 remote recording links (2026-08-08)
+
+Summary: Replaced the unusable localhost recording handoffs in the
+authenticated Plan 0061 worksheet with the existing Authelia-gated external
+transcript console. No audio or transcript was copied into Previews; P3 remains
+blocked on the operator's complete literal decision export.
+
+Evidence:
+
+- Live `https://transcripts.ecochran.dyndns.org/` returned HTTP 302 to
+  Authelia. The focused repair landed at `cf16631`; 8 review tests, Python
+  compilation, diff validation, planning audit, and the cache-cleared full
+  934-test suite passed.
+- Replacement worksheet SHA-256 is `1a3fc088...`; receipt content is
+  `34125e1e...`; manifest is `36dd1cae...`. It remains 3 recordings, 10 blank
+  slots, 30 condition views, zero raw audio/transcript, zero apply, and zero
+  live mutation.
+- Browser smoke found three exact HTTPS deep links and no localhost link.
+  Opening the first preserved the document query and reached the Authelia
+  login. The worksheet had zero page errors and zero POST requests; the browser
+  session was closed.
+- Replacement authenticated Previews session `03268b59db56` contains worksheet
+  artifact `f96d6a27e109` and instructions `ad57b6bc5ff1`. External session
+  ingress returned HTTP 303 to the Previews login. Session `c9c4d5d5fbd0` is
+  superseded and had no feedback.
+
+Checkpoint: `OPEN/P2-review-rework -> OPEN/P2-human-gate`; progress
+`outcome_progress`; authority stayed private/authenticated and non-applying;
+the remote-link defect was `blocking -> accepted/fixed`; the one allowed review
+rework cycle is consumed; no subagent. Next: operator reviews all ten slots in
+the replacement session and returns the complete 13-line exported block.
+
 ## Turn 335: Publish Plan 0061 human review (2026-08-08)
 
 Summary: Implemented, hardened, froze, browser-verified, and published the

@@ -20,10 +20,10 @@ context-only, acoustic-only, and combined outcomes on the same denominator.
 The Plan 0060 P4 packet remains immutable input authority. This successor may
 copy only the minimum review fields needed by the authenticated Previews
 session: recording-local speaker references, candidate labels and opaque IDs,
-joined condition evidence, and local transcript-console deep links. It may not
-copy raw audio, raw transcripts, provider bodies, model-private features, or
-credentials. The page keeps choices client-side and exports an exact decision
-block; it has no API write or apply control.
+joined condition evidence, and authenticated transcript-console deep links. It
+may not copy raw audio, raw transcripts, provider bodies, model-private
+features, or credentials. The page keeps choices client-side and exports an
+exact decision block; it has no API write or apply control.
 
 This document is planning authority only. A distinct A0 checkpoint must move
 it to `OPEN` before source changes, private review preparation, preview
@@ -39,10 +39,11 @@ A0, P1, and P2 are complete. Plan 0061 remains `OPEN` at the literal human
 decision gate. The sealed
 Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
 and 30 condition views; no review choice is preselected and apply remains
-disabled. The authenticated worksheet exposes all ten choices and produces a
-strict hash-bound export only after 10/10 selections. P3 human-gold capture
-remains blocked on the operator's literal complete export; current decision
-count is zero and preview feedback is empty.
+disabled. The replacement authenticated worksheet exposes all ten choices,
+routes each recording through the Authelia-gated external transcript console,
+and produces a strict hash-bound export only after 10/10 selections. P3
+human-gold capture remains blocked on the operator's literal complete export;
+current decision count is zero and preview feedback is empty.
 
 ## A0 activation checkpoint
 
@@ -78,8 +79,9 @@ ledger: empty; next ready unit: P1 review preparation.
 
 Reusable review authority and tests landed at `9b935e7`. The renderer validates
 the exact P4 denominator, strips candidate email and raw media/transcript,
-exposes candidate labels plus condition evidence, links each recording to the
-existing local transcript console, and keeps all choices in browser memory.
+exposes candidate labels plus condition evidence, initially linked each
+recording to the local transcript console, and keeps all choices in browser
+memory.
 The strict parser accepts only the exact 3 hash headers and 10 ordered,
 allowlisted decision rows. Partial, duplicate, stale, out-of-set, or preselected
 input fails closed. Focused review/join/API validation passed 16 tests; the full
@@ -111,15 +113,39 @@ zero page errors, zero POST requests, and a clear action that restored 0/10 and
 an empty export. The smoke choices were cleared and the browser was closed;
 they are not human gold.
 
-Authenticated Previews session `c9c4d5d5fbd0` now contains the exact worksheet
-artifact `3b0953db8981` and non-sensitive instructions `ec776a3816e0`. Current
-feedback is empty. This is the P2 approval surface, not a decision receipt.
-P3 cannot start until the operator returns the complete exported block.
+The operator's remote review found that the three recording links in
+authenticated Previews session `c9c4d5d5fbd0` used
+`http://transcripts.localhost` and were unusable off-host. This was accepted as
+the single blocking review-surface finding and consumed the one allowed review
+rework cycle. No decision was entered and old-session feedback remained empty.
+
+The repair landed at `cf16631`. It uses the existing
+`https://transcripts.ecochran.dyndns.org` ingress, which currently redirects
+unauthenticated requests to Authelia, and binds that base URL into the private
+manifest and receipt. The replacement worksheet SHA-256 is
+`1a3fc08833753b992dd4558555b1b4709e83762ae7d4a04e8b850a4928a206bb`;
+receipt content SHA-256 is
+`34125e1e4fe9716fd6b2a2eafc5857ab9240067c58a3cd2d9479418ca67a69e8`;
+manifest SHA-256 is
+`36dd1cae886caf16145ca02b1f707129455fd3f49003b91c36cd43f25e4f7014`.
+It still contains zero raw audio, raw transcript, preselection, decision, apply,
+or live mutation.
+
+Browser verification found 3 exact HTTPS recording deep links, 10 blank
+controls, and 30 condition views. Opening the first link preserved its exact
+document query and reached the Authelia login; the worksheet produced zero page
+errors and zero POST requests. Focused validation passed 8 tests and the
+cache-cleared full suite passed 934 tests. Replacement authenticated Previews
+session `03268b59db56` contains worksheet artifact `f96d6a27e109` and instructions
+`ad57b6bc5ff1`. Session `c9c4d5d5fbd0` is superseded and must not be used.
+The replacement is the P2 approval surface, not a decision receipt. P3 cannot
+start until the operator returns the complete exported block.
 
 Progress classification: `outcome_progress`; authority classification:
-private/authenticated minimum-copy review only; finding ledger: one blocking
-JavaScript escape defect `accepted/fixed` within attempt bound; next action:
-literal operator review or stop.
+private/authenticated minimum-copy review only; finding ledger: the blocking
+JavaScript escape defect and blocking remote-link defect are both
+`accepted/fixed`, respectively within the work-unit attempt bound and the one
+review-rework-cycle bound; next action: literal operator review or stop.
 
 ## Vision outcomes and maturity movement
 
@@ -164,7 +190,7 @@ models, or substitute a new live snapshot.
 | --- | --- | --- | --- |
 | A0 activation | User `ok go`, clean upstream-even repo, exact inherited replay, current live readback | Freeze successor authority and private/authenticated review boundary | `OPEN` only if every packet, runtime, identity, privacy, and non-effect binding remains exact |
 | P1 review preparation | A0 and exact P4 packet | Build tested client-only worksheet plus strict complete-decision parser | 10 unique slots, allowlisted per-case choices, zero preselection, no network write/apply code |
-| P2 preview gate | P1 | Publish one authenticated Previews session and verify browser usability | All 10 controls render; local deep links and export work; user receives one session URL |
+| P2 preview gate | P1 | Publish one authenticated Previews session and verify browser usability | All 10 controls render; authenticated remote deep links and export work; user receives one session URL |
 | P3 human gold | Literal operator export from P2 | Validate and freeze 10/10 immutable decisions | Partial, duplicate, stale, out-of-set, or inferred decisions fail closed |
 | P4 comparison | P3 | Score all three frozen conditions and freeze independent metrics | Exact denominator and evaluation hashes; recomputation agrees; all forbidden mutations remain zero |
 | P5 terminal audit | P4 | Recheck packet, preview provenance, private modes, runtime, identity state, and metrics | `complete`, `refine`, or `stop` with explicit evidence |
@@ -185,8 +211,9 @@ subagents, and the primary agent owns all writes and recomputation.
   and private decision receipts remain under mode-`0700` local runtime roots
   with mode-`0600` files.
 - The authenticated Previews copy contains only the minimum review worksheet
-  and is a temporary human-review surface. It may link to the existing local
-  transcript console but may not embed or duplicate its raw media/transcript.
+  and is a temporary human-review surface. It may link to the existing
+  authenticated external transcript console but may not embed or duplicate its
+  raw media/transcript.
 - The worksheet performs no POST/PUT/PATCH/DELETE request. Its only output is a
   client-side copied/downloaded exact decision block.
 - Live database/schema, assignments, people, contacts, roles, relationships,
@@ -200,7 +227,7 @@ subagents, and the primary agent owns all writes and recomputation.
 - The renderer exposes every frozen candidate, alternative, contradiction,
   warning, cap, source failure, and abstention for all 10 speaker slots without
   selecting a decision.
-- The worksheet gives one clear local listening/transcript route per recording,
+- The worksheet gives one clear authenticated listening/transcript route per recording,
   requires one allowlisted choice per slot, reports completion progress, and
   exports nothing until 10/10 choices exist.
 - The strict parser binds the Plan 0060 P4 content and manifest hashes and
