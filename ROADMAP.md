@@ -409,7 +409,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0058 review-surface reliability is active
+State: OPEN — Plan 0058 review-surface reliability is closed; no successor is active
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4
@@ -630,9 +630,14 @@ ingress 502 responses when the generated page eagerly preloads all 15 media
 files; Chromium reports those responses as format errors and disables the
 affected controls. The plan adds strict per-card decisions, exact importer
 export, on-demand audio, a direct-file fallback, and a non-sensitive 15-card
-public-browser proof. It does not run a fresh acoustic cohort, modify Previews,
-or authorize any identity, assignment, profile, provider, integration, or
-historical mutation.
+public-browser proof. Plan 0058 is now closed `complete`: the synthetic surface
+rendered 15/15 decision groups and fallbacks, refused incomplete export,
+round-tripped a complete 15-line block through the existing strict parser, and
+loaded, sought, and played all 15 media files serially through public ingress
+with 15 HTTP 200 Media responses, zero failures, and zero 502 responses. It did
+not run a fresh acoustic cohort, modify Previews, or authorize any identity,
+assignment, profile, provider, integration, or historical mutation. A separate
+bounded plan is required for any next P10 milestone.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

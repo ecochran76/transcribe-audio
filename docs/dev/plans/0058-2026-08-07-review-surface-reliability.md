@@ -1,8 +1,8 @@
 # Plan 0058 | Review-surface reliability
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: P1 renderer and P2 fixture authority implemented; execution proof pending
+Checkpoint: P4 complete; terminal decision `complete`
 
 Lane: P10
 
@@ -227,3 +227,47 @@ production integration, provider write-back, or historical reprocessing.
   delegation and the execution path remains tightly coupled.
 - Next action: commit and push the implementation authority, then execute P2
   apply/replay and P3 public-browser proof against that exact commit.
+
+## Terminal Checkpoint 2026-08-07 | P2 through P4 complete
+
+- State transition: `OPEN` -> `CLOSED`; terminal decision `complete`.
+- Implementation authority: clean, pushed, upstream-even commit `d381744`.
+  Focused renderer/fixture tests passed `11/11`; the complete repository suite
+  passed `905/905` in 88.06 seconds; compilation and `git diff --check` passed.
+  The active-plan planning-contract audit returned `ok: true`; the unscoped
+  audit continues to report only inherited missing-state defects in older
+  plans, not Plan 0058.
+- Private fixture: preview content
+  `91fc2edf7dd503f49d3a97d8cc9d936420939552f6c90578f1acf8a0f77dd953`
+  produced 15 deterministic WAVs and index hash
+  `d3aa45a1463798408a781ca02365f651a08e0d49c85f62c159d5504e0dd5367e`.
+  Apply/replay was idempotent with `0700` directories, `0600` files, and every
+  negative action still false.
+- Public proof: Previews session `e3d074abfa25`, artifact `151d48a5038b`.
+  Chromium found 15 cards, 15 fieldsets, 60 radios, no preselection, 15 lazy
+  audio controls, and 15 direct-file fallbacks. Incomplete export returned no
+  block; a complete 15-line ordered export was accepted unchanged by
+  `acoustic_plan0057_review.parse_review_answers()` with all four allowlisted
+  machine outcomes represented and one review-only label retained separately.
+- Media proof: before explicit loading the page emitted zero media requests.
+  Serial on-demand validation loaded metadata, sought, and advanced playback
+  for `15/15` clips. The captured network log contained 15 Media responses at
+  HTTP 200, zero failed responses, and zero HTTP 502 responses.
+- Visual proof: the complete full-page Chromium capture was inspected for all
+  15 consistently rendered cards, decision controls, lazy audio rows,
+  fallbacks, and export controls; the temporary capture was then trashed.
+- Access cleanup: diagnostic read-only share link `2b294327ba44` was revoked at
+  `2026-08-08T04:28:35Z`; the ephemeral browser profiles and screenshot were
+  trashed. No credential or share token entered the repository or retained
+  evidence.
+- Finding disposition: `F0058-01` and `F0058-02` are `resolved`. Closed-world
+  verification found no critical regression and used no rework cycle.
+- Progress classification: `outcome_progress`; human-review and review-media
+  reliability reached the targeted Level 2 synthetic-shadow evidence. Acoustic
+  speaker identity remains Level 2 integrated-shadow and unchanged.
+- Authority classification: all work remained inside Plan 0058. No fresh
+  cohort, assignment, identity/contact/relationship, profile/reference,
+  provider, Graphiti, integration, historical, or Previews-runtime mutation
+  occurred.
+- Next action: any further P10 advancement requires a separate bounded plan;
+  this closure grants no automatic assignment or production authority.

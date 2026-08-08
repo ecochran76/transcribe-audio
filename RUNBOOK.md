@@ -1,5 +1,65 @@
 # Runbook
 
+## Turn 322: Close Plan 0058 review-surface reliability (2026-08-07)
+
+Summary: Implemented, froze, published, and browser-proved the reusable
+acoustic review surface, resolving both accepted Plan 0058 findings without
+rerunning acoustics or changing identity, assignment, provider, integration,
+historical, or Previews runtime state.
+
+Implementation and fixture authority:
+
+- Pushed implementation commit `d381744` with the reusable renderer, strict
+  browser exporter, deterministic Plan 0058 fixture authority, and focused
+  tests.
+- Focused tests passed `11/11`; the complete repository suite passed `905/905`
+  in 88.06 seconds. Python compilation and `git diff --check` passed.
+- The active-plan planning-contract audit returned `ok: true`. The unscoped
+  audit's missing-state findings are inherited older-plan backlog; Plan 0058
+  itself is deterministic and wired in both Roadmap and Runbook.
+- Preview content
+  `91fc2edf7dd503f49d3a97d8cc9d936420939552f6c90578f1acf8a0f77dd953`
+  applied and replayed idempotently with 15 clips, index hash
+  `d3aa45a1463798408a781ca02365f651a08e0d49c85f62c159d5504e0dd5367e`,
+  `0700` directories, `0600` files, and an all-false negative-action vector.
+
+Public browser proof:
+
+- Previews health passed; session `e3d074abfa25` published synthetic directory
+  artifact `151d48a5038b`.
+- Chromium observed 15 cards, 15 semantic decision groups, 60 native radios,
+  zero preselected decisions, 15 `preload="none"` audio controls, and 15
+  direct-file fallbacks.
+- Incomplete export produced zero answer bytes. The completed ordered 15-line
+  block parsed unchanged through the strict Plan 0057 importer, preserving the
+  four allowlisted machine outcomes and separating one review-only label.
+- Before explicit loading the raw page emitted zero Media requests. Serial
+  validation loaded metadata, sought, and advanced playback for 15/15 clips;
+  network capture reported 15 Media responses at HTTP 200, zero failures, and
+  zero HTTP 502 responses.
+- Full-page visual inspection confirmed consistent card, media, form, and
+  export rendering. The temporary capture and ephemeral browser profiles were
+  trashed. Diagnostic share link `2b294327ba44` was revoked at
+  `2026-08-08T04:28:35Z`.
+
+Terminal audit:
+
+- `F0058-01` and `F0058-02` are resolved with closed-world verification and no
+  rework cycle.
+- Plan 0058 is `CLOSED` at terminal decision `complete`; human-review and
+  review-media reliability hold the targeted Level 2 synthetic-shadow proof.
+  Acoustic speaker identity remains Level 2 integrated-shadow and unchanged.
+- No fresh cohort, speaker assignment, identity/contact/relationship,
+  profile/reference, provider, Graphiti, default-integration, historical, or
+  Previews-runtime mutation occurred. No credential or share token entered the
+  repository or retained artifacts.
+
+Next:
+
+- Open a separate bounded P10 plan before any next acoustic milestone. Plan
+  0058 grants no automatic assignment, profile learning, production
+  integration, provider write-back, or historical-reprocessing authority.
+
 ## Turn 321: Open Plan 0058 review-surface reliability (2026-08-07)
 
 Summary: Corrected the Plan 0058 handoff after reproducing the retained review
