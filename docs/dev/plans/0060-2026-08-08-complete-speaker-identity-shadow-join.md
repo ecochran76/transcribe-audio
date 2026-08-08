@@ -112,6 +112,15 @@ automatic identity loop.
 A0 must replay and independently re-check every inherited binding. Drift stops
 activation; this plan does not silently select a new cohort or live snapshot.
 
+## Current state
+
+Plan 0060 is `OPEN` at the A0 checkpoint above. The exact inherited cohort,
+P1 private shadow, live-state counters, identity snapshot, local acoustic
+authority, three provider scopes, privacy modes, negative actions, and sealed
+gold gate are hash-bound in the fresh activation receipt. No Plan 0060 P2A or
+P2B execution has run yet, and P3 through P6 remain blocked by their declared
+dependencies.
+
 ## Execution graph
 
 | Unit | Depends on | Outcome | Terminal condition |
