@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P0 complete; P1 ready
+Checkpoint: P1 complete; P2A and P2B ready
 
 Lane: P09
 
@@ -232,6 +232,38 @@ receipt replay. The adjoining acoustic/context/store regression set passes
 27/27. Progress classification: `outcome_progress`; next ready unit is P1
 private-copy migration, projection, reconciliation, export, replay, restore,
 and rollback rehearsal.
+
+## P1 checkpoint
+
+P1 is complete on a private, disposable live-database snapshot. Receipt
+content SHA-256 is
+`3b175d90d4331ef4fa98498cdaed24d82dde184fda931d04167ff6c97c9d1e84`;
+manifest SHA-256 is
+`00b5d24811951b3bc51e6a504fd995192b590e6d7760ed2a672449fc34215a4f`;
+the source snapshot SHA-256 is
+`55d1e663583cd2673c45e0d0666b3af4d9f83b369a59c030c138b8912552a856`.
+
+The snapshot retained 466 documents, 2 compatibility contacts, and 3 speaker
+assignments. Its active shadow migrated `0 -> 3` while keeping sidecar
+authority and `dirty=false`. All 3 frozen cohort documents projected and
+reconciled; all 3 exact replays returned `unchanged`; and all 3 processing
+histories exported to private round-trip artifacts. The two compatibility
+contacts produced two separate canonical-person candidates, zero automatic
+merge groups, and review-only merge/split/redirect state.
+
+An independent backup/restore copy matched the active shadow's complete table-
+count digest
+`bd431a6463078a5a24da219d4c1b69f149d76435490d92c5387e14e1fd3ac87d`.
+A separate rollback rehearsal applied versions `3, 2, 1` in reverse and
+returned to schema version 0 with all legacy document/contact/assignment counts
+preserved. Source, active, restored, and rolled-back databases passed SQLite
+integrity or quick checks. P1 replay is idempotent, every private directory is
+`0700`, and every private file is `0600`.
+
+The live database remained schema version 0, sidecar-authoritative, clean, with
+2 contacts and 3 speaker assignments. All forbidden mutation counters remain
+zero. Progress classification: `outcome_progress`; P2A and P2B are now ready
+against the frozen contracts and active private-shadow interface.
 
 ## Data and authority boundaries
 

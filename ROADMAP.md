@@ -229,7 +229,7 @@ Milestone Focus:
   decision contracts; rehearses schema migration and reconciliation on a
   private live-database copy; and compares context-only, acoustic-only, and
   combined evidence in the selected-conversation review path. Note 0055 is the
-  architecture authority. Plan 0059 is `OPEN` with P0 complete and P1 ready;
+  architecture authority. Plan 0059 is `OPEN` with P1 complete and P2A/P2B ready;
   it authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
@@ -419,7 +419,7 @@ Definition of Done:
 
 ## P10 | Acoustic Processing And Biometric Speaker Identity
 
-State: OPEN — Plan 0058 is closed; Plan 0059 P0 is complete and P1 is ready
+State: OPEN — Plan 0058 is closed; Plan 0059 P1 is complete and P2A/P2B are ready
 
 Current State: Plan 0037 is closed unsuccessfully with terminal `STOP` through
 Plan 0048. P0 through P3 remain closed through Plans 0038 through 0041. P4

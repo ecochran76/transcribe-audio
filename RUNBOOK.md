@@ -1,5 +1,52 @@
 # Runbook
 
+## Turn 326: Complete Plan 0059 P1 private shadow rehearsal (2026-08-08)
+
+Summary: Completed schema migration, selected-cohort projection,
+reconciliation preview, export, replay, backup/restore, and rollback against a
+disposable copy of the live transcript database. P2A and P2B are ready.
+
+Evidence:
+
+- Content-addressed P1 receipt:
+  `3b175d90d4331ef4fa98498cdaed24d82dde184fda931d04167ff6c97c9d1e84`;
+  manifest SHA-256:
+  `00b5d24811951b3bc51e6a504fd995192b590e6d7760ed2a672449fc34215a4f`;
+  source snapshot SHA-256:
+  `55d1e663583cd2673c45e0d0666b3af4d9f83b369a59c030c138b8912552a856`.
+- The source snapshot passed integrity checking with 466 documents, 2
+  compatibility contacts, 3 speaker assignments, 294 blobs, 371 document/blob
+  links, and 11,482 document chunks.
+- The active private shadow migrated from knowledge schema 0 to 3 with
+  sidecar authority and `dirty=false`. Three of three frozen cohort documents
+  projected and reconciled; three of three replays returned `unchanged`; three
+  private processing-history exports were frozen.
+- Compatibility reconciliation kept both contacts as separate candidate
+  people, found zero automatic merge groups, and left merge/split/redirect
+  review-only.
+- The backup/restore copy matched the active shadow's full table-count digest
+  `bd431a6463078a5a24da219d4c1b69f149d76435490d92c5387e14e1fd3ac87d`.
+  A separate rollback copy reversed schema versions 3, 2, and 1 to version 0;
+  document, contact, and assignment counts remained exact.
+- P1 replay passed idempotently. All private directories were `0700`; all
+  private files were `0600`. The focused P0/store/projection test set passed
+  15/15 before real rehearsal.
+
+Checkpoint:
+
+- State transition: `active/P1 -> active/P2A-P2B-ready`.
+- Progress classification: `outcome_progress`.
+- Subagent status: `not_spawned`; proactive subagents remain unavailable.
+- Authority classification: private-copy only, inside the activated envelope.
+- Review disposition summary: no accepted findings; discovery pass remains
+  unused.
+- Live non-effects: knowledge schema remains 0, authority remains `sidecar`,
+  `dirty=false`, contacts remain 2, assignments remain 3, and all person,
+  role, relationship, profile, reference, provider, Graphiti, default,
+  watcher, and historical mutation counters remain zero.
+- Next action: implement exact acoustic normalization (P2A) and scope-safe
+  context/canonical-candidate bundles (P2B), then join once at P3.
+
 ## Turn 325: Complete Plan 0059 P0 contracts (2026-08-08)
 
 Summary: Implemented and validated the immutable Plan 0059 identity-case

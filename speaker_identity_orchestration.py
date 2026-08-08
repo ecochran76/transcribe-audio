@@ -18,11 +18,22 @@ from acoustic_audio_derivatives import (
     sha256_file,
     write_immutable_private_json,
 )
+import transcript_store
+from conversation_knowledge_projection import (
+    APPLY_APPROVAL_TOKEN,
+    ConversationKnowledgeProjector,
+)
+from conversation_knowledge_store import (
+    LATEST_SCHEMA_VERSION,
+    ConversationKnowledgeStore,
+)
 
 
 CONTRACT_VERSION = "transcribe-audio.speaker-identity-shadow-contract.v1"
 ACTIVATION_MANIFEST_VERSION = "transcribe-audio.plan0059-activation-manifest.v1"
 ACTIVATION_RECEIPT_VERSION = "transcribe-audio.plan0059-activation-receipt.v1"
+P1_MANIFEST_VERSION = "transcribe-audio.plan0059-shadow-store-manifest.v1"
+P1_RECEIPT_VERSION = "transcribe-audio.plan0059-shadow-store-receipt.v1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 GIT_OID_RE = re.compile(r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$")
 OPAQUE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$")
@@ -801,6 +812,357 @@ def replay_activation(content_sha256: str, *, runtime_root: Path) -> dict[str, A
     return {**receipt, "idempotent_replay": True}
 
 
+def _sqlite_backup(source_path: Path, destination_path: Path) -> None:
+    if destination_path.exists():
+        _fail("shadow_artifact_conflict", f"Shadow database already exists: {destination_path}")
+    destination_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    destination_path.parent.chmod(0o700)
+    try:
+        with _readonly_connection(source_path) as source:
+            with sqlite3.connect(destination_path) as destination:
+                source.backup(destination)
+                result = destination.execute("PRAGMA integrity_check").fetchone()
+                if not result or result[0] != "ok":
+                    _fail("shadow_database_integrity", "SQLite backup failed integrity_check.")
+        destination_path.chmod(0o600)
+    except Exception:
+        if destination_path.exists():
+            destination_path.unlink()
+        raise
+
+
+def _table_counts(database_path: Path) -> dict[str, int]:
+    with _readonly_connection(database_path) as connection:
+        tables = [
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            ).fetchall()
+        ]
+        return {
+            table: int(connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+            for table in tables
+        }
+
+
+def _quick_check(database_path: Path) -> str:
+    with _readonly_connection(database_path) as connection:
+        return str(connection.execute("PRAGMA quick_check").fetchone()[0])
+
+
+def _document_artifact(database_path: Path, document_id: str) -> tuple[Path, str]:
+    with _readonly_connection(database_path) as connection:
+        row = connection.execute(
+            "SELECT source_path, stored_path, artifact_sha256 FROM documents WHERE id=? AND kind='transcript'",
+            (document_id,),
+        ).fetchone()
+    if row is None:
+        _fail("shadow_document_missing", "Frozen cohort document is absent from shadow copy.")
+    expected = _sha256(str(row["artifact_sha256"]), "artifact_sha256")
+    for candidate in (str(row["source_path"] or ""), str(row["stored_path"] or "")):
+        if not candidate:
+            continue
+        path = Path(candidate).expanduser()
+        if path.is_file() and path.name.endswith(".transcript.json") and sha256_file(path) == expected:
+            return path.resolve(), expected
+    _fail("shadow_transcript_unavailable", "Frozen transcript artifact is unavailable or hash-mismatched.")
+    raise AssertionError("unreachable")
+
+
+def _compatibility_reconciliation_preview(database_path: Path) -> dict[str, Any]:
+    with _readonly_connection(database_path) as connection:
+        rows = connection.execute(
+            "SELECT id, label, email, external_ref FROM contacts ORDER BY id"
+        ).fetchall()
+    candidates: list[dict[str, Any]] = []
+    groups: dict[tuple[str, str], list[str]] = {}
+    for row in rows:
+        contact_id = str(row["id"])
+        label = str(row["label"] or "").strip()
+        email = str(row["email"] or "").strip().casefold()
+        external_ref = str(row["external_ref"] or "").strip()
+        normalized_label = " ".join(label.casefold().split())
+        group_key = (email, normalized_label)
+        groups.setdefault(group_key, []).append(contact_id)
+        candidates.append(
+            {
+                "contact_id": contact_id,
+                "label": label,
+                "email": email,
+                "external_ref": external_ref,
+                "candidate_person_id": "person-preview-" + canonical_artifact_hash(
+                    {"contact_id": contact_id}
+                )[:24],
+                "status": "separate_review_only",
+            }
+        )
+    merge_groups = [
+        {
+            "contact_ids": sorted(contact_ids),
+            "action": "review_required",
+            "automatic_merge": False,
+        }
+        for contact_ids in groups.values()
+        if len(contact_ids) > 1
+    ]
+    return {
+        "compatibility_contact_count": len(candidates),
+        "candidate_count": len(candidates),
+        "merge_group_count": len(merge_groups),
+        "candidates": candidates,
+        "merge_groups": merge_groups,
+        "ambiguous_people_remain_separate": True,
+        "merge_split_redirect_review_only": True,
+    }
+
+
+def _p1_paths(runtime_root: Path, activation_content_sha256: str) -> dict[str, Path]:
+    root = runtime_root.expanduser().absolute()
+    run = root / f"p1-shadow-{activation_content_sha256[:24]}"
+    return {
+        "root": root,
+        "run": run,
+        "source": run / "source-snapshot" / "transcripts.sqlite3",
+        "active_root": run / "active-shadow",
+        "active": run / "active-shadow" / "transcripts.sqlite3",
+        "active_backup": run / "round-trip" / "active-backup.sqlite3",
+        "restored_root": run / "round-trip" / "restored-shadow",
+        "restored": run / "round-trip" / "restored-shadow" / "transcripts.sqlite3",
+        "rollback_root": run / "rollback-rehearsal",
+        "rollback": run / "rollback-rehearsal" / "transcripts.sqlite3",
+        "exports": run / "exports",
+        "manifest": run / "private-manifest.json",
+        "receipt": run / "receipt.json",
+    }
+
+
+def rehearse_shadow_store(
+    *,
+    store_root: Path,
+    runtime_root: Path,
+    activation_content_sha256: str,
+) -> dict[str, Any]:
+    activation = replay_activation(activation_content_sha256, runtime_root=runtime_root)
+    paths = _p1_paths(runtime_root, activation_content_sha256)
+    if paths["receipt"].exists():
+        return replay_shadow_store(
+            activation_content_sha256=activation_content_sha256,
+            runtime_root=runtime_root,
+        )
+    if paths["run"].exists():
+        _fail("incomplete_p1_run", "P1 run directory exists without a terminal receipt.")
+    ensure_private_tree(paths["root"], paths["run"])
+    activation_manifest_path = (
+        paths["root"]
+        / f"activation-{activation_content_sha256[:24]}"
+        / "private-manifest.json"
+    )
+    require_private_file(activation_manifest_path, paths["root"])
+    activation_manifest = read_private_object(activation_manifest_path)
+    cohort = ((activation_manifest.get("cohort") or {}).get("members") or [])
+    cohort_ids = [str(item.get("document_id") or "") for item in cohort]
+    live_database = store_root.expanduser().resolve() / "transcripts.sqlite3"
+    _sqlite_backup(live_database, paths["source"])
+    source_snapshot_sha256 = sha256_file(paths["source"])
+    source_counts = _table_counts(paths["source"])
+    expected_counts = (
+        ((activation_manifest.get("runtime") or {}).get("live_database") or {}).get("counts")
+        or {}
+    )
+    for table_name in ("contacts", "speaker_assignments"):
+        if source_counts.get(table_name) != int(expected_counts.get(table_name, -1)):
+            _fail("live_identity_state_drift", f"Live {table_name} changed after activation.")
+    with _readonly_connection(paths["source"]) as source_connection:
+        fresh_rows = _activation_rows(source_connection, cohort_ids)
+    membership_sha256 = _canonical_membership_hash(fresh_rows)
+    if membership_sha256 != activation.get("membership_sha256"):
+        _fail("cohort_membership_drift", "Cohort bindings changed before P1.")
+
+    _sqlite_backup(paths["source"], paths["active"])
+    active_store = ConversationKnowledgeStore(paths["active_root"])
+    migration = active_store.migrate(target_version=LATEST_SCHEMA_VERSION, backup=True)
+    if active_store.schema_status().schema_version != LATEST_SCHEMA_VERSION:
+        _fail("shadow_migration_incomplete", "Active shadow did not reach current schema.")
+    projector = ConversationKnowledgeProjector(paths["active_root"])
+    projection_receipts: list[dict[str, Any]] = []
+    replay_receipts: list[dict[str, Any]] = []
+    exports: list[dict[str, Any]] = []
+    for document_id in cohort_ids:
+        transcript_path, transcript_sha256 = _document_artifact(paths["active"], document_id)
+        plan = projector.preview(transcript_path, document_id=document_id)
+        first = projector.apply(plan, approval_token=APPLY_APPROVAL_TOKEN, migrate_backup=False)
+        replayed = projector.apply(plan, approval_token=APPLY_APPROVAL_TOKEN, migrate_backup=False)
+        if not first.reconciled or not replayed.reconciled or replayed.status != "unchanged":
+            _fail("projection_replay_failed", "Shadow projection did not reconcile idempotently.")
+        export_path = paths["exports"] / f"{plan.processing_history.conversation_id}.processing.json"
+        exported = projector.export_sidecar(plan.processing_history.conversation_id, export_path)
+        projection_receipts.append(asdict(first))
+        replay_receipts.append(asdict(replayed))
+        exports.append(
+            {
+                "conversation_id": plan.processing_history.conversation_id,
+                "document_id": document_id,
+                "transcript_sha256": transcript_sha256,
+                "export_path": str(export_path),
+                "export_sha256": sha256_file(export_path),
+                "evaluation_count": len(exported.get("evaluations") or []),
+                "decision_count": len(exported.get("review_decisions") or []),
+            }
+        )
+    reconciliation = _compatibility_reconciliation_preview(paths["active"])
+    active_counts = _table_counts(paths["active"])
+    active_counts_sha256 = canonical_artifact_hash(active_counts)
+    if _quick_check(paths["active"]) != "ok":
+        _fail("active_shadow_integrity", "Active shadow failed quick_check.")
+
+    _sqlite_backup(paths["active"], paths["active_backup"])
+    _sqlite_backup(paths["active_backup"], paths["restored"])
+    restored_counts = _table_counts(paths["restored"])
+    restored_store = ConversationKnowledgeStore(paths["restored_root"])
+    if (
+        _quick_check(paths["restored"]) != "ok"
+        or restored_counts != active_counts
+        or restored_store.schema_status() != active_store.schema_status()
+    ):
+        _fail("round_trip_restore_failed", "Restored shadow does not reconcile with active shadow.")
+
+    _sqlite_backup(paths["active_backup"], paths["rollback"])
+    rollback_store = ConversationKnowledgeStore(paths["rollback_root"])
+    rollback_receipt = rollback_store.rollback(target_version=0, backup=True)
+    rollback_counts = _table_counts(paths["rollback"])
+    if (
+        rollback_store.schema_status().schema_version != 0
+        or _quick_check(paths["rollback"]) != "ok"
+        or any(
+            rollback_counts.get(table_name) != source_counts.get(table_name)
+            for table_name in ("documents", "contacts", "speaker_assignments")
+        )
+    ):
+        _fail("rollback_rehearsal_failed", "Rollback did not preserve legacy state.")
+
+    with _readonly_connection(live_database) as live_after:
+        live_contacts = int(live_after.execute("SELECT COUNT(*) FROM contacts").fetchone()[0])
+        live_assignments = int(
+            live_after.execute("SELECT COUNT(*) FROM speaker_assignments").fetchone()[0]
+        )
+        live_knowledge_status = _knowledge_status(live_after)
+    if (
+        live_contacts != int(expected_counts.get("contacts", -1))
+        or live_assignments != int(expected_counts.get("speaker_assignments", -1))
+        or live_knowledge_status
+        != ((activation_manifest.get("runtime") or {}).get("live_database") or {}).get(
+            "knowledge_status"
+        )
+    ):
+        _fail("live_state_mutation", "Live identity or knowledge authority changed during P1.")
+
+    manifest = {
+        "schema_version": P1_MANIFEST_VERSION,
+        "status": "private_shadow_rehearsal_complete",
+        "activation_content_sha256": activation_content_sha256,
+        "source_snapshot": {
+            "path": str(paths["source"]),
+            "sha256": source_snapshot_sha256,
+            "quick_check": _quick_check(paths["source"]),
+            "table_counts": source_counts,
+        },
+        "migration": asdict(migration),
+        "active_shadow": {
+            "path": str(paths["active"]),
+            "schema_status": asdict(active_store.schema_status()),
+            "quick_check": "ok",
+            "table_counts": active_counts,
+            "table_counts_sha256": active_counts_sha256,
+        },
+        "projection_receipts": projection_receipts,
+        "projection_replays": replay_receipts,
+        "exports": exports,
+        "reconciliation_preview": reconciliation,
+        "round_trip_restore": {
+            "backup_path": str(paths["active_backup"]),
+            "backup_sha256": sha256_file(paths["active_backup"]),
+            "restored_path": str(paths["restored"]),
+            "restored_table_counts_sha256": canonical_artifact_hash(restored_counts),
+            "reconciled": restored_counts == active_counts,
+        },
+        "rollback": {
+            "receipt": asdict(rollback_receipt),
+            "schema_status": asdict(rollback_store.schema_status()),
+            "quick_check": "ok",
+            "legacy_counts_preserved": True,
+        },
+        "live_after": {
+            "contacts": live_contacts,
+            "speaker_assignments": live_assignments,
+            "knowledge_status": live_knowledge_status,
+        },
+        "negative_actions": negative_action_vector(),
+    }
+    validate_negative_actions(manifest["negative_actions"])
+    manifest_content_sha256 = canonical_artifact_hash(manifest)
+    write_immutable_private_json(paths["manifest"], manifest)
+    receipt = {
+        "schema_version": P1_RECEIPT_VERSION,
+        "status": "private_shadow_rehearsal_complete",
+        "activation_content_sha256": activation_content_sha256,
+        "content_sha256": manifest_content_sha256,
+        "manifest_sha256": sha256_file(paths["manifest"]),
+        "source_snapshot_sha256": source_snapshot_sha256,
+        "migration_from_version": migration.from_version,
+        "migration_to_version": migration.to_version,
+        "projection_count": len(projection_receipts),
+        "projection_replay_count": len(replay_receipts),
+        "export_count": len(exports),
+        "compatibility_contact_count": reconciliation["compatibility_contact_count"],
+        "ambiguous_people_remain_separate": True,
+        "round_trip_reconciled": True,
+        "rollback_to_version": rollback_receipt.to_version,
+        "legacy_counts_preserved": True,
+        "live_identity_mutation_count": 0,
+        "negative_actions_preserved": True,
+    }
+    write_immutable_private_json(paths["receipt"], receipt)
+    return {
+        **receipt,
+        "manifest_path": str(paths["manifest"]),
+        "receipt_path": str(paths["receipt"]),
+        "active_shadow_root": str(paths["active_root"]),
+        "idempotent_replay": False,
+    }
+
+
+def replay_shadow_store(
+    *, activation_content_sha256: str, runtime_root: Path
+) -> dict[str, Any]:
+    _sha256(activation_content_sha256, "activation_content_sha256")
+    paths = _p1_paths(runtime_root, activation_content_sha256)
+    require_private_file(paths["manifest"], paths["root"])
+    require_private_file(paths["receipt"], paths["root"])
+    manifest = read_private_object(paths["manifest"])
+    receipt = read_private_object(paths["receipt"])
+    active_counts = _table_counts(paths["active"])
+    if (
+        receipt.get("activation_content_sha256") != activation_content_sha256
+        or receipt.get("content_sha256") != canonical_artifact_hash(manifest)
+        or receipt.get("manifest_sha256") != sha256_file(paths["manifest"])
+        or manifest.get("active_shadow", {}).get("table_counts") != active_counts
+        or manifest.get("active_shadow", {}).get("table_counts_sha256")
+        != canonical_artifact_hash(active_counts)
+        or _quick_check(paths["active"]) != "ok"
+        or _quick_check(paths["restored"]) != "ok"
+        or _quick_check(paths["rollback"]) != "ok"
+        or receipt.get("negative_actions_preserved") is not True
+    ):
+        _fail("p1_replay_invalid", "P1 shadow-store receipt binding is invalid.")
+    return {
+        **receipt,
+        "manifest_path": str(paths["manifest"]),
+        "receipt_path": str(paths["receipt"]),
+        "active_shadow_root": str(paths["active_root"]),
+        "idempotent_replay": True,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plan 0059 shadow identity contracts and receipts.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -819,6 +1181,13 @@ def _parser() -> argparse.ArgumentParser:
     replay = subparsers.add_parser("replay-activation")
     replay.add_argument("--runtime-root", type=Path, required=True)
     replay.add_argument("--content-sha256", required=True)
+    p1 = subparsers.add_parser("rehearse-shadow-store")
+    p1.add_argument("--store-root", type=Path, required=True)
+    p1.add_argument("--runtime-root", type=Path, required=True)
+    p1.add_argument("--activation-content-sha256", required=True)
+    p1_replay = subparsers.add_parser("replay-shadow-store")
+    p1_replay.add_argument("--runtime-root", type=Path, required=True)
+    p1_replay.add_argument("--activation-content-sha256", required=True)
     return parser
 
 
@@ -839,8 +1208,19 @@ def main(argv: Iterable[str] | None = None) -> int:
                 service_sub_state=args.service_sub_state,
                 service_restarts=args.service_restarts,
             )
-        else:
+        elif args.command == "replay-activation":
             result = replay_activation(args.content_sha256, runtime_root=args.runtime_root)
+        elif args.command == "rehearse-shadow-store":
+            result = rehearse_shadow_store(
+                store_root=args.store_root,
+                runtime_root=args.runtime_root,
+                activation_content_sha256=args.activation_content_sha256,
+            )
+        else:
+            result = replay_shadow_store(
+                activation_content_sha256=args.activation_content_sha256,
+                runtime_root=args.runtime_root,
+            )
     except IdentityOrchestrationError as exc:
         print(json.dumps({"status": "error", "reason_code": exc.reason_code, "error": str(exc)}, sort_keys=True))
         return 2
