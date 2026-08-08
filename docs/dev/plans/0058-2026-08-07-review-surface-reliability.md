@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P0 diagnosis accepted; P1 implementation ready
+Checkpoint: P1 renderer and P2 fixture authority implemented; execution proof pending
 
 Lane: P10
 
@@ -209,3 +209,21 @@ another significant departure.
 Even `complete` authorizes only a later bounded P10 milestone. It does not
 authorize fresh acoustic execution, automatic assignment, profile learning,
 production integration, provider write-back, or historical reprocessing.
+
+## Checkpoint 2026-08-07 | P1 and P2 implementation
+
+- Progress: `P1 complete`; `P2 implementation complete`, with the committed
+  fixture apply/replay proof still pending.
+- Evidence: focused renderer/fixture tests `11 passed`; complete repository
+  suite `905 passed`; Python compilation and `git diff --check` passed.
+- Authority: implementation remains inside the approved repo-local renderer,
+  tests, and private synthetic fixture scope. No runtime fixture, preview
+  publication, acoustic execution, assignment, identity, provider, or
+  integration mutation has occurred at this checkpoint.
+- Review disposition: both accepted findings have implementation coverage;
+  browser/public-ingress verification remains open for `F0058-01` and
+  `F0058-02`.
+- Delegation: `not_spawned`; the active runtime policy disallows proactive
+  delegation and the execution path remains tightly coupled.
+- Next action: commit and push the implementation authority, then execute P2
+  apply/replay and P3 public-browser proof against that exact commit.
