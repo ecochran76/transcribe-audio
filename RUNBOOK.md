@@ -1,5 +1,38 @@
 # Runbook
 
+## Turn 328: Plan the complete speaker identity shadow join (2026-08-08)
+
+Summary: Created planning-only Plan 0060 at
+`docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md` as the
+bounded successor to Plan 0059's terminal `refine`. It inherits the exact
+3-recording/10-speaker cohort,
+proven P0/P1 artifacts, and hardened time-unit, candidate-UUID,
+provider-lineage, and dedicated-context-copy boundaries without reopening Plan
+0059.
+
+Checkpoint:
+
+- State: `PLANNED`; no implementation, provider read, acoustic execution,
+  private runtime artifact, human-gold access, or live mutation is authorized
+  by plan creation.
+- Vision movement: complete the Level 2 selected-conversation identity join and
+  review packet while automatic identity and live knowledge writes remain
+  Level 0.
+- Execution shape: P2A acoustic and P2B context run independently across 3/3
+  recordings and 10/10 speakers; only their complete replayable receipts admit
+  the 30-evaluation blinded P3 join.
+- Human gate: P4 may freeze a strict sealed packet; P5 requires 10/10 explicit
+  authoritative decisions and cannot infer or reuse labels.
+- Authority: the operator's `plan and execute` instruction permits a separate
+  A0 activation after this planning checkpoint is committed and pushed, but A0
+  must stop on inherited receipt, cohort, runtime, identity, privacy, or
+  tenant-scope drift.
+- Policy review: repository policy selection reports `already-aligned`, active
+  planning audit passes, and no governance adoption patch is needed.
+
+Next: commit and push this planning-only checkpoint, then run and record the
+distinct Plan 0060 A0 freeze before implementation or private execution.
+
 ## Turn 327: Close Plan 0059 with terminal refine (2026-08-08)
 
 Summary: Executed the bounded P2 acoustic/context adapter slice, preserved

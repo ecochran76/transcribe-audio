@@ -1,0 +1,196 @@
+# Plan 0060 | Complete speaker identity shadow join
+
+State: PLANNED
+
+Checkpoint: planning-only successor to Plan 0059 terminal `refine`
+
+Lane: P09
+
+Cross-lane dependency: P10 acoustic evidence and closed Plans 0057-0059
+
+## Scope
+
+Complete the exact private selected-conversation shadow workflow that Plan 0059
+could not finish within its attempt bound. Reuse the frozen 3-recording,
+10-speaker cohort and proven Plan 0059 A0/P0/P1 artifacts; freeze fresh
+execution authority; run the hardened acoustic and context adapters as
+independent lanes over the complete denominator; join context-only,
+acoustic-only, and combined conditions; expose the joined evidence without an
+apply path; and prepare the blinded human-review packet needed for comparison.
+
+The architecture authority remains
+[Note 0055](../notes/0055-2026-08-08-speaker-identity-pillar-integration-architecture.md).
+[Plan 0059](0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md)
+is immutable terminal evidence, not retry authority. This plan inherits its
+hardened millisecond conversion, stable candidate UUID, host-owned provider
+lineage, and dedicated context-copy boundaries.
+
+This document is planning authority only. A distinct A0 checkpoint must move
+it to `OPEN` before any provider read, acoustic execution, private runtime
+artifact, source change, or review preparation.
+
+## Vision outcomes and maturity movement
+
+| Capability | Current | Target | Required evidence |
+| --- | --- | --- | --- |
+| Speaker identification | Level 2 contracts and private shadow store; incomplete pillar denominator | Level 2 complete selected-conversation joined shadow inference | 3 acoustic bundles, 3 context bundles, 3 candidate snapshots, and 30 blinded evaluations over 10 speaker refs |
+| Context and provenance | Bounded retrieval persisted for one failed-attempt case | Level 2 complete immutable scope-bound context evidence | Exact scopes, budgets, warnings, failures, lineage, replay, and complete recording denominator |
+| Human identity review | Strict acoustic review exists; joined review not executed | Level 2 joined review packet with alternatives, contradictions, caps, and abstentions | API/frontend smoke and a complete sealed 10-speaker packet with no preselection or apply control |
+| Comparison | Three-condition contract only | Level 2 blind-comparison readiness, then measured result after human gold | Gold sealed until 30/30 outputs freeze; one explicit human decision per speaker; independent metrics |
+| Automatic assignment and live knowledge writes | Level 0 | Level 0 unchanged | Every forbidden mutation counter remains zero |
+
+This advances VISION outcomes 3, 4, 6, 7, and 8 by making speaker evidence,
+relationship context, provenance, uncertainty, review, and durable knowledge
+preparation interoperate. It does not claim an operational, self-feeding, or
+automatic identity loop.
+
+## Inherited evidence
+
+- Plan 0059 A0 froze cohort membership SHA-256
+  `eeeb4600a5a7aa19812bf119c0f15c238bae209133ce1310863de735a5885c61`
+  across 3 recordings and 10 recording-local speakers (`4, 3, 3`).
+- P0 contract receipt content SHA-256 is
+  `5e0578261d592a673438ac73e108fc466449192d242e29f958f80a677e6a10cb`.
+- P1 private-shadow receipt content SHA-256 is
+  `3b175d90d4331ef4fa98498cdaed24d82dde184fda931d04167ff6c97c9d1e84`;
+  migration, projection, reconciliation, replay, restore, and rollback passed.
+- Terminal-refine receipt content SHA-256 is
+  `d32df6f83b75112d89144b3abdd0c87951b24a3471faceac9e45e18b5d08e705`.
+- The corrected first-recording acoustic execution repeated exactly under
+  SHA-256 `88a402b776051907b4065ec10df507ed9b475493994a14d8d1c61a30209c1bd8`.
+- Live closeout state was 466 documents, 2 contacts, 3 assignments, absent
+  knowledge schema state, identity-state SHA-256
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`,
+  and both transcript services active/running with zero restarts.
+
+A0 must replay and independently re-check every inherited binding. Drift stops
+activation; this plan does not silently select a new cohort or live snapshot.
+
+## Execution graph
+
+| Unit | Depends on | Outcome | Terminal condition |
+| --- | --- | --- | --- |
+| A0 activation | User execution instruction, clean upstream-known repo, inherited receipt replay, current runtime readback | Freeze fresh authority, exact cohort, provider/acoustic permissions, privacy and gold gates | `OPEN` only if every binding and non-effect baseline is exact |
+| P2A complete acoustic lane | A0, hardened adapter, closed Plan 0057 authority | Recompute source-bound acoustic evidence independently for all recordings | 3/3 recordings and 10/10 speaker refs, deterministic replay, unchanged identity state |
+| P2B complete context lane | A0, replayed P1 shadow, hardened UUID/lineage adapters | Retrieve and persist bounded context/candidates independently for all recordings | 3/3 context bundles and snapshots, exact scopes/budgets, visible partial failures, quick-check and replay |
+| P3 blinded join | Complete P2A and P2B | Produce context-only, acoustic-only, and combined evaluations | Exactly 30 immutable evaluations; binding, independence, confidence-cap, and gold-seal checks pass |
+| P4 joined review | P3 | Prepare/status/read joined evidence and a shadow-only sealed review packet | API/frontend/browser smoke; no preselection, apply control, or live mutation |
+| P5 comparison | P4 and complete authoritative human gold | Score all conditions on the same 10-speaker denominator | Independent recomputation agrees; zero incomplete labels or denominator drift |
+| P6 terminal audit | P4 if awaiting gold, otherwise P5 | Recompute privacy, mutation, runtime, replay, quality, and burden evidence | `review_ready`, `advance_to_live_shadow_plan`, `refine`, or `stop` |
+
+P2A and P2B are deliberately separate. Failure in one lane cannot discard or
+prevent a complete immutable receipt for the other. P3 is forbidden until
+both receipts replay. P4 may prepare the sealed packet; P5 may not infer,
+reuse, or synthesize human labels.
+
+Delegation receipt: `not_spawned`. Current runtime policy forbids proactive
+subagents, and the primary agent owns all writes and recomputation.
+
+## Data, privacy, and authority boundary
+
+- Repository files may contain reusable code, redacted fixtures, tests, and
+  durable plan/status records only.
+- Raw transcripts, audio, clips, embeddings, model-private features, provider
+  bodies, private candidate labels, human gold, and decisions stay under a
+  mode-`0700` Plan 0060 private root with mode-`0600` files.
+- Acoustic execution is local-only, network-free, enrolled-subject allowlist
+  only, and cannot enroll, learn, mutate profiles, or supersede references.
+- Context retrieval is read-only and limited to explicit configured
+  GWS/Odollo/local scopes, at most 4 provider calls, 20 records, 12,000
+  characters, 5 records per source, and 1 relationship hop per case.
+- The private knowledge database is disposable and never replaces the live
+  database. Provider, Graphiti, assignment, person, contact, role,
+  relationship, profile, reference, default, authority, and history writes are
+  forbidden.
+- Gold remains unread and uncreated until all 30 blinded outputs and their
+  manifest are frozen. Only explicit operator-supplied human decisions satisfy
+  P5.
+
+## Acceptance criteria
+
+- A0 replays the exact Plan 0059 activation, P1, and terminal-refine receipts;
+  proves cohort, source, runtime, identity, and privacy baselines have not
+  drifted; and freezes a new content-addressed authority.
+- P2A and P2B produce separate complete manifests and receipts. Each lane
+  replays independently and neither depends on the other completing first.
+- Every acoustic bundle binds exact media, execution, identity state,
+  recording, document, transcript, and speaker-reference set.
+- Every context bundle binds exact provider/account/tenant/capability/as-of
+  scopes, budgets, warnings, inclusion/exclusion reasons, failures, and stable
+  host-owned lineage.
+- P3 produces exactly three blinded conditions per speaker. Mismatched, stale,
+  duplicate, or circular evidence fails closed; required failures abstain;
+  separate factors and reason-coded confidence caps remain visible.
+- P4 exposes candidates, alternatives, contradictions, scopes, evidence,
+  warnings, caps, and abstentions without a selected identity or live apply
+  action, and freezes one strict decision slot per speaker.
+- P5 runs only with 10/10 explicit authoritative human decisions and reports
+  candidate recall, top-person correctness, enrolled recall, precision, wrong
+  and high-confidence-wrong proposals, appropriate abstention, unresolved
+  rate, duplicate-person forks, provenance completeness, provider failure, and
+  review burden for all three conditions.
+- Independent replay and recomputation agree; live state and services remain
+  unchanged; focused/full tests, frontend build, browser smoke when P4 is
+  materialized, planning audit, compilation, and `git diff --check` pass.
+
+## Hard stops
+
+- Stop on cohort/source hash drift, incomplete denominators, gold leakage,
+  wrong tenant/account/capability scope, unbounded retrieval, or non-replayable
+  artifacts.
+- Stop on any live identity, knowledge, provider, Graphiti, watcher, default,
+  authority, or historical mutation.
+- Stop on display names, provider IDs, role labels, diarization labels, or
+  evaluation IDs promoted directly to canonical `person_id`.
+- Stop on out-of-allowlist acoustic subjects, enrollment/profile/reference
+  mutation, raw private material in git/shared memory, duplicate-person forks,
+  or any high-confidence wrong combined proposal.
+- Close `review_ready` rather than inventing gold if the sealed packet is the
+  last proven boundary. A later operator review can resume P5 under this exact
+  authority only if the packet and all baselines remain unchanged.
+
+## Local goal bounds
+
+`max_work_unit_attempts: 2`
+
+`max_review_rework_cycles: 1`
+
+`max_hardening_checkpoints: 2`
+
+`checkpoint_interval: 1 completed execution unit`
+
+`authorization_gate: significant_departure_only`
+
+`retry_budget_mode: renewable_execution_window`
+
+`review_discovery_passes: 1`
+
+`review_verification_mode: closed_world`
+
+`review_finding_fields: criterion, evidence, consequence, reproducer, confidence, suggested_disposition`
+
+`review_disposition_values: blocking | nonblocking_backlog | rejected | needs_evidence`
+
+`checkpoint_record_fields: plan_version, state_transition, progress_classification, evidence, subagent_status, authority_classification, review_disposition_summary, next_action_or_stop_reason`
+
+## Activation and terminal decisions
+
+The operator instruction `plan and execute` authorizes a distinct A0
+activation after the planning-only checkpoint is committed and pushed. A0 must
+still fail closed on drift. Once `OPEN`, standing authority covers bounded
+repo implementation, private execution, read-only provider retrieval,
+validation, repair, commit, push, and closeout. It does not authorize a
+significant departure.
+
+- `review_ready`: P2A-P4 and every non-human criterion pass; the sealed packet
+  awaits explicit human decisions.
+- `advance_to_live_shadow_plan`: P5 and P6 pass, combined evidence is no less
+  safe than each single pillar, and every forbidden mutation remains zero.
+- `refine`: a bounded quality, provider-yield, review, or cohort criterion is
+  unmet without weakening safeguards.
+- `stop`: a privacy, tenant, binding, mutation, replay, denominator, duplicate,
+  or high-confidence-wrong hard stop occurs.
+
+No terminal result authorizes live schema migration, watcher integration,
+assignment or relationship apply, provider write-back, profile learning,
+historical processing, or automatic speaker identity.
