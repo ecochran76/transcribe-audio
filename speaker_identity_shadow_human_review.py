@@ -600,9 +600,9 @@ function prepareExport() {{
     }}
     rows.push(`${{slotId}}=${{value}}`);
   }}
-  answerBlock.value = rows.join('\n');
+  answerBlock.value = rows.join('\\n');
   copyButton.disabled = false;
-  const blob = new Blob([answerBlock.value + '\n'], {{type: 'text/plain'}});
+  const blob = new Blob([answerBlock.value + '\\n'], {{type: 'text/plain'}});
   if (downloadLink.dataset.objectUrl) URL.revokeObjectURL(downloadLink.dataset.objectUrl);
   downloadLink.dataset.objectUrl = URL.createObjectURL(blob);
   downloadLink.href = downloadLink.dataset.objectUrl;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -141,6 +142,15 @@ def test_renderer_is_complete_unselected_and_client_only() -> None:
     assert "WebSocket" not in page
     assert "form-action 'none'" in page
     assert "Nothing has been submitted or applied." in page
+    script = page.split("<script>", 1)[1].split("</script>", 1)[0]
+    javascript_check = subprocess.run(
+        ["node", "--check", "-"],
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert javascript_check.returncode == 0, javascript_check.stderr
 
 
 def test_complete_decision_block_round_trips_exactly() -> None:
