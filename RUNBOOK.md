@@ -1,5 +1,31 @@
 # Runbook
 
+## Turn 334: Activate Plan 0061 human review (2026-08-08)
+
+Summary: Activated the bounded Plan 0061 successor from the clean, pushed
+planning checkpoint after replaying the exact Plan 0060 sealed packet and
+independently re-reading all live baselines. No source, private review artifact,
+preview session, decision, or comparison was created before activation.
+
+Evidence:
+
+- Planning commit and upstream were exact at
+  `bb0f86cb46e0779483a2b9b493f83d2d8d22adfd`; the worktree was clean.
+- P4 replay remained idempotent at content `6f6bb30f...` and manifest
+  `e4883c01...`: 3 recordings, 10 slots, 30 conditions, zero decisions or
+  preselections, apply disabled, gold unread, and zero live mutations.
+- Plan 0060 terminal manifest remained `f0eaac82...`. SQLite remained `ok` at
+  466 documents, 2 contacts, 3 assignments, and zero knowledge tables;
+  identity state remained `64e0a7f4...`; both transcript services remained
+  active/running with zero restarts.
+- CodeGraph was healthy at 258 files, 7,890 nodes, and 26,325 edges with no
+  pending-sync warning. Previews health and authenticated configuration passed.
+
+Checkpoint: `PLANNED -> OPEN/A0`; progress `outcome_progress`; authority is
+inside the private/read-only minimum-copy envelope; accepted finding ledger is
+empty; no subagent. Next: implement the strict client-only worksheet and
+complete-decision parser, then publish one authenticated session.
+
 ## Turn 333: Plan the Plan 0060 human-gold comparison (2026-08-08)
 
 Summary: Created planning-only Plan 0061 as the immutable successor for Plan

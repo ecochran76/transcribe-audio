@@ -1,8 +1,8 @@
 # Plan 0061 | Plan 0060 human gold and comparison
 
-State: PLANNED
+State: OPEN
 
-Checkpoint: planning-only successor to closed Plan 0060
+Checkpoint: A0 activated; P1 review preparation ready
 
 Lane: P09
 
@@ -28,6 +28,49 @@ block; it has no API write or apply control.
 This document is planning authority only. A distinct A0 checkpoint must move
 it to `OPEN` before source changes, private review preparation, preview
 publication, human-decision capture, or comparison execution.
+
+The planning-only checkpoint was committed and pushed at
+`bb0f86cb46e0779483a2b9b493f83d2d8d22adfd`. The operator's `ok go`
+instruction then activated A0 after the exact readbacks below.
+
+## Current state
+
+A0 is complete and Plan 0061 is `OPEN` for P1 review preparation. The sealed
+Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
+and 30 condition views; no review choice is preselected and apply remains
+disabled. No source or private review artifact existed at activation. P1 may
+now add reusable renderer/parser code and a private minimum-copy worksheet.
+P3 human-gold capture remains blocked on a literal complete operator export.
+
+## A0 activation checkpoint
+
+At activation, branch and upstream were exact at
+`bb0f86cb46e0779483a2b9b493f83d2d8d22adfd` with a clean worktree. CodeGraph
+was healthy with 258 indexed files, 7,890 nodes, and 26,325 edges and returned
+no pending-sync warning. Repository policy selection remained
+`already-aligned`; the planning audit passed. Graphiti was advisory and
+returned no current Plan 0060 P5 authority.
+
+Plan 0060 P4 replay was idempotent and exact: content SHA-256
+`6f6bb30f9073ad706c45561bbf56311457f53e714743d4d905469508ecb82320`,
+manifest SHA-256
+`e4883c01af517ee5db4387bdf01ddebd5d876158f7a05478a0968bab3e2808f4`,
+3 recordings, 10 speaker slots, 30 condition views, zero human decisions, zero
+preselections, apply disabled, gold unread, and zero live mutations. The Plan
+0060 terminal manifest SHA-256 remained
+`f0eaac827ba19fc3b8bbd94dbe40b1efa4c525f5d351ba540238524767798a8d`.
+
+Independent live readback remained SQLite quick-check `ok` with 466 documents,
+2 contacts, 3 speaker assignments, and zero knowledge-schema tables. Identity
+state remained
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
+Both transcript services were active/running with zero restarts. Previews raw
+health and authentication configuration passed; the public review surface is
+authenticated. No preview session or private artifact was created during A0.
+
+Progress classification: `outcome_progress`; authority classification:
+activated inside the minimum-copy private/read-only envelope; accepted finding
+ledger: empty; next ready unit: P1 review preparation.
 
 ## Vision outcomes and maturity movement
 
