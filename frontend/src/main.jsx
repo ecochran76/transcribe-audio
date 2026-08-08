@@ -4980,6 +4980,7 @@ function ConversationWorkflowModal({
   const [speakerPreprocessingAction, setSpeakerPreprocessingAction] = useState({ status: "idle", message: "", payload: null });
   const [speakerLocalAssignments, setSpeakerLocalAssignments] = useState({});
   const [speakerManualLabels, setSpeakerManualLabels] = useState({});
+  const [joinedShadowDecisions, setJoinedShadowDecisions] = useState({});
   const [contextAction, setContextAction] = useState({ status: "idle", message: "", payload: null });
   const [contextContactAction, setContextContactAction] = useState({ status: "idle", message: "", payload: null });
   const [contextContactQuery, setContextContactQuery] = useState("");
@@ -5018,6 +5019,7 @@ function ConversationWorkflowModal({
   const finalReadoutReady = Boolean(contextualDetail) || item.kind === "contextual_readout" || Boolean(payload.contextualization?.status);
   const activeIdentityReview = identityReview || conversationDetail?.identity_review || {};
   const acousticShadowEvidence = activeIdentityReview.acoustic_shadow_evidence || {};
+  const joinedShadowEvidence = activeIdentityReview.joined_shadow_evidence || {};
   const stagedSpeakerCount = Object.keys(speakerLocalAssignments || {}).length;
   const speakersForDisplay = useMemo(
     () => (activeIdentityReview.speakers || []).map((speaker) => {
@@ -6391,6 +6393,72 @@ function ConversationWorkflowModal({
                         {acousticShadowEvidence.status === "rejected"
                           ? "Private acoustic evidence was rejected because its binding or integrity could not be verified."
                           : "No validated acoustic shadow evidence is bound to this transcript."}
+                      </p>
+                    )}
+                  </div>
+                  <div className="workflow-prep-card joined-shadow-card">
+                    <div>
+                      <span>Joined identity shadow</span>
+                      <strong>{statusLabel(joinedShadowEvidence.status || "absent")}</strong>
+                      <p>
+                        Three blinded conditions preserve acoustic and context factors separately.
+                        Choices stay local to this browser view; no identity is preselected and no
+                        assignment or knowledge write is available.
+                      </p>
+                    </div>
+                    {joinedShadowEvidence.status === "sealed_pending_human_review" ? (
+                      <>
+                        <small>
+                          {(joinedShadowEvidence.speaker_slots || []).length} sealed speaker slot(s) · {joinedShadowEvidence.preselected_decision_count || 0} preselected · apply disabled
+                        </small>
+                        <div className="identity-list preprocessing-proposals">
+                          {(joinedShadowEvidence.speaker_slots || []).map((slot) => (
+                            <article key={`${joinedShadowEvidence.packet_content_sha256}-${slot.speaker_ref}`}>
+                              <strong>{slot.speaker_ref}</strong>
+                              <small>
+                                Acoustic {statusLabel(slot.acoustic?.disposition || "unknown")} · {statusLabel(slot.acoustic?.confidence_band || "none")}
+                              </small>
+                              <label className="workflow-field">
+                                Human decision (not yet recorded)
+                                <select
+                                  aria-label={`Joined shadow decision for ${slot.speaker_ref}`}
+                                  onChange={(event) => setJoinedShadowDecisions((current) => ({ ...current, [slot.speaker_ref]: event.target.value }))}
+                                  value={joinedShadowDecisions[slot.speaker_ref] || ""}
+                                >
+                                  <option value="">Select after review</option>
+                                  {(joinedShadowEvidence.candidate_options || []).map((candidate) => (
+                                    <option key={candidate.person_id} value={candidate.person_id}>
+                                      {candidate.label || candidate.email || candidate.person_id}
+                                    </option>
+                                  ))}
+                                  <option value="not_listed">Person not listed</option>
+                                  <option value="unresolved">Unresolved</option>
+                                </select>
+                              </label>
+                              <details className="contact-evidence-details">
+                                <summary>Blinded condition evidence</summary>
+                                <div className="identity-list">
+                                  {(slot.conditions || []).map((condition) => (
+                                    <article key={condition.evaluation_id}>
+                                      <strong>{statusLabel(condition.condition)}</strong>
+                                      <small>{statusLabel(condition.outcome)} · confidence {condition.capped_confidence}</small>
+                                      <p>{statusLabel(condition.abstention_reason || "no abstention")}</p>
+                                    </article>
+                                  ))}
+                                </div>
+                              </details>
+                            </article>
+                          ))}
+                        </div>
+                        <div className="workflow-action-row">
+                          <button disabled title="Plan 0060 exposes no live apply path." type="button">Apply identity (disabled)</button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="muted">
+                        {joinedShadowEvidence.status === "not_in_frozen_cohort"
+                          ? "This conversation is outside the exact Plan 0060 cohort."
+                          : "No validated joined shadow packet is bound to this transcript."}
                       </p>
                     )}
                   </div>

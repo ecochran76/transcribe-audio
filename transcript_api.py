@@ -33,6 +33,7 @@ import conversation_processing
 import participant_identity
 import provenance_config
 import speaker_identity_preprocess
+import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
 import speaker_evaluation_campaign
 import transcript_artifact_access
@@ -546,6 +547,10 @@ def conversation_identity_review(
         source_path=str((source_document or {}).get("source_path") or ""),
         state_root=resolved_state_root,
     )
+    joined_shadow = speaker_identity_shadow_review.load_joined_shadow_review(
+        document_id=str((source_document or {}).get("id") or ""),
+        state_root=resolved_state_root,
+    )
     return {
         "schema_version": "transcribe-audio.identity-review.v1",
         "conversation_key": conversation_key,
@@ -556,6 +561,7 @@ def conversation_identity_review(
         "identity_bundle": identity_bundle,
         "identity_cache": cache_meta,
         "acoustic_shadow_evidence": shadow_evidence,
+        "joined_shadow_evidence": joined_shadow,
         "pending_count": sum(1 for speaker in speakers if speaker["review_required"]),
         "confirmed_count": sum(1 for speaker in speakers if speaker["status"] == "confirmed"),
         "deferred_count": sum(1 for speaker in speakers if speaker["status"] == "deferred"),

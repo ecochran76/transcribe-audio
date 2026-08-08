@@ -386,6 +386,8 @@ def test_conversation_detail_includes_identity_and_context_state(tmp_path: Path)
     assert payload["transcript_document"]["id"] == transcript.id
     assert payload["identity_review"]["pending_count"] == 1
     assert payload["identity_review"]["speakers"][0]["speaker_label"] == "Speaker A"
+    assert payload["identity_review"]["joined_shadow_evidence"]["status"] == "absent"
+    assert payload["identity_review"]["joined_shadow_evidence"]["apply_enabled"] is False
     assert payload["context_workbench"]["status"] == "contextual_readout_ready"
     assert payload["context_workbench"]["selected_candidate"]["label"] == "Tempo Chemical follow-up"
     assert payload["context_workbench"]["included_source_count"] == 1

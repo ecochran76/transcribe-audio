@@ -56,6 +56,8 @@ P2B_MANIFEST_VERSION = "transcribe-audio.plan0060-p2b-context-manifest.v1"
 P2B_RECEIPT_VERSION = "transcribe-audio.plan0060-p2b-context-receipt.v1"
 P3_MANIFEST_VERSION = "transcribe-audio.plan0060-p3-blinded-join-manifest.v1"
 P3_RECEIPT_VERSION = "transcribe-audio.plan0060-p3-blinded-join-receipt.v1"
+P4_MANIFEST_VERSION = "transcribe-audio.plan0060-p4-review-packet-manifest.v1"
+P4_RECEIPT_VERSION = "transcribe-audio.plan0060-p4-review-packet-receipt.v1"
 JOIN_POLICY_VERSION = "plan0060-conservative-shadow-join-v1"
 EXPECTED_RECORDINGS = 3
 EXPECTED_SPEAKERS = 10
@@ -859,6 +861,222 @@ def replay_blinded_join(
     return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": True}
 
 
+def _review_paths(runtime_root: Path, activation_sha256: str) -> dict[str, Path]:
+    root = runtime_root.expanduser().absolute()
+    run = root / f"p4-review-packet-{activation_sha256[:24]}"
+    return {
+        "root": root,
+        "run": run,
+        "manifest": run / "private-manifest.json",
+        "receipt": run / "receipt.json",
+    }
+
+
+def execute_review_packet(
+    *, runtime_root: Path, activation_sha256: str
+) -> dict[str, Any]:
+    paths = _review_paths(runtime_root, activation_sha256)
+    if paths["receipt"].exists():
+        return replay_review_packet(
+            runtime_root=runtime_root,
+            activation_sha256=activation_sha256,
+        )
+    if paths["run"].exists():
+        _fail("incomplete_plan0060_p4", "P4 directory exists without a receipt.")
+    join_receipt = replay_blinded_join(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    acoustic_receipt = replay_acoustic_lane(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    context_receipt = replay_context_lane(
+        runtime_root=runtime_root,
+        activation_sha256=activation_sha256,
+    )
+    join_manifest = read_private_object(Path(join_receipt["manifest_path"]))
+    acoustic_manifest = read_private_object(Path(acoustic_receipt["manifest_path"]))
+    context_manifest = read_private_object(Path(context_receipt["manifest_path"]))
+    evaluations_by_document: dict[str, list[dict[str, Any]]] = {}
+    for evaluation in join_manifest["evaluations"]:
+        evaluations_by_document.setdefault(str(evaluation["document_id"]), []).append(
+            evaluation
+        )
+    acoustic_by_document = {
+        str(item["document_id"]): item for item in acoustic_manifest["results"]
+    }
+    cases = []
+    for context_result in context_manifest["results"]:
+        document_id = str(context_result["document_id"])
+        acoustic_result = acoustic_by_document.get(document_id)
+        evaluations = evaluations_by_document.get(document_id) or []
+        if acoustic_result is None or len(evaluations) != 3 * int(
+            context_result["speaker_ref_count"]
+        ):
+            _fail("plan0060_p4_binding_missing", "P4 case inputs are incomplete.")
+        private_candidates = context_result["private_context"].get("private_candidates") or []
+        options = [
+            {
+                "person_id": str(item["person_id"]),
+                "label": str(item.get("label") or ""),
+                "email": str(item.get("email") or ""),
+                "status": str(item.get("status") or "review_only"),
+            }
+            for item in private_candidates
+        ]
+        candidate_ids = tuple(item["person_id"] for item in options)
+        acoustic_by_speaker = {
+            str(item["speaker_ref"]): item for item in acoustic_result["bundle"]["evidence"]
+        }
+        evaluations_by_speaker: dict[str, list[dict[str, Any]]] = {}
+        for evaluation in evaluations:
+            evaluations_by_speaker.setdefault(str(evaluation["speaker_ref"]), []).append(
+                evaluation
+            )
+        speaker_slots = []
+        for speaker_ref in context_result["context_bundle"]["speaker_refs"]:
+            condition_rows = sorted(
+                evaluations_by_speaker.get(str(speaker_ref), []),
+                key=lambda item: (
+                    "context_only",
+                    "acoustic_only",
+                    "combined",
+                ).index(str(item["condition"])),
+            )
+            if len(condition_rows) != 3:
+                _fail("plan0060_p4_condition_missing", "P4 speaker conditions are incomplete.")
+            acoustic = acoustic_by_speaker[str(speaker_ref)]
+            speaker_slots.append(
+                {
+                    "speaker_ref": str(speaker_ref),
+                    "decision_status": "pending",
+                    "selected_person_id": None,
+                    "allowed_decisions": [*candidate_ids, "not_listed", "unresolved"],
+                    "acoustic": {
+                        key: acoustic.get(key)
+                        for key in (
+                            "disposition",
+                            "acoustic_subject_id",
+                            "score",
+                            "confidence_band",
+                            "supporting_unit_count",
+                            "opposing_unit_count",
+                            "insufficient_unit_count",
+                        )
+                    },
+                    "conditions": [
+                        {
+                            "condition": str(item["condition"]),
+                            "evaluation_id": str(item["evaluation_id"]),
+                            "outcome": str(item["outcome"]),
+                            "proposed_person_id": item.get("proposed_person_id"),
+                            "alternative_person_ids": list(item["alternative_person_ids"]),
+                            "base_confidence": float(item["base_confidence"]),
+                            "capped_confidence": float(item["capped_confidence"]),
+                            "confidence_cap_reasons": list(item["confidence_cap_reasons"]),
+                            "abstention_reason": item.get("abstention_reason"),
+                            "source_failures": list(item["source_failures"]),
+                            "factors": list(item["factors"]),
+                        }
+                        for item in condition_rows
+                    ],
+                }
+            )
+        scopes = [
+            {
+                key: item[key]
+                for key in (
+                    "source_type",
+                    "source_profile",
+                    "account_id",
+                    "tenant_id",
+                    "capabilities",
+                    "as_of",
+                    "max_records",
+                    "max_characters",
+                    "max_per_source",
+                    "max_provider_calls",
+                    "max_relationship_hops",
+                )
+            }
+            for item in context_result["context_bundle"]["scopes"]
+        ]
+        cases.append(
+            {
+                "document_id": document_id,
+                "recording_id": str(context_result["recording_id"]),
+                "candidate_options": options,
+                "scopes": scopes,
+                "warnings": list(context_result["context_bundle"]["warnings"]),
+                "source_failures": list(
+                    context_result["context_bundle"]["source_failures"]
+                ),
+                "speaker_slots": speaker_slots,
+            }
+        )
+    slot_count = sum(len(case["speaker_slots"]) for case in cases)
+    if len(cases) != EXPECTED_RECORDINGS or slot_count != EXPECTED_SPEAKERS:
+        _fail("plan0060_p4_incomplete", "P4 review denominator is incomplete.")
+    manifest = {
+        "schema_version": P4_MANIFEST_VERSION,
+        "status": "sealed_pending_human_review",
+        "activation_sha256": activation_sha256,
+        "join_content_sha256": join_receipt["content_sha256"],
+        "recording_count": EXPECTED_RECORDINGS,
+        "speaker_slot_count": EXPECTED_SPEAKERS,
+        "condition_count": 30,
+        "human_decision_count": 0,
+        "preselected_decision_count": 0,
+        "apply_enabled": False,
+        "human_gold_read": False,
+        "cases": cases,
+        "negative_actions": negative_action_vector(),
+    }
+    ensure_private_tree(paths["root"], paths["run"])
+    write_immutable_private_json(paths["manifest"], manifest)
+    receipt = {
+        "schema_version": P4_RECEIPT_VERSION,
+        "status": "sealed_pending_human_review",
+        "content_sha256": canonical_artifact_hash(manifest),
+        "manifest_sha256": sha256_file(paths["manifest"]),
+        "recording_count": EXPECTED_RECORDINGS,
+        "speaker_slot_count": EXPECTED_SPEAKERS,
+        "condition_count": 30,
+        "human_decision_count": 0,
+        "preselected_decision_count": 0,
+        "apply_enabled": False,
+        "human_gold_read": False,
+        "live_mutation_count": 0,
+        "negative_actions_preserved": True,
+    }
+    write_immutable_private_json(paths["receipt"], receipt)
+    return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": False}
+
+
+def replay_review_packet(
+    *, runtime_root: Path, activation_sha256: str
+) -> dict[str, Any]:
+    paths = _review_paths(runtime_root, activation_sha256)
+    manifest, receipt = _read_lane(paths)
+    cases = manifest.get("cases") or []
+    slots = [slot for case in cases for slot in case.get("speaker_slots") or []]
+    if (
+        manifest.get("schema_version") != P4_MANIFEST_VERSION
+        or manifest.get("activation_sha256") != activation_sha256
+        or len(cases) != EXPECTED_RECORDINGS
+        or len(slots) != EXPECTED_SPEAKERS
+        or sum(len(slot.get("conditions") or []) for slot in slots) != 30
+        or any(slot.get("selected_person_id") is not None for slot in slots)
+        or manifest.get("human_decision_count") != 0
+        or manifest.get("preselected_decision_count") != 0
+        or manifest.get("apply_enabled") is not False
+        or manifest.get("human_gold_read") is not False
+    ):
+        _fail("plan0060_p4_replay_invalid", "P4 review packet is invalid.")
+    return {**receipt, "manifest_path": str(paths["manifest"]), "idempotent_replay": True}
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Execute Plan 0060 independent evidence lanes.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -879,6 +1097,10 @@ def _parser() -> argparse.ArgumentParser:
         join = subparsers.add_parser(command)
         join.add_argument("--runtime-root", type=Path, required=True)
         join.add_argument("--activation-sha256", required=True)
+    for command in ("execute-review-packet", "replay-review-packet"):
+        review = subparsers.add_parser(command)
+        review.add_argument("--runtime-root", type=Path, required=True)
+        review.add_argument("--activation-sha256", required=True)
     return parser
 
 
@@ -917,8 +1139,18 @@ def main(argv: Iterable[str] | None = None) -> int:
                 runtime_root=args.runtime_root,
                 activation_sha256=args.activation_sha256,
             )
-        else:
+        elif args.command == "replay-join":
             result = replay_blinded_join(
+                runtime_root=args.runtime_root,
+                activation_sha256=args.activation_sha256,
+            )
+        elif args.command == "execute-review-packet":
+            result = execute_review_packet(
+                runtime_root=args.runtime_root,
+                activation_sha256=args.activation_sha256,
+            )
+        else:
+            result = replay_review_packet(
                 runtime_root=args.runtime_root,
                 activation_sha256=args.activation_sha256,
             )
