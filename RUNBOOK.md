@@ -1,5 +1,49 @@
 # Runbook
 
+## Turn 321: Open Plan 0058 review-surface reliability (2026-08-07)
+
+Summary: Corrected the Plan 0058 handoff after reproducing the retained review
+surface in Chromium, accepted two blocking review findings, and opened a
+repo-local lazy-media and decision-entry implementation slice with a synthetic
+public-browser gate.
+
+Plan: `docs/dev/plans/0058-2026-08-07-review-surface-reliability.md`.
+
+Authority and discovery:
+
+- The branch began clean and upstream-even at `7dd9990`; Plan 0057 remains
+  closed and unchanged.
+- Graphiti doctor was fully healthy, but a focused `transcribe_audio_main`
+  query returned 8 facts, 5 nodes, and 5 episode previews without a sourced
+  Plan 0057 closeout. Repo/runtime evidence remains authoritative.
+- CodeGraph was healthy with 246 indexed files, 7,548 nodes, and 24,919 edges.
+  It located the frozen Plan 0057 renderer and strict answer parser without a
+  native search/read reconstruction.
+- The policy selector recommended the existing `skill-repo-maintainer`
+  composition, and the pre-plan active planning audit returned `ok: true`.
+- Delegation receipt: `not_spawned`; the active runtime policy disables
+  proactive multi-agent delegation and this slice has one coupled critical
+  path.
+
+Browser diagnosis and finding disposition:
+
+- `F0058-01`, `blocking`: the retained page has no per-card form control and no
+  browser-generated importer-compatible answer block.
+- `F0058-02`, `blocking`: the page's 15 `preload="metadata"` elements launch a
+  concurrent media burst. Chromium reproduced disabled controls with media
+  error code 4 and captured intermittent `502 text/plain` media responses at
+  the public ingress.
+- The failed retained/published pairs are byte-identical and `ffprobe` accepts
+  them as complete mono 16 kHz PCM WAV files. Missing publication and malformed
+  source media are rejected explanations.
+- The repo-owned mitigation is on-demand loading plus a direct-file fallback.
+  Previews code, proxy, configuration, and installed runtime remain outside
+  Plan 0058.
+
+Checkpoint: P0 complete with `outcome_progress`; Plan 0058 is `OPEN` at P1.
+Next: implement the reusable renderer and focused fail-closed tests, then
+commit and push before applying the synthetic fixture authority.
+
 ## Turn 320: Close Plan 0057 integrated acoustic shadow review (2026-08-07)
 
 Summary: Resumed the literal G1 human gate, froze and replayed all 15 private

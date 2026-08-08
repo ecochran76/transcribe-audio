@@ -7,6 +7,33 @@ consider the next bounded P10 milestone after Plan 0057, with special attention
 to the human-review entry controls and unreliable audio playback reported by
 the operator.
 
+## Correction After Fresh Browser Diagnosis
+
+Fresh Plan 0058 startup work on 2026-08-07 reproduced the audio failure in the
+retained authenticated review surface and narrows this handoff in two material
+ways:
+
+- the failed media are not missing or malformed: the retained and published
+  copies are byte-identical, `ffprobe` accepts them as mono 16 kHz PCM WAV, and
+  their sizes and durations are complete;
+- Chromium captured intermittent `502 text/plain` responses at the public
+  Previews ingress while the page eagerly issued 15 concurrent
+  `Range: bytes=0-` media requests from `preload="metadata"`. The corresponding
+  controls became disabled with media error code 4 and `Format error`.
+
+`F0057-08` is therefore no longer merely `needs_evidence`. It is an accepted
+blocking review-surface finding for the successor. The failing transport lies
+outside this repository, but the concurrency trigger is owned by the generated
+HTML. Plan 0058 may remain repo-local by rendering on-demand audio
+(`preload="none"`) with an explicit direct-file fallback and proving the result
+through the same external ingress. It may diagnose but must not modify the
+Previews repository, proxy, or installed service.
+
+Plan 0058 should contain only the review-surface reliability slice. A fresh
+acoustic cohort is deferred to a later bounded successor after the synthetic
+review fixture passes. Graphiti is healthy at this correction checkpoint, but
+its focused repo recall still lacks the Plan 0057 closeout and remains advisory.
+
 ## Outcome First
 
 Plan 0057 is closed at terminal decision `plan_next_bounded_milestone`. Its
@@ -125,10 +152,10 @@ ordered answers in chat. A successor should provide one explicit identity
 control per card and generate an importer-compatible answer block without
 turning display names into machine identity.
 
-### F0057-08: unreliable audio playback
+### F0057-08: eager media loading overloads the public preview path
 
-Disposition: `needs_evidence` for root cause; expected to be blocking before
-another human review gate.
+Disposition: `blocking` for Plan 0058 until a browser-validated lazy-loading
+surface passes; nonblocking for the already closed Plan 0057 result.
 
 The operator reported that audio was missing for many cards. Current evidence
 rules out simple publication loss:
@@ -138,8 +165,12 @@ rules out simple publication loss:
 - every referenced authenticated artifact path returned HTTP 200 with
   `audio/x-wav`;
 - a diagnostic request carrying `Range: bytes=0-15` returned HTTP 200 and the
-  full file rather than HTTP 206. Treat this as a playback/serving lead, not a
-  proven root cause.
+  full file rather than HTTP 206;
+- fresh Chromium reproduction observed disabled controls with media error code
+  4 and captured intermittent 502 responses only after the page launched its
+  eager 15-file metadata load;
+- the failed published files hash-identically match the retained files and
+  decode successfully with `ffprobe`.
 
 The authenticated review session is `488e06d2f6da`; its directory artifact is
 `afff342eb85c`. Do not persist credentials or share-link tokens while testing.
@@ -150,23 +181,22 @@ cross-repo service mutation.
 
 ## Recommended Next Bounded Decision
 
-Consider Plan 0058 as a review-surface reliability milestone with a conditional
-fresh shadow proof, not as an automatic-assignment plan.
+Plan 0058 is a review-surface reliability milestone with a synthetic browser
+proof, not a fresh shadow or automatic-assignment plan.
 
 Suggested execution graph:
 
 | Unit | Outcome | Terminal condition |
 | --- | --- | --- |
-| P0 reproduce and freeze | Reproduce the entry-control and audio symptoms in an authenticated browser; identify whether ownership is generated HTML, Previews serving, or browser behavior | Exact reproducer and owning surface are recorded, or the unit stops as `needs_evidence` |
+| P0 reproduce and freeze | Freeze the reproduced missing-controls finding and the eager-load/502 browser evidence without retaining credentials or share tokens | Exact reproducer and repo-owned mitigation boundary are recorded |
 | P1 entry workflow | Render one accessible allowlisted decision control per card and export exact importer-compatible answers | All cards round-trip without name-to-identity promotion or mutation |
-| P2 media workflow | Make every card load and play reliably under the configured preview path; prove behavior in the target browser | Complete-card playback proof, including seek/range behavior or an explicit supported fallback |
-| G1 human inspection | Publish and inspect a synthetic or already-authorized non-sensitive review fixture through Previews | Operator/browser inspection passes before any fresh human gate |
-| P3 conditional fresh shadow | Only if explicitly included in the new plan, freeze a small fresh cohort and measure the same complete denominators | `stop`, `refine`, or plan another bounded milestone; still no apply |
+| P2 media workflow | Render lazy on-demand audio plus an explicit direct-file fallback and prove it under the configured public preview path | All synthetic cards load and seek serially without a media error or 502 |
+| P3 synthetic inspection | Publish and inspect a non-sensitive 15-card fixture through Previews | Browser inspection passes before any fresh human gate |
 
-The fresh agent should decide whether P3 belongs in Plan 0058 or should be a
-separate successor after the review surface is proven. Prefer splitting if the
-audio root cause belongs to another repository or if the repair consumes the
-plan's bounded rework budget.
+Fresh acoustic execution is explicitly outside Plan 0058. The public-ingress
+failure belongs outside this repository, so the bounded repo-owned result is a
+lazy-loading mitigation plus a documented fallback. Any proxy/service repair
+or fresh acoustic cohort requires separate authority.
 
 Minimum acceptance evidence for the review-surface slice should include:
 
@@ -232,9 +262,9 @@ git diff --check
 
 At handoff creation, `graphiti-runtime doctor` reported `mcp_http: down` while
 FalkorDB and Inspector ingress were healthy and the in-session Graphiti MCP
-search still returned results. The search produced no current Plan 0057
-closeout fact. Treat Graphiti as stale/advisory and do not repair its service
-unless operational repair is separately requested.
+search still returned results. At Plan 0058 startup the doctor was fully
+healthy, but focused search still produced no current Plan 0057 closeout fact.
+Treat Graphiti as stale/advisory for this decision.
 
 ## Suggested Skills
 
@@ -250,7 +280,8 @@ unless operational repair is separately requested.
 
 ## Best Recommendation
 
-Open Plan 0058 only after the fresh agent confirms the owning surface. Make
-entry controls and browser-reliable audio a prerequisite gate. Preserve Plan
-0057's no-mutation boundary and defer another acoustic cohort until the human
-review workflow can collect complete decisions without chat-side repair.
+Open Plan 0058 as the bounded repo-owned review-surface slice now that browser
+evidence identifies eager loading as the trigger. Make entry controls,
+importer-compatible export, lazy audio, and complete synthetic browser proof
+the terminal gates. Preserve Plan 0057's no-mutation boundary and defer another
+acoustic cohort until the human review workflow passes without chat-side repair.
