@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 347: Plan reviewed speaker canonicalization and enrollment (2026-08-09)
+
+Summary: Opened the bounded successor design required by Plan 0062's terminal
+`advance`, while preserving a separate live-mutation gate.
+
+Plan: `docs/dev/plans/0063-2026-08-09-reviewed-speaker-canonicalization-enrollment.md`.
+
+Evidence:
+
+- Plan 0063 binds the exact Plan 0062 P5 submission `5c2ca66f...`, comparison
+  `372cc17d...`, and terminal `971c5896...`.
+- Read-only private reconciliation shows nine named slots, one role-only
+  placeholder, six likely people, one repeated exact-external-identity group,
+  and two name-only grouping proposals that must remain human-reviewed.
+- Four distinct contextual email identities match none of the two legacy live
+  contacts. The live knowledge schema is version 0 in sidecar mode; SQLite is
+  `ok`; identity state is `64e0a7f4...`.
+- CodeGraph confirms calendar title data is already prepared, but the clue
+  prompt and validator allow citations only to transcript utterance IDs. It
+  also confirms production biometric references require replay-validated P1/P2
+  lineage, quality evidence, and source-claim checks.
+- A0 permits code, private reconciliation/qualification, and direct-audio
+  review only. A1 separately gates live person, assignment, reference, profile,
+  and embedding mutation after exact review plus private-copy apply/rollback.
+- Vision movement targets Level 2 reviewed canonicalization, citable calendar
+  evidence, and enrollment preparation. Automatic assignment remains Level 0.
+  Delegation is `not_spawned` under current system authority.
+
+Next:
+
+- Commit and push Plan 0063, replay the exact P5/live baseline, activate A0
+  under the standing goal, then implement the calendar-evidence and private
+  reconciliation packets independently before their join.
+
 ## Turn 346: Complete Plan 0062 human comparison (2026-08-09)
 
 Summary: Recovered the operator's complete copied worksheet, repaired the

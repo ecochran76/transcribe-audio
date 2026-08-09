@@ -722,6 +722,14 @@ Assignment apply, canonical-person creation, calendar-title repair, candidate
 deduplication, and biometric enrollment require a separate later plan and
 authority.
 
+Plan 0063 is the planned P09/P10 successor in
+`docs/dev/plans/0063-2026-08-09-reviewed-speaker-canonicalization-enrollment.md`.
+It will turn the exact Plan 0062 human gold into a reviewed provisional-person
+map, repair the missing calendar-title citation path, qualify governed speech
+sources for genuinely new speakers, and publish one combined grouping/source
+review. A0 is non-applying; live canonical or biometric mutation remains behind
+the separate exact A1 gate with private-copy apply and rollback proof.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference
