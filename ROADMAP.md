@@ -704,20 +704,23 @@ came from a compatibility snapshot rather than calendar or speaker-specific
 context. Direct-audio Previews review worked remotely and all forbidden
 mutations remained zero.
 
-Plan 0062 is the active repair in
+Plan 0062 is the closed `advance` repair in
 `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`.
 It preserves Plan 0036's seal and the Plan 0060/0061 receipts while reconnecting
 the existing two-phase contextual identity workflow to the newer canonical and
 acoustic contracts on the exact three recent conversations. P1-P2 completed
 with 3 recordings, 10 speakers, 30 joined evaluations, and seven unlisted
-suggestion records. P3 is complete with zero live mutations; the direct-audio
-P4 worksheet is published and awaiting literal decisions. The strict P5
-parser/comparison freezer is implemented and validates the real 10-slot source
-packet; it distinguishes canonical confirmation, existing enrolled-voice
-binding, contextual/typed new-person enrollment candidates, and unresolved
-gold. A private content-addressed sidecar now preserves the exact acoustic
-subject and bundle authority behind all three enrolled-voice options. Assignment
-apply and biometric enrollment remain separate later authorities.
+suggestion records. P3 and P4 completed with zero live mutations. Literal P5
+review identified nine of ten slots, confirmed or corrected five contextual
+suggestions, linked one contextual identity to an enrolled voice subject,
+retained one role-only unresolved slot, and recorded one calendar-title
+candidate-recall miss. The three frozen conditions made no proposals because
+no reviewed names were in the canonical candidate authority, but also made no
+wrong proposals. P5 closed `advance` with one existing-voice binding candidate
+and eight enrollment-candidate appearances across six distinct reviewed names.
+Assignment apply, canonical-person creation, calendar-title repair, candidate
+deduplication, and biometric enrollment require a separate later plan and
+authority.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

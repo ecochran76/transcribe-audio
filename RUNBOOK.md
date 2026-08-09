@@ -1,5 +1,48 @@
 # Runbook
 
+## Turn 346: Complete Plan 0062 human comparison (2026-08-09)
+
+Summary: Recovered the operator's complete copied worksheet, repaired the
+client exporter, froze exact P5 human gold, and closed Plan 0062 `advance`
+without applying identity or biometric changes.
+
+Evidence:
+
+- Browser reproduction proved the answer-block button failed because the
+  generated JavaScript contained an invalid literal newline. Commit `650057b`
+  is pushed and the repaired page now exports typed-new, corrected-contextual,
+  and linked context-plus-enrolled decisions.
+- Focused tests passed 22/22; the full suite passed 959 tests in 100.38
+  seconds. A real headless-browser check produced the expected 13-line block
+  with all three repaired decision forms and no script error.
+- Exact P5 submission content is `5c2ca66f...`; human-gold manifest is
+  `02691e04...`; comparison content is `372cc17d...`; comparison manifest is
+  `b90db7e1...`; terminal manifest is `971c5896...`. Replay is idempotent.
+- Ten literal decisions contain three typed new people, four confirmed
+  contextual suggestions, one corrected contextual suggestion, one explicit
+  enrolled/context identity agreement, and one role-only unresolved person.
+  One hash-bound observation records a missed calendar-title candidate.
+- Human gold names 9/10 slots. The contextual workflow contributed six useful
+  person decisions, but the canonical candidate authority admitted none of
+  them, so every condition made zero proposals and recalled 0/9 named slots.
+  Wrong and high-confidence-wrong proposal counts are both zero.
+- P5 reports one existing-voice binding candidate and eight enrollment-
+  candidate appearances across six distinct reviewed names. Terminal action is
+  `advance` to a separate canonical binding and biometric enrollment plan.
+- P5 storage is `0700` with five `0600` JSON files. SQLite remains `ok` with
+  two contacts and three speaker assignments; identity state remains
+  `64e0a7f4...`; both transcript services remain active/running with zero
+  restarts. Before/after live state is identical and no apply was authorized.
+- Corrected the prior Turn 345/Plan 0062 identity-state hash typo to the
+  authoritative Plan 0060 value `64e0a7f4...`. Delegation was `not_spawned`.
+
+Next:
+
+- Open a separate bounded plan for canonical-person resolution, calendar-title
+  candidate repair, repeated-person deduplication, reviewed acoustic-subject
+  binding, and new-speaker enrollment. Do not create people, assignments, or
+  voice profiles without that plan's explicit mutation authority.
+
 ## Turn 345: Freeze exact enrolled-option source bindings (2026-08-08)
 
 Summary: Closed the final P5 readiness gap by preserving the exact private
@@ -20,7 +63,7 @@ Evidence:
   all false.
 - SQLite quick-check is `ok` with two contacts and three speaker assignments.
   Current acoustic identity state exactly matches both frozen Plan 0060
-  before/after snapshots at `e16da328...`.
+  before/after snapshots at `64e0a7f4...`.
 - Previews is healthy but session `3af6c1f36243` still has no feedback. No P5
   human submission or comparison artifact exists.
 

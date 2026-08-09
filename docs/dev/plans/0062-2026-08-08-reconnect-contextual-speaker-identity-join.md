@@ -1,8 +1,8 @@
 # Plan 0062 | Reconnect contextual speaker identity to the canonical/acoustic join
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: P5 source bindings frozen; literal human gate
+Checkpoint: P5 complete; terminal `advance`
 
 Lane: P09
 
@@ -177,10 +177,10 @@ start blank and the page has no POST or apply path.
 Authenticated Previews session `3af6c1f36243` contains directory artifact
 `9a37a9c5f427`. Published storage is byte-identical to the frozen P4 directory:
 one worksheet plus 10 WAV files, all relative sources present, and no localhost
-links. P4 now stops at the literal operator decision gate.
+links. P4 stopped at the literal operator decision gate.
 
-The reusable P5 submission and comparison seam is implemented while that gate
-remains open. It validates the literal three-header/ten-row export against the
+The reusable P5 submission and comparison seam was implemented while that gate
+remained open. It validates the literal three-header/ten-row export against the
 exact P3 and P4 hashes, preserves slot order, decodes typed names, and retains
 the semantic difference between a canonical-person confirmation, an existing
 enrolled-voice binding opportunity, a contextual unlisted-person suggestion,
@@ -191,8 +191,8 @@ terminal result can only recommend `refine` or a separate later plan;
 `apply_authorized=false` and every negative action remain invariant. The real
 private P3/P4 sources pass readiness validation at 10/10 slots with 11
 contextual-unlisted options, three enrolled-voice options, and zero canonical-
-person options. No P5 decision or receipt exists until the operator supplies
-the literal complete export.
+person options. At that checkpoint, no P5 decision or receipt existed because
+the operator had not yet supplied the literal complete export.
 
 A completion audit then found that an enrolled-voice choice would have retained
 only its opaque browser token, not the exact private acoustic subject needed by
@@ -206,10 +206,79 @@ and immutable manifest SHA-256
 `a74a5a2713d9cb84944f248fd7b93cadfce1e2a5b3c031afe385a3fb12fac7e7`.
 Exact replay passed with `0700`/`0600` modes. The live identity state still
 matches both Plan 0060 before/after snapshots at
-`e16da3286c32bd5d28bcc7d251ff9c60ccf0ce2ff6aa284672c85e5752a72cc6`;
+`64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
 SQLite remains `ok` with two contacts and three speaker assignments. This
 source binding is evidence only and authorizes no person, contact, assignment,
 profile, or biometric-reference mutation.
+
+## P5 human review and terminal evidence
+
+The operator completed all ten decisions in the authenticated worksheet and
+copied the rendered page after the answer-block button failed. Browser
+reproduction found one blocking renderer defect: Python had emitted a literal
+newline inside a JavaScript single-quoted string, so the entire client script
+failed to parse. Commit `650057b` repairs that defect and also preserves three
+meanings the original exporter could not express: a typed name with an empty
+dropdown, a corrected contextual suggestion, and an explicit statement that
+an enrolled voice subject and contextual suggestion are the same person. A
+real headless-browser check exported all three forms successfully, and the
+full suite passed 959 tests.
+
+The copied review was recovered as an explicit operator-supplied source, not
+inferred from silence. P5 froze and exactly replayed ten decisions: three typed
+new people, four confirmed contextual unlisted suggestions, one corrected
+contextual suggestion, one linked enrolled-voice/context identity, and one
+contextual role placeholder that remains unresolved as a person. One
+hash-bound operator observation records that the calendar title should have
+supplied an obvious identity candidate.
+
+The immutable P5 evidence is:
+
+- submission content
+  `5c2ca66fbc25689da8838b65d587fb7f3a5be778a2579f756b8f91526756cdea`;
+- human-gold manifest
+  `02691e045f441b12a855b4b9feb0d99b07a0ad2ce78457e817976f1e551a4a46`;
+- comparison content
+  `372cc17d31c16cdaa4deda47dd8c9fe7cbb057e62f1c6802395fc1dba8d7c84f`;
+- comparison manifest
+  `b90db7e13c2de2e4f67c3b8fedbf6c36138ee1e661d8f02cc47a863803e7ba23`;
+  and
+- terminal manifest
+  `971c5896eaa595069f0387b5f48e5765c1d83e457478f018380ab30534e1f49c`.
+
+Human gold identifies nine of ten speaker slots and leaves one role-only slot
+unresolved. The existing contextual workflow contributed four confirmed
+suggestions, one corrected suggestion, and the contextual half of one explicit
+context/acoustic agreement. However, none of those suggestions could become a
+canonical-person proposal under the frozen candidate authority, so all three
+conditions still made zero proposals and recalled zero of nine named slots.
+There were zero wrong and zero high-confidence-wrong proposals. The review
+exposes one exact existing-voice binding candidate plus eight new-biometric-
+enrollment candidate appearances representing six distinct reviewed names;
+these are opportunities for a later plan, not enrollment authority.
+
+The terminal decision is `advance`, with recommended next action
+`prepare_separate_identity_binding_and_biometric_enrollment_plan`. This means
+the prior contextual work was useful for review candidate discovery, while the
+remaining product gap is canonicalization and reviewed learning. The successor
+must also repair calendar-title candidate recall and deduplicate repeated
+people across speaker slots before any profile enrollment.
+
+P5 replay is exact. Its directory is `0700` and all five JSON artifacts are
+`0600`. SQLite remains `quick_check=ok` with two contacts and three speaker
+assignments; the identity-state snapshot remains `64e0a7f4...`; both transcript
+services are active/running with zero restarts. Before/after live state is
+identical, `apply_authorized=false`, and every forbidden mutation remains
+zero. Accepted findings are the repaired blocking worksheet exporter defect
+and the calendar-title candidate-recall gap carried to the successor. No
+subagent was spawned.
+
+Terminal maturity reaches the stated Level 2 target for contextual execution,
+explicit canonical/acoustic joining, and direct human review on the selected
+cohort. Automatic assignment and profile learning remain Level 0 exactly as
+planned. Evidence is the frozen 3-recording/10-speaker/30-condition lineage,
+the 10/10 literal review, the P5 hashes and replay above, and unchanged live
+state.
 
 ## Authority and non-goals
 
