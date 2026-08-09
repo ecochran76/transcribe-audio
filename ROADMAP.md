@@ -712,9 +712,11 @@ acoustic contracts on the exact three recent conversations. P1-P2 completed
 with 3 recordings, 10 speakers, 30 joined evaluations, and seven unlisted
 suggestion records. P3 and P4 completed with zero live mutations. Literal P5
 review identified nine of ten slots, confirmed or corrected five contextual
-suggestions, linked one contextual identity to an enrolled voice subject,
-retained one role-only unresolved slot, and recorded one calendar-title
-candidate-recall miss. The three frozen conditions made no proposals because
+suggestions, linked one contextual identity to an enrolled voice subject, and
+retained one role-only unresolved slot. A later operator correction establishes
+that the Dr. Stefl recording had no calendar appointment: the name came from
+listening review, and Michael Forrester was not present. The three frozen
+conditions made no proposals because
 no reviewed names were in the canonical candidate authority, but also made no
 wrong proposals. P5 closed `advance` with one existing-voice binding candidate
 and eight enrollment-candidate appearances across six distinct reviewed names.
@@ -727,12 +729,13 @@ Plan 0063 is the open P09/P10 successor in
 Its non-applying P1-P4 implementation now turns the exact Plan 0062 human gold
 into six deterministic provisional-person proposals, three literal merge
 choices, one preserved enrolled-voice/context binding, and five new enrollment
-candidates backed by 26 replay-valid source windows. Calendar title,
+candidates backed by 26 replay-valid source windows. Available calendar title,
 description, attendee, and secondary-calendar evidence is now independently
-citable and fail-closed, while the correct live source for the reviewed
-calendar-title spelling remains explicitly uncaptured. The combined direct-WAV
-review is frozen at `bf53f4bf...` and published through authenticated Previews
-session `cb529a51053b`; browser proof covers all 26 players, blank/incomplete
+citable and fail-closed; the Dr. Stefl case is an explicit no-calendar negative
+control, not an uncaptured calendar-source case. The original combined
+direct-WAV review at `bf53f4bf...`, published through authenticated Previews
+session `cb529a51053b`, is superseded because its notice claimed calendar
+provenance the recording did not have. Its browser proof covered all 26 players, blank/incomplete
 export refusal, a working 30-row hash-bound export, clipboard fallback, and
 zero POST requests. The deterministic post-review transition plus
 conversation-knowledge and biometric private-copy rehearsal are now

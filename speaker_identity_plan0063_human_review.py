@@ -27,9 +27,21 @@ import speaker_identity_plan0063_enrollment_feasibility as feasibility
 import speaker_identity_plan0063_reconciliation as reconciliation
 
 
-REVIEW_SCHEMA = "transcribe-audio.plan0063-human-review.v1"
-RECEIPT_SCHEMA = "transcribe-audio.plan0063-human-review-receipt.v1"
-SUBMISSION_SCHEMA = "transcribe-audio.plan0063-human-review-submission.v1"
+REVIEW_SCHEMA = "transcribe-audio.plan0063-human-review.v2"
+RECEIPT_SCHEMA = "transcribe-audio.plan0063-human-review-receipt.v2"
+SUBMISSION_SCHEMA = "transcribe-audio.plan0063-human-review-submission.v2"
+SUPERSEDED_REVIEW_SHA256 = (
+    "bf53f4bff7f50c0ddc73277bc2500f513c19a6bd3004d5361efa73e4018893ac"
+)
+NO_CALENDAR_DOCUMENT_ID = "47ea79857aa1ac2d1d79"
+NO_CALENDAR_IDENTIFIED_SLOTS = {
+    f"{NO_CALENDAR_DOCUMENT_ID}::SPEAKER_2",
+    f"{NO_CALENDAR_DOCUMENT_ID}::SPEAKER_3",
+}
+ABSENT_PARTICIPANT_SLOTS = {
+    "8232481d6076282d7a8e::SPEAKER_1",
+    "92d2cd3ed6fc6c1275ca::SPEAKER_2",
+}
 RECONCILIATION_SHA256 = reconciliation.RECONCILIATION_SHA256 if hasattr(
     reconciliation, "RECONCILIATION_SHA256"
 ) else "82a6834165b20e9457536fbbe67e1540a583ee6dd72374296de55e5b6ccf7f05"
@@ -300,35 +312,56 @@ def build_review_manifest(
         26,
     ):
         _fail("The combined human-review denominator drifted.")
-    clinical_slots = {
-        "47ea79857aa1ac2d1d79::SPEAKER_2",
-        "47ea79857aa1ac2d1d79::SPEAKER_3",
-    }
-    calendar_person = next(
+    identified_person = next(
         (
             raw
             for raw in reconciled.get("person_proposals") or []
             if isinstance(raw, Mapping)
-            and set(raw.get("member_slot_ids") or []) == clinical_slots
+            and set(raw.get("member_slot_ids") or [])
+            == NO_CALENDAR_IDENTIFIED_SLOTS
         ),
         None,
     )
-    if not isinstance(calendar_person, Mapping):
-        _fail("The reviewed calendar-title candidate is missing.")
-    calendar_person_id = str(calendar_person.get("proposed_person_id") or "")
+    absent_person = next(
+        (
+            raw
+            for raw in reconciled.get("person_proposals") or []
+            if isinstance(raw, Mapping)
+            and set(raw.get("member_slot_ids") or []) == ABSENT_PARTICIPANT_SLOTS
+        ),
+        None,
+    )
+    if not isinstance(identified_person, Mapping) or not isinstance(
+        absent_person, Mapping
+    ):
+        _fail("The operator-corrected no-calendar context is incomplete.")
+    identified_person_id = str(identified_person.get("proposed_person_id") or "")
+    absent_person_id = str(absent_person.get("proposed_person_id") or "")
+    absent_slots = list(absent_person.get("member_slot_ids") or [])
+    if any(
+        slot.startswith(f"{NO_CALENDAR_DOCUMENT_ID}::") for slot in absent_slots
+    ):
+        _fail("The absent participant is still attributed to the no-calendar recording.")
     core = {
         "schema_version": REVIEW_SCHEMA,
         "status": "blank_human_review_pending",
+        "supersedes_review_content_sha256": SUPERSEDED_REVIEW_SHA256,
         "reconciliation_content_sha256": RECONCILIATION_SHA256,
         "feasibility_content_sha256": FEASIBILITY_SHA256,
         "repository_authority": dict(repository_authority),
-        "calendar_candidate_observation": {
-            "proposed_person_id": calendar_person_id,
-            "display_label": labels[calendar_person_id],
-            "authority": "operator_observed_calendar_title",
-            "stored_calendar_source_status": "correct_source_not_captured",
-            "candidate_only": True,
-            "speaker_assignment_proven": False,
+        "recording_context_correction": {
+            "document_id": NO_CALENDAR_DOCUMENT_ID,
+            "calendar_status": "operator_confirmed_no_calendar_event",
+            "calendar_evidence_available": False,
+            "calendar_candidate_claim_withdrawn": True,
+            "identified_person_id": identified_person_id,
+            "identified_display_label": labels[identified_person_id],
+            "identity_authority": "operator_listening_review",
+            "absent_participant_person_id": absent_person_id,
+            "absent_participant_display_label": labels[absent_person_id],
+            "absent_participant_member_slot_ids": absent_slots,
+            "participant_absence_authority": "operator_correction",
+            "speaker_identity_proven_by_calendar": False,
         },
         "merge_reviews": merges,
         "binding_reviews": bindings,
@@ -412,7 +445,7 @@ def render_review_html(manifest: Mapping[str, Any]) -> str:
             + "".join(rows)
             + "</article>"
         )
-    calendar = manifest["calendar_candidate_observation"]
+    correction = manifest["recording_context_correction"]
     headers = [
         f"PLAN0063_SCHEMA={SUBMISSION_SCHEMA}",
         f"PLAN0063_P2_CONTENT_SHA256={manifest['reconciliation_content_sha256']}",
@@ -438,7 +471,7 @@ def render_review_html(manifest: Mapping[str, Any]) -> str:
 </style></head><body><main>
 <h1>Speaker grouping and voice-source review</h1>
 <p>This review has 3 grouping decisions, 1 enrolled-voice/context binding, and 26 exact source clips. It starts blank and cannot apply changes.</p>
-<section class="notice"><h2>Calendar-source gap</h2><p>The reviewed calendar-title candidate is <strong>{html.escape(calendar['display_label'])}</strong>. The corrected source calendar was not captured in the stored event evidence, so this remains an operator-observed candidate—not proof that the person spoke. The implementation can cite the title once that calendar source is available.</p></section>
+<section class="notice"><h2>No-calendar correction</h2><p>Recording <code>{html.escape(correction['document_id'])}</code> has no calendar event. <strong>{html.escape(correction['identified_display_label'])}</strong> was identified by operator listening review, not calendar evidence. <strong>{html.escape(correction['absent_participant_display_label'])}</strong> is not present in that recording, and none of that person's reviewed slots or source clips comes from it.</p></section>
 <form id="review-form" action="" method="get" onsubmit="return false">
 <h2>1. Person grouping</h2>{''.join(merge_cards)}
 <h2>2. Existing voice and contextual person</h2>{''.join(binding_cards)}

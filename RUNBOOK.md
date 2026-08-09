@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 355: Correct Plan 0063 no-calendar review provenance (2026-08-09)
+
+Summary: Accepted the operator's correction that the Dr. Stefl recording had no
+calendar appointment and superseded the original P4 review explanation without
+changing its exact P2 person or P3 source bindings.
+
+Evidence:
+
+- Document `47ea79857aa1ac2d1d79` is operator-confirmed no-calendar. Dr. Stefl's
+  identity is listening-review evidence, not calendar evidence; Michael
+  Forrester is operator-confirmed absent.
+- P2 already assigns Dr. Stefl only to that document's `SPEAKER_2` and
+  `SPEAKER_3`. Michael's two reviewed slots are in the other recordings. P3
+  likewise draws no Michael source clip from the no-calendar document, so the
+  frozen P2 and P3 content remains valid.
+- Original P4 content `bf53f4bf...` and Previews session `cb529a51053b` are
+  retained as immutable but superseded evidence. Review schema v2 withdraws the
+  calendar-candidate claim, records the no-calendar state and participant
+  exclusion, and requires a newly hash-bound 30-decision submission.
+- The browser export-script repair recorded in Turn 349 was implementation
+  validation. The one semantic review-rework cycle is consumed by this operator
+  provenance correction.
+
+Next:
+
+- Freeze and publish the corrected v2 P4 through authenticated Previews, verify
+  all 26 audio controls and the 30-row export, then wait for the operator's
+  complete corrected block. Do not run the real rehearsal or request A1 from
+  the superseded review.
+
 ## Turn 354: Share Plan 0063 governed apply helpers (2026-08-09)
 
 Summary: Removed the last duplicated mutation logic between the private-copy

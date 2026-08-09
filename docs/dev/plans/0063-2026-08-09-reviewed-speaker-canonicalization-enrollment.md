@@ -2,9 +2,10 @@
 
 State: OPEN
 
-Checkpoint: P4 review published; complete governed private-copy rehearsal, A1
-authority contract, and terminal live driver implemented; operator decisions
-pending; A1 not requested or authorized
+Checkpoint: original P4 review superseded after operator provenance correction;
+corrected no-calendar P4 publication pending; private-copy rehearsal, A1
+authority contract, and terminal live driver implemented; A1 not requested or
+authorized
 
 Lane: P10
 
@@ -16,8 +17,9 @@ Critical-Path Owner: primary agent
 ## Scope
 
 Turn the exact reviewed Plan 0062 human gold into a deduplicated, reviewable
-canonical-person binding packet; make calendar-title evidence citable by the
-speaker clue workflow; qualify source-bound speech for the genuinely new
+canonical-person binding packet; make available calendar-title evidence citable
+by the speaker clue workflow without inventing calendar provenance; qualify
+source-bound speech for the genuinely new
 reviewed people; and prepare a direct-audio review packet for person grouping,
 existing-voice binding, and new-speaker enrollment sources.
 
@@ -51,7 +53,7 @@ widen the all-false mutation boundary inherited from Plan 0062.
 | Capability | Current | Target | Required evidence |
 | --- | --- | --- | --- |
 | Reviewed identity canonicalization | Level 2 human gold names nine of ten slots, but repeated people are still slot-local labels | Level 2 replayable private canonical-person reconciliation | Every named slot maps to one provisional person or one explicit merge decision; the role-only placeholder remains unresolved; exact identifiers and name-only proposals stay distinguishable |
-| Calendar-title identity evidence | Level 1 title data is present in the packet but the clue prompt permits citations only to transcript utterances | Level 2 host-bound, citable calendar clues | Stable calendar evidence IDs are prepared and validated; the frozen missed-title case yields a correctly spelled candidate hint without treating the title as proof that the person spoke |
+| Calendar identity evidence | Level 1 calendar fields can enter the packet but the clue prompt permits citations only to transcript utterances, and no-calendar recordings require an explicit negative state | Level 2 host-bound, citable calendar clues with absence preserved | Stable calendar evidence IDs are prepared and validated when a calendar event exists; the corrected no-calendar case exposes no calendar candidate and never treats a title as proof that a person spoke |
 | Biometric enrollment preparation | Level 2 profiles exist for enrolled subjects; five likely reviewed people have no voice profile | Level 2 reviewed, source-bound enrollment preview | Each proposed new person has replay-validated P1/P2 lineage, qualified speech windows, source-claim conflict checks, and a literal include/exclude decision |
 | Existing voice/person binding | One P5 decision explicitly joins an enrolled subject to a contextual identity | Level 2 exact reviewed binding authority | The acoustic subject, contextual external identity, person proposal, source bundles, and review decision remain hash-bound without label-only reconstruction |
 | Automatic identity application | Level 0 | Level 0 through A0 | No live people, contacts, assignments, profiles, references, provider records, Graphiti projections, watcher changes, or historical reprocessing |
@@ -78,11 +80,11 @@ conversation-knowledge schema remains version 0 in sidecar authority mode.
 The acoustic identity-state snapshot is
 `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`.
 
-The calendar title already enters `build_clue_discovery_packet`, but
+When present, a calendar title already enters `build_clue_discovery_packet`, but
 `build_clue_discovery_prompt` instructs the model to cite only prepared
 utterance IDs. The host validator likewise understands transcript clue IDs but
-has no calendar-evidence citation contract. This explains how title data could
-be visible yet fail to become a reliable, correctly spelled identity clue.
+has no calendar-evidence citation contract. This leaves real calendar evidence
+underused while requiring the host to preserve an explicit no-calendar state.
 
 Existing biometric-reference creation already requires source segments with
 replay-validated P1 derivative or P2 speech-preparation lineage, immutable
@@ -111,15 +113,16 @@ embedding changes remain unauthorized.
 
 ## P1-P4 execution checkpoint
 
-P1 is implemented and pushed. Calendar titles, descriptions, attendees, and
+P1 is implemented and pushed. Available calendar titles, descriptions, attendees, and
 secondary matching-calendar titles now receive stable packet-bound evidence
 IDs; invented and cross-packet IDs fail closed; calendar-only clues remain
-candidate evidence rather than proof of speech. The exact human-observed title
-fixture yields the corrected candidate spelling. The stored clinical document
-is nevertheless attached to an unrelated selected event, and a bounded
-read-only primary-calendar check found no matching appointment. The correct
-calendar source/account is therefore a visible source gap, not silently
-reconstructed evidence. Provider command execution now has a bounded timeout.
+candidate evidence rather than proof of speech. The synthetic title fixture
+still verifies correctly spelled candidate preparation, but the operator has
+confirmed that document `47ea79857aa1ac2d1d79` had no calendar appointment at
+all. Dr. Stefl was identified by listening review, not calendar evidence, and
+Michael Forrester was not present. That recording is therefore an explicit
+no-calendar negative control rather than a missing-source case. Provider command
+execution now has a bounded timeout.
 
 P2 private reconciliation is frozen at content
 82a6834165b20e9457536fbbe67e1540a583ee6dd72374296de55e5b6ccf7f05,
@@ -137,20 +140,26 @@ Every window is tagged as a development/training candidate and all three
 source recordings are excluded from future holdouts. Device metadata remains
 explicitly unverified; no enrollment is authorized.
 
-P4 is frozen at content
+The original P4 was frozen at content
 bf53f4bff7f50c0ddc73277bc2500f513c19a6bd3004d5361efa73e4018893ac,
 manifest file 7f60e0a5..., HTML file a9555394..., and receipt file
-b4e82a8e.... The private 0700 review contains 26 mode-0600 WAV clips and 30
+b4e82a8e.... It is now superseded because its calendar-source notice asserted
+provenance the recording did not have. Its private 0700 review contains 26
+mode-0600 WAV clips and 30
 blank decisions: three groupings, one enrolled-voice/context binding, and 26
 source include/exclude choices. Authenticated remote Previews session
-cb529a51053b was browser-validated: the corrected calendar candidate and all
+cb529a51053b was browser-validated before supersession: its notice and all
 players render; audio reaches ready state 4 with no media error; incomplete
 export is refused; complete export contains 30 decision rows plus four exact
 headers; clipboard denial selects the full fallback block; and no POST request
-occurs. The single allowed review rework cycle was consumed fixing the
-generated newline that caused the first export script to fail. A1 and all live
+occurs. That browser defect was implementation validation, not a semantic
+operator review cycle. The single allowed review rework cycle is now consumed
+by the operator's no-calendar and participant correction. A corrected v2 P4
+must supersede the old content hash, preserve the unchanged P2/P3 bindings, and
+show that Dr. Stefl came from listening review while Michael Forrester is absent
+from the recording. A1 and all live
 canonical/biometric changes remain unauthorized until the operator returns the
-complete block and separately authorizes the exact mutation gate.
+complete corrected block and separately authorizes the exact mutation gate.
 
 ## P5 private-rehearsal implementation checkpoint
 
@@ -276,10 +285,11 @@ artifacts; read-only live-state receipts; and private shadow database copies.
 ## Execution bounds
 
 - `max_work_unit_attempts`: 2 per implementation or runtime unit.
-- `max_review_rework_cycles`: 1 for the combined grouping/source review.
-- `max_calendar_regression_cases`: the exact missed-title case plus 3 redacted
-  controls covering no title-person hint, attendee conflict, and ambiguous
-  title text.
+- `max_review_rework_cycles`: 1 for the combined grouping/source review;
+  consumed by the operator's no-calendar and participant correction.
+- `max_calendar_regression_cases`: the exact no-calendar correction plus 3
+  redacted controls covering a real title-person hint, attendee conflict, and
+  ambiguous title text.
 - `max_enrollment_candidates`: 6 provisional reviewed people before grouping;
   no more than 5 new people after accepted grouping and existing-voice binding.
 - `max_source_windows_per_person`: 6.
@@ -306,7 +316,7 @@ discovery, writes, validation, reconciliation, and final judgment.
 | P1 calendar evidence | A0 | Add prepared, stable calendar clue IDs and citation validation to the two-phase workflow | `speaker_identity_preprocess.py`, focused tests | Title, description, and attendees are bounded separately; citations outside the prepared set fail closed; title is candidate evidence, never speaker proof |
 | P2 person reconciliation | A0 | Convert P5 decisions into provisional people and explicit grouping/binding proposals | One focused module, tests, private manifest/receipt | 10/10 decisions covered; role placeholder excluded; exact-email and name-only evidence remain distinguishable; no provider/live write |
 | P3 enrollment feasibility | P2 and existing P1/P2 acoustic lineage | Resolve source-bound speech windows and quality/source-claim checks for reviewed new-person proposals | One focused module, private manifests/clips/receipts | Every candidate is eligible with exact lineage or reason-coded ineligible; future-holdout exclusion set frozen; no embedding materialization |
-| P4 combined human review | P1-P3 | Direct-audio review of grouping, existing-voice binding, and new-person source inclusion | Private minimum-copy worksheet and authenticated Previews artifact | Literal decision for every merge, binding, and source; corrected calendar candidate shown; no apply endpoint |
+| P4 combined human review | P1-P3 | Direct-audio review of grouping, existing-voice binding, and new-person source inclusion | Private minimum-copy worksheet and authenticated Previews artifact | Literal decision for every merge, binding, and source; no-calendar state and participant exclusion shown; no apply endpoint |
 | A1 mutation gate | P4 and private-copy apply/rollback proof | Bind one exact reviewed state transition | Private authority receipt only | Literal operator authorization matches exact person/source/apply hashes and current baseline |
 | P5 reviewed apply | A1 | Create reviewed person sidecar bindings and approved biometric generations/profiles, then replay | Existing governed stores plus immutable receipts | Exact counts/hashes, backup, integrity, idempotency, rollback, and zero unauthorized effects; otherwise fail closed |
 
@@ -319,7 +329,7 @@ the exact mutation.
 
 | ID | Criterion | Evidence | Consequence | Disposition |
 | --- | --- | --- | --- | --- |
-| F1 | Calendar title can support a correctly spelled candidate | Plan 0062 human observation plus current prompt/validator allowing only utterance citations | An obvious calendar-derived name stayed misspelled and unprepared | `blocking` for P1 |
+| F1 | Calendar evidence must be citable only when it exists | P1 synthetic calendar controls plus the operator correction that the clinical recording had no appointment | Treating the listened name as calendar-derived invented provenance and obscured a true no-calendar case | `resolved` in P1 contract; `blocking` for corrected P4 |
 | F2 | Repeated reviewed names must not fork or silently merge people | P5 has two name-only repeated groups and one exact-external-identity repeated group | Name-only merge can conflate people; slot-local storage can duplicate them | `blocking` for P2/P4 |
 | F3 | Existing voice and context agreement must preserve both authorities | One P5 linked decision carries exact acoustic subject and contextual suggestion | Label-only application would lose the reviewed cross-pillar binding | `blocking` for P2/P4 |
 | F4 | New enrollment must use governed source lineage | Existing reference API accepts only replay-validated P1/P2 sources; P4 clips alone are not that authority | Direct clip-to-profile shortcuts would create untraceable training data | `blocking` for P3 |
@@ -332,9 +342,10 @@ the exact mutation.
 - Calendar title, description, and attendee evidence receive stable prepared
   IDs. Clue Discovery may cite those IDs separately from transcript utterance
   IDs; invented or cross-packet citations fail closed.
-- The exact missed-title case produces a correctly spelled person hint or an
-  explicit ambiguity warning while the three controls prevent title-only
-  speaker assignment.
+- The corrected clinical case records no calendar event, attributes Dr. Stefl
+  only to operator listening review, excludes Michael Forrester from that
+  recording, and emits no calendar-derived person hint. Synthetic calendar
+  controls still prevent title-only speaker assignment.
 - Reconciliation covers all ten decisions, excludes the role-only placeholder
   from person creation, and emits deterministic provisional person IDs.
 - One exact-external-identity repeated group, two name-only merge proposals,
@@ -363,8 +374,8 @@ the exact mutation.
   future-holdout exclusion.
 - Exact P5 replay and deterministic reconciliation/enrollment preview replay.
 - Real browser validation of direct audio, strict incomplete-export refusal,
-  corrected calendar evidence, merge/binding choices, copy fallback, and no
-  client/network apply.
+  the no-calendar correction and participant exclusion, merge/binding choices,
+  copy fallback, and no client/network apply.
 - Private mode checks (`0700` directories and `0600` files), SQLite
   `quick_check`, identity-state hash, service restart counts, immutable receipt
   hashes, and forbidden-mutation counters.

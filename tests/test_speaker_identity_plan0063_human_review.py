@@ -16,10 +16,13 @@ def _inputs():
         }
         for index in range(1, 7)
     ]
+    people[0]["member_names"] = ["Michael Forrester"]
+    people[0]["member_slot_ids"] = sorted(review.ABSENT_PARTICIPANT_SLOTS)
     people[4]["member_slot_ids"] = [
         "47ea79857aa1ac2d1d79::SPEAKER_2",
         "47ea79857aa1ac2d1d79::SPEAKER_3",
     ]
+    people[4]["member_names"] = ["Dr. Stefl"]
     merges = []
     for index in range(3):
         merges.append(
@@ -99,15 +102,27 @@ def _manifest():
     )
 
 
-def test_review_manifest_preserves_exact_blank_denominator_and_calendar_gap():
+def test_review_manifest_preserves_denominator_and_no_calendar_correction():
     manifest = _manifest()
 
     assert manifest["decision_count"] == 30
     assert len(manifest["merge_reviews"]) == 3
     assert len(manifest["binding_reviews"]) == 1
     assert sum(len(item["windows"]) for item in manifest["source_reviews"]) == 26
-    assert manifest["calendar_candidate_observation"]["candidate_only"] is True
-    assert manifest["calendar_candidate_observation"]["speaker_assignment_proven"] is False
+    correction = manifest["recording_context_correction"]
+    assert correction["calendar_status"] == "operator_confirmed_no_calendar_event"
+    assert correction["calendar_evidence_available"] is False
+    assert correction["calendar_candidate_claim_withdrawn"] is True
+    assert correction["identified_display_label"] == "Dr. Stefl"
+    assert correction["identity_authority"] == "operator_listening_review"
+    assert correction["absent_participant_display_label"] == "Michael Forrester"
+    assert all(
+        not slot.startswith(f"{review.NO_CALENDAR_DOCUMENT_ID}::")
+        for slot in correction["absent_participant_member_slot_ids"]
+    )
+    assert manifest["supersedes_review_content_sha256"] == (
+        review.SUPERSEDED_REVIEW_SHA256
+    )
     assert all(item["selected"] is None for item in manifest["merge_reviews"])
     assert not any(manifest["negative_actions"].values())
 
@@ -121,6 +136,9 @@ def test_review_html_has_direct_audio_working_export_controls_and_no_apply_path(
     assert "addEventListener('click',build)" in body
     assert "navigator.clipboard.writeText" in body
     assert "document.execCommand('copy')" in body
+    assert "No-calendar correction" in body
+    assert "identified by operator listening review, not calendar evidence" in body
+    assert "Michael Forrester</strong> is not present" in body
     assert "rows.join('\\n')" in body
     assert "rows.join('\n')" not in body
     assert "fetch(" not in body
@@ -165,6 +183,29 @@ def test_review_manifest_rejects_holdout_reuse_or_missing_clip_binding():
         "future_holdout_excluded"
     ] = False
     with pytest.raises(review.Plan0063HumanReviewError):
+        review.build_review_manifest(
+            reconciled,
+            feasibility,
+            clip_sha256_by_reference=clip_hashes,
+            repository_authority={},
+        )
+
+
+def test_review_manifest_rejects_absent_participant_in_no_calendar_recording():
+    reconciled, feasibility, clip_hashes = _inputs()
+    michael = next(
+        person
+        for person in reconciled["person_proposals"]
+        if person["member_names"] == ["Michael Forrester"]
+    )
+    michael["member_slot_ids"] = [
+        f"{review.NO_CALENDAR_DOCUMENT_ID}::SPEAKER_1"
+    ]
+
+    with pytest.raises(
+        review.Plan0063HumanReviewError,
+        match="no-calendar context is incomplete",
+    ):
         review.build_review_manifest(
             reconciled,
             feasibility,

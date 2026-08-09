@@ -19,12 +19,12 @@ import transcript_store
 
 def _review_inputs() -> tuple[dict, dict, dict[str, str]]:
     person_slots = (
-        ("Person Alpha", ("doc0::SPEAKER_1", "doc0::SPEAKER_2")),
+        ("Michael Forrester", tuple(sorted(review.ABSENT_PARTICIPANT_SLOTS))),
         ("Person Bravo", ("doc1::SPEAKER_1",)),
         ("Person Charlie", ("doc2::SPEAKER_1",)),
         ("Person Delta", ("doc3::SPEAKER_1", "doc3::SPEAKER_2")),
         (
-            "Person Echo",
+            "Dr. Stefl",
             (
                 "47ea79857aa1ac2d1d79::SPEAKER_2",
                 "47ea79857aa1ac2d1d79::SPEAKER_3",
