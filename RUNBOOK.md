@@ -1,5 +1,34 @@
 # Runbook
 
+## Turn 345: Freeze exact enrolled-option source bindings (2026-08-08)
+
+Summary: Closed the final P5 readiness gap by preserving the exact private
+acoustic subject behind each opaque enrolled-voice browser option.
+
+Evidence:
+
+- Added a validated token-to-subject binding contract and immutable private
+  freeze/replay path to `speaker_identity_plan0062_human_comparison.py`.
+- Human gold for an enrolled-voice choice now carries the acoustic subject ID,
+  bundle ID/hash, and a pending-reviewed-person-apply status. It cannot be
+  reconstructed from or replaced by the display label alone.
+- Commit `561aba3` is pushed. Focused validation passed 20 tests and the full
+  suite passed 957 tests in 96.40 seconds.
+- The real source sidecar has content `79e34705...`, manifest `a74a5a27...`,
+  and exactly three bindings. Replay passed; its directory is `0700`, both
+  files are `0600`, live mutation count is zero, and negative actions remain
+  all false.
+- SQLite quick-check is `ok` with two contacts and three speaker assignments.
+  Current acoustic identity state exactly matches both frozen Plan 0060
+  before/after snapshots at `e16da328...`.
+- Previews is healthy but session `3af6c1f36243` still has no feedback. No P5
+  human submission or comparison artifact exists.
+
+Next:
+
+- Wait for the worksheet's literal 10-row export, then freeze and independently
+  score P5 against P3, P4, and the exact private enrolled-option sidecar.
+
 ## Turn 344: Prepare strict Plan 0062 P5 comparison seam (2026-08-08)
 
 Summary: Implemented and validated the human-submission parser and independent

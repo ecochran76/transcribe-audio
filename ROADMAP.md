@@ -715,8 +715,9 @@ P4 worksheet is published and awaiting literal decisions. The strict P5
 parser/comparison freezer is implemented and validates the real 10-slot source
 packet; it distinguishes canonical confirmation, existing enrolled-voice
 binding, contextual/typed new-person enrollment candidates, and unresolved
-gold. Assignment apply and biometric enrollment remain separate later
-authorities.
+gold. A private content-addressed sidecar now preserves the exact acoustic
+subject and bundle authority behind all three enrolled-voice options. Assignment
+apply and biometric enrollment remain separate later authorities.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

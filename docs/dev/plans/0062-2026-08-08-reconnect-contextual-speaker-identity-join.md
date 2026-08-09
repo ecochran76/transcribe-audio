@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P4 published; P5 human gate
+Checkpoint: P5 source bindings frozen; literal human gate
 
 Lane: P09
 
@@ -193,6 +193,23 @@ private P3/P4 sources pass readiness validation at 10/10 slots with 11
 contextual-unlisted options, three enrolled-voice options, and zero canonical-
 person options. No P5 decision or receipt exists until the operator supplies
 the literal complete export.
+
+A completion audit then found that an enrolled-voice choice would have retained
+only its opaque browser token, not the exact private acoustic subject needed by
+a later reviewed binding plan. Commit `561aba3` closes that gap without
+changing the published worksheet: P5 now requires a content-addressed private
+token-to-subject sidecar and carries the selected acoustic subject plus bundle
+hash into human gold. The real sidecar contains exactly three option
+appearances, has content SHA-256
+`79e34705d27608b53776518e8bfe48d3df16a82f139afb13f9236086df3c3c1d`,
+and immutable manifest SHA-256
+`a74a5a2713d9cb84944f248fd7b93cadfce1e2a5b3c031afe385a3fb12fac7e7`.
+Exact replay passed with `0700`/`0600` modes. The live identity state still
+matches both Plan 0060 before/after snapshots at
+`e16da3286c32bd5d28bcc7d251ff9c60ccf0ce2ff6aa284672c85e5752a72cc6`;
+SQLite remains `ok` with two contacts and three speaker assignments. This
+source binding is evidence only and authorizes no person, contact, assignment,
+profile, or biometric-reference mutation.
 
 ## Authority and non-goals
 
