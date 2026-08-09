@@ -179,6 +179,21 @@ Authenticated Previews session `3af6c1f36243` contains directory artifact
 one worksheet plus 10 WAV files, all relative sources present, and no localhost
 links. P4 now stops at the literal operator decision gate.
 
+The reusable P5 submission and comparison seam is implemented while that gate
+remains open. It validates the literal three-header/ten-row export against the
+exact P3 and P4 hashes, preserves slot order, decodes typed names, and retains
+the semantic difference between a canonical-person confirmation, an existing
+enrolled-voice binding opportunity, a contextual unlisted-person suggestion,
+a typed new person, and unresolved gold. Independent three-condition scoring
+reports correct/wrong proposals, policy-safe and inappropriate abstentions,
+canonical and named-identity recall, and enrollment/binding opportunities. Its
+terminal result can only recommend `refine` or a separate later plan;
+`apply_authorized=false` and every negative action remain invariant. The real
+private P3/P4 sources pass readiness validation at 10/10 slots with 11
+contextual-unlisted options, three enrolled-voice options, and zero canonical-
+person options. No P5 decision or receipt exists until the operator supplies
+the literal complete export.
+
 ## Authority and non-goals
 
 - Do not reveal, modify, or reuse Plan 0036 prediction bodies or partial gold.

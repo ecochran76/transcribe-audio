@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 344: Prepare strict Plan 0062 P5 comparison seam (2026-08-08)
+
+Summary: Implemented and validated the human-submission parser and independent
+three-condition comparison freezer while preserving the literal P4 human gate.
+
+Evidence:
+
+- Added `speaker_identity_plan0062_human_comparison.py` with exact three-header,
+  ten-row, ordered submission validation bound to P3/P4 content hashes.
+- Opaque review choices retain their reviewed meaning: canonical person,
+  enrolled voice awaiting a person binding, contextual unlisted suggestion,
+  typed new person, or unresolved. Rehashed semantic drift fails closed.
+- Comparison metrics separate correct/wrong proposals, safe/inappropriate
+  abstentions, canonical and named-identity recall, and new-enrollment versus
+  existing-voice-binding opportunities across all 30 condition views.
+- The terminal output is advisory and non-applying. It may recommend `refine`
+  or a separate later authority; `apply_authorized=false`, live mutation count
+  zero, and the complete negative-action vector are immutable.
+- The real private P3/P4 source validation passed 10/10 speaker slots with 11
+  contextual-unlisted options, three enrolled-voice options, zero canonical-
+  person options, and no submitted decisions.
+
+Next:
+
+- Wait for the literal 10-row worksheet export. Then freeze and replay P5,
+  record the measured terminal decision, and close or refine Plan 0062 without
+  applying contacts, assignments, people, profiles, or biometric references.
+
 ## Turn 343: Publish Plan 0062 contextual speaker review (2026-08-08)
 
 Summary: Froze, replayed, and published the authenticated direct-audio P4
