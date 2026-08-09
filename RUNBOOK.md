@@ -24,14 +24,28 @@ Evidence:
   notice with additional visual separation. The decision denominator stays 30,
   the 26 enrollment-source clips remain unchanged, and all live mutations stay
   false.
-- Twelve focused review/rehearsal tests, Python compilation, and diff checks
-  pass. Freeze, authenticated publication, and remote validation are pending.
+- The first prepublication v3 freeze `2ae49329...` exposed an intermediate
+  directory at 0755 and failed strict replay. It was never published. The copy
+  path now uses the shared private-tree enforcer, with a regression test that
+  proves every created directory is 0700.
+- The repaired frozen v3 content is
+  `d782cd7df6805abd0216fb002ac5133d7ca0c5f9825d074e761a702bc219a479`;
+  manifest is `7528a641...`, HTML is `54a0f25a...`, and receipt is
+  `cdb5633a...`. Replay is idempotent across 26 source clips, six comparison
+  clips, 30 blank decisions, 35 mode-0600 files, mode-0700 directories, and
+  zero live mutations.
+- Authenticated Previews session `4ac17bd09f2f`, artifact `93bf4884a21e`, is
+  the sole current review surface. Remote validation fetched 32/32 unique WAV
+  URLs with HTTP 200 and WAV content types and confirmed the separate notice,
+  Michael's Recording 1/Recording 3 pair, 30 blank decisions, v3 schema, and no
+  POST or fetch path.
+- Thirteen focused review/rehearsal tests, Python compilation, and diff checks
+  pass. The full suite passes 995 tests.
 
 Next:
 
-- Commit and push the v3 contract, freeze its immutable 32-clip review, publish
-  a replacement authenticated Previews page, and validate the paired audio and
-  strict export remotely. Do not accept either prior P4 submission.
+- Wait for the operator's complete v3 block from the replacement page. Do not
+  accept either prior P4 submission or run the real rehearsal yet.
 
 ## Turn 355: Correct Plan 0063 no-calendar review provenance (2026-08-09)
 

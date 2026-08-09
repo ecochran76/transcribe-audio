@@ -3,8 +3,8 @@
 State: OPEN
 
 Checkpoint: both prior P4 surfaces superseded after operator provenance and
-answerability findings; paired-audio v3 replacement implemented pending freeze
-and publication; operator decisions pending; private-copy rehearsal, A1
+answerability findings; paired-audio v3 replacement frozen, published, and
+remote-validated; operator decisions pending; private-copy rehearsal, A1
 authority contract, and terminal live driver implemented; A1 not requested or
 authorized
 
@@ -171,10 +171,20 @@ to the separate Dr. Stefl correction. The v2 surface and submission are
 therefore superseded, not accepted. Review schema v3 requires six hash-bound
 Plan 0062 comparison clips, two visibly labeled samples inside each grouping
 card, direct-WAV fallbacks, and a separate no-answer-required Recording 2
-context notice. Its freeze and authenticated publication are pending. A1 and
-all live canonical/biometric changes remain unauthorized until the operator
-returns the complete v3 block and separately authorizes the exact mutation
-gate.
+context notice. A first prepublication v3 freeze `2ae49329...` was rejected by
+strict replay because the new comparison-clips intermediate directory was
+0755; it was never published. The repaired immutable v3 review is content
+`d782cd7df6805abd0216fb002ac5133d7ca0c5f9825d074e761a702bc219a479`,
+manifest `7528a641...`, HTML `54a0f25a...`, and receipt `cdb5633a...`.
+Idempotent replay verifies 26 source clips plus six comparison clips, 30 blank
+decisions, all 35 files at 0600, every directory at 0700, and zero live
+mutations. Authenticated Previews session `4ac17bd09f2f`, artifact
+`93bf4884a21e`, serves 32/32 unique WAV URLs with HTTP 200 WAV responses. Remote
+HTML readback confirms the separate no-answer notice, the Michael Recording 1
+versus Recording 3 pair, v3 submission binding, 30 blank decisions, and no
+POST or fetch path. A1 and all live canonical/biometric changes remain
+unauthorized until the operator returns the complete v3 block and separately
+authorizes the exact mutation gate.
 
 ## P5 private-rehearsal implementation checkpoint
 

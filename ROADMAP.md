@@ -744,8 +744,11 @@ audio, and the Michael cross-recording card appeared attached to the separate
 Dr. Stefl correction. That v2 submission is now superseded. The v3 replacement
 requires two labeled, hash-bound Plan 0062 audio samples inside every grouping
 card, six comparison clips total, direct-WAV fallbacks, and an explicitly
-separate no-answer-required Recording 2 notice; freeze and authenticated
-publication are pending. This review-surface repair advances the Level 2
+separate no-answer-required Recording 2 notice. The repaired v3 content is
+`d782cd7d...`, published as authenticated Previews session `4ac17bd09f2f`,
+artifact `93bf4884a21e`; strict replay verifies 32 clips, 30 blank decisions,
+private modes, and zero mutations, while remote ingress serves 32/32 unique
+WAVs with HTTP 200. This review-surface repair advances the Level 2
 replayable human canonicalization target without changing the 30-decision
 denominator or authorizing application. The deterministic post-review transition plus
 conversation-knowledge and biometric private-copy rehearsal are now
@@ -769,8 +772,8 @@ either success or proven exact rollback. Four disposable-store driver tests,
 pass. The rehearsal and terminal driver now share the exact governed knowledge
 and biometric apply helpers, eliminating the remaining indirect-coverage gap;
 10 focused tests and the unchanged 993-test full suite pass after that
-consolidation. No real request, authority, rehearsal, or apply has run. Once the 30
-decisions arrive, no further implementation round is planned. A0 remains
+consolidation. No real request, authority, rehearsal, or apply has run. Once all
+30 v3 decisions arrive, no further implementation round is planned. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
 separate exact A1 gate with private-copy apply and rollback proof.
 
