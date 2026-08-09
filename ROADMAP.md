@@ -734,7 +734,14 @@ calendar-title spelling remains explicitly uncaptured. The combined direct-WAV
 review is frozen at `bf53f4bf...` and published through authenticated Previews
 session `cb529a51053b`; browser proof covers all 26 players, blank/incomplete
 export refusal, a working 30-row hash-bound export, clipboard fallback, and
-zero POST requests. Operator decisions are now pending. A0 remains
+zero POST requests. The deterministic post-review transition and
+conversation-knowledge private-copy rehearsal are now implemented: reviewed
+merges, slot bindings, voice/context agreement, source choices, governed store
+apply, profile projection, table reconciliation, schema rollback, exact byte
+restore, and unchanged-live checks are covered by four focused tests and the
+982-test full suite. The exact one-shot rehearsal has not run and biometric
+reference/profile rehearsal remains pending until the 30 decisions arrive.
+Operator decisions are now pending. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
 separate exact A1 gate with private-copy apply and rollback proof.
 

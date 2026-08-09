@@ -1,5 +1,38 @@
 # Runbook
 
+## Turn 350: Implement Plan 0063 reviewed-transition rehearsal (2026-08-09)
+
+Summary: Reconciled the operator's copied Plan 0062 answers with the already
+frozen human gold and implemented the non-live Plan 0063 canonical-person
+transition plus conversation-knowledge private-copy apply/rollback path.
+
+Evidence:
+
+- The copied 10-speaker page exactly agrees with frozen Plan 0062 P5, including
+  both corrected calendar-derived Dr. Stefl slots and the Eric enrolled-voice
+  plus contextual-person agreement. It is not the current 30-decision Plan
+  0063 grouping/source review, so none of those old decisions needs repeating.
+- `speaker_identity_plan0063_private_rehearsal.py` requires a complete,
+  hash-bound P4 submission; resolves accepted/rejected merges deterministically;
+  preserves 9 named slot bindings, the voice/context outcome, and literal
+  source inclusions; and fails closed above 5 enrollment units.
+- The rehearsal migrates only one private transcript-store copy from knowledge
+  schema 0 to 3, applies people/source identities/observations/current profiles
+  through governed interfaces, reconciles counts and hashes, rolls back to
+  schema 0, restores exact baseline bytes, and proves the live database
+  unchanged. Biometric rehearsal remains explicitly incomplete.
+- Four focused tests cover the six-person accepted-merge path, the over-bound
+  rejected-merge path, exact private apply/rollback and idempotent replay, and
+  refusal of an ineligible transition. Python compilation and `git diff
+  --check` pass; the full suite passes 982 tests.
+
+Next:
+
+- Receive the current Plan 0063 30-decision answer block, freeze the exact
+  reviewed transition, and complete the single real private-copy rehearsal,
+  including governed biometric reference/profile apply and rollback. Only then
+  present the exact A1 hashes; no live mutation is authorized now.
+
 ## Turn 349: Publish Plan 0063 grouping and voice-source review (2026-08-09)
 
 Summary: Completed the non-applying P1-P4 implementation, froze governed

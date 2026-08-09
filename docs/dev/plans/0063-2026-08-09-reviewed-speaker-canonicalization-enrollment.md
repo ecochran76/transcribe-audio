@@ -2,7 +2,8 @@
 
 State: OPEN
 
-Checkpoint: P4 review published; operator decisions pending; A1 not authorized
+Checkpoint: P4 review published; private transition/knowledge-copy rehearsal
+implemented; operator decisions pending; A1 not authorized
 
 Lane: P10
 
@@ -149,6 +150,28 @@ occurs. The single allowed review rework cycle was consumed fixing the
 generated newline that caused the first export script to fail. A1 and all live
 canonical/biometric changes remain unauthorized until the operator returns the
 complete block and separately authorizes the exact mutation gate.
+
+## P5 private-rehearsal implementation checkpoint
+
+The deterministic post-review transition and conversation-knowledge rehearsal
+are implemented without consuming the one real private-copy attempt. A complete
+P4 submission resolves accepted merges to one stable canonical person, keeps
+rejected merges separate, preserves all nine named speaker-slot bindings and
+the reviewed voice/context outcome, and carries only literal included source
+windows into at most five enrollment units. A grouping result above that bound
+fails closed before rehearsal.
+
+The knowledge rehearsal backs up the live transcript SQLite database to a
+private run, migrates only that copy from knowledge schema 0 to 3, writes the
+reviewed people, source records, deduplicated external identities, slot and
+voice observations through the governed store interfaces, rebuilds current
+person profiles, reconciles table counts and hashes, rolls the schema back to
+0, and restores the exact baseline bytes. Replay rechecks the immutable
+transition, manifest, receipt, private database snapshots, and unchanged live
+snapshot. Four focused tests and the 982-test full suite pass. This is code and
+synthetic-copy proof only: the exact P4 submission has not arrived, the bounded
+real private-copy apply/rollback has not run, biometric reference/profile
+rehearsal remains pending, and A1 is not authorized.
 
 ## Authority and non-goals
 
