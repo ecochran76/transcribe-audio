@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P2 direct-audio republish authorized; P3 blocked on literal human decisions
+Checkpoint: P2 direct-audio review published; P3 blocked on literal human decisions
 
 Lane: P09
 
@@ -37,23 +37,54 @@ instruction then activated A0 after the exact readbacks below.
 
 ## Current state
 
-A0 and P1 are complete. P2 is reopened for one explicitly authorized,
-direct-audio republish because the external transcript-console route returned
-502-backed fallback data and did not expose linked media. Plan 0061 remains
+A0, P1, and the direct-audio P2 republish are complete. The prior external
+transcript-console route returned 502-backed fallback data and did not expose
+linked media, so it is no longer part of the decision workflow. Plan 0061 remains
 `OPEN` at the literal human decision gate. The sealed
 Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
 and 30 condition views; no review choice is preselected and apply remains
-disabled. The replacement authenticated worksheet exposes all ten choices,
-must next expose one bound speaker clip beside each of the ten choices and
-produce a strict hash-bound export only after 10/10 selections. P3
+disabled. The replacement authenticated worksheet exposes all ten choices and
+one bound speaker clip beside each choice, and produces a strict hash-bound
+export only after 10/10 selections. P3
 human-gold capture remains blocked on the operator's literal complete export;
 current decision count is zero and preview feedback is empty.
 
 The operator's instruction, "I'd prefer to simply listen directly through the
 previews pages as we have before", is explicit authority for this narrow media
 expansion. It opens one final bounded review-surface cycle. Sessions
-`c9c4d5d5fbd0` and `03268b59db56` are superseded for decision work once the
-direct-audio replacement is published; neither session contains human gold.
+`c9c4d5d5fbd0` and `03268b59db56` are superseded for decision work. Direct-audio
+session `11aabed660d2` is the sole active review surface; none of the sessions
+contains human gold.
+
+## P2 direct-audio closeout
+
+The final review implementation landed through `af0f70b`. The publishable
+directory contains only `review.html` and the exact 10 frozen P2A per-speaker
+WAV clips; private manifests and receipts remain outside it. Immutable replay
+passed with worksheet SHA-256
+`0afd218aa74116595d14bd59c7d939ff4b4889608f478d9977060d8d6b25fcf8`,
+manifest SHA-256
+`5748e66248da8933e05f7aab94ad9cabac17575db715eb77ded5d9b2c43f344a`,
+and receipt content SHA-256
+`227f1e09070025209e8c8adec773e7024550cc5a346ad699a33cd93202d9c332`.
+The bundle has 10 clips totaling 8,319,480 bytes, zero full recordings, zero
+raw transcripts, zero decisions, zero preselections, zero apply, and zero live
+mutations.
+
+Authenticated Previews session `11aabed660d2` contains directory artifact
+`3afb4a96364a`. Browser proof found 10 audio controls, 10 direct WAV fallbacks,
+10 blank identity controls, and 30 condition views. All ten media resources
+returned HTTP 200 as `audio/x-wav`, reported `readyState=4`, no media error, and
+finite durations from 18.690 to 30.779 seconds. A reviewed Range request was
+served as the complete 200 response with no `Accept-Ranges`; this is recorded
+as actual Previews behavior and is nonblocking for these 0.6-1.0 MB clips.
+There were zero page errors and no artifact-scoped POST requests. Session
+feedback was empty. The browser session was closed without entering choices.
+
+Focused validation passed 8 tests; the cache-cleared full suite passed 934
+tests twice after the final bundle-scope adjustment. Python compilation,
+planning audit, CodeGraph health, diff validation, clean commit, and upstream
+push passed.
 
 ## A0 activation checkpoint
 
@@ -243,8 +274,8 @@ subagents, and the primary agent owns all writes and recomputation.
   link per speaker slot, requires one allowlisted choice per slot, reports
   completion progress, and exports nothing until 10/10 choices exist.
 - Browser validation proves 10 audio elements, nonzero media duration for each,
-  successful WAV responses including byte-range behavior, zero page errors,
-  and zero POST/PUT/PATCH/DELETE requests.
+  successful WAV responses with actual range behavior recorded, zero page
+  errors, and zero artifact-scoped POST/PUT/PATCH/DELETE requests.
 - The strict parser binds the Plan 0060 P4 content and manifest hashes and
   rejects partial, duplicate, unknown, stale, or syntactically ambiguous input.
 - The frozen human receipt and comparison are immutable and private, contain no
