@@ -208,6 +208,7 @@ Plans:
 - `docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`
 - `docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md`
 - `docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`
+- `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`
 
 Milestone Focus:
 
@@ -242,9 +243,12 @@ Milestone Focus:
   canonical-person and 7 `not_listed` decisions yielded candidate recall 3/10,
   zero known-person recall for all three conditions, 7/7 appropriate
   abstentions per condition, zero wrong proposals, and terminal `refine` with
-  no live mutation. The next biometric step requires explicit named-person
-  review for the seven unlisted speakers plus a separate profile/reference
-  mutation authority. Plan 0059 authorizes no live
+  no live mutation. Planned Plan 0062 is the bounded integration successor: it
+  runs the already-implemented Plan 0025 clue/calendar/retrieval workflow on
+  the same recent cohort, converts validated per-speaker results into
+  canonical/acoustic shadow proposals, and exposes actual names or named
+  unlisted suggestions for direct-audio review. Biometric enrollment remains a
+  later, separate mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
@@ -688,24 +692,24 @@ Its A0 checkpoint froze the current runtime, exact three-recording/ten-speaker
 chronological cohort, provider and acoustic permissions, private boundaries,
 human gates, and all-false live mutation contract before implementation.
 
-Plan 0061 is the planning-only human-gold/comparison successor in
+Plan 0061 is the closed human-gold/comparison successor in
 `docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`. It leaves
 Plan 0060 immutable, reuses its exact sealed 3-recording/10-speaker/30-condition
-packet, and introduces only an authenticated client-side worksheet, strict
-10/10 decision capture, and independent three-condition measurement. Its
-present execution stops after publishing and verifying the worksheet; no gold
-may be inferred, and live identity, assignment, knowledge, provider, profile,
-reference, watcher, default, Graphiti, or historical writes remain forbidden.
-The external-console republish then proved insufficient remotely: its API
-returned 502 fallback data and no linked media. The operator explicitly
-authorized one final bounded P2 republish using the earlier authenticated
-Previews listening pattern. Authenticated session `11aabed660d2` is now the
-sole active review surface: its directory artifact contains exactly 10 frozen
-P2A per-speaker WAV clips beside the 10 blank controls, and browser proof found
-all clips fully ready with finite durations. Full recordings, transcripts, new
-processing, POST/apply paths, and live mutation remain out of scope. Plan 0061
-remains `OPEN` with zero human decisions until the operator returns the literal
-10-row block.
+packet, and completed strict 10/10 human decision capture plus independent
+three-condition measurement. It closed `refine`: candidate recall was 3/10,
+all three conditions abstained on all ten slots, and the two visible people
+came from a compatibility snapshot rather than calendar or speaker-specific
+context. Direct-audio Previews review worked remotely and all forbidden
+mutations remained zero.
+
+Plan 0062 is the planned repair in
+`docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`.
+It preserves Plan 0036's seal and the Plan 0060/0061 receipts while reconnecting
+the existing two-phase contextual identity workflow to the newer canonical and
+acoustic contracts on the exact three recent conversations. Its target is a
+review-only packet containing actual per-speaker proposals and named unlisted
+suggestions; assignment apply and biometric enrollment remain separate later
+authorities.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

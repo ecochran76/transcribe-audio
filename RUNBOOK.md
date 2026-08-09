@@ -1,5 +1,41 @@
 # Runbook
 
+## Turn 339: Plan contextual speaker-identity reconnection (2026-08-08)
+
+Summary: Opened planning authority for Plan 0062 after the Plan 0061 `refine`
+result proved that the recent joined cohort never ran the already-implemented
+speaker-specific clue/calendar identity workflow. No model, provider, private
+proposal, preview, assignment, person, profile, reference, or live mutation was
+performed in this planning checkpoint.
+
+Plan: `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`.
+
+Evidence:
+
+- Branch `plan-0037-campaign` was clean and upstream-even at `81ef37b`; the
+  installed transcript service was active/running with zero restarts.
+- The user-scoped store passed SQLite quick-check with 466 documents and 3
+  speaker assignments. All three exact cohort documents returned HTTP 200 from
+  the installed speaker-preprocessing endpoint with `not_started`, zero
+  evaluations, and zero review decisions.
+- The three transcripts contain 232, 27, and 194 utterances and preserve
+  primary-event participant plus matching-calendar structures. Plan 0025's
+  existing workflow consumes those structures and per-speaker utterance clues;
+  Plan 0060 did not call it.
+- Plan 0062 freezes the exact 3-recording/10-speaker cohort, six primary model
+  turns with at most one reference-only repair per phase, inherited provider
+  budgets, one review rework cycle, and an all-false live-effect contract.
+- Graphiti discovery was healthy and returned 8 facts, 6 nodes, and 6 episodes;
+  episode `f500e069-07e7-4331-9409-b376b3b04bfe` correctly routed to Plan 0025
+  but remained advisory. Current repo files, service responses, and SQLite
+  readback supplied authority.
+
+Checkpoint: `CLOSED/refine -> PLANNED/A0`; progress `outcome_progress` because
+the successor contract directly addresses the measured 0/3 known-person recall
+and 7/10 candidate miss. Delegation `not_spawned` because current system
+authority forbids proactive subagents. Next: commit and push planning authority,
+then perform A0 activation under the user's `plan and execute` instruction.
+
 ## Turn 338: Close Plan 0061 with human gold (2026-08-08)
 
 Summary: Accepted the operator's exact 10/10 decision block, froze private
