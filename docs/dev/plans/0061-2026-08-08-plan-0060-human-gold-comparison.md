@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P2 review session published; P3 blocked on literal human decisions
+Checkpoint: P2 direct-audio republish authorized; P3 blocked on literal human decisions
 
 Lane: P09
 
@@ -20,10 +20,12 @@ context-only, acoustic-only, and combined outcomes on the same denominator.
 The Plan 0060 P4 packet remains immutable input authority. This successor may
 copy only the minimum review fields needed by the authenticated Previews
 session: recording-local speaker references, candidate labels and opaque IDs,
-joined condition evidence, and authenticated transcript-console deep links. It
-may not copy raw audio, raw transcripts, provider bodies, model-private
-features, or credentials. The page keeps choices client-side and exports an
-exact decision block; it has no API write or apply control.
+joined condition evidence, and exactly one already-frozen P2A per-speaker WAV
+clip for each of the 10 decision slots. It may not copy full source recordings,
+raw transcripts, provider bodies, model-private features, or credentials, and
+it may not regenerate clips or rerun transcription, diarization, acoustic, or
+identity models. The page keeps choices client-side and exports an exact
+decision block; it has no API write or apply control.
 
 This document is planning authority only. A distinct A0 checkpoint must move
 it to `OPEN` before source changes, private review preparation, preview
@@ -35,15 +37,23 @@ instruction then activated A0 after the exact readbacks below.
 
 ## Current state
 
-A0, P1, and P2 are complete. Plan 0061 remains `OPEN` at the literal human
-decision gate. The sealed
+A0 and P1 are complete. P2 is reopened for one explicitly authorized,
+direct-audio republish because the external transcript-console route returned
+502-backed fallback data and did not expose linked media. Plan 0061 remains
+`OPEN` at the literal human decision gate. The sealed
 Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
 and 30 condition views; no review choice is preselected and apply remains
 disabled. The replacement authenticated worksheet exposes all ten choices,
-routes each recording through the Authelia-gated external transcript console,
-and produces a strict hash-bound export only after 10/10 selections. P3
+must next expose one bound speaker clip beside each of the ten choices and
+produce a strict hash-bound export only after 10/10 selections. P3
 human-gold capture remains blocked on the operator's literal complete export;
 current decision count is zero and preview feedback is empty.
+
+The operator's instruction, "I'd prefer to simply listen directly through the
+previews pages as we have before", is explicit authority for this narrow media
+expansion. It opens one final bounded review-surface cycle. Sessions
+`c9c4d5d5fbd0` and `03268b59db56` are superseded for decision work once the
+direct-audio replacement is published; neither session contains human gold.
 
 ## A0 activation checkpoint
 
@@ -190,7 +200,7 @@ models, or substitute a new live snapshot.
 | --- | --- | --- | --- |
 | A0 activation | User `ok go`, clean upstream-even repo, exact inherited replay, current live readback | Freeze successor authority and private/authenticated review boundary | `OPEN` only if every packet, runtime, identity, privacy, and non-effect binding remains exact |
 | P1 review preparation | A0 and exact P4 packet | Build tested client-only worksheet plus strict complete-decision parser | 10 unique slots, allowlisted per-case choices, zero preselection, no network write/apply code |
-| P2 preview gate | P1 | Publish one authenticated Previews session and verify browser usability | All 10 controls render; authenticated remote deep links and export work; user receives one session URL |
+| P2 preview gate | P1 | Publish one authenticated Previews directory and verify direct listening | All 10 controls render with their exact frozen speaker WAV; page and media load remotely; export works; user receives one session URL |
 | P3 human gold | Literal operator export from P2 | Validate and freeze 10/10 immutable decisions | Partial, duplicate, stale, out-of-set, or inferred decisions fail closed |
 | P4 comparison | P3 | Score all three frozen conditions and freeze independent metrics | Exact denominator and evaluation hashes; recomputation agrees; all forbidden mutations remain zero |
 | P5 terminal audit | P4 | Recheck packet, preview provenance, private modes, runtime, identity state, and metrics | `complete`, `refine`, or `stop` with explicit evidence |
@@ -207,13 +217,15 @@ subagents, and the primary agent owns all writes and recomputation.
 - Reusable code, redacted fixtures, tests, and durable status records may enter
   git; private candidate labels, opaque IDs, decisions, and review output may
   not.
-- Raw audio, raw transcripts, clips, provider bodies, model-private features,
+- Full recordings, raw transcripts, provider bodies, model-private features,
   and private decision receipts remain under mode-`0700` local runtime roots
-  with mode-`0600` files.
-- The authenticated Previews copy contains only the minimum review worksheet
-  and is a temporary human-review surface. It may link to the existing
-  authenticated external transcript console but may not embed or duplicate its
-  raw media/transcript.
+  with mode-`0600` files. The only media exception is the exact set of 10
+  frozen P2A per-speaker WAV clips copied into the authenticated temporary
+  Previews bundle with source hashes and sizes recorded in its private
+  manifest.
+- The authenticated Previews copy is a temporary human-review surface
+  containing the minimum worksheet and exactly 10 bound per-speaker clips. It
+  may not contain a full recording or raw transcript.
 - The worksheet performs no POST/PUT/PATCH/DELETE request. Its only output is a
   client-side copied/downloaded exact decision block.
 - Live database/schema, assignments, people, contacts, roles, relationships,
@@ -227,9 +239,12 @@ subagents, and the primary agent owns all writes and recomputation.
 - The renderer exposes every frozen candidate, alternative, contradiction,
   warning, cap, source failure, and abstention for all 10 speaker slots without
   selecting a decision.
-- The worksheet gives one clear authenticated listening/transcript route per recording,
-  requires one allowlisted choice per slot, reports completion progress, and
-  exports nothing until 10/10 choices exist.
+- The worksheet gives one direct authenticated audio player and fallback WAV
+  link per speaker slot, requires one allowlisted choice per slot, reports
+  completion progress, and exports nothing until 10/10 choices exist.
+- Browser validation proves 10 audio elements, nonzero media duration for each,
+  successful WAV responses including byte-range behavior, zero page errors,
+  and zero POST/PUT/PATCH/DELETE requests.
 - The strict parser binds the Plan 0060 P4 content and manifest hashes and
   rejects partial, duplicate, unknown, stale, or syntactically ambiguous input.
 - The frozen human receipt and comparison are immutable and private, contain no
@@ -250,7 +265,7 @@ subagents, and the primary agent owns all writes and recomputation.
   the minimum-copy boundary or if any review control is preselected.
 - Stop on incomplete, inferred, reused, duplicate, out-of-set, or stale human
   decisions; do not repair them by guessing.
-- Stop on raw private media/transcript publication or any live identity,
+- Stop on any full recording, unbound clip, raw transcript publication, or any live identity,
   knowledge, assignment, profile, reference, provider, Graphiti, watcher,
   default, authority, or historical mutation.
 - Stop rather than treating a candidate label, email, provider ID, diarization
@@ -260,7 +275,11 @@ subagents, and the primary agent owns all writes and recomputation.
 
 `max_work_unit_attempts: 2`
 
-`max_review_rework_cycles: 1`
+`max_review_rework_cycles: 2`
+
+The second cycle exists only because the operator explicitly authorized the
+bounded direct-audio replacement after the first remote-link repair proved
+insufficient. It is the final review-surface cycle for this plan.
 
 `max_hardening_checkpoints: 2`
 

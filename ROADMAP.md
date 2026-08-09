@@ -689,11 +689,14 @@ packet, and introduces only an authenticated client-side worksheet, strict
 present execution stops after publishing and verifying the worksheet; no gold
 may be inferred, and live identity, assignment, knowledge, provider, profile,
 reference, watcher, default, Graphiti, or historical writes remain forbidden.
-That P2 surface is now republished after one bounded review rework: all three
-recording links use the Authelia-gated external transcript console, the page
-has 10 blank controls, an exact complete-only export, and no POST/apply path.
-The localhost-linked session is superseded. Plan 0061 remains `OPEN` at P3
-with zero human decisions until the operator returns the literal 10-row block.
+The external-console republish then proved insufficient remotely: its API
+returned 502 fallback data and no linked media. The operator explicitly
+authorized one final bounded P2 republish using the earlier authenticated
+Previews listening pattern. That replacement may copy exactly 10 frozen P2A
+per-speaker WAV clips beside the 10 blank controls; full recordings,
+transcripts, new processing, POST/apply paths, and live mutation remain out of
+scope. Plan 0061 remains `OPEN` with zero human decisions until the replacement
+is published and the operator returns the literal 10-row block.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

@@ -1,5 +1,28 @@
 # Runbook
 
+## Turn 337: Authorize Plan 0061 direct-audio review (2026-08-08)
+
+Summary: Reopened P2 for one final bounded review-surface cycle after the
+external transcript console returned 502 fallback data and no linked media.
+The operator explicitly requested listening directly in the authenticated
+Previews page, matching the earlier review pattern.
+
+Authority:
+
+- The replacement may copy exactly the 10 existing frozen P2A per-speaker WAV
+  clips, one beside each decision control. It may not copy full recordings or
+  raw transcripts and may not rerun transcription, diarization, acoustic, or
+  identity models.
+- The worksheet remains client-only and non-applying. Human decision count,
+  preselection count, apply count, and live mutation count remain zero.
+- This is review-rework cycle 2 of 2. Sessions `c9c4d5d5fbd0` and
+  `03268b59db56` become superseded for decision work when the direct-audio
+  replacement is published.
+
+Checkpoint: `OPEN/P2-human-gate -> OPEN/P2-direct-audio-republish`; progress
+`authority_progress`; next: implement, hash-bind, browser-validate, and publish
+the exact private worksheet directory before requesting literal decisions.
+
 ## Turn 336: Repair Plan 0061 remote recording links (2026-08-08)
 
 Summary: Replaced the unusable localhost recording handoffs in the
