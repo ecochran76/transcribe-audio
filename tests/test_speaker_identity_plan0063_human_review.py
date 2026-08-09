@@ -121,6 +121,8 @@ def test_review_html_has_direct_audio_working_export_controls_and_no_apply_path(
     assert "addEventListener('click',build)" in body
     assert "navigator.clipboard.writeText" in body
     assert "document.execCommand('copy')" in body
+    assert "rows.join('\\n')" in body
+    assert "rows.join('\n')" not in body
     assert "fetch(" not in body
     assert 'method="post"' not in body.casefold()
     assert re.search(r"clips/review-window-[a-f0-9]{24}\.wav", body)

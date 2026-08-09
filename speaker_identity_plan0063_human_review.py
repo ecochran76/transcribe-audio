@@ -464,7 +464,7 @@ function build(){{
     rows.push(`${{key}}=${{selected.value}}`);
   }}
   if(firstMissing){{answer.value='';status.textContent='Complete all 30 decisions before exporting.';firstMissing.scrollIntoView({{behavior:'smooth',block:'center'}});return false;}}
-  answer.value=rows.join('\n');status.textContent='Answer block built. Review it, then copy.';return true;
+  answer.value=rows.join('\\n');status.textContent='Answer block built. Review it, then copy.';return true;
 }}
 async function copyBlock(){{
   if(!build()) return;
