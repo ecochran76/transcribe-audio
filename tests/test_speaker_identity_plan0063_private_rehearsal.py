@@ -359,6 +359,7 @@ def test_reviewed_transition_resolves_merges_binding_and_sources() -> None:
         "canonical_person_count": 6,
         "slot_binding_count": 9,
         "external_identity_count": 6,
+        "name_correction_count": 0,
         "accepted_merge_count": 3,
         "rejected_merge_count": 0,
         "active_voice_binding_count": 1,
@@ -371,6 +372,105 @@ def test_reviewed_transition_resolves_merges_binding_and_sources() -> None:
     assert transition["rehearsal_allowed"] is True
     assert transition["a1_authorized"] is False
     assert transition["live_mutation_count"] == 0
+
+
+def test_provider_backed_name_correction_reaches_canonical_person() -> None:
+    reconciled, feasibility, manifest, submission = _manifest_and_submission()
+    single_slot_id = next(
+        proposal["member_slot_ids"][0]
+        for proposal in reconciled["person_proposals"]
+        if len(proposal["member_slot_ids"]) == 1
+    )
+    slot = next(
+        item
+        for item in reconciled["slot_identities"]
+        if item["slot_id"] == single_slot_id
+    )
+    correction = rehearsal.build_reviewed_name_correction(
+        review_content_sha256=manifest["content_sha256"],
+        slot_id=slot["slot_id"],
+        prior_name=slot["name"],
+        corrected_name="Michael Forrester Jr.",
+        email=slot["email"],
+        observed_at="2026-08-09T12:00:00Z",
+        evidence=(
+            {
+                "kind": "email_sender",
+                "resolved_name": "Michael Forrester Jr.",
+                "email": slot["email"],
+            },
+            {
+                "kind": "calendar_invitation_organizer",
+                "resolved_name": "Michael Forrester Jr.",
+                "email": slot["email"],
+            },
+        ),
+    )
+
+    transition = rehearsal.build_reviewed_transition(
+        review_manifest=manifest,
+        reconciliation=reconciled,
+        feasibility=feasibility,
+        submission=submission,
+        reviewed_at="2026-08-09T12:00:00Z",
+        name_corrections=(correction,),
+    )
+
+    corrected = next(
+        person
+        for person in transition["canonical_people"]
+        if slot["slot_id"] in person["member_slot_ids"]
+    )
+    assert corrected["primary_name"] == "Michael Forrester Jr."
+    assert transition["name_corrections"] == [correction]
+    assert transition["metrics"]["name_correction_count"] == 1
+
+
+def test_name_correction_rejects_frozen_slot_mismatch() -> None:
+    reconciled, feasibility, manifest, submission = _manifest_and_submission()
+    single_slot_id = next(
+        proposal["member_slot_ids"][0]
+        for proposal in reconciled["person_proposals"]
+        if len(proposal["member_slot_ids"]) == 1
+    )
+    slot = next(
+        item
+        for item in reconciled["slot_identities"]
+        if item["slot_id"] == single_slot_id
+    )
+    correction = rehearsal.build_reviewed_name_correction(
+        review_content_sha256=manifest["content_sha256"],
+        slot_id=slot["slot_id"],
+        prior_name="Wrong prior name",
+        corrected_name="Michael Forrester Jr.",
+        email=slot["email"],
+        observed_at="2026-08-09T12:00:00Z",
+        evidence=(
+            {
+                "kind": "email_sender",
+                "resolved_name": "Michael Forrester Jr.",
+                "email": slot["email"],
+            },
+            {
+                "kind": "calendar_invitation_organizer",
+                "resolved_name": "Michael Forrester Jr.",
+                "email": slot["email"],
+            },
+        ),
+    )
+
+    with pytest.raises(
+        rehearsal.Plan0063PrivateRehearsalError,
+        match="frozen slot binding",
+    ):
+        rehearsal.build_reviewed_transition(
+            review_manifest=manifest,
+            reconciliation=reconciled,
+            feasibility=feasibility,
+            submission=submission,
+            reviewed_at="2026-08-09T12:00:00Z",
+            name_corrections=(correction,),
+        )
 
 
 def test_rejected_merge_that_exceeds_bound_fails_closed() -> None:

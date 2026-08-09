@@ -44,6 +44,9 @@ import transcript_store
 
 
 TRANSITION_SCHEMA = "transcribe-audio.plan0063-reviewed-transition.v1"
+NAME_CORRECTION_SCHEMA = (
+    "transcribe-audio.plan0063-reviewed-name-correction.v1"
+)
 REHEARSAL_SCHEMA = "transcribe-audio.plan0063-private-copy-rehearsal.v1"
 REHEARSAL_RECEIPT_SCHEMA = (
     "transcribe-audio.plan0063-private-copy-rehearsal-receipt.v1"
@@ -166,6 +169,119 @@ def _canonical_person_id(source_submission_sha256: str, slots: Sequence[str]) ->
     )
 
 
+def build_reviewed_name_correction(
+    *,
+    review_content_sha256: str,
+    slot_id: str,
+    prior_name: str,
+    corrected_name: str,
+    email: str,
+    observed_at: str,
+    evidence: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Build one hash-bound operator correction backed by provider context."""
+
+    normalized_prior = " ".join(str(prior_name or "").split())
+    normalized_corrected = " ".join(str(corrected_name or "").split())
+    normalized_email = str(email or "").strip().casefold()
+    if (
+        not SHA256_RE.fullmatch(str(review_content_sha256 or ""))
+        or not str(slot_id or "")
+        or not normalized_prior
+        or not normalized_corrected
+        or normalized_prior == normalized_corrected
+        or not normalized_email
+    ):
+        _fail("The reviewed name correction identity is incomplete.")
+    evidence_rows = []
+    evidence_kinds = set()
+    for raw in evidence:
+        if not isinstance(raw, Mapping):
+            _fail("Reviewed name-correction evidence is invalid.")
+        kind = str(raw.get("kind") or "")
+        resolved_name = " ".join(str(raw.get("resolved_name") or "").split())
+        resolved_email = str(raw.get("email") or "").strip().casefold()
+        if (
+            kind not in {"email_sender", "calendar_invitation_organizer"}
+            or kind in evidence_kinds
+            or resolved_name != normalized_corrected
+            or resolved_email != normalized_email
+        ):
+            _fail(
+                "Reviewed name-correction evidence lost its exact identity binding."
+            )
+        evidence_kinds.add(kind)
+        evidence_rows.append(
+            {
+                "kind": kind,
+                "resolved_name": resolved_name,
+                "email": resolved_email,
+            }
+        )
+    if evidence_kinds != {"email_sender", "calendar_invitation_organizer"}:
+        _fail("Both email and calendar provider evidence are required.")
+    core = {
+        "schema_version": NAME_CORRECTION_SCHEMA,
+        "review_content_sha256": review_content_sha256,
+        "slot_id": slot_id,
+        "prior_name": normalized_prior,
+        "corrected_name": normalized_corrected,
+        "email": normalized_email,
+        "observed_at": _canonical_utc(observed_at),
+        "authority": "operator_correction_verified_provider_context",
+        "evidence": sorted(evidence_rows, key=lambda item: item["kind"]),
+        "live_mutation_count": 0,
+    }
+    return {**core, "content_sha256": canonical_artifact_hash(core)}
+
+
+def _apply_reviewed_name_corrections(
+    slot_rows: dict[str, dict[str, Any]],
+    *,
+    review_content_sha256: str,
+    name_corrections: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    applied = []
+    seen_slots = set()
+    for raw in name_corrections:
+        if not isinstance(raw, Mapping):
+            _fail("A reviewed name correction is invalid.")
+        correction = dict(raw)
+        _assert_content_hash(correction, "reviewed name correction")
+        slot_id = str(correction.get("slot_id") or "")
+        row = slot_rows.get(slot_id)
+        if (
+            correction.get("schema_version") != NAME_CORRECTION_SCHEMA
+            or correction.get("review_content_sha256") != review_content_sha256
+            or correction.get("authority")
+            != "operator_correction_verified_provider_context"
+            or correction.get("live_mutation_count") != 0
+            or slot_id in seen_slots
+            or row is None
+            or correction.get("prior_name")
+            != " ".join(str(row.get("name") or "").split())
+            or correction.get("email")
+            != str(row.get("email") or "").strip().casefold()
+        ):
+            _fail("A reviewed name correction lost its frozen slot binding.")
+        rebuilt = build_reviewed_name_correction(
+            review_content_sha256=review_content_sha256,
+            slot_id=slot_id,
+            prior_name=str(correction.get("prior_name") or ""),
+            corrected_name=str(correction.get("corrected_name") or ""),
+            email=str(correction.get("email") or ""),
+            observed_at=str(correction.get("observed_at") or ""),
+            evidence=list(correction.get("evidence") or []),
+        )
+        if rebuilt != correction:
+            _fail("A reviewed name correction is not canonical.")
+        seen_slots.add(slot_id)
+        row["name"] = correction["corrected_name"]
+        row["normalized_name"] = str(correction["corrected_name"]).casefold()
+        applied.append(correction)
+    return sorted(applied, key=lambda item: item["slot_id"])
+
+
 def build_reviewed_transition(
     *,
     review_manifest: Mapping[str, Any],
@@ -173,6 +289,7 @@ def build_reviewed_transition(
     feasibility: Mapping[str, Any],
     submission: Mapping[str, Any],
     reviewed_at: str,
+    name_corrections: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Resolve literal P4 decisions into one deterministic private apply plan."""
 
@@ -204,6 +321,12 @@ def build_reviewed_transition(
         ):
             _fail("A reviewed named slot is incomplete or duplicated.")
         slot_rows[slot_id] = row
+
+    applied_name_corrections = _apply_reviewed_name_corrections(
+        slot_rows,
+        review_content_sha256=str(review_manifest.get("content_sha256") or ""),
+        name_corrections=name_corrections,
+    )
 
     merge_by_person = {
         str(item.get("proposed_person_id") or ""): dict(item)
@@ -458,6 +581,7 @@ def build_reviewed_transition(
         "source_submission_sha256": source_submission_sha256,
         "review_content_sha256": review_manifest["content_sha256"],
         "review_submission_sha256": submission["content_sha256"],
+        "name_corrections": applied_name_corrections,
         "reconciliation_content_sha256": reconciliation["content_sha256"],
         "feasibility_content_sha256": feasibility["content_sha256"],
         "canonical_people": sorted(
@@ -478,6 +602,7 @@ def build_reviewed_transition(
                 len(person["external_identities"])
                 for person in canonical_people
             ),
+            "name_correction_count": len(applied_name_corrections),
             "accepted_merge_count": sum(
                 item["decision"] == "accept" for item in merge_outcomes
             ),
@@ -951,9 +1076,11 @@ def rehearse_knowledge_copy(
 
 
 __all__ = [
+    "NAME_CORRECTION_SCHEMA",
     "Plan0063PrivateRehearsalError",
     "TRANSITION_SCHEMA",
     "apply_reviewed_knowledge_transition",
+    "build_reviewed_name_correction",
     "build_reviewed_transition",
     "rehearsal_paths",
     "rehearse_knowledge_copy",
