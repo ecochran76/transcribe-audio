@@ -6,7 +6,9 @@ from dataclasses import replace
 import pytest
 
 import speaker_identity_context_join as context_join
+import speaker_identity_context_human_review as human_review
 import speaker_identity_plan0062_execution as plan0062
+from acoustic_audio_derivatives import canonical_artifact_hash
 import speaker_identity_preprocess
 from speaker_identity_orchestration import (
     AcousticEvidenceBundle,
@@ -342,6 +344,88 @@ def test_plan0062_private_freeze_replays_exactly(tmp_path) -> None:
     assert replay["idempotent_replay"] is True
     assert replay["content_sha256"] == first["content_sha256"]
     assert replay["manifest_sha256"] == first["manifest_sha256"]
+
+
+def human_review_inputs():
+    cases = list(plan0062_cases())
+    first = cases[0]
+    speakers = tuple(first.acoustic_bundle.speaker_refs)
+    cases[0] = replace(
+        first,
+        identity_readout=readout(
+            dict(first.identity_packet),
+            status="unlisted",
+            speaker_labels=speakers,
+        ),
+        acoustic_bundle=replace(
+            acoustic(speakers=speakers, subject_id="subject-alice", disposition="review"),
+            document_id=first.document_id,
+        ),
+    )
+    manifest = plan0062.build_contextual_join_manifest(
+        cases, activation_sha256=HASH_A, created_at=NOW
+    )
+    content_sha256 = canonical_artifact_hash(manifest)
+    packets = {case.document_id: case.identity_packet for case in cases}
+    acoustic_bundles = {case.document_id: case.acoustic_bundle for case in cases}
+    return cases, manifest, content_sha256, packets, acoustic_bundles
+
+
+def test_contextual_human_review_shows_suggestions_and_voice_subject() -> None:
+    _cases, manifest, content_sha256, packets, acoustic_bundles = human_review_inputs()
+
+    packet_value = human_review.build_review_packet(
+        manifest,
+        p3_content_sha256=content_sha256,
+        identity_packets=packets,
+        acoustic_bundles=acoustic_bundles,
+        enrolled_subject_labels={"subject-alice": "Enrolled Example"},
+    )
+    worksheet = human_review.render_review_worksheet(packet_value)
+
+    assert packet_value["speaker_slot_count"] == 10
+    assert packet_value["preselected_decision_count"] == 0
+    assert len(packet_value["cards"]) == 10
+    assert any(
+        option["source"] == "contextual_unlisted_suggestion"
+        for option in packet_value["cards"][0]["options"]
+    )
+    assert any(
+        option["source"] == "enrolled_voice_subject"
+        for option in packet_value["cards"][0]["options"]
+    )
+    assert worksheet.count("data-decision") == 11
+    assert "fetch(" not in worksheet
+    assert "XMLHttpRequest" not in worksheet
+    assert "new_person:" in worksheet
+
+
+def test_contextual_human_review_private_bundle_replays(tmp_path) -> None:
+    _cases, manifest, content_sha256, packets, acoustic_bundles = human_review_inputs()
+    packet_value = human_review.build_review_packet(
+        manifest,
+        p3_content_sha256=content_sha256,
+        identity_packets=packets,
+        acoustic_bundles=acoustic_bundles,
+        enrolled_subject_labels={"subject-alice": "Enrolled Example"},
+    )
+    sources = {}
+    for card in packet_value["cards"]:
+        source = tmp_path / f'{canonical_artifact_hash(card)[:20]}.wav'
+        source.write_bytes(b"RIFF-fixture")
+        sources[card["slot_id"]] = source
+
+    first = human_review.freeze_review_bundle(
+        packet_value, audio_sources=sources, runtime_root=tmp_path / "review"
+    )
+    replay = human_review.freeze_review_bundle(
+        packet_value, audio_sources=sources, runtime_root=tmp_path / "review"
+    )
+
+    assert first["idempotent_replay"] is False
+    assert replay["idempotent_replay"] is True
+    assert replay["audio_clip_count"] == 10
+    assert replay["live_mutation_count"] == 0
 
 
 def test_unlisted_suggestion_survives_but_cannot_become_a_person() -> None:

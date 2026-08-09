@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P1-P2 complete; P3 ready
+Checkpoint: P3 complete; P4 ready
 
 Lane: P09
 
@@ -149,6 +149,19 @@ bindings to a prepared canonical person; those acoustic and combined lanes
 therefore abstained instead of guessing. The contextual suggestions remain in
 the review outcome and are the evidence needed for the next human binding
 decision. Focused join, preprocessing, and orchestration tests pass 40/40.
+
+P3 then froze and exactly replayed the private joined cohort against committed
+implementation `21bc6fe`. Activation content is
+`6d405b39f7f72e9ab81c155c4e8e9c326d67625d22ab03490d4ede5e005764d5`;
+joined content is
+`6ee20bc30364af922063591dd53c22f8ea73da2466c182c81f5e31771864be4e`;
+and its immutable manifest is
+`d0f8f8959e6d88b0ddcdc8b2dc5cf122487556ebe73a0d958a8e539f9d5bb052`.
+All 30 conditions abstained: the packet retains 11 suggestion appearances
+across eight speaker slots, while the three acoustic hits remain unmapped to a
+prepared person. The live store stayed at two contacts and three speaker
+assignments with SQLite `quick_check=ok`; the acoustic identity-state snapshot
+was unchanged and `live_mutation_count=0`.
 
 ## Authority and non-goals
 

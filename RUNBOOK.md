@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 342: Freeze Plan 0062 P3 and implement direct-audio P4 (2026-08-08)
+
+Summary: Froze the exact contextual/acoustic join with zero live mutation and
+implemented the next private, direct-audio human review surface.
+
+Evidence:
+
+- P3 activation content is `6d405b39...`, joined content is `6ee20bc3...`, and
+  immutable manifest SHA-256 is `d0f8f895...`.
+- Exact replay returned 3 recordings, 10 speakers, 30 evaluations, 11
+  suggestion appearances across eight slots, and 30 reason-coded abstentions.
+- The live database remained SQLite `ok` with two contacts and three speaker
+  assignments; the acoustic identity-state snapshot was unchanged.
+- Added `speaker_identity_context_human_review.py`. The worksheet presents the
+  old contextual name hints, independent biometric-subject evidence, relative
+  direct WAV playback, blank decisions, and a typed corrected/new-person path.
+- The worksheet is client-only, has no POST/apply path, and only exports a
+  strict literal submission block for the later P5 human gate.
+- Focused P4 renderer/freeze tests cover suggestion and enrolled-subject
+  options, ten exact blank slots, relative audio, immutable replay, and zero
+  live mutation.
+
+Next:
+
+- Commit and push the P4 implementation, freeze its exact private packet from
+  the committed P3 receipt and clips, publish it through authenticated
+  Previews, and stop for literal operator decisions.
+
 ## Turn 341: Execute Plan 0062 contextual inference and join module (2026-08-08)
 
 Summary: Reused the existing two-phase speaker identity workflow on the exact

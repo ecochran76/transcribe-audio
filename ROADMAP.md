@@ -246,7 +246,7 @@ Milestone Focus:
   no live mutation. Active Plan 0062 is the bounded integration successor.
   P1-P2 reused the Plan 0025 clue/calendar/retrieval workflow on all ten recent
   speaker slots, preserved seven named unlisted suggestions, and added the
-  explicit contextual/canonical/acoustic join. P3 is ready; one enrolled
+  explicit contextual/canonical/acoustic join. P3 is frozen and replayed; one enrolled
   acoustic subject remains intentionally unbound to any prepared canonical
   person until human review. Biometric enrollment remains a later, separate
   mutation authority. Plan 0059 authorizes no live
@@ -709,8 +709,8 @@ It preserves Plan 0036's seal and the Plan 0060/0061 receipts while reconnecting
 the existing two-phase contextual identity workflow to the newer canonical and
 acoustic contracts on the exact three recent conversations. P1-P2 completed
 with 3 recordings, 10 speakers, 30 joined evaluations, and seven unlisted
-suggestion records; P3 private freeze and the direct-audio P4 worksheet are
-next. Assignment apply and biometric enrollment remain separate later
+suggestion records. P3 is complete with zero live mutations; the direct-audio
+P4 worksheet is next. Assignment apply and biometric enrollment remain separate later
 authorities.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
