@@ -724,7 +724,7 @@ Assignment apply, canonical-person creation, calendar-title repair, candidate
 deduplication, and biometric enrollment require a separate later plan and
 authority.
 
-Plan 0063 is the open P09/P10 successor in
+Plan 0063 is the closed P09/P10 reviewed-learning successor in
 `docs/dev/plans/0063-2026-08-09-reviewed-speaker-canonicalization-enrollment.md`.
 Its non-applying P1-P4 implementation now turns the exact Plan 0062 human gold
 into six deterministic provisional-person proposals, three literal merge
@@ -775,10 +775,27 @@ either success or proven exact rollback. Four disposable-store driver tests,
 pass. The rehearsal and terminal driver now share the exact governed knowledge
 and biometric apply helpers, eliminating the remaining indirect-coverage gap;
 10 focused tests and the unchanged 993-test full suite pass after that
-consolidation. No real request, authority, or live apply has run. A0 remains
-non-applying; live canonical or biometric mutation is still behind the
-separate exact A1 gate. The production-mode private-copy proof is complete but
-does not itself grant that authority.
+consolidation. The completed A0 work remained non-applying until the operator's
+explicit `okay go` authorized the separate exact A1 transition. Terminal
+receipt `259ea605...` records one completed apply,
+zero rollback, zero unauthorized effects, six canonical people, nine slot
+bindings, one voice/person binding, five references, fifteen profiles, and
+twenty-three enrollment sources. Both transcript services returned to
+active/running with zero restarts, and terminal replay is idempotent.
+
+Plan 0064 is the open P09/P10 implementation successor in
+`docs/dev/plans/0064-2026-08-09-context-assisted-automatic-speaker-recognition.md`.
+Its durable architecture decision is Note 0056. It makes the newly installed
+voice/person learning state part of the existing contextual workflow: new
+speaker slots receive independent acoustic and context evidence, active voice
+subjects resolve through reviewed canonical-person bindings, and a
+conversation-level solver may assign a remaining speaker only when one
+independently supported candidate remains without contradiction. The plan then
+measures that behavior on source-disjoint chronological recordings before
+enabling one policy-qualified local acceptance band. Accepted observations
+enrich canonical/contact provenance for later retrieval; external Google,
+Odollo, or other provider writes remain zero while the plan prepares a
+field-owned provider-enrichment proposal contract.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

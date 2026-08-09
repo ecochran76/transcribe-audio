@@ -1,11 +1,11 @@
 # Plan 0063 | Canonicalize reviewed speakers and prepare biometric enrollment
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: paired-audio v3 review completed with 30/30 decisions; one
-provider-backed full-name correction is bound to the exact reviewed slot;
-production-mode private-copy apply and rollback replay exactly with zero live
-mutations; A1 request not yet frozen or authorized
+Checkpoint: exact A1 authority accepted and terminal live apply completed;
+six canonical people, nine reviewed slot bindings, one voice/person binding,
+five biometric references, fifteen profiles, and twenty-three enrollment
+sources now replay exactly with zero rollback and zero unauthorized effects
 
 Lane: P10
 
@@ -294,6 +294,29 @@ driver will invoke after A1. Workflow-specific copy/rollback proof and
 A1/service/backup/terminal orchestration remain separate. Ten focused tests and
 the unchanged 993-test full suite pass after this consolidation. No real
 rehearsal or live mutation occurred during the refactor.
+
+## Terminal A1 and live-apply checkpoint
+
+The operator's explicit `okay go` instruction authorized the exact frozen A1
+transition without any further approval round. The literal authority is
+content `f5f39a495b332f27246a0eca85621985365ed3ce653ff50c5b6da3e4e4e3cb6b`
+and remains scoped to transition
+`75166646421378e2fce4aee1e21c35a6d73fdfdbdb5b37297e4c13fc1b8663dc`.
+
+The guarded production driver completed once. Terminal receipt
+`259ea605015ecd6b681140e529002c23e131b6e5cada0d1cdd62fc2b151e3dd5`
+records six canonical people, nine slot bindings, one voice/person binding,
+five references, fifteen model profiles, and twenty-three selected sources.
+It records one logical apply, zero rollbacks, one authorized live mutation,
+and zero unauthorized effects. Both transcript services were restored to
+`active/running` with zero restarts. A second invocation is an idempotent
+replay of the terminal receipt and does not mutate state.
+
+This closes Plan 0063. It establishes reusable canonical-person and acoustic
+learning state; it does not yet make incoming-conversation identity evaluation
+automatic, infer an unrecognized residual speaker by elimination alone, or
+write enriched data back to external contact providers. Those outcomes are
+owned by Plan 0064.
 
 ## Authority and non-goals
 

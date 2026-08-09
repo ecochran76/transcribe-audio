@@ -1,5 +1,41 @@
 # Runbook
 
+## Turn 358: Apply Plan 0063 and open automatic recognition successor (2026-08-09)
+
+Summary: Treated the operator's explicit `okay go` as authority for the exact
+frozen A1 transition, completed the one-shot live canonical/biometric apply,
+and made the next context-assisted automatic-recognition implementation a
+durable active roadmap plan.
+
+Evidence:
+
+- A1 authority content is `f5f39a49...`, bound to exact transition
+  `75166646...` and rehearsal `7fe33287...`; no repeated approval was sought.
+- Terminal live receipt `259ea605...` records six canonical people, nine slot
+  bindings, one voice/person binding, five references, fifteen profiles, and
+  twenty-three included sources.
+- The receipt records one logical/live apply, zero rollbacks, and zero
+  unauthorized effects. Replay is idempotent across knowledge, reference, and
+  profile snapshots.
+- `transcripts.service` and `transcribe-watch.service` are both
+  `active/running` with zero restarts after restoration.
+- Plan 0063 is closed. Note 0056 durably records the intended flow from two
+  enrolled voice matches plus independent context to a constrained residual
+  speaker assignment and provenance-backed contact enrichment.
+- Plan 0064 at
+  `docs/dev/plans/0064-2026-08-09-context-assisted-automatic-speaker-recognition.md`
+  is `OPEN` on the P09/P10 critical path. It owns dynamic active
+  profile scoring, reuse of the existing two-phase contextual workflow,
+  conversation-level resolution, source-disjoint measurement, policy-qualified
+  local acceptance, and provider-enrichment proposals. It does not authorize
+  external provider writes.
+
+Next:
+
+- Execute Plan 0064 P0: freeze the active profile/person-binding inventory and
+  source-disjoint chronological evaluation cohort, then implement the dynamic
+  acoustic and contextual evidence branches without another micro-approval.
+
 ## Turn 357: Freeze Plan 0063 review and prove private rehearsal (2026-08-09)
 
 Summary: Accepted the complete v3 review, bound the operator-requested full-name
