@@ -1,5 +1,40 @@
 # Runbook
 
+## Turn 352: Implement Plan 0063 exact A1 authority contract (2026-08-09)
+
+Summary: Added the non-applying A1 request and literal-authorization boundary
+that will bind the reviewed transition and real private rehearsal before any
+Plan 0063 live mutation can be considered.
+
+Evidence:
+
+- `speaker_identity_plan0063_a1_authority.py` accepts only a production-mode
+  complete rehearsal with one apply/rollback, zero live mutations, unchanged
+  knowledge/reference/profile snapshots, and clean upstream-even committed
+  mutation modules. Test-mode rehearsal receipts cannot become A1 requests.
+- Each private request binds the transition, P4 review and submission,
+  rehearsal receipt file/content, exact live-state hashes, repository commit,
+  requested action vector, and expected people/binding/reference/profile/source
+  counts.
+- The human authorization seam is exactly five lines. Missing, changed,
+  duplicated, or extra fields fail closed; a matching response freezes a
+  private authority receipt with `a1_authorized=true` but
+  `live_mutation_count=0`.
+- Requested actions cover the local reviewed knowledge and biometric apply plus
+  quiescing/restoring the two transcript services for rollback safety.
+  Provider, Graphiti, external-write, and historical-reprocessing actions stay
+  false.
+- Five focused authority tests and 110 combined
+  acoustic/rehearsal/authority tests pass. Python compilation, CodeGraph
+  post-edit readback, and diff validation pass; the full suite passes 989
+  tests.
+
+Next:
+
+- Implement and disposable-store-test the A1-gated live apply/rollback driver.
+  The current 30-decision P4 response is still required before the one real
+  rehearsal, exact A1 request, literal A1 authority, or live mutation can occur.
+
 ## Turn 351: Implement governed biometric private-copy rehearsal (2026-08-09)
 
 Summary: Completed the code and synthetic-state proof for the Plan 0063 joined

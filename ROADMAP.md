@@ -740,10 +740,17 @@ implemented: reviewed merges, slot bindings, voice/context agreement, source
 choices, governed store apply, reference generation, three-model profile
 materialization, lifecycle rollback, table reconciliation, exact byte restore,
 and unchanged-live checks are covered by six transition tests, 105 combined
-acoustic/rehearsal tests, and the 984-test full suite. A read-only integration
+acoustic/rehearsal tests, and the then-current 984-test full suite. A read-only integration
 check validates all 26 frozen P3 windows across five proposed people and three
 exact P1 lineages against the production schema and audio bounds. The exact
-one-shot rehearsal still awaits the 30 operator decisions. A0 remains
+one-shot rehearsal still awaits the 30 operator decisions. The A1 request and
+literal-authorization contract is also implemented: it requires a
+production-mode rehearsal, binds current live-store and clean committed-code
+snapshots, exports one exact five-line approval block, rejects any drift, and
+freezes authority without applying it. Five authority tests, 110 combined
+acoustic/rehearsal/authority tests, and the 989-test full suite pass. The live
+apply driver remains the final implementation gap before the review response
+can lead directly to execution. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
 separate exact A1 gate with private-copy apply and rollback proof.
 

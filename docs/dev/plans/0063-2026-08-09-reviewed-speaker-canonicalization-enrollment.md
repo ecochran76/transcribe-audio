@@ -2,8 +2,9 @@
 
 State: OPEN
 
-Checkpoint: P4 review published; complete governed private-copy rehearsal
-implemented; operator decisions pending; A1 not authorized
+Checkpoint: P4 review published; complete governed private-copy rehearsal and
+A1 authority contract implemented; operator decisions pending; A1 not requested
+or authorized
 
 Lane: P10
 
@@ -186,6 +187,32 @@ and three distinct P1 lineages against the production schema and exact audio
 bounds. This remains implementation and synthetic-copy proof only: the exact P4
 submission has not arrived and the bounded real private-copy apply/rollback has
 not run. A1 is not authorized.
+
+## A1 authority implementation checkpoint
+
+The post-rehearsal A1 request and literal-authorization contract is implemented
+without preparing a request or granting authority. A request can be frozen only
+after replay of a production-mode complete rehearsal whose exact transition,
+review, rehearsal receipt, current live knowledge/reference/profile snapshots,
+clean upstream-even repository commit, and committed mutation modules all still
+match. Test-mode rehearsal receipts are permanently ineligible.
+
+The request renders one exact five-line answer block binding its request,
+transition, and rehearsal hashes plus the literal
+`authorize_exact_live_apply` decision. Any changed, missing, duplicated, or
+extra field fails closed. A matching response freezes a private authorization
+receipt but performs zero mutations. Its requested scope covers only the
+reviewed knowledge migration, people and observations, biometric references
+and profiles, plus quiescing and restoring the two transcript services needed
+for cross-store rollback safety. Provider writes, Graphiti writes, external
+writes, and historical reprocessing remain false.
+
+Five focused tests cover exact private request/replay, test-mode rejection,
+live-state and repository drift, literal authorization/replay, and altered or
+extra answer fields. The combined acoustic/rehearsal/authority set passes 110
+tests and the full suite passes 989 tests. No real A1 request exists yet, no
+literal A1 authorization has been supplied, and no live apply entry point is
+present in this checkpoint.
 
 ## Authority and non-goals
 
