@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 351: Implement governed biometric private-copy rehearsal (2026-08-09)
+
+Summary: Completed the code and synthetic-state proof for the Plan 0063 joined
+canonical-person and biometric private-copy transition without consuming the
+single real rehearsal or changing live identity state.
+
+Evidence:
+
+- `speaker_identity_plan0063_biometric_rehearsal.py` copies only governed
+  reference/profile state, rejects unsafe filesystem structure, inventories
+  every selected file and SQLite table, and binds included review windows to
+  exact replay-valid P1 derivatives.
+- The rehearsal creates one reference generation per reviewed enrollment unit
+  and one profile for each standard production adapter, verifies the active
+  state and expected database deltas, exercises governed profile/reference
+  withdrawal and deletion, restores exact baseline bytes, and proves the live
+  reference and profile stores unchanged.
+- The joined receipt records one logical apply and one rollback across both the
+  knowledge and biometric subsystems. Custom adapters are confined to explicit
+  test mode, whose receipts are ineligible for A1.
+- Six transition tests and 105 combined acoustic/rehearsal tests pass; Python
+  compilation and `git diff --check` pass; the full suite passes 984 tests.
+- A read-only production-shape check validates all 26 frozen P3 windows for five
+  proposed people across three exact P1 lineage runs. It records zero live
+  mutations and does not synthesize the still-missing P4 decisions.
+- Post-test live readback remains SQLite `quick_check=ok` with 466 documents,
+  2 contacts, 3 assignments, and zero knowledge tables; identity state remains
+  `64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a`;
+  both transcript services are active/running with zero restarts. Active and
+  goal-only planning audits, CodeGraph post-edit readback, and diff validation
+  pass.
+
+Next:
+
+- Receive and freeze the current Plan 0063 30-decision answer block, then run
+  the single exact real private-copy apply/rollback. Present its exact hashes
+  for separate A1 authorization only after that proof; no live mutation is
+  authorized now.
+
 ## Turn 350: Implement Plan 0063 reviewed-transition rehearsal (2026-08-09)
 
 Summary: Reconciled the operator's copied Plan 0062 answers with the already

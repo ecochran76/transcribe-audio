@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import copy
+import math
+import struct
+import wave
 from pathlib import Path
 
 import pytest
 
+import acoustic_audio_derivatives as derivatives
+import acoustic_biometric_references as references
+import acoustic_verification as verification
+import speaker_identity_plan0063_biometric_rehearsal as biometric_rehearsal
 import speaker_identity_plan0063_human_review as review
 import speaker_identity_plan0063_private_rehearsal as rehearsal
 import transcript_store
@@ -222,6 +229,111 @@ def _initialize_legacy_store(root: Path) -> None:
         connection.commit()
 
 
+def _write_wav(path: Path, *, frequency: float) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frames = bytearray()
+    for index in range(4 * 16_000):
+        value = int(
+            0.2 * 32_767 * math.sin(2 * math.pi * frequency * index / 16_000)
+        )
+        frames.extend(struct.pack("<h", value))
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        audio.writeframes(bytes(frames))
+    return path
+
+
+def _p1_source(tmp_path: Path, index: int, slot_id: str) -> dict:
+    source = _write_wav(
+        tmp_path / "source" / f"source-{index}.wav",
+        frequency=300.0 + index * 25.0,
+    )
+    runtime = tmp_path / "p1" / f"runtime-{index}"
+    plan = derivatives.dry_run(source, runtime_root=runtime)
+    derivatives.apply_derivative(
+        source,
+        runtime_root=runtime,
+        approval_token=derivatives.APPLY_TOKEN,
+    )
+    replay = derivatives.replay_derivative(plan["run_id"], runtime_root=runtime)
+    lineage = derivatives.resolve_derivative_lineage_receipt(
+        plan["run_id"],
+        replay_receipt_sha256=derivatives.sha256_file(
+            Path(replay["replay_receipt_path"])
+        ),
+        runtime_root=runtime,
+    )
+    return {
+        "reference_id": f"review-window-biometric-{index:012d}",
+        "recording_id": f"recording-{index}",
+        "conversation_id": f"conversation-{index}",
+        "source_blob_id": lineage["source_blob_id"],
+        "source_sha256": lineage["source_sha256"],
+        "slot_id": slot_id,
+        "speaker_label_id": slot_id.split("::", 1)[1],
+        "session_id": f"session-{index:03d}",
+        "start_seconds": 0.0,
+        "end_seconds": 3.0,
+        "source_duration_seconds": lineage["source_duration_seconds"],
+        "quality_evidence": {
+            "evidence_id": f"quality-evidence-{index:03d}",
+            "sha256": lineage["audio_quality_sha256"],
+        },
+        "lineage": lineage,
+        "device_class": "unverified-device",
+        "acoustic_conditions": ["deterministic-test"],
+        "future_holdout_excluded": True,
+        "data_split": "development_training_candidate",
+        "decision": "include",
+    }
+
+
+def _biometric_transition(tmp_path: Path) -> dict:
+    transition = _transition()
+    units = transition["enrollment_units"]
+    for index, unit in enumerate(units, 1):
+        source = _p1_source(tmp_path, index, unit["member_slot_ids"][0])
+        source_identity = [
+            {
+                key: source[key]
+                for key in (
+                    "reference_id",
+                    "source_sha256",
+                    "slot_id",
+                    "start_seconds",
+                    "end_seconds",
+                )
+            }
+        ]
+        unit["status"] = "source_selected"
+        unit["source_count"] = 1
+        unit["source_set_sha256"] = rehearsal.canonical_artifact_hash(
+            source_identity
+        )
+        unit["sources"] = [source]
+    transition["metrics"]["included_source_count"] = len(units)
+    transition["metrics"]["excluded_source_count"] = 26 - len(units)
+    transition["metrics"]["source_feasible_enrollment_unit_count"] = len(units)
+    core = {key: value for key, value in transition.items() if key != "content_sha256"}
+    transition["content_sha256"] = rehearsal.canonical_artifact_hash(core)
+    return transition
+
+
+def _initialize_biometric_stores(
+    reference_root: Path, profile_root: Path
+) -> None:
+    reference_root.mkdir(parents=True, mode=0o700)
+    reference_root.chmod(0o700)
+    with references._connection(reference_root, create=True):
+        pass
+    profile_root.mkdir(parents=True, mode=0o700)
+    profile_root.chmod(0o700)
+    with verification._profile_database(profile_root):
+        pass
+
+
 def test_reviewed_transition_resolves_merges_binding_and_sources() -> None:
     transition = _transition()
 
@@ -320,4 +432,82 @@ def test_private_rehearsal_rejects_transition_over_bound(tmp_path: Path) -> None
             transition,
             live_store_root=live_root,
             runtime_root=tmp_path / "runtime",
+        )
+
+
+def test_private_biometric_apply_lifecycle_rollback_and_exact_restore(
+    tmp_path: Path,
+) -> None:
+    transition = _biometric_transition(tmp_path)
+    live_store_root = tmp_path / "live-store"
+    live_reference_root = tmp_path / "live-reference"
+    live_profile_root = tmp_path / "live-profile"
+    runtime_root = tmp_path / "private-runtime"
+    _initialize_legacy_store(live_store_root)
+    _initialize_biometric_stores(live_reference_root, live_profile_root)
+    reference_before = derivatives.sha256_file(
+        live_reference_root / "references.sqlite3"
+    )
+    profile_before = derivatives.sha256_file(
+        live_profile_root / "profiles.sqlite3"
+    )
+    adapter = verification.FakeVerificationAdapter(
+        candidate_id="synthetic_verifier"
+    )
+
+    receipt = biometric_rehearsal.rehearse_complete_private_copy(
+        transition,
+        live_store_root=live_store_root,
+        live_reference_root=live_reference_root,
+        live_profile_root=live_profile_root,
+        runtime_root=runtime_root,
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+
+    assert receipt["applied_reference_count"] == 5
+    assert receipt["applied_profile_count"] == 5
+    assert receipt["applied_source_count"] == 5
+    assert receipt["logical_transition_apply_count"] == 1
+    assert receipt["logical_transition_rollback_count"] == 1
+    assert receipt["a1_request_ready"] is False
+    assert receipt["live_mutation_count"] == 0
+    assert receipt["idempotent_replay"] is False
+    assert derivatives.sha256_file(
+        live_reference_root / "references.sqlite3"
+    ) == reference_before
+    assert derivatives.sha256_file(
+        live_profile_root / "profiles.sqlite3"
+    ) == profile_before
+
+    replayed = biometric_rehearsal.rehearse_complete_private_copy(
+        transition,
+        live_store_root=live_store_root,
+        live_reference_root=live_reference_root,
+        live_profile_root=live_profile_root,
+        runtime_root=runtime_root,
+        adapters={adapter.candidate_id: adapter},
+        test_mode=True,
+    )
+    assert replayed["idempotent_replay"] is True
+    assert replayed["content_sha256"] == receipt["content_sha256"]
+
+
+def test_private_biometric_rehearsal_rejects_custom_production_adapter(
+    tmp_path: Path,
+) -> None:
+    adapter = verification.FakeVerificationAdapter(
+        candidate_id="synthetic_verifier"
+    )
+
+    with pytest.raises(
+        biometric_rehearsal.Plan0063BiometricRehearsalError,
+        match="deterministic tests",
+    ):
+        biometric_rehearsal.rehearse_biometric_copy(
+            _transition(),
+            live_reference_root=tmp_path / "live-reference",
+            live_profile_root=tmp_path / "live-profile",
+            runtime_root=tmp_path / "runtime",
+            adapters={adapter.candidate_id: adapter},
         )

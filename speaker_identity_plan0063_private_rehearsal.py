@@ -701,7 +701,23 @@ def _observations(transition: Mapping[str, Any]) -> tuple[ObservationRecord, ...
     return tuple(sorted(rows, key=lambda item: item.observation_id))
 
 
-def _rehearsal_paths(runtime_root: Path, transition_sha256: str) -> dict[str, Path]:
+def validate_reviewed_transition(transition: Mapping[str, Any]) -> str:
+    """Return the hash of one transition eligible for A0 private rehearsal."""
+
+    transition_sha256 = _assert_content_hash(transition, "reviewed transition")
+    if (
+        transition.get("schema_version") != TRANSITION_SCHEMA
+        or transition.get("status")
+        != "reviewed_transition_ready_for_private_rehearsal"
+        or transition.get("rehearsal_allowed") is not True
+        or transition.get("a1_authorized") is not False
+        or transition.get("live_mutation_count") != 0
+    ):
+        _fail("The reviewed transition is not eligible for private rehearsal.")
+    return transition_sha256
+
+
+def rehearsal_paths(runtime_root: Path, transition_sha256: str) -> dict[str, Path]:
     root = runtime_root.expanduser().absolute()
     run = root / f"p5-private-copy-rehearsal-{transition_sha256[:24]}"
     return {
@@ -722,7 +738,7 @@ def replay_knowledge_rehearsal(
     live_store_root: Path,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
-    paths = _rehearsal_paths(runtime_root, transition_sha256)
+    paths = rehearsal_paths(runtime_root, transition_sha256)
     for key in ("working_db", "baseline_db", "transition", "manifest", "receipt"):
         require_private_file(paths[key], paths["root"])
     transition = read_private_object(paths["transition"])
@@ -769,17 +785,8 @@ def rehearse_knowledge_copy(
 ) -> dict[str, Any]:
     """Apply and roll back canonical people on one private transcript DB copy."""
 
-    transition_sha256 = _assert_content_hash(transition, "reviewed transition")
-    if (
-        transition.get("schema_version") != TRANSITION_SCHEMA
-        or transition.get("status")
-        != "reviewed_transition_ready_for_private_rehearsal"
-        or transition.get("rehearsal_allowed") is not True
-        or transition.get("a1_authorized") is not False
-        or transition.get("live_mutation_count") != 0
-    ):
-        _fail("The reviewed transition is not eligible for private rehearsal.")
-    paths = _rehearsal_paths(runtime_root, transition_sha256)
+    transition_sha256 = validate_reviewed_transition(transition)
+    paths = rehearsal_paths(runtime_root, transition_sha256)
     if paths["receipt"].exists():
         return replay_knowledge_rehearsal(
             transition_sha256=transition_sha256,
@@ -930,6 +937,8 @@ __all__ = [
     "Plan0063PrivateRehearsalError",
     "TRANSITION_SCHEMA",
     "build_reviewed_transition",
+    "rehearsal_paths",
     "rehearse_knowledge_copy",
     "replay_knowledge_rehearsal",
+    "validate_reviewed_transition",
 ]

@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P4 review published; private transition/knowledge-copy rehearsal
+Checkpoint: P4 review published; complete governed private-copy rehearsal
 implemented; operator decisions pending; A1 not authorized
 
 Lane: P10
@@ -166,12 +166,26 @@ private run, migrates only that copy from knowledge schema 0 to 3, writes the
 reviewed people, source records, deduplicated external identities, slot and
 voice observations through the governed store interfaces, rebuilds current
 person profiles, reconciles table counts and hashes, rolls the schema back to
-0, and restores the exact baseline bytes. Replay rechecks the immutable
-transition, manifest, receipt, private database snapshots, and unchanged live
-snapshot. Four focused tests and the 982-test full suite pass. This is code and
-synthetic-copy proof only: the exact P4 submission has not arrived, the bounded
-real private-copy apply/rollback has not run, biometric reference/profile
-rehearsal remains pending, and A1 is not authorized.
+0, and restores the exact baseline bytes.
+
+The biometric rehearsal copies only the governed reference and profile state,
+validates every selected file and SQLite table against immutable baseline
+inventories, resolves each included source through its exact P1 derivative
+lineage, registers one reference generation per reviewed enrollment unit, and
+materializes one profile for each of the three standard production adapters.
+It then exercises governed profile and reference withdrawal/deletion,
+reconciles logical rollback state, restores the exact baseline bytes, and
+proves the live reference/profile state unchanged. Custom adapters are allowed
+only in explicit test mode and can never make a receipt A1-ready.
+
+Replay rechecks the immutable transition, manifests, receipts, private state
+snapshots, and unchanged live snapshots. Six focused transition tests, 105
+combined acoustic/rehearsal tests, and the 984-test full suite pass. A read-only
+integration check also validates all 26 frozen P3 windows, five proposed people,
+and three distinct P1 lineages against the production schema and exact audio
+bounds. This remains implementation and synthetic-copy proof only: the exact P4
+submission has not arrived and the bounded real private-copy apply/rollback has
+not run. A1 is not authorized.
 
 ## Authority and non-goals
 
