@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: P3 complete; P4 ready
+Checkpoint: P4 published; P5 human gate
 
 Lane: P09
 
@@ -162,6 +162,22 @@ across eight speaker slots, while the three acoustic hits remain unmapped to a
 prepared person. The live store stayed at two contacts and three speaker
 assignments with SQLite `quick_check=ok`; the acoustic identity-state snapshot
 was unchanged and `live_mutation_count=0`.
+
+P4 froze and exactly replayed 10 blank direct-audio decision cards against P3.
+Review-packet content is
+`bbdd481c2212401492786041ddfdb5ff1b4e7ff7774af5b33e0917d40987031d`;
+its private manifest is
+`420e49c92e24628643f05714e66c9713a4a8296dd523ef1b09d51105446d9bc8`;
+and worksheet SHA-256 is
+`3cb914bbc116aadce579f20cf0dff5898e15edc34ef594765540668bd4db4e08`.
+It contains 11 contextual options across eight slots and three independent
+enrolled-voice options, plus a typed corrected/new-person choice. All decisions
+start blank and the page has no POST or apply path.
+
+Authenticated Previews session `3af6c1f36243` contains directory artifact
+`9a37a9c5f427`. Published storage is byte-identical to the frozen P4 directory:
+one worksheet plus 10 WAV files, all relative sources present, and no localhost
+links. P4 now stops at the literal operator decision gate.
 
 ## Authority and non-goals
 

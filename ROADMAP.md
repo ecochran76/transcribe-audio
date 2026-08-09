@@ -248,7 +248,8 @@ Milestone Focus:
   speaker slots, preserved seven named unlisted suggestions, and added the
   explicit contextual/canonical/acoustic join. P3 is frozen and replayed; one enrolled
   acoustic subject remains intentionally unbound to any prepared canonical
-  person until human review. Biometric enrollment remains a later, separate
+  person until human review. P4 is published with direct audio and actual
+  contextual suggestions. Biometric enrollment remains a later, separate
   mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
@@ -710,7 +711,7 @@ the existing two-phase contextual identity workflow to the newer canonical and
 acoustic contracts on the exact three recent conversations. P1-P2 completed
 with 3 recordings, 10 speakers, 30 joined evaluations, and seven unlisted
 suggestion records. P3 is complete with zero live mutations; the direct-audio
-P4 worksheet is next. Assignment apply and biometric enrollment remain separate later
+P4 worksheet is published and awaiting literal decisions. Assignment apply and biometric enrollment remain separate later
 authorities.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline

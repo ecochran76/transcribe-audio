@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 343: Publish Plan 0062 contextual speaker review (2026-08-08)
+
+Summary: Froze, replayed, and published the authenticated direct-audio P4
+worksheet, then stopped at the literal human gate.
+
+Evidence:
+
+- P4 content is `bbdd481c...`, private manifest SHA-256 is `420e49c9...`, and
+  worksheet SHA-256 is `3cb914bb...`.
+- The exact packet contains 3 recordings, 10 blank speaker decisions, 10 WAV
+  clips, 11 contextual identity options across eight slots, and three enrolled-
+  voice options. No identity option is preselected.
+- The worksheet uses relative WAV paths, offers a typed corrected/new-person
+  decision, and has no POST, apply, contact creation, or profile mutation path.
+- Previews doctor returned healthy with external authentication configured.
+  Session `3af6c1f36243`, artifact `9a37a9c5f427`, was published at the
+  authenticated external ingress.
+- Published storage has the exact 11-file source set and exact hashes; every
+  relative audio source resolves to one present published WAV. No localhost
+  link is present.
+- The external endpoint returns the authenticated Previews login. P5 remains
+  forbidden until the operator copies the worksheet's literal complete answer
+  block.
+
+Next:
+
+- Wait for the literal 10-line decision export, then freeze and independently
+  compare the human bindings without applying contacts, assignments, or voice
+  profiles.
+
 ## Turn 342: Freeze Plan 0062 P3 and implement direct-audio P4 (2026-08-08)
 
 Summary: Froze the exact contextual/acoustic join with zero live mutation and
