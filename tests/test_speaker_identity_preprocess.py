@@ -229,6 +229,44 @@ def test_calendar_title_attendee_conflict_remains_separate_candidate_evidence() 
     assert packet["policy"]["calendar_evidence_is_candidate_only"] is True
 
 
+def test_matching_calendar_title_is_citable_when_selected_event_is_wrong() -> None:
+    transcript = _discovery_transcript()
+    transcript["event"]["summary"] = "Unrelated team meeting"
+    transcript["event"]["matching_calendars"] = [
+        {
+            "calendar_id": "personal-calendar",
+            "event_id": "appointment-event",
+            "event_summary": "Appointment with Dr. Stefl",
+            "event_start": "2026-08-07T12:00:00-05:00",
+            "event_end": "2026-08-07T13:00:00-05:00",
+            "overlap_seconds": 1800,
+            "coverage": 0.5,
+        }
+    ]
+    packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+    matching_title = next(
+        item
+        for item in packet["calendar_evidence"]
+        if item["evidence_type"] == "matching_calendar_title"
+    )
+
+    assert packet["calendar_candidate_hints"] == [
+        {
+            "candidate_hint_id": packet["calendar_candidate_hints"][0][
+                "candidate_hint_id"
+            ],
+            "name": "Dr. Stefl",
+            "calendar_clue_ids": [matching_title["evidence_id"]],
+            "status": "candidate",
+            "identity_use": "candidate_only",
+        }
+    ]
+    assert matching_title["calendar_id"] == "personal-calendar"
+    assert packet["calendar_context"]["title"] == "Unrelated team meeting"
+
+
 def test_ambiguous_calendar_title_marks_each_name_as_ambiguous() -> None:
     transcript = _discovery_transcript()
     transcript["event"]["summary"] = "Consultation: Dr. Stefl and Dr. Jones"

@@ -30,6 +30,7 @@ MAX_UTTERANCES_PER_SPEAKER = 12
 MAX_UTTERANCE_CHARS = 1_200
 MAX_PROVENANCE_SOURCES = 24
 MAX_PROVENANCE_SNIPPET_CHARS = 600
+MAX_MATCHING_CALENDAR_EVENTS = 24
 CALENDAR_TITLE_PERSON_RE = re.compile(
     r"\b(?:Dr\.?|Doctor)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’-]{1,79}\b"
 )
@@ -267,6 +268,38 @@ def _calendar_evidence(transcript: dict[str, Any]) -> list[dict[str, Any]]:
                 "identity_use": "candidate_only",
             }
         )
+    matching_calendars = event.get("matching_calendars")
+    if isinstance(matching_calendars, list):
+        for match in matching_calendars[:MAX_MATCHING_CALENDAR_EVENTS]:
+            if not isinstance(match, dict):
+                continue
+            title = normalize_string(match.get("event_summary"))
+            if not title:
+                continue
+            match_value = {
+                "calendar_id": normalize_string(match.get("calendar_id")),
+                "event_id": normalize_string(match.get("event_id")),
+                "event_start": normalize_string(match.get("event_start")),
+                "event_end": normalize_string(match.get("event_end")),
+                "title": title,
+            }
+            evidence.append(
+                {
+                    "evidence_id": _stable_calendar_evidence_id(
+                        transcript=transcript,
+                        event=event,
+                        kind="matching-title",
+                        value=match_value,
+                    ),
+                    "evidence_type": "matching_calendar_title",
+                    "event_id": match_value["event_id"],
+                    "calendar_id": match_value["calendar_id"],
+                    "event_start": match_value["event_start"],
+                    "event_end": match_value["event_end"],
+                    "text": title,
+                    "identity_use": "candidate_only",
+                }
+            )
     return evidence
 
 
@@ -276,25 +309,28 @@ def _calendar_title_candidate_hints(
     title_rows = [
         item
         for item in calendar_evidence
-        if item.get("evidence_type") == "title" and normalize_string(item.get("text"))
+        if item.get("evidence_type") in {"title", "matching_calendar_title"}
+        and normalize_string(item.get("text"))
     ]
-    if len(title_rows) != 1:
+    if not title_rows:
         return []
-    title = normalize_string(title_rows[0]["text"])
-    names = list(
-        dict.fromkeys(
-            match.group(0) for match in CALENDAR_TITLE_PERSON_RE.finditer(title)
-        )
-    )
+    evidence_ids_by_name: dict[str, list[str]] = {}
+    for row in title_rows:
+        title = normalize_string(row["text"])
+        for match in CALENDAR_TITLE_PERSON_RE.finditer(title):
+            evidence_ids_by_name.setdefault(match.group(0), []).append(
+                row["evidence_id"]
+            )
+    names = list(evidence_ids_by_name)
     status = "candidate" if len(names) == 1 else "ambiguous"
     return [
         {
             "candidate_hint_id": "calendar-person-"
             + hashlib.sha256(
-                (title_rows[0]["evidence_id"] + name).encode("utf-8")
+                ("|".join(evidence_ids_by_name[name]) + name).encode("utf-8")
             ).hexdigest()[:24],
             "name": name,
-            "calendar_clue_ids": [title_rows[0]["evidence_id"]],
+            "calendar_clue_ids": evidence_ids_by_name[name],
             "status": status,
             "identity_use": "candidate_only",
         }

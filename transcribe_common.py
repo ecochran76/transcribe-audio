@@ -36,6 +36,7 @@ from transcript_store import ingest_artifact
 
 DEFAULT_LANGUAGE_CODE = "en_us"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+CALENDAR_PROVIDER_COMMAND_TIMEOUT_SECONDS = 30.0
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 SCRIPT_DIR = Path(__file__).resolve().parent
 WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
@@ -874,7 +875,13 @@ def extract_calendars_from_provider_payload(payload: Any) -> list[dict[str, Any]
     return []
 
 
-def run_json_command(command: list[str], *, provider_name: str, env: Optional[dict[str, str]] = None) -> Any:
+def run_json_command(
+    command: list[str],
+    *,
+    provider_name: str,
+    env: Optional[dict[str, str]] = None,
+    timeout_seconds: float = CALENDAR_PROVIDER_COMMAND_TIMEOUT_SECONDS,
+) -> Any:
     command_env = os.environ.copy()
     if env:
         command_env.update(env)
@@ -885,7 +892,12 @@ def run_json_command(command: list[str], *, provider_name: str, env: Optional[di
             capture_output=True,
             text=True,
             env=command_env,
+            timeout=timeout_seconds,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise TranscriptionError(
+            f"{provider_name} timed out after {timeout_seconds:g} seconds."
+        ) from exc
     except OSError as exc:
         raise TranscriptionError(f"{provider_name} invocation failed: {exc}") from exc
 

@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from transcribe_common import (
+    CALENDAR_PROVIDER_COMMAND_TIMEOUT_SECONDS,
     CalendarProvider,
+    TranscriptionError,
     attach_matching_calendars,
     build_event_base_name,
     describe_matching_calendars,
@@ -26,6 +31,7 @@ from transcribe_common import (
     extract_calendars_from_provider_payload,
     parse_calendar_provider_order,
     process_transcription_outputs,
+    run_json_command,
 )
 from watch_transcriptions import (
     CandidateSnapshot,
@@ -880,6 +886,17 @@ def test_gog_calendar_list_command_includes_tenant_selectors() -> None:
         "--results-only",
         "--no-input",
     ]
+
+
+def test_calendar_provider_command_timeout_fails_closed(monkeypatch) -> None:
+    def timeout(command, **kwargs):
+        assert kwargs["timeout"] == CALENDAR_PROVIDER_COMMAND_TIMEOUT_SECONDS
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(transcribe_common.subprocess, "run", timeout)
+
+    with pytest.raises(TranscriptionError, match="timed out after 30 seconds"):
+        run_json_command(["gog", "calendar", "calendars"], provider_name="gog")
 
 
 def test_gws_calendar_command_and_env_include_config_dir(tmp_path: Path) -> None:
