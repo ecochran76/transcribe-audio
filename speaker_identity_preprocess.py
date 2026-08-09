@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
 from uuid import uuid4
@@ -29,6 +30,9 @@ MAX_UTTERANCES_PER_SPEAKER = 12
 MAX_UTTERANCE_CHARS = 1_200
 MAX_PROVENANCE_SOURCES = 24
 MAX_PROVENANCE_SNIPPET_CHARS = 600
+CALENDAR_TITLE_PERSON_RE = re.compile(
+    r"\b(?:Dr\.?|Doctor)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’-]{1,79}\b"
+)
 PERSON_PROVENANCE_TYPES = {
     "gws_contact",
     "gws_other_contact",
@@ -193,6 +197,111 @@ def _speaker_clues(transcript: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _stable_calendar_evidence_id(
+    *, transcript: dict[str, Any], event: dict[str, Any], kind: str, value: Any
+) -> str:
+    recording_ids = transcript.get("recording_ids")
+    if not isinstance(recording_ids, list):
+        recording_id = normalize_string(transcript.get("recording_id"))
+        recording_ids = [recording_id] if recording_id else []
+    identity = {
+        "conversation_id": normalize_string(transcript.get("conversation_id")),
+        "recording_ids": [normalize_string(item) for item in recording_ids],
+        "event_id": normalize_string(event.get("id") or event.get("event_id")),
+        "kind": kind,
+        "value": value,
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            identity,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()[:24]
+    return f"calendar-{kind}-{digest}"
+
+
+def _calendar_evidence(transcript: dict[str, Any]) -> list[dict[str, Any]]:
+    event = transcript.get("event") if isinstance(transcript.get("event"), dict) else {}
+    event_id = normalize_string(event.get("id") or event.get("event_id"))
+    evidence: list[dict[str, Any]] = []
+    for kind, text in (
+        ("title", normalize_string(event.get("summary"))),
+        (
+            "description",
+            normalize_string(event.get("description"))[:MAX_PROVENANCE_SNIPPET_CHARS],
+        ),
+    ):
+        if not text:
+            continue
+        evidence.append(
+            {
+                "evidence_id": _stable_calendar_evidence_id(
+                    transcript=transcript, event=event, kind=kind, value=text
+                ),
+                "evidence_type": kind,
+                "event_id": event_id,
+                "text": text,
+                "identity_use": "candidate_only",
+            }
+        )
+    for attendee in extract_calendar_attendees(transcript):
+        attendee_value = {
+            "name": normalize_string(attendee.get("name") or attendee.get("label")),
+            "email": normalize_email(attendee.get("email")),
+        }
+        if not any(attendee_value.values()):
+            continue
+        evidence.append(
+            {
+                "evidence_id": _stable_calendar_evidence_id(
+                    transcript=transcript,
+                    event=event,
+                    kind="attendee",
+                    value=attendee_value,
+                ),
+                "evidence_type": "attendee",
+                "event_id": event_id,
+                "person_hint": attendee_value,
+                "identity_use": "candidate_only",
+            }
+        )
+    return evidence
+
+
+def _calendar_title_candidate_hints(
+    calendar_evidence: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    title_rows = [
+        item
+        for item in calendar_evidence
+        if item.get("evidence_type") == "title" and normalize_string(item.get("text"))
+    ]
+    if len(title_rows) != 1:
+        return []
+    title = normalize_string(title_rows[0]["text"])
+    names = list(
+        dict.fromkeys(
+            match.group(0) for match in CALENDAR_TITLE_PERSON_RE.finditer(title)
+        )
+    )
+    status = "candidate" if len(names) == 1 else "ambiguous"
+    return [
+        {
+            "candidate_hint_id": "calendar-person-"
+            + hashlib.sha256(
+                (title_rows[0]["evidence_id"] + name).encode("utf-8")
+            ).hexdigest()[:24],
+            "name": name,
+            "calendar_clue_ids": [title_rows[0]["evidence_id"]],
+            "status": status,
+            "identity_use": "candidate_only",
+        }
+        for name in names
+    ]
+
+
 def build_clue_discovery_packet(
     *,
     transcript: dict[str, Any],
@@ -204,6 +313,7 @@ def build_clue_discovery_packet(
     if not isinstance(recording_ids, list):
         recording_id = normalize_string(transcript.get("recording_id"))
         recording_ids = [recording_id] if recording_id else []
+    calendar_evidence = _calendar_evidence(transcript)
     return {
         "schema_version": CLUE_DISCOVERY_PACKET_SCHEMA_VERSION,
         "task": "speaker_clue_discovery",
@@ -224,6 +334,8 @@ def build_clue_discovery_packet(
             "description": normalize_string(event.get("description"))[:MAX_PROVENANCE_SNIPPET_CHARS],
             "attendees": extract_calendar_attendees(transcript),
         },
+        "calendar_evidence": calendar_evidence,
+        "calendar_candidate_hints": _calendar_title_candidate_hints(calendar_evidence),
         "source_contexts": [
             dict(item)
             for item in source_contexts
@@ -234,6 +346,8 @@ def build_clue_discovery_packet(
             "retrieval_is_host_owned": True,
             "identify_people_in_this_pass": False,
             "defer_full_contextual_readout": True,
+            "calendar_evidence_is_candidate_only": True,
+            "calendar_only_speaker_binding_is_forbidden": True,
         },
     }
 
@@ -258,6 +372,23 @@ def validate_clue_discovery_readout(
         if isinstance(item, dict)
     }
     all_prepared_clues = set().union(*prepared_by_speaker.values()) if prepared_by_speaker else set()
+    prepared_calendar_clues = {
+        normalize_string(item.get("evidence_id"))
+        for item in packet.get("calendar_evidence", [])
+        if isinstance(item, dict) and normalize_string(item.get("evidence_id"))
+    }
+
+    def calendar_clue_ids(result: dict[str, Any]) -> set[str]:
+        raw = result.get("calendar_clue_ids", [])
+        if not isinstance(raw, list):
+            raise ValueError("Calendar clue citations must be a list.")
+        clue_ids = {normalize_string(value) for value in raw if normalize_string(value)}
+        unknown = clue_ids - prepared_calendar_clues
+        if unknown:
+            raise ValueError(
+                f"Clue discovery references unprepared calendar clues: {sorted(unknown)}."
+            )
+        return clue_ids
 
     speaker_clues = readout.get("speaker_clues")
     conversation_clues = readout.get("conversation_clues")
@@ -278,6 +409,11 @@ def validate_clue_discovery_readout(
         unknown = clue_ids - prepared_by_speaker[label]
         if unknown:
             raise ValueError(f"Speaker clue references unprepared transcript clues: {sorted(unknown)}.")
+        cited_calendar = calendar_clue_ids(result)
+        if cited_calendar and not clue_ids:
+            raise ValueError(
+                "Calendar-only evidence cannot create a speaker-specific clue."
+            )
 
     for result in conversation_clues:
         if not isinstance(result, dict):
@@ -292,6 +428,7 @@ def validate_clue_discovery_readout(
             raise ValueError(
                 f"Conversation clue references unprepared transcript clues: {sorted(unknown)}."
             )
+        calendar_clue_ids(result)
     for group_hint in readout.get("speaker_group_hints", []):
         if not isinstance(group_hint, dict):
             raise ValueError("Clue discovery contains a non-object speaker group hint.")
@@ -1271,6 +1408,7 @@ def build_clue_discovery_prompt(packet: dict[str, Any]) -> str:
             {
                 "speaker_label": "prepared speaker label",
                 "transcript_clue_ids": ["prepared utterance_id"],
+                "calendar_clue_ids": ["prepared calendar evidence_id"],
                 "observations": ["bounded identity-relevant observation"],
                 "person_hints": [{"name": "", "email": "", "organization": ""}],
                 "retrieval_terms": ["bounded term for host retrieval"],
@@ -1279,6 +1417,7 @@ def build_clue_discovery_prompt(packet: dict[str, Any]) -> str:
         "conversation_clues": [
             {
                 "transcript_clue_ids": ["prepared utterance_id"],
+                "calendar_clue_ids": ["prepared calendar evidence_id"],
                 "observation": "bounded conversation-level identity clue",
                 "retrieval_terms": [],
             }
@@ -1300,9 +1439,12 @@ def build_clue_discovery_prompt(packet: dict[str, Any]) -> str:
         "warnings": [],
     }
     return (
-        "Find identity-relevant clues and bounded retrieval terms in the prepared transcript excerpts. "
+        "Find identity-relevant clues and bounded retrieval terms in the prepared transcript and calendar evidence. "
         "Do not identify the speakers in this pass. Do not request or retrieve external data. "
-        "Cite only prepared utterance_ids and return JSON only matching this output shape: "
+        "Calendar title, description, attendee, and candidate-hint data may suggest a person or spelling, "
+        "but never proves that person spoke. A speaker-specific calendar citation must also cite a prepared "
+        "utterance_id. Cite only prepared utterance_ids and calendar evidence_ids, keeping them in their "
+        "separate fields, and return JSON only matching this output shape: "
         f"{json.dumps(output_schema, sort_keys=True, ensure_ascii=False)}\n\n"
         "Prepared clue discovery packet:\n"
         f"{json.dumps(packet, sort_keys=True, ensure_ascii=False)}"

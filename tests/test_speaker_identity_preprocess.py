@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -61,6 +62,14 @@ def test_build_clue_discovery_packet_has_no_retrieved_people_or_sources() -> Non
     assert packet["conversation"]["recording_ids"] == [_discovery_transcript()["recording_id"]]
     assert packet["speakers"][0]["utterance_clues"][0]["utterance_id"] == "utterance-1"
     assert packet["calendar_context"]["attendees"][0]["email"] == "alice@example.com"
+    assert {item["evidence_type"] for item in packet["calendar_evidence"]} == {
+        "title",
+        "attendee",
+    }
+    assert all(
+        item["identity_use"] == "candidate_only"
+        for item in packet["calendar_evidence"]
+    )
     assert packet["source_contexts"][0]["relationship_scope"] == "personal"
     assert "contact_candidates" not in packet
     assert "provenance_sources" not in packet
@@ -104,6 +113,136 @@ def test_validate_clue_discovery_readout_requires_prepared_citations() -> None:
     readout["speaker_clues"][0]["transcript_clue_ids"] = ["utterance-99"]
     with pytest.raises(ValueError, match="unprepared transcript clues"):
         speaker_identity_preprocess.validate_clue_discovery_readout(packet, readout)
+
+
+def test_calendar_title_prepares_exact_candidate_without_speaker_binding() -> None:
+    transcript = _discovery_transcript()
+    transcript["event"]["summary"] = "Appointment with Dr. Stefl"
+    packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+    title = next(
+        item
+        for item in packet["calendar_evidence"]
+        if item["evidence_type"] == "title"
+    )
+
+    assert packet["calendar_candidate_hints"] == [
+        {
+            "candidate_hint_id": packet["calendar_candidate_hints"][0][
+                "candidate_hint_id"
+            ],
+            "name": "Dr. Stefl",
+            "calendar_clue_ids": [title["evidence_id"]],
+            "status": "candidate",
+            "identity_use": "candidate_only",
+        }
+    ]
+    readout = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [],
+        "conversation_clues": [
+            {
+                "transcript_clue_ids": [],
+                "calendar_clue_ids": [title["evidence_id"]],
+                "observation": "The title supplies an exact candidate spelling.",
+                "person_hints": [{"name": "Dr. Stefl"}],
+                "retrieval_terms": ["Dr. Stefl"],
+            }
+        ],
+        "warnings": [],
+    }
+
+    assert speaker_identity_preprocess.validate_clue_discovery_readout(
+        packet, readout
+    )["valid"] is True
+    readout["speaker_clues"] = [
+        {
+            "speaker_label": "Speaker A",
+            "transcript_clue_ids": [],
+            "calendar_clue_ids": [title["evidence_id"]],
+        }
+    ]
+    with pytest.raises(ValueError, match="Calendar-only evidence"):
+        speaker_identity_preprocess.validate_clue_discovery_readout(packet, readout)
+
+
+def test_calendar_evidence_ids_are_stable_and_packet_bound() -> None:
+    transcript = _discovery_transcript()
+    first = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+    second = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=deepcopy(transcript)
+    )
+    other_transcript = deepcopy(transcript)
+    other_transcript["conversation_id"] = "other-conversation"
+    other = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=other_transcript
+    )
+    first_ids = [item["evidence_id"] for item in first["calendar_evidence"]]
+    other_ids = {item["evidence_id"] for item in other["calendar_evidence"]}
+
+    assert first_ids == [
+        item["evidence_id"] for item in second["calendar_evidence"]
+    ]
+    assert set(first_ids).isdisjoint(other_ids)
+    cross_packet_readout = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [],
+        "conversation_clues": [
+            {"transcript_clue_ids": [], "calendar_clue_ids": [first_ids[0]]}
+        ],
+        "warnings": [],
+    }
+    with pytest.raises(ValueError, match="unprepared calendar clues"):
+        speaker_identity_preprocess.validate_clue_discovery_readout(
+            other, cross_packet_readout
+        )
+
+
+def test_calendar_title_without_honorific_person_has_no_candidate_hint() -> None:
+    packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=_discovery_transcript()
+    )
+
+    assert packet["calendar_candidate_hints"] == []
+
+
+def test_calendar_title_attendee_conflict_remains_separate_candidate_evidence() -> None:
+    transcript = _discovery_transcript()
+    transcript["event"]["summary"] = "Consultation with Dr. Stefl"
+    transcript["event"]["attendees"] = [
+        {"displayName": "Different Attendee", "email": "different@example.com"}
+    ]
+    packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+
+    assert packet["calendar_candidate_hints"][0]["name"] == "Dr. Stefl"
+    attendee = next(
+        item
+        for item in packet["calendar_evidence"]
+        if item["evidence_type"] == "attendee"
+    )
+    assert attendee["person_hint"]["name"] == "Different Attendee"
+    assert packet["policy"]["calendar_evidence_is_candidate_only"] is True
+
+
+def test_ambiguous_calendar_title_marks_each_name_as_ambiguous() -> None:
+    transcript = _discovery_transcript()
+    transcript["event"]["summary"] = "Consultation: Dr. Stefl and Dr. Jones"
+    packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+
+    assert [item["name"] for item in packet["calendar_candidate_hints"]] == [
+        "Dr. Stefl",
+        "Dr. Jones",
+    ]
+    assert {item["status"] for item in packet["calendar_candidate_hints"]} == {
+        "ambiguous"
+    }
 
 
 def test_group_person_candidates_merges_duplicate_people_but_preserves_source_records() -> None:
@@ -485,6 +624,8 @@ def test_two_phase_prompts_keep_discovery_separate_from_identity_evaluation() ->
 
     assert "Do not identify the speakers in this pass" in discovery_prompt
     assert "transcribe-audio.speaker-clue-discovery-readout.v1" in discovery_prompt
+    assert "calendar evidence_ids" in discovery_prompt
+    assert "never proves that person spoke" in discovery_prompt
     assert json.dumps(discovery_packet, sort_keys=True, ensure_ascii=False) in discovery_prompt
 
     evaluation_packet = speaker_identity_preprocess.build_identity_evaluation_packet(
