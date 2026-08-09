@@ -42,12 +42,12 @@ FROZEN_IDENTITY_STATE_SHA256 = (
     "64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a"
 )
 
-WORKSHEET_SCHEMA = "transcribe-audio.plan0061-human-review-worksheet.v2"
+WORKSHEET_SCHEMA = "transcribe-audio.plan0061-human-review-worksheet.v3"
 WORKSHEET_MANIFEST_SCHEMA = (
-    "transcribe-audio.plan0061-human-review-worksheet-manifest.v2"
+    "transcribe-audio.plan0061-human-review-worksheet-manifest.v3"
 )
 WORKSHEET_RECEIPT_SCHEMA = (
-    "transcribe-audio.plan0061-human-review-worksheet-receipt.v2"
+    "transcribe-audio.plan0061-human-review-worksheet-receipt.v3"
 )
 DECISION_SUBMISSION_SCHEMA = (
     "transcribe-audio.plan0061-human-review-submission.v1"
@@ -826,11 +826,13 @@ def _validated_live_source(
 def _worksheet_paths(runtime_root: Path, worksheet_sha256: str) -> dict[str, Path]:
     root = runtime_root.expanduser().absolute()
     run = root / f"review-worksheet-{worksheet_sha256[:24]}"
+    bundle = run / "preview"
     return {
         "root": root,
         "run": run,
-        "worksheet": run / "review.html",
-        "media": run / "media",
+        "bundle": bundle,
+        "worksheet": bundle / "review.html",
+        "media": bundle / "media",
         "manifest": run / "private-manifest.json",
         "receipt": run / "receipt.json",
     }
@@ -1026,11 +1028,12 @@ def prepare_live_worksheet(
     if paths["run"].exists():
         _fail("A partial Plan 0061 worksheet directory already exists.")
     ensure_private_tree(paths["root"], paths["run"])
+    ensure_private_tree(paths["root"], paths["bundle"])
     _write_private_text(paths["worksheet"], worksheet, paths["root"])
     for clip in audio_sources:
         _copy_private_audio(
             clip,
-            destination=paths["run"] / str(clip["relative_path"]),
+            destination=paths["bundle"] / str(clip["relative_path"]),
             runtime_root=paths["root"],
             acoustic_root=acoustic_root.expanduser().absolute(),
         )
@@ -1084,7 +1087,7 @@ def prepare_live_worksheet(
     return {
         **receipt,
         "worksheet_path": str(paths["worksheet"]),
-        "bundle_path": str(paths["run"]),
+        "bundle_path": str(paths["bundle"]),
         "manifest_path": str(paths["manifest"]),
         "idempotent_replay": False,
     }
@@ -1111,7 +1114,7 @@ def replay_live_worksheet(
     bindings = {**bindings, "acoustic_clips": acoustic_binding}
     audio_manifest = _public_audio_manifest(audio_sources)
     for clip in audio_sources:
-        destination = paths["run"] / str(clip["relative_path"])
+        destination = paths["bundle"] / str(clip["relative_path"])
         require_private_file(destination, paths["root"])
         if (
             destination.stat().st_size != clip["bytes"]
@@ -1153,7 +1156,7 @@ def replay_live_worksheet(
     return {
         **receipt,
         "worksheet_path": str(paths["worksheet"]),
-        "bundle_path": str(paths["run"]),
+        "bundle_path": str(paths["bundle"]),
         "manifest_path": str(paths["manifest"]),
         "idempotent_replay": True,
     }
