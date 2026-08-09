@@ -40,6 +40,7 @@ UTC_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 APPROVAL_DECISION = "authorize_exact_live_apply"
 MODULE_PATHS = (
     Path(__file__).resolve(),
+    Path(__file__).resolve().parent / "speaker_identity_plan0063_live_apply.py",
     Path(canonical_rehearsal.__file__).resolve(),
     Path(biometric_rehearsal.__file__).resolve(),
     Path(conversation_knowledge_store.__file__).resolve(),

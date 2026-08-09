@@ -1,5 +1,42 @@
 # Runbook
 
+## Turn 353: Implement Plan 0063 terminal live apply driver (2026-08-09)
+
+Summary: Completed the fail-closed code path from literal A1 authority to one
+joined live knowledge and biometric apply, including service quiescence, exact
+backup, terminal replay, and exact-restored failure handling.
+
+Evidence:
+
+- `speaker_identity_plan0063_live_apply.py` replays the exact A1 authority and
+  unchanged baseline before it can stop only `transcripts.service` and
+  `transcribe-watch.service`; custom adapters/controllers are test-only and
+  test mode rejects production state roots.
+- After service quiescence, the driver rechecks the A1 baseline and copies the
+  knowledge database plus governed reference/profile state byte-for-byte. It
+  deliberately excludes unrelated profile acquisition and calibration corpora.
+- The apply uses the reviewed knowledge interfaces, P3 biometric-reference
+  lifecycle, and standard P4 model materialization core; expected people,
+  binding, reference, profile, and source counts must reconcile before service
+  restoration and terminal receipt freeze.
+- Any post-backup failure quiesces services again, restores all three exact
+  baseline snapshots, restores both services, and freezes a terminal failure
+  receipt. Neither success nor failure can be applied a second time.
+- Four disposable-store tests prove one-shot success/replay, an injected
+  mid-biometric failure with exact three-store rollback, refusal of custom
+  production controls, and production-root exclusion in test mode. Unselected
+  profile-state directories retain their original contents and modes.
+- The focused authority/rehearsal/acoustic set passes 114 tests; Python
+  compilation, CodeGraph post-edit readback, and diff validation pass; the full
+  suite passes 993 tests.
+
+Next:
+
+- Receive and freeze the current 30-decision P4 response. Run the single exact
+  real private rehearsal, prepare the hash-bound A1 request, and wait for its
+  literal five-line authorization before invoking this driver. No live mutation
+  is authorized now.
+
 ## Turn 352: Implement Plan 0063 exact A1 authority contract (2026-08-09)
 
 Summary: Added the non-applying A1 request and literal-authorization boundary

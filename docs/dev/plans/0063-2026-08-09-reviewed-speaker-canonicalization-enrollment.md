@@ -2,9 +2,9 @@
 
 State: OPEN
 
-Checkpoint: P4 review published; complete governed private-copy rehearsal and
-A1 authority contract implemented; operator decisions pending; A1 not requested
-or authorized
+Checkpoint: P4 review published; complete governed private-copy rehearsal, A1
+authority contract, and terminal live driver implemented; operator decisions
+pending; A1 not requested or authorized
 
 Lane: P10
 
@@ -210,9 +210,36 @@ writes, and historical reprocessing remain false.
 Five focused tests cover exact private request/replay, test-mode rejection,
 live-state and repository drift, literal authorization/replay, and altered or
 extra answer fields. The combined acoustic/rehearsal/authority set passes 110
-tests and the full suite passes 989 tests. No real A1 request exists yet, no
-literal A1 authorization has been supplied, and no live apply entry point is
-present in this checkpoint.
+tests and the then-current full suite passes 989 tests. No real A1 request
+exists yet and no literal A1 authorization has been supplied.
+
+## P5 live-apply implementation checkpoint
+
+The A1-gated one-shot live driver is implemented but has not been invoked. It
+accepts only the exact literal authority and unchanged request baseline,
+requires both transcript services active/running, then stops only those two
+services before reading the final baseline or making a backup. The knowledge
+database and selected biometric state are copied byte-for-byte only while
+quiesced; the profile backup excludes acquisition and calibration corpora that
+the transition cannot mutate.
+
+The driver migrates and writes the reviewed knowledge records through the same
+governed store interfaces used by rehearsal, registers each reviewed reference
+through the P3 lifecycle, and materializes each standard model profile through
+the validated P4 core. It reconciles the exact authorized counts before
+restoring both services. A terminal private receipt prevents a second apply and
+replays against the resulting state.
+
+Any failure after backup forces both services quiescent, exact-restores all
+three selected state surfaces, verifies them against the byte-bound baseline,
+restores both services, and freezes a terminal failure receipt that also
+prevents retry. Four disposable-store tests cover successful one-shot replay,
+injected mid-biometric failure and three-store restore, refusal of custom
+production controls, and refusal to aim test mode at production roots. The
+combined authority/rehearsal/acoustic set passes 114 tests and the full suite
+passes 993 tests. This proves the driver and rollback seam on disposable state;
+the one real rehearsal, A1 request, literal A1 authorization, and live apply all
+still await the current 30 decisions.
 
 ## Authority and non-goals
 

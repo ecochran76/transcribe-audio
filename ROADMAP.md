@@ -747,10 +747,14 @@ one-shot rehearsal still awaits the 30 operator decisions. The A1 request and
 literal-authorization contract is also implemented: it requires a
 production-mode rehearsal, binds current live-store and clean committed-code
 snapshots, exports one exact five-line approval block, rejects any drift, and
-freezes authority without applying it. Five authority tests, 110 combined
-acoustic/rehearsal/authority tests, and the 989-test full suite pass. The live
-apply driver remains the final implementation gap before the review response
-can lead directly to execution. A0 remains
+freezes authority without applying it. The A1-gated one-shot live driver is now
+also implemented: it quiesces only the two transcript services, takes exact
+byte backups, uses the governed knowledge/reference/profile write paths,
+reconciles the authorized counts, restores services, and becomes terminal on
+either success or proven exact rollback. Four disposable-store driver tests,
+114 combined acoustic/rehearsal/authority tests, and the 993-test full suite
+pass. No real request, authority, rehearsal, or apply has run. Once the 30
+decisions arrive, no further implementation round is planned. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
 separate exact A1 gate with private-copy apply and rollback proof.
 
