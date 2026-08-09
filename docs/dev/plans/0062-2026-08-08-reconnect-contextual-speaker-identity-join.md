@@ -1,8 +1,8 @@
 # Plan 0062 | Reconnect contextual speaker identity to the canonical/acoustic join
 
-State: PLANNED
+State: OPEN
 
-Checkpoint: planning authority only; A0 not started
+Checkpoint: A0 complete; P1 and P2 ready
 
 Lane: P09
 
@@ -37,6 +37,10 @@ candidate payloads remain private under user-scoped runtime storage.
 This document is planning authority only. A distinct A0 checkpoint must move
 it to `OPEN` before model execution, provider retrieval, private proposal
 preparation, source changes, or preview publication.
+
+Planning authority is committed and pushed at
+`9e6fd82f8858aadfd6c30da4d0996ffe88c28507`. The user's `plan and execute`
+instruction activated A0 after the exact readbacks below.
 
 ## Vision outcomes and maturity movement
 
@@ -82,6 +86,36 @@ Plan 0025 already provides the required deep module interfaces:
 
 The missing implementation is the reusable seam that consumes that validated
 result and produces speaker-specific canonical/acoustic joined evaluations.
+
+## A0 activation checkpoint
+
+Branch `plan-0037-campaign` and its upstream were exact at
+`9e6fd82f8858aadfd6c30da4d0996ffe88c28507` with a clean worktree. Both
+`transcripts.service` and `transcribe-watch.service` were active/running with
+zero restarts. The user-scoped database passed SQLite `quick_check` with 466
+documents, 2 contacts, and 3 speaker assignments.
+
+All three cohort documents independently returned HTTP 200 from the installed
+speaker-preprocessing status endpoint with `not_started`, zero evaluations,
+and zero review decisions. The first status call required a longer provider-
+aware response window but completed unchanged on retry; this is observed
+latency, not evidence of a missing document.
+
+The Plan 0036 superseding baseline remains `predictions_complete` with 10/10
+captured predictions, `gold_content_included=false`, source commit `fee6ef6`,
+and a next gate requiring independent operator gold. No prediction body or
+partial gold was opened. Plan 0061's terminal audit remains mode `0600`, status
+`complete`, terminal comparison SHA-256
+`12a45055b7c3e9fc15af0e297af4b4decde67c32603c981642857678c476f4fd`,
+and `live_mutation_count=0`.
+
+A0 therefore transitions `PLANNED/A0 -> OPEN/P1-P2-ready`. Authority is the
+exact three-conversation cohort, six primary reviewed model turns with the
+bounded reference-repair allowance, inherited provider budgets, private
+evaluation sidecars, repository implementation/tests, and all negative actions
+preserved. Progress classification is `outcome_progress`; accepted finding
+ledger remains empty; delegation remains `not_spawned` under current system
+authority.
 
 ## Authority and non-goals
 

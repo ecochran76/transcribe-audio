@@ -1,5 +1,30 @@
 # Runbook
 
+## Turn 340: Activate Plan 0062 contextual join (2026-08-08)
+
+Summary: Activated Plan 0062 under the user's `plan and execute` instruction
+after committing and pushing planning authority at `9e6fd82`. P1 contextual
+execution and P2 reusable join implementation are ready; no model or provider
+execution occurred during A0.
+
+Evidence:
+
+- Branch and upstream were exact at `9e6fd82` with a clean worktree. Both
+  transcript services were active/running with zero restarts.
+- SQLite remained `ok` with 466 documents, 2 contacts, and 3 speaker
+  assignments. All three exact cohort documents returned HTTP 200 and
+  `not_started` with zero evaluations and review decisions.
+- The Plan 0036 baseline remains sealed with 10/10 predictions,
+  `gold_content_included=false`, and no prediction body or partial gold opened.
+- The mode-0600 Plan 0061 terminal audit remains `complete`, comparison SHA-256
+  `12a45055...`, and live mutation count zero.
+
+Checkpoint: `PLANNED/A0 -> OPEN/P1-P2-ready`; progress `outcome_progress`;
+authority is the bounded private/read-only/model-review and repository-write
+envelope in Plan 0062; accepted finding ledger empty; delegation
+`not_spawned`. Next: execute the existing two-phase workflow per conversation
+and implement the deep contextual/canonical/acoustic join interface.
+
 ## Turn 339: Plan contextual speaker-identity reconnection (2026-08-08)
 
 Summary: Opened planning authority for Plan 0062 after the Plan 0061 `refine`
