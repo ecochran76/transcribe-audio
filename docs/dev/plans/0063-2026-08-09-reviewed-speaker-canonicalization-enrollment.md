@@ -3,9 +3,9 @@
 State: OPEN
 
 Checkpoint: original P4 review superseded after operator provenance correction;
-corrected no-calendar P4 publication pending; private-copy rehearsal, A1
-authority contract, and terminal live driver implemented; A1 not requested or
-authorized
+corrected no-calendar P4 published; operator decisions pending; private-copy
+rehearsal, A1 authority contract, and terminal live driver implemented; A1 not
+requested or authorized
 
 Lane: P10
 
@@ -154,10 +154,15 @@ export is refused; complete export contains 30 decision rows plus four exact
 headers; clipboard denial selects the full fallback block; and no POST request
 occurs. That browser defect was implementation validation, not a semantic
 operator review cycle. The single allowed review rework cycle is now consumed
-by the operator's no-calendar and participant correction. A corrected v2 P4
-must supersede the old content hash, preserve the unchanged P2/P3 bindings, and
-show that Dr. Stefl came from listening review while Michael Forrester is absent
-from the recording. A1 and all live
+by the operator's no-calendar and participant correction. Corrected v2 P4
+content `486dce6804021314565b5b9c21aeeb58b92529e4a4d4f727324c8106f5753a8a`
+supersedes the old hash while preserving the unchanged P2/P3 bindings. Its
+manifest is `613f660d...`, HTML is `13ce1e2a...`, and receipt is `6f8c91ad...`.
+Authenticated Previews session `b18f14803bd7`, artifact `e7ffdb4c90a5`, shows
+that Dr. Stefl came from listening review while Michael Forrester is absent
+from the recording. Browser proof covers 26/26 finite-duration WAVs, 30 blank
+choices, incomplete-export refusal, a 34-line v2 answer block, selected
+manual-copy fallback, and zero POST requests. A1 and all live
 canonical/biometric changes remain unauthorized until the operator returns the
 complete corrected block and separately authorizes the exact mutation gate.
 

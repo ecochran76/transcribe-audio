@@ -735,9 +735,10 @@ citable and fail-closed; the Dr. Stefl case is an explicit no-calendar negative
 control, not an uncaptured calendar-source case. The original combined
 direct-WAV review at `bf53f4bf...`, published through authenticated Previews
 session `cb529a51053b`, is superseded because its notice claimed calendar
-provenance the recording did not have. Its browser proof covered all 26 players, blank/incomplete
-export refusal, a working 30-row hash-bound export, clipboard fallback, and
-zero POST requests. The deterministic post-review transition plus
+provenance the recording did not have. Corrected v2 review `486dce68...` is
+published as Previews session `b18f14803bd7`, artifact `e7ffdb4c90a5`; browser
+proof covers all 26 players, blank/incomplete export refusal, a working 30-row
+hash-bound export, clipboard fallback, and zero POST requests. The deterministic post-review transition plus
 conversation-knowledge and biometric private-copy rehearsal are now
 implemented: reviewed merges, slot bindings, voice/context agreement, source
 choices, governed store apply, reference generation, three-model profile

@@ -19,16 +19,24 @@ Evidence:
   retained as immutable but superseded evidence. Review schema v2 withdraws the
   calendar-candidate claim, records the no-calendar state and participant
   exclusion, and requires a newly hash-bound 30-decision submission.
+- Corrected P4 content is `486dce6804021314565b5b9c21aeeb58b92529e4a4d4f727324c8106f5753a8a`;
+  manifest file is `613f660d...`, HTML file is `13ce1e2a...`, and receipt file
+  is `6f8c91ad...`. Replay is idempotent, the private tree is `0700`, all 29
+  files are `0600`, and live mutation count is zero.
+- Authenticated Previews session `b18f14803bd7`, artifact `e7ffdb4c90a5`, is the
+  corrected review surface. Browser proof loads 26/26 WAVs with finite
+  8.32-15.00 second durations, finds 30 blank choices, refuses incomplete
+  export, builds the exact four-header plus 30-decision v2 block, selects the
+  complete manual-copy fallback after clipboard denial, and records zero POST
+  requests.
 - The browser export-script repair recorded in Turn 349 was implementation
   validation. The one semantic review-rework cycle is consumed by this operator
   provenance correction.
 
 Next:
 
-- Freeze and publish the corrected v2 P4 through authenticated Previews, verify
-  all 26 audio controls and the 30-row export, then wait for the operator's
-  complete corrected block. Do not run the real rehearsal or request A1 from
-  the superseded review.
+- Wait for the operator's complete corrected v2 block. Do not run the real
+  rehearsal or request A1 from the superseded review.
 
 ## Turn 354: Share Plan 0063 governed apply helpers (2026-08-09)
 
