@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
+import subprocess
 
 import pytest
 
@@ -371,7 +372,7 @@ def human_review_inputs():
     return cases, manifest, content_sha256, packets, acoustic_bundles
 
 
-def test_contextual_human_review_shows_suggestions_and_voice_subject() -> None:
+def test_contextual_human_review_shows_suggestions_and_voice_subject(tmp_path) -> None:
     _cases, manifest, content_sha256, packets, acoustic_bundles = human_review_inputs()
 
     packet_value = human_review.build_review_packet(
@@ -398,6 +399,18 @@ def test_contextual_human_review_shows_suggestions_and_voice_subject() -> None:
     assert "fetch(" not in worksheet
     assert "XMLHttpRequest" not in worksheet
     assert "new_person:" in worksheet
+    assert "linked:" in worksheet
+
+    script = worksheet.rsplit("<script>", 1)[1].split("</script>", 1)[0]
+    script_path = tmp_path / "review.js"
+    script_path.write_text(script, encoding="utf-8")
+    checked = subprocess.run(
+        ["node", "--check", str(script_path)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert checked.returncode == 0, checked.stderr
 
 
 def test_contextual_human_review_private_bundle_replays(tmp_path) -> None:

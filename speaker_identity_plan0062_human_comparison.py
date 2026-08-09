@@ -38,6 +38,14 @@ COMPARISON_RECEIPT_SCHEMA = "transcribe-audio.plan0062-comparison-receipt.v1"
 TERMINAL_SCHEMA = "transcribe-audio.plan0062-terminal-audit.v1"
 OPTION_RE = re.compile(r"^(enrolled|canonical|suggested)-[a-f0-9]{24}$")
 NEW_PERSON_RE = re.compile(r"^new_person:([A-Za-z0-9_-]{1,512})$")
+CORRECTED_RE = re.compile(
+    r"^corrected:((?:canonical|suggested)-[a-f0-9]{24}):([A-Za-z0-9_-]{1,512})$"
+)
+LINKED_RE = re.compile(
+    r"^linked:(enrolled-[a-f0-9]{24}):((?:canonical|suggested)-[a-f0-9]{24})$"
+)
+SUBMISSION_SOURCES = {"client_export", "operator_copied_review_page"}
+HUMAN_OBSERVATION_CODES = {"calendar_title_candidate_missed"}
 HIGH_CONFIDENCE_THRESHOLD = 0.8
 
 
@@ -443,11 +451,7 @@ def _validated_sources(
     return p3, packet, p3_slots
 
 
-def _decode_new_person(value: str) -> str:
-    match = NEW_PERSON_RE.fullmatch(value)
-    if match is None:
-        _fail("A new-person decision has invalid encoding.")
-    encoded = match.group(1)
+def _decode_person_name(encoded: str) -> str:
     try:
         raw = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
         name = raw.decode("utf-8")
@@ -462,6 +466,114 @@ def _decode_new_person(value: str) -> str:
     ):
         _fail("A new-person decision has an invalid display name.")
     return name
+
+
+def _decode_new_person(value: str) -> str:
+    match = NEW_PERSON_RE.fullmatch(value)
+    if match is None:
+        _fail("A new-person decision has invalid encoding.")
+    return _decode_person_name(match.group(1))
+
+
+def _context_selection(
+    token: str,
+    *,
+    option_by_token: Mapping[str, Mapping[str, Any]],
+    p3_outcome: Mapping[str, Any],
+) -> dict[str, Any]:
+    option = option_by_token.get(token)
+    source = str(option.get("source") or "") if option else ""
+    if token.startswith("suggested-"):
+        matches = [
+            dict(suggestion)
+            for suggestion in p3_outcome.get("suggestions") or []
+            if isinstance(suggestion, Mapping)
+            and review._option_token("suggested", dict(suggestion)) == token
+        ]
+        if len(matches) != 1 or source not in {
+            "",
+            "contextual_unlisted_suggestion",
+        }:
+            _fail("A selected contextual suggestion is ambiguous.")
+        suggestion = matches[0]
+        context_label = (
+            str(option.get("label") or review._suggestion_label(suggestion))
+            if option
+            else review._suggestion_label(suggestion)
+        )
+        return {
+            "context_source": "contextual_unlisted_suggestion",
+            "context_token": token,
+            "context_label": context_label,
+            "suggestion": suggestion,
+        }
+    if token.startswith("canonical-"):
+        person_id = str(p3_outcome.get("context_person_id") or "")
+        if (
+            not person_id
+            or review._option_token("canonical", person_id) != token
+            or source not in {"", "canonical_context_proposal"}
+        ):
+            _fail("A selected canonical context person is invalid.")
+        return {
+            "context_source": "canonical_context_proposal",
+            "context_token": token,
+            "context_label": str(option.get("label") or "") if option else "",
+            "person_id": person_id,
+        }
+    _fail("A linked or corrected decision lacks contextual identity evidence.")
+
+
+def _suggestion_is_placeholder(suggestion: Mapping[str, Any]) -> bool:
+    name = " ".join(str(suggestion.get("name") or "").split()).casefold()
+    return name == "unknown" or name.startswith("unknown ")
+
+
+def _bind_enrolled_voice(
+    decision: dict[str, Any],
+    *,
+    token: str,
+    enrolled_binding: Mapping[str, Any] | None,
+) -> None:
+    if (
+        not isinstance(enrolled_binding, Mapping)
+        or enrolled_binding.get("token") != token
+    ):
+        _fail("A selected enrolled voice lacks exact private binding authority.")
+    decision["acoustic_subject_id"] = str(enrolled_binding["acoustic_subject_id"])
+    decision["acoustic_bundle_id"] = str(
+        enrolled_binding.get("acoustic_bundle_id") or ""
+    )
+    decision["acoustic_bundle_sha256"] = str(
+        enrolled_binding["acoustic_bundle_sha256"]
+    )
+    decision["binding_status"] = (
+        "reviewed_voice_subject_selected_pending_person_apply"
+    )
+
+
+def _normalized_human_observations(
+    observations: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if observations is None:
+        return []
+    if not isinstance(observations, Mapping):
+        _fail("Human review observations are invalid.")
+    expected = set(_expected_slots())
+    rows: list[dict[str, Any]] = []
+    for slot_id in _expected_slots():
+        raw_codes = observations.get(slot_id)
+        if raw_codes is None:
+            continue
+        if isinstance(raw_codes, str) or not isinstance(raw_codes, (list, tuple)):
+            _fail("Human review observation codes are invalid.")
+        codes = sorted({str(code) for code in raw_codes})
+        if not codes or any(code not in HUMAN_OBSERVATION_CODES for code in codes):
+            _fail("Human review observation codes are outside the allowed set.")
+        rows.append({"slot_id": slot_id, "codes": codes})
+    if any(str(slot_id) not in expected for slot_id in observations):
+        _fail("A human review observation references an unknown slot.")
+    return rows
 
 
 def _decision_for_selection(
@@ -482,6 +594,44 @@ def _decision_for_selection(
         decision.update(
             {"decision_type": "new_person", "label": _decode_new_person(selected)}
         )
+    elif (match := CORRECTED_RE.fullmatch(selected)) is not None:
+        context = _context_selection(
+            match.group(1),
+            option_by_token=option_by_token,
+            p3_outcome=p3_outcome,
+        )
+        decision.update(
+            {
+                "decision_type": "corrected_contextual_suggestion",
+                "label": _decode_person_name(match.group(2)),
+                **context,
+            }
+        )
+    elif (match := LINKED_RE.fullmatch(selected)) is not None:
+        enrolled_token, context_token = match.groups()
+        enrolled_option = option_by_token.get(enrolled_token)
+        if (
+            not enrolled_option
+            or enrolled_option.get("source") != "enrolled_voice_subject"
+        ):
+            _fail("A linked decision lacks an enrolled voice option.")
+        context = _context_selection(
+            context_token,
+            option_by_token=option_by_token,
+            p3_outcome=p3_outcome,
+        )
+        decision.update(
+            {
+                "decision_type": "linked_enrolled_context_identity",
+                "label": str(
+                    context.get("context_label") or enrolled_option["label"]
+                ),
+                **context,
+            }
+        )
+        _bind_enrolled_voice(
+            decision, token=enrolled_token, enrolled_binding=enrolled_binding
+        )
     elif selected in option_by_token:
         option = option_by_token[selected]
         source = str(option["source"])
@@ -489,32 +639,17 @@ def _decision_for_selection(
         if source == "canonical_context_proposal":
             decision["person_id"] = str(p3_outcome.get("context_person_id") or "")
         elif source == "contextual_unlisted_suggestion":
-            matches = [
-                dict(suggestion)
-                for suggestion in p3_outcome.get("suggestions") or []
-                if isinstance(suggestion, Mapping)
-                and review._option_token("suggested", dict(suggestion)) == selected
-            ]
-            if len(matches) != 1:
-                _fail("A selected contextual suggestion is ambiguous.")
-            decision["suggestion"] = matches[0]
+            context = _context_selection(
+                selected,
+                option_by_token=option_by_token,
+                p3_outcome=p3_outcome,
+            )
+            decision["suggestion"] = context["suggestion"]
+            if _suggestion_is_placeholder(context["suggestion"]):
+                decision["decision_type"] = "contextual_role_placeholder"
         else:
-            if (
-                not isinstance(enrolled_binding, Mapping)
-                or enrolled_binding.get("token") != selected
-            ):
-                _fail("A selected enrolled voice lacks exact private binding authority.")
-            decision["acoustic_subject_id"] = str(
-                enrolled_binding["acoustic_subject_id"]
-            )
-            decision["acoustic_bundle_id"] = str(
-                enrolled_binding.get("acoustic_bundle_id") or ""
-            )
-            decision["acoustic_bundle_sha256"] = str(
-                enrolled_binding["acoustic_bundle_sha256"]
-            )
-            decision["binding_status"] = (
-                "reviewed_voice_subject_selected_pending_person_apply"
+            _bind_enrolled_voice(
+                decision, token=selected, enrolled_binding=enrolled_binding
             )
     else:
         _fail("A Plan 0062 decision is outside the frozen option set.")
@@ -527,6 +662,8 @@ def parse_human_submission(
     p3_manifest: Mapping[str, Any],
     p4_source: Mapping[str, Any],
     enrolled_binding_source: Mapping[str, Any],
+    submission_source: str = "client_export",
+    human_observations: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Parse exactly ten ordered choices from the client-only P4 export."""
 
@@ -564,6 +701,8 @@ def parse_human_submission(
             )
         )
 
+    if submission_source not in SUBMISSION_SOURCES:
+        _fail("The Plan 0062 submission source is invalid.")
     core = {
         "schema_version": DECISION_SCHEMA,
         "status": "human_gold_frozen_pending_comparison",
@@ -574,6 +713,8 @@ def parse_human_submission(
         ],
         "decision_count": len(decisions),
         "decisions": decisions,
+        "submission_source": submission_source,
+        "human_observations": _normalized_human_observations(human_observations),
         "negative_actions": negative_action_vector(),
     }
     return {**core, "content_sha256": canonical_artifact_hash(core)}
@@ -603,6 +744,8 @@ def recompute_comparison(
         or submission.get("enrolled_binding_content_sha256")
         != enrolled_binding_source.get("content_sha256")
         or int(submission.get("decision_count") or 0) != 10
+        or submission.get("submission_source") not in SUBMISSION_SOURCES
+        or not isinstance(submission.get("human_observations"), list)
         or submission.get("content_sha256") != canonical_artifact_hash(submission_core)
         or not isinstance(decisions, list)
         or len(decisions) != 10
@@ -624,6 +767,15 @@ def recompute_comparison(
     ]
     if [dict(decision) for decision in decisions] != expected_decisions:
         _fail("The Plan 0062 human-gold decision meanings drifted.")
+    observation_mapping = {
+        str(row.get("slot_id") or ""): row.get("codes")
+        for row in submission["human_observations"]
+        if isinstance(row, Mapping)
+    }
+    if submission["human_observations"] != _normalized_human_observations(
+        observation_mapping
+    ):
+        _fail("The Plan 0062 human observations drifted.")
 
     gold = Counter(str(item.get("decision_type") or "") for item in decisions)
     named_types = {
@@ -631,6 +783,8 @@ def recompute_comparison(
         "enrolled_voice_subject",
         "contextual_unlisted_suggestion",
         "new_person",
+        "corrected_contextual_suggestion",
+        "linked_enrolled_context_identity",
     }
     counters = {condition: Counter() for condition in sorted(EXPECTED_CONDITIONS)}
     rows: list[dict[str, Any]] = []
@@ -647,18 +801,10 @@ def recompute_comparison(
             counter = counters[condition]
             proposed = str(evaluation.get("proposed_person_id") or "")
             abstained = not proposed and evaluation.get("outcome") == "abstained"
-            correct = bool(
-                proposed
-                and decision_type == "canonical_context_proposal"
-                and proposed == target_person_id
-            )
+            correct = bool(proposed and target_person_id and proposed == target_person_id)
             wrong = bool(proposed and not correct)
-            safe_abstention = bool(
-                abstained and decision_type != "canonical_context_proposal"
-            )
-            inappropriate_abstention = bool(
-                abstained and decision_type == "canonical_context_proposal"
-            )
+            safe_abstention = bool(abstained and not target_person_id)
+            inappropriate_abstention = bool(abstained and target_person_id)
             coverage_gap = bool(abstained and named)
             confidence = float(evaluation.get("capped_confidence") or 0.0)
             source_failures = evaluation.get("source_failures")
@@ -673,7 +819,7 @@ def recompute_comparison(
             counter["named_identity_count"] += int(named)
             counter["named_identity_recalled_count"] += int(correct)
             counter["canonical_person_count"] += int(
-                decision_type == "canonical_context_proposal"
+                bool(target_person_id)
             )
             counter["canonical_person_recalled_count"] += int(correct)
             counter["coverage_gap_count"] += int(coverage_gap)
@@ -724,8 +870,32 @@ def recompute_comparison(
         condition_metrics[condition] = metrics
 
     named_count = sum(gold[value] for value in named_types)
-    new_enrollment_count = gold["contextual_unlisted_suggestion"] + gold["new_person"]
-    existing_voice_binding_count = gold["enrolled_voice_subject"]
+    new_enrollment_types = {
+        "contextual_unlisted_suggestion",
+        "corrected_contextual_suggestion",
+        "new_person",
+    }
+    new_enrollment_count = sum(gold[value] for value in new_enrollment_types)
+
+    def new_identity_key(item: Mapping[str, Any]) -> str:
+        if item.get("decision_type") == "contextual_unlisted_suggestion":
+            suggestion = item.get("suggestion")
+            value = (
+                suggestion.get("name") if isinstance(suggestion, Mapping) else ""
+            )
+        else:
+            value = item.get("label")
+        return " ".join(str(value or "").split()).casefold()
+
+    new_identity_keys = {
+        new_identity_key(item)
+        for item in decisions
+        if item.get("decision_type") in new_enrollment_types
+    }
+    new_identity_keys.discard("")
+    existing_voice_binding_count = (
+        gold["enrolled_voice_subject"] + gold["linked_enrolled_context_identity"]
+    )
     if all_wrong:
         terminal_decision = "refine"
         recommendation = "refine_before_any_identity_or_biometric_apply"
@@ -762,8 +932,29 @@ def recompute_comparison(
             "named_identity_count": named_count,
             "canonical_person_count": gold["canonical_context_proposal"],
             "existing_voice_binding_candidate_count": existing_voice_binding_count,
-            "new_biometric_enrollment_candidate_count": new_enrollment_count,
-            "unresolved_count": gold["unresolved"],
+            "new_biometric_enrollment_candidate_slot_count": new_enrollment_count,
+            "unique_new_biometric_enrollment_candidate_count": len(
+                new_identity_keys
+            ),
+            "contextual_suggestion_confirmed_count": gold[
+                "contextual_unlisted_suggestion"
+            ],
+            "contextual_suggestion_corrected_count": gold[
+                "corrected_contextual_suggestion"
+            ],
+            "linked_contextual_acoustic_count": gold[
+                "linked_enrolled_context_identity"
+            ],
+            "calendar_title_candidate_missed_count": sum(
+                "calendar_title_candidate_missed" in row["codes"]
+                for row in submission["human_observations"]
+            ),
+            "unresolved_count": (
+                gold["unresolved"] + gold["contextual_role_placeholder"]
+            ),
+            "contextual_role_placeholder_count": gold[
+                "contextual_role_placeholder"
+            ],
             "decision_type_counts": dict(sorted(gold.items())),
         },
         "condition_metrics": condition_metrics,
@@ -804,6 +995,8 @@ def freeze_human_comparison(
     p4_source: Mapping[str, Any],
     enrolled_binding_source: Mapping[str, Any],
     runtime_root: Path,
+    submission_source: str = "client_export",
+    human_observations: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Freeze exact P5 gold and comparison while preserving the no-apply boundary."""
 
@@ -812,6 +1005,8 @@ def freeze_human_comparison(
         p3_manifest=p3_manifest,
         p4_source=p4_source,
         enrolled_binding_source=enrolled_binding_source,
+        submission_source=submission_source,
+        human_observations=human_observations,
     )
     comparison = recompute_comparison(
         p3_manifest, p4_source, enrolled_binding_source, submission

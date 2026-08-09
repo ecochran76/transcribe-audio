@@ -261,10 +261,42 @@ def render_review_worksheet(packet: Mapping[str, Any]) -> str:
     sections: list[str] = []
     for card in cards:
         slot = html.escape(str(card["slot_id"]), quote=True)
+        option_rows = [dict(option) for option in card["options"]]
         options = "".join(
             f'<option value="{html.escape(str(option["token"]), quote=True)}">'
             f'{html.escape(str(option["label"]))} — {html.escape(str(option["source"]).replace("_", " "))}</option>'
-            for option in card["options"]
+            for option in option_rows
+        )
+        enrolled_options = [
+            option
+            for option in option_rows
+            if option["source"] == "enrolled_voice_subject"
+        ]
+        contextual_options = [
+            option
+            for option in option_rows
+            if option["source"]
+            in {"canonical_context_proposal", "contextual_unlisted_suggestion"}
+        ]
+        contextual_tokens = {str(option["token"]) for option in contextual_options}
+        for suggestion in card["suggestions"]:
+            token = _option_token("suggested", dict(suggestion))
+            if token not in contextual_tokens:
+                contextual_options.append(
+                    {
+                        "token": token,
+                        "label": _suggestion_label(suggestion),
+                        "source": "contextual_unlisted_suggestion",
+                    }
+                )
+                contextual_tokens.add(token)
+        linked_options = "".join(
+            f'<option value="linked:{html.escape(str(enrolled["token"]), quote=True)}:'
+            f'{html.escape(str(contextual["token"]), quote=True)}">Same person — enrolled '
+            f'{html.escape(str(enrolled["label"]))} + contextual '
+            f'{html.escape(str(contextual["label"]))}</option>'
+            for enrolled in enrolled_options
+            for contextual in contextual_options
         )
         suggestions = "".join(
             f"<li>{html.escape(_suggestion_label(item))}</li>"
@@ -294,10 +326,11 @@ def render_review_worksheet(packet: Mapping[str, Any]) -> str:
 <label>Who is speaking?
 <select data-decision data-slot="{slot}">
 <option value="">Choose only after listening</option>{options}
+{linked_options}
 <option value="new_person">Different person — enter the name below</option>
 <option value="unresolved">Unresolved / cannot determine</option>
 </select></label>
-<label>New/corrected person name <input data-new-name data-slot="{slot}" type="text" maxlength="160" placeholder="Required only for Different person"></label>
+<label>New/corrected person name <input data-new-name data-slot="{slot}" type="text" maxlength="160" placeholder="Enter for a new person or to correct a contextual name"></label>
 <code>{slot}</code>
 </article>'''
         )
@@ -328,7 +361,7 @@ def render_review_worksheet(packet: Mapping[str, Any]) -> str:
 <script>
 const cfg=JSON.parse(document.getElementById('review-config').textContent);
 function encodeName(value){{const bytes=new TextEncoder().encode(value);let binary='';for(const b of bytes)binary+=String.fromCharCode(b);return btoa(binary).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');}}
-function build(){{const rows=[];const error=document.getElementById('error');error.textContent='';for(const slot of cfg.slots){{const select=document.querySelector(`[data-decision][data-slot="${{CSS.escape(slot)}}"]`);let value=select.value;if(!value){{error.textContent=`A decision is still blank: ${{slot}}`;return '';}}if(value==='new_person'){{const name=document.querySelector(`[data-new-name][data-slot="${{CSS.escape(slot)}}"]`).value.trim();if(!name){{error.textContent=`Enter the new/corrected name for ${{slot}}`;return '';}}value='new_person:'+encodeName(name);}}rows.push(slot+'='+value);}}const header=[`PLAN0062_SCHEMA=${{cfg.submission_schema}}`,`PLAN0062_P3_CONTENT_SHA256=${{cfg.p3_content_sha256}}`,`PLAN0062_P4_CONTENT_SHA256=${{cfg.packet_content_sha256}}`];const text=[...header,...rows].join('\n');document.getElementById('output').value=text;return text;}}
+function build(){{const rows=[];const error=document.getElementById('error');error.textContent='';for(const slot of cfg.slots){{const select=document.querySelector(`[data-decision][data-slot="${{CSS.escape(slot)}}"]`);const name=document.querySelector(`[data-new-name][data-slot="${{CSS.escape(slot)}}"]`).value.trim();let value=select.value;if(!value&&name){{value='new_person:'+encodeName(name);}}else if(!value){{error.textContent=`A decision is still blank: ${{slot}}`;return '';}}else if(value==='new_person'){{if(!name){{error.textContent=`Enter the new/corrected name for ${{slot}}`;return '';}}value='new_person:'+encodeName(name);}}else if(name&&(value.startsWith('suggested-')||value.startsWith('canonical-'))){{value='corrected:'+value+':'+encodeName(name);}}else if(name){{error.textContent=`Clear the name field or choose a contextual person to correct for ${{slot}}`;return '';}}rows.push(slot+'='+value);}}const header=[`PLAN0062_SCHEMA=${{cfg.submission_schema}}`,`PLAN0062_P3_CONTENT_SHA256=${{cfg.p3_content_sha256}}`,`PLAN0062_P4_CONTENT_SHA256=${{cfg.packet_content_sha256}}`];const text=[...header,...rows].join('\\n');document.getElementById('output').value=text;return text;}}
 document.getElementById('build').addEventListener('click',build);document.getElementById('copy').addEventListener('click',async()=>{{const text=build();if(!text)return;try{{await navigator.clipboard.writeText(text)}}catch(_error){{const out=document.getElementById('output');out.focus();out.select();document.execCommand('copy');}}}});
 </script></body></html>'''
 

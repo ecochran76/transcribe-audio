@@ -25,13 +25,43 @@ def sources():
 
 
 def answer_block(
-    p3, p4, *, new_person_first: bool = False, enrolled_first: bool = False
+    p3,
+    p4,
+    *,
+    new_person_first: bool = False,
+    enrolled_first: bool = False,
+    corrected_first: bool = False,
+    linked_first: bool = False,
 ) -> str:
     rows = []
     for index, card in enumerate(p4["cards"]):
         if index == 0 and new_person_first:
             encoded = base64.urlsafe_b64encode("Zoë Example".encode()).decode().rstrip("=")
             selected = f"new_person:{encoded}"
+        elif index == 0 and corrected_first:
+            suggested = next(
+                option["token"]
+                for option in card["options"]
+                if option["source"] == "contextual_unlisted_suggestion"
+            )
+            encoded = (
+                base64.urlsafe_b64encode("Corrected Example".encode())
+                .decode()
+                .rstrip("=")
+            )
+            selected = f"corrected:{suggested}:{encoded}"
+        elif index == 0 and linked_first:
+            enrolled = next(
+                option["token"]
+                for option in card["options"]
+                if option["source"] == "enrolled_voice_subject"
+            )
+            suggested = next(
+                option["token"]
+                for option in card["options"]
+                if option["source"] == "contextual_unlisted_suggestion"
+            )
+            selected = f"linked:{enrolled}:{suggested}"
         elif index == 0 and enrolled_first:
             selected = next(
                 option["token"]
@@ -99,6 +129,54 @@ def test_enrolled_selection_preserves_exact_private_subject_binding() -> None:
     assert selected["binding_status"] == (
         "reviewed_voice_subject_selected_pending_person_apply"
     )
+
+
+def test_corrected_contextual_suggestion_preserves_source_and_name() -> None:
+    p3, p4, bindings = sources()
+
+    submission = comparison.parse_human_submission(
+        answer_block(p3, p4, corrected_first=True),
+        p3_manifest=p3,
+        p4_source=p4,
+        enrolled_binding_source=bindings,
+        submission_source="operator_copied_review_page",
+        human_observations={
+            p4["cards"][0]["slot_id"]: ("calendar_title_candidate_missed",)
+        },
+    )
+
+    selected = submission["decisions"][0]
+    assert selected["decision_type"] == "corrected_contextual_suggestion"
+    assert selected["label"] == "Corrected Example"
+    assert selected["suggestion"]
+    assert submission["submission_source"] == "operator_copied_review_page"
+    assert submission["human_observations"] == [
+        {
+            "slot_id": p4["cards"][0]["slot_id"],
+            "codes": ["calendar_title_candidate_missed"],
+        }
+    ]
+
+
+def test_linked_context_and_voice_selection_preserves_both_sources() -> None:
+    p3, p4, bindings = sources()
+
+    submission = comparison.parse_human_submission(
+        answer_block(p3, p4, linked_first=True),
+        p3_manifest=p3,
+        p4_source=p4,
+        enrolled_binding_source=bindings,
+    )
+
+    selected = submission["decisions"][0]
+    assert selected["decision_type"] == "linked_enrolled_context_identity"
+    assert selected["acoustic_subject_id"] == "subject-alice"
+    assert selected["context_source"] == "contextual_unlisted_suggestion"
+    assert selected["suggestion"]
+
+    result = comparison.recompute_comparison(p3, p4, bindings, submission)
+    assert result["gold_metrics"]["linked_contextual_acoustic_count"] == 1
+    assert result["gold_metrics"]["existing_voice_binding_candidate_count"] == 1
 
 
 def test_private_enrolled_bindings_freeze_and_replay(tmp_path) -> None:
