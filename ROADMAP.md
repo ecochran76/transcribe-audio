@@ -753,7 +753,10 @@ byte backups, uses the governed knowledge/reference/profile write paths,
 reconciles the authorized counts, restores services, and becomes terminal on
 either success or proven exact rollback. Four disposable-store driver tests,
 114 combined acoustic/rehearsal/authority tests, and the 993-test full suite
-pass. No real request, authority, rehearsal, or apply has run. Once the 30
+pass. The rehearsal and terminal driver now share the exact governed knowledge
+and biometric apply helpers, eliminating the remaining indirect-coverage gap;
+10 focused tests and the unchanged 993-test full suite pass after that
+consolidation. No real request, authority, rehearsal, or apply has run. Once the 30
 decisions arrive, no further implementation round is planned. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
 separate exact A1 gate with private-copy apply and rollback proof.

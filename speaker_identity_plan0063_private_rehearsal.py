@@ -777,6 +777,52 @@ def replay_knowledge_rehearsal(
     }
 
 
+def apply_reviewed_knowledge_transition(
+    transition: Mapping[str, Any], *, store_root: Path
+) -> dict[str, Any]:
+    """Apply one reviewed Plan 0063 transition to a schema-zero store."""
+
+    validate_reviewed_transition(transition)
+    store = ConversationKnowledgeStore(store_root)
+    migration = store.migrate(backup=False)
+    if migration.from_version != 0 or migration.to_version != 3:
+        _fail("The knowledge migration did not move from schema 0 to 3.")
+    person_receipts = [
+        store.save_person_snapshot(_person_snapshot(person, transition=transition))
+        for person in transition.get("canonical_people") or []
+    ]
+    observation_receipt = store.save_observations("", _observations(transition))
+    profile_receipt = ConversationProfileProjector(store_root).rebuild()
+    snapshot = _database_snapshot(transcript_store.db_path(store_root))
+    metrics = dict(transition.get("metrics") or {})
+    expected_counts = {
+        "knowledge_people": int(metrics.get("canonical_person_count") or 0),
+        "knowledge_source_records": int(metrics.get("slot_binding_count") or 0),
+        "knowledge_external_identities": int(
+            metrics.get("external_identity_count") or 0
+        ),
+        "knowledge_observations": int(metrics.get("slot_binding_count") or 0)
+        + int(metrics.get("reviewed_voice_binding_count") or 0),
+        "knowledge_current_person_profiles": int(
+            metrics.get("canonical_person_count") or 0
+        ),
+        "knowledge_affinity_profiles": 0,
+        "knowledge_projection_state": 1,
+    }
+    if snapshot.get("quick_check") != "ok" or any(
+        snapshot.get("tables", {}).get(table, {}).get("count") != count
+        for table, count in expected_counts.items()
+    ):
+        _fail("The knowledge apply counts did not reconcile.")
+    return {
+        "snapshot": snapshot,
+        "expected_counts": expected_counts,
+        "person_receipts": [asdict(item) for item in person_receipts],
+        "observation_receipt": asdict(observation_receipt),
+        "profile_receipt": asdict(profile_receipt),
+    }
+
+
 def rehearse_knowledge_copy(
     transition: Mapping[str, Any],
     *,
@@ -810,42 +856,13 @@ def rehearse_knowledge_copy(
         if baseline["quick_check"] != "ok" or baseline_knowledge:
             _fail("Plan 0063 requires a clean schema-version-zero baseline copy.")
 
-        store = ConversationKnowledgeStore(paths["working_root"])
-        migration = store.migrate(backup=False)
-        if migration.from_version != 0 or migration.to_version != 3:
-            _fail("The private knowledge migration did not reach schema version 3.")
-        person_receipts = [
-            store.save_person_snapshot(
-                _person_snapshot(person, transition=transition)
-            )
-            for person in transition.get("canonical_people") or []
-        ]
-        observation_receipt = store.save_observations("", _observations(transition))
-        profile_receipt = ConversationProfileProjector(
-            paths["working_root"]
-        ).rebuild()
-        applied = _database_snapshot(paths["working_db"])
-        metrics = dict(transition.get("metrics") or {})
-        expected_counts = {
-            "knowledge_people": int(metrics.get("canonical_person_count") or 0),
-            "knowledge_source_records": int(metrics.get("slot_binding_count") or 0),
-            "knowledge_external_identities": int(
-                metrics.get("external_identity_count") or 0
-            ),
-            "knowledge_observations": int(metrics.get("slot_binding_count") or 0)
-            + int(metrics.get("reviewed_voice_binding_count") or 0),
-            "knowledge_current_person_profiles": int(
-                metrics.get("canonical_person_count") or 0
-            ),
-            "knowledge_affinity_profiles": 0,
-            "knowledge_projection_state": 1,
-        }
-        for table, count in expected_counts.items():
-            if applied["tables"].get(table, {}).get("count") != count:
-                _fail("The private-copy apply counts did not reconcile.")
-        if applied["quick_check"] != "ok":
-            _fail("The private-copy apply failed SQLite quick_check.")
+        apply_result = apply_reviewed_knowledge_transition(
+            transition, store_root=paths["working_root"]
+        )
+        applied = apply_result["snapshot"]
+        expected_counts = apply_result["expected_counts"]
 
+        store = ConversationKnowledgeStore(paths["working_root"])
         rollback = store.rollback(target_version=0, backup=False)
         if rollback.from_version != 3 or rollback.to_version != 0:
             _fail("The knowledge schema rollback did not return to version 0.")
@@ -887,9 +904,9 @@ def rehearse_knowledge_copy(
             "rolled_back_snapshot": rolled_back,
             "live_snapshot_after": live_after,
             "apply_counts": expected_counts,
-            "person_receipts": [asdict(receipt) for receipt in person_receipts],
-            "observation_receipt": asdict(observation_receipt),
-            "profile_receipt": asdict(profile_receipt),
+            "person_receipts": apply_result["person_receipts"],
+            "observation_receipt": apply_result["observation_receipt"],
+            "profile_receipt": apply_result["profile_receipt"],
             "copy_apply_count": 1,
             "copy_rollback_count": 1,
             "biometric_rehearsal_status": "pending_exact_source_application",
@@ -936,6 +953,7 @@ def rehearse_knowledge_copy(
 __all__ = [
     "Plan0063PrivateRehearsalError",
     "TRANSITION_SCHEMA",
+    "apply_reviewed_knowledge_transition",
     "build_reviewed_transition",
     "rehearsal_paths",
     "rehearse_knowledge_copy",

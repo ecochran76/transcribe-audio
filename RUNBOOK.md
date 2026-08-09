@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 354: Share Plan 0063 governed apply helpers (2026-08-09)
+
+Summary: Removed the last duplicated mutation logic between the private-copy
+rehearsal and the A1-gated terminal driver. Both now call the same reviewed
+knowledge and biometric apply helpers.
+
+Evidence:
+
+- `apply_reviewed_knowledge_transition` owns schema-zero migration, canonical
+  people and observation writes, profile projection, and exact table-count and
+  SQLite reconciliation for both workflows.
+- `apply_reviewed_biometric_transition` owns P3 reference creation, eligibility
+  replay, standard P4 profile materialization, model replay, and exact database
+  delta reconciliation for both workflows.
+- The rehearsal still adds only its private copy, lifecycle-delete, exact
+  restore, and unchanged-live proof. The terminal driver still adds only A1
+  replay, service quiescence, backups, authorized count checks, terminal
+  receipts, and exact failure restoration.
+- The 10 focused rehearsal/live-driver tests and the full 993-test suite pass;
+  Python compilation and diff validation pass. No review response was frozen
+  and no live knowledge, reference, profile, provider, or Graphiti mutation
+  occurred.
+
+Next:
+
+- Receive and freeze the current 30-decision P4 response, run the one exact
+  production-mode private rehearsal through these shared helpers, then prepare
+  the five-line A1 request. Literal A1 authorization remains required before
+  the terminal driver may run.
+
 ## Turn 353: Implement Plan 0063 terminal live apply driver (2026-08-09)
 
 Summary: Completed the fail-closed code path from literal A1 authority to one

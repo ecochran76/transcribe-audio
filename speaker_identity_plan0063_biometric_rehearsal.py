@@ -576,6 +576,154 @@ def replay_biometric_rehearsal(
     }
 
 
+def apply_reviewed_biometric_transition(
+    transition: Mapping[str, Any],
+    *,
+    reference_root: Path,
+    profile_root: Path,
+    reference_baseline: Mapping[str, Any],
+    profile_baseline: Mapping[str, Any],
+    adapters: Mapping[str, verification.VerificationAdapter] | None = None,
+    test_mode: bool = False,
+) -> dict[str, Any]:
+    """Apply one reviewed Plan 0063 transition to governed biometric stores."""
+
+    transition_sha256 = canonical_rehearsal.validate_reviewed_transition(
+        transition
+    )
+    selected_adapters = _adapters(adapters, test_mode=test_mode)
+    units = _enrollment_units(transition)
+    created_references = []
+    created_profiles = []
+    lineage_cache: dict[str, dict[str, Any]] = {}
+    for unit, sources in units:
+        person_ref_id = str(unit["person_id"])
+        profile_id = _reference_profile_id(transition_sha256, person_ref_id)
+        source_hash = references.source_set_sha256(sources)
+        approval = _approval(
+            action="create",
+            profile_id=profile_id,
+            person_ref_id=person_ref_id,
+            source_set_sha256=source_hash,
+            expected_generation_id=None,
+            transition=transition,
+        )
+        plan = references.dry_run(
+            "create",
+            profile_id=profile_id,
+            person_ref_id=person_ref_id,
+            sources=sources,
+            approval=approval,
+            runtime_root=reference_root,
+        )
+        applied = references.apply_change(
+            str(plan["run_id"]),
+            approval_token=str(plan["required_approval_token"]),
+            sources=sources,
+            runtime_root=reference_root,
+        )
+        replayed = references.replay_reference(
+            profile_id, runtime_root=reference_root
+        )
+        resolved = references.resolve_eligible_reference(
+            person_ref_id, runtime_root=reference_root
+        )
+        if (
+            replayed.get("lifecycle_state") != "verified_active"
+            or replayed.get("eligible_for_materialization") is not True
+            or resolved.get("profile_id") != profile_id
+        ):
+            _fail("A biometric reference did not become eligible.")
+        created_references.append(
+            {
+                "person_ref_id": person_ref_id,
+                "profile_id": profile_id,
+                "generation_id": resolved["generation_id"],
+                "generation_sha256": resolved["generation_sha256"],
+                "source_set_sha256": source_hash,
+                "source_count": len(sources),
+                "apply_receipt_sha256": canonical_artifact_hash(
+                    {
+                        key: value
+                        for key, value in applied.items()
+                        if key not in {"receipt_anchor_path", "idempotent_replay"}
+                    }
+                ),
+            }
+        )
+        windows = _p1_windows(sources, lineage_cache=lineage_cache)
+        for candidate_id in sorted(selected_adapters):
+            profile = verification._materialize_profile_core(
+                resolved=resolved,
+                adapter=selected_adapters[candidate_id],
+                windows=windows,
+                preprocessing={
+                    "method_id": "no_enhancement",
+                    "revision": transition_sha256,
+                },
+                runtime_root=profile_root,
+                p3_runtime_root=reference_root,
+            )
+            replayed_profile = verification.replay_profile(
+                str(profile["profile_id"]), runtime_root=profile_root
+            )
+            if (
+                replayed_profile.get("lifecycle_state") != "active"
+                or replayed_profile.get("private_bytes_present") is not True
+                or replayed_profile.get("person_ref_id") != person_ref_id
+            ):
+                _fail("A biometric model profile did not become active.")
+            created_profiles.append(dict(profile))
+
+    reference_snapshot = _store_snapshot(
+        reference_root, database_name=REFERENCE_DATABASE_NAME
+    )
+    profile_snapshot = _store_snapshot(
+        profile_root,
+        database_name=PROFILE_DATABASE_NAME,
+        names=PROFILE_STATE_NAMES,
+    )
+    expected_reference_count = len(units)
+    expected_profile_count = len(units) * len(selected_adapters)
+    expected_source_count = sum(len(sources) for _, sources in units)
+    expected_reference_deltas = {
+        "profiles": expected_reference_count,
+        "generations": expected_reference_count,
+        "person_heads": expected_reference_count,
+        "source_claims": expected_source_count,
+        "descendants": expected_profile_count,
+    }
+    if any(
+        _database_delta(reference_baseline, reference_snapshot, table) != count
+        for table, count in expected_reference_deltas.items()
+    ) or _database_delta(
+        profile_baseline, profile_snapshot, "profiles"
+    ) != expected_profile_count:
+        _fail("The biometric apply counts did not reconcile.")
+    adapter_inventory = [
+        {
+            "candidate_id": candidate_id,
+            "revision_sha": selected_adapters[candidate_id].revision_sha,
+            "embedding_dimension": selected_adapters[
+                candidate_id
+            ].embedding_dimension,
+        }
+        for candidate_id in sorted(selected_adapters)
+    ]
+    return {
+        "reference_snapshot": reference_snapshot,
+        "profile_snapshot": profile_snapshot,
+        "created_references": created_references,
+        "created_profiles": created_profiles,
+        "reference_count": expected_reference_count,
+        "profile_count": expected_profile_count,
+        "source_count": expected_source_count,
+        "adapter_count": len(selected_adapters),
+        "adapter_inventory": adapter_inventory,
+        "reference_database_deltas": expected_reference_deltas,
+    }
+
+
 def rehearse_biometric_copy(
     transition: Mapping[str, Any],
     *,
@@ -590,8 +738,7 @@ def rehearse_biometric_copy(
     transition_sha256 = canonical_rehearsal.validate_reviewed_transition(
         transition
     )
-    selected_adapters = _adapters(adapters, test_mode=test_mode)
-    units = _enrollment_units(transition)
+    _adapters(adapters, test_mode=test_mode)
     paths = _paths(runtime_root, transition_sha256)
     if paths["biometric_receipt"].exists():
         return replay_biometric_rehearsal(
@@ -635,115 +782,23 @@ def rehearse_biometric_copy(
             paths["profile_baseline"], database_name=PROFILE_DATABASE_NAME
         )
 
-        created_references = []
-        created_profiles = []
-        lineage_cache: dict[str, dict[str, Any]] = {}
-        for unit, sources in units:
-            person_ref_id = str(unit["person_id"])
-            profile_id = _reference_profile_id(
-                transition_sha256, person_ref_id
-            )
-            source_hash = references.source_set_sha256(sources)
-            approval = _approval(
-                action="create",
-                profile_id=profile_id,
-                person_ref_id=person_ref_id,
-                source_set_sha256=source_hash,
-                expected_generation_id=None,
-                transition=transition,
-            )
-            plan = references.dry_run(
-                "create",
-                profile_id=profile_id,
-                person_ref_id=person_ref_id,
-                sources=sources,
-                approval=approval,
-                runtime_root=paths["reference_working"],
-            )
-            applied = references.apply_change(
-                str(plan["run_id"]),
-                approval_token=str(plan["required_approval_token"]),
-                sources=sources,
-                runtime_root=paths["reference_working"],
-            )
-            replayed = references.replay_reference(
-                profile_id, runtime_root=paths["reference_working"]
-            )
-            resolved = references.resolve_eligible_reference(
-                person_ref_id, runtime_root=paths["reference_working"]
-            )
-            if (
-                replayed.get("lifecycle_state") != "verified_active"
-                or replayed.get("eligible_for_materialization") is not True
-                or resolved.get("profile_id") != profile_id
-            ):
-                _fail("A private biometric reference did not become eligible.")
-            created_references.append(
-                {
-                    "person_ref_id": person_ref_id,
-                    "profile_id": profile_id,
-                    "generation_id": resolved["generation_id"],
-                    "generation_sha256": resolved["generation_sha256"],
-                    "source_set_sha256": source_hash,
-                    "source_count": len(sources),
-                    "apply_receipt_sha256": canonical_artifact_hash(
-                        {
-                            key: value
-                            for key, value in applied.items()
-                            if key not in {"receipt_anchor_path", "idempotent_replay"}
-                        }
-                    ),
-                }
-            )
-            windows = _p1_windows(sources, lineage_cache=lineage_cache)
-            for candidate_id in sorted(selected_adapters):
-                profile = verification._materialize_profile_core(
-                    resolved=resolved,
-                    adapter=selected_adapters[candidate_id],
-                    windows=windows,
-                    preprocessing={
-                        "method_id": "no_enhancement",
-                        "revision": transition_sha256,
-                    },
-                    runtime_root=paths["profile_working"],
-                    p3_runtime_root=paths["reference_working"],
-                )
-                replayed_profile = verification.replay_profile(
-                    str(profile["profile_id"]),
-                    runtime_root=paths["profile_working"],
-                )
-                if (
-                    replayed_profile.get("lifecycle_state") != "active"
-                    or replayed_profile.get("private_bytes_present") is not True
-                    or replayed_profile.get("person_ref_id") != person_ref_id
-                ):
-                    _fail("A private biometric model profile did not become active.")
-                created_profiles.append(dict(profile))
-
-        reference_applied = _store_snapshot(
-            paths["reference_working"], database_name=REFERENCE_DATABASE_NAME
+        apply_result = apply_reviewed_biometric_transition(
+            transition,
+            reference_root=paths["reference_working"],
+            profile_root=paths["profile_working"],
+            reference_baseline=reference_baseline,
+            profile_baseline=profile_baseline,
+            adapters=adapters,
+            test_mode=test_mode,
         )
-        profile_applied = _store_snapshot(
-            paths["profile_working"], database_name=PROFILE_DATABASE_NAME
-        )
-        expected_reference_count = len(units)
-        expected_profile_count = len(units) * len(selected_adapters)
-        expected_source_count = sum(len(sources) for _, sources in units)
-        expected_reference_deltas = {
-            "profiles": expected_reference_count,
-            "generations": expected_reference_count,
-            "person_heads": expected_reference_count,
-            "source_claims": expected_source_count,
-            "descendants": expected_profile_count,
-        }
-        if any(
-            _database_delta(reference_baseline, reference_applied, table)
-            != count
-            for table, count in expected_reference_deltas.items()
-        ) or _database_delta(profile_baseline, profile_applied, "profiles") != (
-            expected_profile_count
-        ):
-            _fail("The biometric private-copy apply counts did not reconcile.")
+        created_references = apply_result["created_references"]
+        created_profiles = apply_result["created_profiles"]
+        reference_applied = apply_result["reference_snapshot"]
+        profile_applied = apply_result["profile_snapshot"]
+        expected_reference_count = apply_result["reference_count"]
+        expected_profile_count = apply_result["profile_count"]
+        expected_source_count = apply_result["source_count"]
+        expected_reference_deltas = apply_result["reference_database_deltas"]
 
         deleted_profiles = []
         for profile in reversed(created_profiles):
@@ -851,16 +906,7 @@ def rehearse_biometric_copy(
             _fail("Live biometric state changed during the private rehearsal.")
 
         write_immutable_private_json(paths["transition"], dict(transition))
-        adapter_inventory = [
-            {
-                "candidate_id": candidate_id,
-                "revision_sha": selected_adapters[candidate_id].revision_sha,
-                "embedding_dimension": selected_adapters[
-                    candidate_id
-                ].embedding_dimension,
-            }
-            for candidate_id in sorted(selected_adapters)
-        ]
+        adapter_inventory = apply_result["adapter_inventory"]
         manifest_core = {
             "schema_version": BIOMETRIC_REHEARSAL_SCHEMA,
             "status": "biometric_private_apply_lifecycle_rollback_and_restore_proved",
@@ -1080,6 +1126,7 @@ __all__ = [
     "BIOMETRIC_REHEARSAL_SCHEMA",
     "COMPLETE_RECEIPT_SCHEMA",
     "Plan0063BiometricRehearsalError",
+    "apply_reviewed_biometric_transition",
     "rehearse_biometric_copy",
     "rehearse_complete_private_copy",
     "replay_biometric_rehearsal",

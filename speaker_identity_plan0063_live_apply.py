@@ -7,7 +7,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
@@ -25,8 +24,6 @@ from acoustic_audio_derivatives import (
     sha256_file,
     write_immutable_private_json,
 )
-from conversation_knowledge_profiles import ConversationProfileProjector
-from conversation_knowledge_store import ConversationKnowledgeStore
 
 
 LIVE_APPLY_PREPARED_SCHEMA = "transcribe-audio.plan0063-live-apply-prepared.v1"
@@ -344,50 +341,9 @@ def _restore_all(
 def _apply_knowledge(
     transition: Mapping[str, Any], *, live_store_root: Path
 ) -> dict[str, Any]:
-    store = ConversationKnowledgeStore(live_store_root)
-    migration = store.migrate(backup=False)
-    if migration.from_version != 0 or migration.to_version != 3:
-        _fail("The live knowledge migration did not move from schema 0 to 3.")
-    person_receipts = [
-        store.save_person_snapshot(
-            canonical_rehearsal._person_snapshot(person, transition=transition)
-        )
-        for person in transition.get("canonical_people") or []
-    ]
-    observation_receipt = store.save_observations(
-        "", canonical_rehearsal._observations(transition)
+    return canonical_rehearsal.apply_reviewed_knowledge_transition(
+        transition, store_root=live_store_root
     )
-    profile_receipt = ConversationProfileProjector(live_store_root).rebuild()
-    snapshot = canonical_rehearsal._database_snapshot(
-        transcript_store.db_path(live_store_root)
-    )
-    metrics = dict(transition.get("metrics") or {})
-    expected = {
-        "knowledge_people": int(metrics.get("canonical_person_count") or 0),
-        "knowledge_source_records": int(metrics.get("slot_binding_count") or 0),
-        "knowledge_external_identities": int(
-            metrics.get("external_identity_count") or 0
-        ),
-        "knowledge_observations": int(metrics.get("slot_binding_count") or 0)
-        + int(metrics.get("reviewed_voice_binding_count") or 0),
-        "knowledge_current_person_profiles": int(
-            metrics.get("canonical_person_count") or 0
-        ),
-        "knowledge_affinity_profiles": 0,
-        "knowledge_projection_state": 1,
-    }
-    if snapshot.get("quick_check") != "ok" or any(
-        snapshot.get("tables", {}).get(table, {}).get("count") != count
-        for table, count in expected.items()
-    ):
-        _fail("The live knowledge apply counts did not reconcile.")
-    return {
-        "snapshot": snapshot,
-        "expected_counts": expected,
-        "person_receipts": [asdict(item) for item in person_receipts],
-        "observation_receipt": asdict(observation_receipt),
-        "profile_receipt": asdict(profile_receipt),
-    }
 
 
 def _apply_biometrics(
@@ -399,125 +355,15 @@ def _apply_biometrics(
     test_mode: bool,
     baseline: Mapping[str, Any],
 ) -> dict[str, Any]:
-    selected_adapters = biometric_rehearsal._adapters(adapters, test_mode=test_mode)
-    units = biometric_rehearsal._enrollment_units(transition)
-    transition_sha256 = str(transition["content_sha256"])
-    created_references = []
-    created_profiles = []
-    lineage_cache: dict[str, dict[str, Any]] = {}
-    for unit, sources in units:
-        person_ref_id = str(unit["person_id"])
-        profile_id = biometric_rehearsal._reference_profile_id(
-            transition_sha256, person_ref_id
-        )
-        source_hash = references.source_set_sha256(sources)
-        approval = biometric_rehearsal._approval(
-            action="create",
-            profile_id=profile_id,
-            person_ref_id=person_ref_id,
-            source_set_sha256=source_hash,
-            expected_generation_id=None,
-            transition=transition,
-        )
-        plan = references.dry_run(
-            "create",
-            profile_id=profile_id,
-            person_ref_id=person_ref_id,
-            sources=sources,
-            approval=approval,
-            runtime_root=live_reference_root,
-        )
-        applied = references.apply_change(
-            str(plan["run_id"]),
-            approval_token=str(plan["required_approval_token"]),
-            sources=sources,
-            runtime_root=live_reference_root,
-        )
-        resolved = references.resolve_eligible_reference(
-            person_ref_id, runtime_root=live_reference_root
-        )
-        created_references.append(
-            {
-                "person_ref_id": person_ref_id,
-                "profile_id": profile_id,
-                "generation_id": resolved["generation_id"],
-                "generation_sha256": resolved["generation_sha256"],
-                "source_set_sha256": source_hash,
-                "source_count": len(sources),
-                "apply_receipt_sha256": canonical_artifact_hash(
-                    {
-                        key: value
-                        for key, value in applied.items()
-                        if key not in {"receipt_anchor_path", "idempotent_replay"}
-                    }
-                ),
-            }
-        )
-        windows = biometric_rehearsal._p1_windows(
-            sources, lineage_cache=lineage_cache
-        )
-        for candidate_id in sorted(selected_adapters):
-            profile = verification._materialize_profile_core(
-                resolved=resolved,
-                adapter=selected_adapters[candidate_id],
-                windows=windows,
-                preprocessing={
-                    "method_id": "no_enhancement",
-                    "revision": transition_sha256,
-                },
-                runtime_root=live_profile_root,
-                p3_runtime_root=live_reference_root,
-            )
-            replayed = verification.replay_profile(
-                str(profile["profile_id"]), runtime_root=live_profile_root
-            )
-            if (
-                replayed.get("lifecycle_state") != "active"
-                or replayed.get("private_bytes_present") is not True
-                or replayed.get("person_ref_id") != person_ref_id
-            ):
-                _fail("A live biometric model profile did not become active.")
-            created_profiles.append(dict(profile))
-
-    reference_snapshot = biometric_rehearsal._store_snapshot(
-        live_reference_root,
-        database_name=biometric_rehearsal.REFERENCE_DATABASE_NAME,
+    return biometric_rehearsal.apply_reviewed_biometric_transition(
+        transition,
+        reference_root=live_reference_root,
+        profile_root=live_profile_root,
+        reference_baseline=baseline["references"],
+        profile_baseline=baseline["profiles"],
+        adapters=adapters,
+        test_mode=test_mode,
     )
-    profile_snapshot = biometric_rehearsal._store_snapshot(
-        live_profile_root,
-        database_name=biometric_rehearsal.PROFILE_DATABASE_NAME,
-        names=biometric_rehearsal.PROFILE_STATE_NAMES,
-    )
-    expected_reference_count = len(units)
-    expected_profile_count = len(units) * len(selected_adapters)
-    expected_source_count = sum(len(sources) for _, sources in units)
-    expected_reference_deltas = {
-        "profiles": expected_reference_count,
-        "generations": expected_reference_count,
-        "person_heads": expected_reference_count,
-        "source_claims": expected_source_count,
-        "descendants": expected_profile_count,
-    }
-    if any(
-        biometric_rehearsal._database_delta(
-            baseline["references"], reference_snapshot, table
-        )
-        != count
-        for table, count in expected_reference_deltas.items()
-    ) or biometric_rehearsal._database_delta(
-        baseline["profiles"], profile_snapshot, "profiles"
-    ) != expected_profile_count:
-        _fail("The live biometric apply counts did not reconcile.")
-    return {
-        "reference_snapshot": reference_snapshot,
-        "profile_snapshot": profile_snapshot,
-        "created_references": created_references,
-        "created_profiles": created_profiles,
-        "reference_count": expected_reference_count,
-        "profile_count": expected_profile_count,
-        "source_count": expected_source_count,
-        "adapter_count": len(selected_adapters),
-    }
 
 
 def _validate_test_targets(

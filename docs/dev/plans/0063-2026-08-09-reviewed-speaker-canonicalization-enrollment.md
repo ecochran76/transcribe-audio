@@ -241,6 +241,16 @@ passes 993 tests. This proves the driver and rollback seam on disposable state;
 the one real rehearsal, A1 request, literal A1 authorization, and live apply all
 still await the current 30 decisions.
 
+The knowledge and biometric mutation bodies are no longer duplicated between
+the two workflows. The private-copy rehearsal and terminal driver both call
+`apply_reviewed_knowledge_transition` and
+`apply_reviewed_biometric_transition`; consequently, the rehearsal's real
+governed-store execution is direct evidence for the exact domain helpers the
+driver will invoke after A1. Workflow-specific copy/rollback proof and
+A1/service/backup/terminal orchestration remain separate. Ten focused tests and
+the unchanged 993-test full suite pass after this consolidation. No real
+rehearsal or live mutation occurred during the refactor.
+
 ## Authority and non-goals
 
 - Do not infer that two same-name decisions are the same person. Present a
