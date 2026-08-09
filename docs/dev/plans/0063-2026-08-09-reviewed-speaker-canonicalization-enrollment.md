@@ -1,8 +1,8 @@
 # Plan 0063 | Canonicalize reviewed speakers and prepare biometric enrollment
 
-State: PLANNED
+State: OPEN
 
-Checkpoint: A0 pending; no mutation authority
+Checkpoint: A0 active; non-applying implementation only; A1 not authorized
 
 Lane: P10
 
@@ -87,6 +87,25 @@ replay-validated P1 derivative or P2 speech-preparation lineage, immutable
 quality evidence, non-overlapping source claims, and an explicit dry-run token.
 The older real-enrollment apply path is bound to its own historical candidates
 and does not authorize these reviewed speakers.
+
+## A0 activation checkpoint
+
+A0 activated at `2026-08-09T15:09:17Z` against exact pushed plan commit
+`60079787d501df4b56ca3b3a225918f7dc064bbe`. The private activation content is
+`3c84d2eff1469509184dacf9bbcd163a51953100e3396a7f1a54a8bf614a0139`, its
+manifest file is
+`20b1632b464e131fd7dfe7e207b02c248e3654b7d3646c6e85eb3a63bfc0d13c`, and the
+receipt file is
+`1972efc48b9888406be62c1c63481a5a3f21c37534e41c54978c4002ce0569e8`.
+The private directory is `0700` and both files are `0600`.
+
+Activation replay preserved the exact 10-slot source denominator, recorded
+zero live mutations, and left A1 required. A fresh read-only check after the
+freeze still reports SQLite `quick_check=ok`, 466 documents, two contacts,
+three speaker assignments, zero knowledge tables, identity state
+`64e0a7f4...`, and both transcript services active/running with zero restarts.
+P1 and P2 may now proceed; live person, assignment, reference, profile, and
+embedding changes remain unauthorized.
 
 ## Authority and non-goals
 

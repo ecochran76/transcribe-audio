@@ -1,5 +1,32 @@
 # Runbook
 
+## Turn 348: Activate non-applying Plan 0063 work (2026-08-09)
+
+Summary: Replayed the exact Plan 0062 source and current live baseline, then
+opened Plan 0063 A0 without granting live identity or biometric mutation.
+
+Evidence:
+
+- Exact pushed plan commit is `60079787d501df4b56ca3b3a225918f7dc064bbe`;
+  plan content is `e2535bc7...`.
+- Private activation content is `3c84d2ef...`, manifest file is `20b1632b...`,
+  and receipt file is `1972efc4...`. The directory is `0700`; files are `0600`.
+- The activation replays the Plan 0062 P5 submission `5c2ca66f...`, comparison
+  `372cc17d...`, and terminal `971c5896...`; its source denominator remains ten
+  slots with nine named decisions and one role placeholder.
+- The receipt records `live_mutation_count=0`, preserves every negative action,
+  and keeps A1 required.
+- A fresh read-only live check after activation reports SQLite `ok`, 466
+  documents, two contacts, three speaker assignments, zero knowledge tables,
+  identity state `64e0a7f4...`, and both services active/running with zero
+  restarts.
+
+Next:
+
+- Implement citable calendar evidence and deterministic private person
+  reconciliation under A0. Do not create live people, assignments, biometric
+  references, profiles, embeddings, observations, or provider/Graphiti writes.
+
 ## Turn 347: Plan reviewed speaker canonicalization and enrollment (2026-08-09)
 
 Summary: Opened the bounded successor design required by Plan 0062's terminal
