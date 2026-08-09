@@ -1,5 +1,46 @@
 # Runbook
 
+## Turn 357: Freeze Plan 0063 review and prove private rehearsal (2026-08-09)
+
+Summary: Accepted the complete v3 review, bound the operator-requested full-name
+correction to exact governed provider context, and completed the joined
+production-mode private-copy apply and rollback without touching live identity
+or biometric state.
+
+Evidence:
+
+- Submission `937817fb...` covers all 30 decisions: three accepted person
+  merges, one same-person voice/context binding, 23 included source windows,
+  and three excluded source windows. Its immutable receipt is `28c62511...`.
+- The source reconciliation carried one truncated given name. Governed email
+  sender and calendar-invitation organizer evidence independently resolved the
+  requested full name. A hash-bound private correction requires both evidence
+  kinds, the exact P4 hash, reviewed slot, prior name, and external identity;
+  drift or missing evidence fails closed. Private identity values stay out of
+  repository docs.
+- Reviewed transition `75166646...` contains six canonical people, nine slot
+  bindings, four deduplicated external identities, one active voice/person
+  binding, five enrollment units, 23 included sources, three excluded sources,
+  one name correction, and zero live mutations.
+- Complete rehearsal receipt `7fe33287...` proves one knowledge-copy apply and
+  rollback plus one biometric-copy apply and rollback. Exact baseline bytes and
+  all live snapshots reconcile; replay is idempotent and A1-request-ready.
+- The initial invocation selected the verification acquisition subdirectory,
+  which has no governed profile database, and stopped before biometric copying.
+  Inspection found only an empty mode-0700 partial directory; it was removed.
+  Preflight now validates both live biometric roots before creating the run, and
+  a regression test covers the no-partial-directory behavior.
+- Eighteen focused transition/rehearsal/A1/live-driver tests and the 999-test
+  full suite pass. A1 has not been requested or authorized, and no live person,
+  assignment, reference, profile, provider, Graphiti, or service mutation
+  occurred.
+
+Next:
+
+- Finish full-suite, planning, graph, and repository closeout; then freeze the
+  exact five-line A1 request against the unchanged live and committed-code
+  baseline. Do not apply it without the operator's literal A1 response.
+
 ## Turn 356: Repair Plan 0063 grouping answerability (2026-08-09)
 
 Summary: Accepted the operator's finding that the corrected v2 grouping cards

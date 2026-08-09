@@ -2,11 +2,10 @@
 
 State: OPEN
 
-Checkpoint: both prior P4 surfaces superseded after operator provenance and
-answerability findings; paired-audio v3 replacement frozen, published, and
-remote-validated; operator decisions pending; private-copy rehearsal, A1
-authority contract, and terminal live driver implemented; A1 not requested or
-authorized
+Checkpoint: paired-audio v3 review completed with 30/30 decisions; one
+provider-backed full-name correction is bound to the exact reviewed slot;
+production-mode private-copy apply and rollback replay exactly with zero live
+mutations; A1 request not yet frozen or authorized
 
 Lane: P10
 
@@ -182,14 +181,19 @@ mutations. Authenticated Previews session `4ac17bd09f2f`, artifact
 `93bf4884a21e`, serves 32/32 unique WAV URLs with HTTP 200 WAV responses. Remote
 HTML readback confirms the separate no-answer notice, the Michael Recording 1
 versus Recording 3 pair, v3 submission binding, 30 blank decisions, and no
-POST or fetch path. A1 and all live canonical/biometric changes remain
-unauthorized until the operator returns the complete v3 block and separately
-authorizes the exact mutation gate.
+POST or fetch path. The operator returned the complete v3 block; its immutable
+submission content is `937817fb...` and accepts all three merge proposals, the
+single voice/person binding, 23 source windows, and excludes three source
+windows. A separate operator-requested full-name correction was independently
+verified against governed email and calendar context and is bound to its exact
+reviewed slot and external identity. Private values remain outside this plan.
+All live canonical and biometric changes remain unauthorized pending A1.
 
 ## P5 private-rehearsal implementation checkpoint
 
 The deterministic post-review transition and conversation-knowledge rehearsal
-are implemented without consuming the one real private-copy attempt. A complete
+are implemented and the one exact production-mode private-copy rehearsal is
+complete. A complete
 P4 submission resolves accepted merges to one stable canonical person, keeps
 rejected merges separate, preserves all nine named speaker-slot bindings and
 the reviewed voice/context outcome, and carries only literal included source
@@ -214,13 +218,19 @@ proves the live reference/profile state unchanged. Custom adapters are allowed
 only in explicit test mode and can never make a receipt A1-ready.
 
 Replay rechecks the immutable transition, manifests, receipts, private state
-snapshots, and unchanged live snapshots. Six focused transition tests, 105
-combined acoustic/rehearsal tests, and the 984-test full suite pass. A read-only
-integration check also validates all 26 frozen P3 windows, five proposed people,
-and three distinct P1 lineages against the production schema and exact audio
-bounds. This remains implementation and synthetic-copy proof only: the exact P4
-submission has not arrived and the bounded real private-copy apply/rollback has
-not run. A1 is not authorized.
+snapshots, and unchanged live snapshots. Transition `75166646...` resolves six
+canonical people, nine slot bindings, one active voice/person binding, five
+source-feasible enrollment units, 23 included sources, three excluded sources,
+and one provider-backed name correction. Complete rehearsal receipt
+`7fe33287...` proves one logical apply and rollback across the knowledge and
+biometric copies, exact baseline restoration, `a1_request_ready=true`, and zero
+live mutations; idempotent replay passes against the current live stores. The
+first invocation selected the acquisition subdirectory instead of the governed
+profile-store root and stopped before biometric copying; its empty partial
+directory was removed after exact inspection. The preflight order now validates
+both live biometric roots before creating a run directory. A1 is not authorized.
+Eighteen focused transition/rehearsal/A1/live-driver tests and the 999-test full
+suite pass after this closeout.
 
 ## A1 authority implementation checkpoint
 

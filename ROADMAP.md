@@ -759,7 +759,10 @@ and unchanged-live checks are covered by six transition tests, 105 combined
 acoustic/rehearsal tests, and the then-current 984-test full suite. A read-only integration
 check validates all 26 frozen P3 windows across five proposed people and three
 exact P1 lineages against the production schema and audio bounds. The exact
-one-shot rehearsal still awaits the 30 operator decisions. The A1 request and
+one-shot production-mode rehearsal now replays transition `75166646...` and
+receipt `7fe33287...` after all 30 operator decisions, with 23 included and
+three excluded source windows, one provider-backed full-name correction, exact
+private-copy rollback, and zero live mutations. The A1 request and
 literal-authorization contract is also implemented: it requires a
 production-mode rehearsal, binds current live-store and clean committed-code
 snapshots, exports one exact five-line approval block, rejects any drift, and
@@ -772,10 +775,10 @@ either success or proven exact rollback. Four disposable-store driver tests,
 pass. The rehearsal and terminal driver now share the exact governed knowledge
 and biometric apply helpers, eliminating the remaining indirect-coverage gap;
 10 focused tests and the unchanged 993-test full suite pass after that
-consolidation. No real request, authority, rehearsal, or apply has run. Once all
-30 v3 decisions arrive, no further implementation round is planned. A0 remains
+consolidation. No real request, authority, or live apply has run. A0 remains
 non-applying; live canonical or biometric mutation is still behind the
-separate exact A1 gate with private-copy apply and rollback proof.
+separate exact A1 gate. The production-mode private-copy proof is complete but
+does not itself grant that authority.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

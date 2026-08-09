@@ -749,8 +749,6 @@ def rehearse_biometric_copy(
         )
     if paths["biometric"].exists():
         _fail("A partial biometric private-copy rehearsal already exists.")
-    ensure_private_tree(paths["root"], paths["run"])
-    ensure_private_tree(paths["root"], paths["biometric"])
     live_reference_before = _store_snapshot(
         live_reference_root, database_name=REFERENCE_DATABASE_NAME
     )
@@ -759,6 +757,8 @@ def rehearse_biometric_copy(
         database_name=PROFILE_DATABASE_NAME,
         names=PROFILE_STATE_NAMES,
     )
+    ensure_private_tree(paths["root"], paths["run"])
+    ensure_private_tree(paths["root"], paths["biometric"])
     try:
         _copy_state(
             live_reference_root,

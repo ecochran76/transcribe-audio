@@ -628,3 +628,31 @@ def test_private_biometric_rehearsal_rejects_custom_production_adapter(
             runtime_root=tmp_path / "runtime",
             adapters={adapter.candidate_id: adapter},
         )
+
+
+def test_invalid_live_profile_root_leaves_no_partial_biometric_run(
+    tmp_path: Path,
+) -> None:
+    transition = _transition()
+    live_reference_root = tmp_path / "live-reference"
+    runtime_root = tmp_path / "runtime"
+    live_reference_root.mkdir(parents=True, mode=0o700)
+    live_reference_root.chmod(0o700)
+    with references._connection(live_reference_root, create=True):
+        pass
+
+    with pytest.raises(
+        biometric_rehearsal.Plan0063BiometricRehearsalError,
+        match="state root",
+    ):
+        biometric_rehearsal.rehearse_biometric_copy(
+            transition,
+            live_reference_root=live_reference_root,
+            live_profile_root=tmp_path / "missing-live-profile",
+            runtime_root=runtime_root,
+        )
+
+    paths = biometric_rehearsal._paths(
+        runtime_root, transition["content_sha256"]
+    )
+    assert not paths["biometric"].exists()
