@@ -721,7 +721,7 @@ def _copy_comparison_audio(
             / f"{speaker_ref}.wav"
         )
         target = target_root / relative_target
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        ensure_private_tree(target_root, target.parent)
         shutil.copyfile(source, target)
         target.chmod(0o600)
         result[slot] = {

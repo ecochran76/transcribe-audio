@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import stat
 
 import pytest
 
@@ -268,3 +271,74 @@ def test_review_manifest_rejects_missing_grouping_comparison_audio():
             comparison_audio_by_slot=comparison_audio,
             repository_authority={},
         )
+
+
+def test_comparison_audio_copy_makes_every_directory_private(
+    tmp_path, monkeypatch
+):
+    source_root = tmp_path / "source"
+    preview_root = source_root / "preview"
+    target_root = tmp_path / "target"
+    for path in (source_root, preview_root, target_root):
+        path.mkdir(mode=0o700)
+    cards = []
+    clips = []
+    slots = set()
+    for index in range(1, 7):
+        slot = f"doc{index}::SPEAKER_{index}"
+        slots.add(slot)
+        relative = f"media/recording-{index:02d}/SPEAKER_{index}.wav"
+        audio = preview_root / relative
+        review.ensure_private_tree(source_root, audio.parent)
+        audio.write_bytes(f"audio-{index}".encode())
+        audio.chmod(0o600)
+        digest = hashlib.sha256(audio.read_bytes()).hexdigest()
+        cards.append(
+            {
+                "slot_id": slot,
+                "recording_ordinal": index,
+                "speaker_ref": f"SPEAKER_{index}",
+                "audio_path": relative,
+            }
+        )
+        clips.append(
+            {"slot_id": slot, "relative_path": relative, "sha256": digest}
+        )
+    manifest = {
+        "schema_version": "transcribe-audio.plan0062-human-review-manifest.v1",
+        "status": "awaiting_literal_human_review",
+        "packet": {
+            "content_sha256": review.PLAN0062_REVIEW_CONTENT_SHA256,
+            "cards": cards,
+        },
+        "audio_clips": clips,
+    }
+    manifest_path = source_root / "private-manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_path.chmod(0o600)
+    manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    monkeypatch.setattr(review, "PLAN0062_REVIEW_MANIFEST_SHA256", manifest_hash)
+    receipt_path = source_root / "receipt.json"
+    receipt_path.write_text(
+        json.dumps(
+            {
+                "content_sha256": review.PLAN0062_REVIEW_CONTENT_SHA256,
+                "manifest_sha256": manifest_hash,
+                "audio_clip_count": 10,
+                "live_mutation_count": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    receipt_path.chmod(0o600)
+
+    copied = review._copy_comparison_audio(
+        source_root=source_root,
+        target_root=target_root,
+        required_slots=slots,
+    )
+
+    assert len(copied) == 6
+    directories = [path for path in target_root.rglob("*") if path.is_dir()]
+    assert directories
+    assert all(stat.S_IMODE(path.stat().st_mode) == 0o700 for path in directories)
