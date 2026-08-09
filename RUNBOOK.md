@@ -1,5 +1,48 @@
 # Runbook
 
+## Turn 341: Execute Plan 0062 contextual inference and join module (2026-08-08)
+
+Summary: Reused the existing two-phase speaker identity workflow on the exact
+three-conversation cohort and implemented its missing speaker-specific seam to
+canonical/acoustic evidence.
+
+Action:
+
+- Completed three Clue Discovery and three Identity Evaluation runs; one
+  evaluation used the bounded reference-only repair.
+- Preserved seven named `unlisted` suggestion records from calendar,
+  transcript, and provider context instead of dropping them because the people
+  were absent from the canonical candidate store.
+- Added `speaker_identity_context_join.py` with validated context-only,
+  acoustic-only, and combined evaluations, explicit source-label and acoustic-
+  subject bindings, stable abstention reasons, and no apply path.
+- Added `speaker_identity_plan0062_execution.py` for an immutable private
+  3-recording/10-speaker/30-evaluation cohort packet and replay receipt.
+- Made overlapping speaker coverage fail closed while retaining suggestions.
+- Rejoined split operator/retrieval scopes by prepared `source_id`; no account,
+  tenant, candidate, or biometric identity was inferred.
+
+Validation:
+
+- The real private smoke completed 3 recordings, 10 speaker slots, and 30
+  evaluations.
+- One enrolled acoustic subject appeared in three clips but had zero explicit
+  prepared-person bindings, so all affected acoustic joins abstained.
+- `.venv/bin/python -m pytest -q tests/test_speaker_identity_context_join.py
+  tests/test_speaker_identity_preprocess.py
+  tests/test_speaker_identity_orchestration.py` passed 40 tests.
+- CodeGraph readback showed the deep flow
+  `freeze_contextual_join_manifest -> build_contextual_join_manifest ->
+  join_contextual_identity` with no pending sync warning.
+- No speaker assignment, contact, canonical-person, profile, reference,
+  provider, watcher, or Graphiti mutation was authorized or performed.
+
+Next:
+
+- Commit and push P1-P2, freeze the private P3 packet against committed code,
+  then publish the direct-audio authenticated P4 worksheet for literal human
+  decisions.
+
 ## Turn 340: Activate Plan 0062 contextual join (2026-08-08)
 
 Summary: Activated Plan 0062 under the user's `plan and execute` instruction

@@ -243,12 +243,13 @@ Milestone Focus:
   canonical-person and 7 `not_listed` decisions yielded candidate recall 3/10,
   zero known-person recall for all three conditions, 7/7 appropriate
   abstentions per condition, zero wrong proposals, and terminal `refine` with
-  no live mutation. Planned Plan 0062 is the bounded integration successor: it
-  runs the already-implemented Plan 0025 clue/calendar/retrieval workflow on
-  the same recent cohort, converts validated per-speaker results into
-  canonical/acoustic shadow proposals, and exposes actual names or named
-  unlisted suggestions for direct-audio review. Biometric enrollment remains a
-  later, separate mutation authority. Plan 0059 authorizes no live
+  no live mutation. Active Plan 0062 is the bounded integration successor.
+  P1-P2 reused the Plan 0025 clue/calendar/retrieval workflow on all ten recent
+  speaker slots, preserved seven named unlisted suggestions, and added the
+  explicit contextual/canonical/acoustic join. P3 is ready; one enrolled
+  acoustic subject remains intentionally unbound to any prepared canonical
+  person until human review. Biometric enrollment remains a later, separate
+  mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
@@ -702,13 +703,14 @@ came from a compatibility snapshot rather than calendar or speaker-specific
 context. Direct-audio Previews review worked remotely and all forbidden
 mutations remained zero.
 
-Plan 0062 is the planned repair in
+Plan 0062 is the active repair in
 `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`.
 It preserves Plan 0036's seal and the Plan 0060/0061 receipts while reconnecting
 the existing two-phase contextual identity workflow to the newer canonical and
-acoustic contracts on the exact three recent conversations. Its target is a
-review-only packet containing actual per-speaker proposals and named unlisted
-suggestions; assignment apply and biometric enrollment remain separate later
+acoustic contracts on the exact three recent conversations. P1-P2 completed
+with 3 recordings, 10 speakers, 30 joined evaluations, and seven unlisted
+suggestion records; P3 private freeze and the direct-audio P4 worksheet are
+next. Assignment apply and biometric enrollment remain separate later
 authorities.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline

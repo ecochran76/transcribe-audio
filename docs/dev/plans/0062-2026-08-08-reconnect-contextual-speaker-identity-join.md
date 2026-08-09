@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: A0 complete; P1 and P2 ready
+Checkpoint: P1-P2 complete; P3 ready
 
 Lane: P09
 
@@ -116,6 +116,39 @@ evaluation sidecars, repository implementation/tests, and all negative actions
 preserved. Progress classification is `outcome_progress`; accepted finding
 ledger remains empty; delegation remains `not_spawned` under current system
 authority.
+
+## P1-P2 execution evidence
+
+The existing two-phase workflow completed on all three exact conversations:
+three Clue Discovery turns, three Identity Evaluation turns, and one bounded
+reference-only repair. All 10 source speaker labels were covered. The model
+returned seven `unlisted` suggestion records, proving that the pre-biometric
+calendar/context workflow does recover useful names even when those people are
+absent from the current canonical-person candidate set. No proposal was
+applied and all three evaluation sidecars remain `awaiting_human_confirmation`.
+
+Two cohort-specific incompatibilities were found and resolved fail closed in
+the reusable join:
+
+- one repaired readout covered three source labels through four overlapping
+  assignments (six label appearances), so duplicate coverage now becomes
+  `context_duplicate_speaker_coverage` while preserving its suggestions; and
+- the existing workflow names source diarization labels `A/B/C/D`, whereas the
+  acoustic contract uses `SPEAKER_1/...`; the join now requires and hashes a
+  complete one-to-one label binding rather than assuming equivalence.
+
+The prepared prompt also separates operator-authored owner/relationship scope
+from the redacted explicit retrieval scope. The adapter rejoins those records
+only by their shared prepared `source_id`, matching the existing provider-scope
+normalization contract and preserving account, tenant, capability, and budget
+boundaries.
+
+The real three-conversation smoke produced 30 evaluations over 10 speakers.
+One enrolled acoustic subject appeared in three clips but had zero explicit
+bindings to a prepared canonical person; those acoustic and combined lanes
+therefore abstained instead of guessing. The contextual suggestions remain in
+the review outcome and are the evidence needed for the next human binding
+decision. Focused join, preprocessing, and orchestration tests pass 40/40.
 
 ## Authority and non-goals
 
