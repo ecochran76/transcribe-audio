@@ -184,6 +184,42 @@ def test_reconciliation_is_deterministic_and_excludes_enrolled_group_from_new() 
     }
 
 
+def test_unselected_enrolled_option_does_not_become_a_voice_binding() -> None:
+    submission, binding = _sources()
+    binding_core = {
+        key: deepcopy(value)
+        for key, value in binding.items()
+        if key != "content_sha256"
+    }
+    binding_core["bindings"].append(
+        {
+            "slot_id": "recording-1::SPEAKER_1",
+            "token": "unselected-enrolled-token",
+            "acoustic_subject_id": "subject-eric",
+            "acoustic_bundle_id": "unselected-bundle",
+            "acoustic_bundle_sha256": "d" * 64,
+        }
+    )
+    binding_core["binding_count"] = 2
+    binding = _with_hash(binding_core)
+    submission_core = {
+        key: deepcopy(value)
+        for key, value in submission.items()
+        if key != "content_sha256"
+    }
+    submission_core["enrolled_binding_content_sha256"] = binding["content_sha256"]
+    submission = _with_hash(submission_core)
+
+    manifest = reconciliation.build_reconciliation_manifest(
+        submission, binding, activation_content_sha256=HASH_A
+    )
+
+    assert manifest["metrics"]["existing_voice_binding_proposal_count"] == 1
+    assert manifest["voice_binding_proposals"][0]["slot_id"] == (
+        "recording-2::SPEAKER_2"
+    )
+
+
 def test_reconciliation_rejects_source_or_voice_binding_drift() -> None:
     submission, binding = _sources()
     tampered = deepcopy(submission)

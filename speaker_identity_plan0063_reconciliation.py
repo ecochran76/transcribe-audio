@@ -195,20 +195,24 @@ def _validated_bindings(
         or any((source.get("negative_actions") or {}).values())
     ):
         _fail("The enrolled-voice binding source is invalid.")
-    by_slot: dict[str, Mapping[str, Any]] = {}
+    all_by_slot: dict[str, Mapping[str, Any]] = {}
     for binding in bindings:
         if not isinstance(binding, Mapping):
             _fail("An enrolled-voice binding is not an object.")
         slot_id = normalize_string(binding.get("slot_id"))
-        if slot_id in by_slot or not normalize_string(binding.get("acoustic_subject_id")):
+        if slot_id in all_by_slot or not normalize_string(binding.get("acoustic_subject_id")):
             _fail("An enrolled-voice binding has an invalid slot or subject.")
-        by_slot[slot_id] = binding
+        all_by_slot[slot_id] = binding
     decision_by_slot = {
         normalize_string(item.get("slot_id")): item for item in decisions
     }
-    for slot_id, binding in by_slot.items():
-        decision = decision_by_slot.get(slot_id)
-        if not decision or any(
+    selected_by_slot: dict[str, Mapping[str, Any]] = {}
+    for slot_id, decision in decision_by_slot.items():
+        subject_id = normalize_string(decision.get("acoustic_subject_id"))
+        if not subject_id:
+            continue
+        binding = all_by_slot.get(slot_id)
+        if not binding or any(
             normalize_string(decision.get(field))
             != normalize_string(binding.get(field))
             for field in (
@@ -218,7 +222,8 @@ def _validated_bindings(
             )
         ):
             _fail("A reviewed enrolled-voice decision lost its exact source binding.")
-    return by_slot
+        selected_by_slot[slot_id] = binding
+    return selected_by_slot
 
 
 def build_reconciliation_manifest(
