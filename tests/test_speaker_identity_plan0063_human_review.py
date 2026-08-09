@@ -92,12 +92,32 @@ def _inputs():
     return reconciled, feasibility, clip_hashes
 
 
+def _comparison_audio(reconciled):
+    slots = [
+        slot
+        for proposal in reconciled["merge_proposals"]
+        for slot in proposal["member_slot_ids"]
+    ]
+    return {
+        slot: {
+            "recording_ordinal": index,
+            "speaker_ref": f"SPEAKER_{index}",
+            "clip_url": (
+                f"comparison-clips/recording-{index:02d}/SPEAKER_{index}.wav"
+            ),
+            "clip_sha256": f"{index + 100:064x}",
+        }
+        for index, slot in enumerate(slots, 1)
+    }
+
+
 def _manifest():
     reconciled, feasibility, clip_hashes = _inputs()
     return review.build_review_manifest(
         reconciled,
         feasibility,
         clip_sha256_by_reference=clip_hashes,
+        comparison_audio_by_slot=_comparison_audio(reconciled),
         repository_authority={"commit": "example"},
     )
 
@@ -107,6 +127,7 @@ def test_review_manifest_preserves_denominator_and_no_calendar_correction():
 
     assert manifest["decision_count"] == 30
     assert len(manifest["merge_reviews"]) == 3
+    assert all(len(item["comparison_audio"]) == 2 for item in manifest["merge_reviews"])
     assert len(manifest["binding_reviews"]) == 1
     assert sum(len(item["windows"]) for item in manifest["source_reviews"]) == 26
     correction = manifest["recording_context_correction"]
@@ -130,13 +151,17 @@ def test_review_manifest_preserves_denominator_and_no_calendar_correction():
 def test_review_html_has_direct_audio_working_export_controls_and_no_apply_path():
     body = review.render_review_html(_manifest())
 
-    assert body.count("<audio controls") == 26
+    assert body.count("<audio controls") == 32
+    assert body.count("Open this WAV directly") == 32
     assert 'id="build"' in body
     assert 'id="copy"' in body
     assert "addEventListener('click',build)" in body
     assert "navigator.clipboard.writeText" in body
     assert "document.execCommand('copy')" in body
-    assert "No-calendar correction" in body
+    assert "Separate recording-context correction — no answer required" in body
+    assert "This notice is not attached to the questions below" in body
+    assert "Listen to both labeled voice samples" in body
+    assert "Voice sample 1: Recording" in body
     assert "identified by operator listening review, not calendar evidence" in body
     assert "Michael Forrester</strong> is not present" in body
     assert "rows.join('\\n')" in body
@@ -187,6 +212,7 @@ def test_review_manifest_rejects_holdout_reuse_or_missing_clip_binding():
             reconciled,
             feasibility,
             clip_sha256_by_reference=clip_hashes,
+            comparison_audio_by_slot=_comparison_audio(reconciled),
             repository_authority={},
         )
 
@@ -210,6 +236,7 @@ def test_review_manifest_rejects_absent_participant_in_no_calendar_recording():
             reconciled,
             feasibility,
             clip_sha256_by_reference=clip_hashes,
+            comparison_audio_by_slot=_comparison_audio(reconciled),
             repository_authority={},
         )
 
@@ -220,5 +247,24 @@ def test_review_manifest_rejects_absent_participant_in_no_calendar_recording():
             reconciled,
             feasibility,
             clip_sha256_by_reference=clip_hashes,
+            comparison_audio_by_slot=_comparison_audio(reconciled),
+            repository_authority={},
+        )
+
+
+def test_review_manifest_rejects_missing_grouping_comparison_audio():
+    reconciled, feasibility, clip_hashes = _inputs()
+    comparison_audio = _comparison_audio(reconciled)
+    comparison_audio.pop(next(iter(comparison_audio)))
+
+    with pytest.raises(
+        review.Plan0063HumanReviewError,
+        match="missing comparison audio",
+    ):
+        review.build_review_manifest(
+            reconciled,
+            feasibility,
+            clip_sha256_by_reference=clip_hashes,
+            comparison_audio_by_slot=comparison_audio,
             repository_authority={},
         )

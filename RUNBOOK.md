@@ -1,5 +1,38 @@
 # Runbook
 
+## Turn 356: Repair Plan 0063 grouping answerability (2026-08-09)
+
+Summary: Accepted the operator's finding that the corrected v2 grouping cards
+could not support an informed decision and implemented a schema-v3 paired-audio
+replacement without changing the frozen P2/P3 evidence or applying anything.
+
+Evidence:
+
+- The Michael Forrester grouping proposal compares Recording 1
+  `8232481d6076282d7a8e::SPEAKER_1` with Recording 3
+  `92d2cd3ed6fc6c1275ca::SPEAKER_2`; neither slot belongs to the no-calendar
+  Recording 2 Dr. Stefl correction.
+- Review v2 printed only those raw slot IDs and no comparison audio. Its layout
+  made the independent grouping question appear attached to the preceding
+  context notice, so the operator could not make an informed same-person
+  decision. Content `486dce68...` and its submission schema are superseded.
+- Review v3 binds the exact immutable Plan 0062 P4 review authority
+  `bbdd481c...` and its manifest `420e49c9...`, copies exactly six verified
+  comparison WAVs, and renders two labeled samples plus direct-WAV links inside
+  each of the three grouping cards.
+- The Recording 2 correction is now titled as a separate, no-answer-required
+  notice with additional visual separation. The decision denominator stays 30,
+  the 26 enrollment-source clips remain unchanged, and all live mutations stay
+  false.
+- Twelve focused review/rehearsal tests, Python compilation, and diff checks
+  pass. Freeze, authenticated publication, and remote validation are pending.
+
+Next:
+
+- Commit and push the v3 contract, freeze its immutable 32-clip review, publish
+  a replacement authenticated Previews page, and validate the paired audio and
+  strict export remotely. Do not accept either prior P4 submission.
+
 ## Turn 355: Correct Plan 0063 no-calendar review provenance (2026-08-09)
 
 Summary: Accepted the operator's correction that the Dr. Stefl recording had no

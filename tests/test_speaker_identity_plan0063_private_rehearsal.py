@@ -148,10 +148,27 @@ def _review_inputs() -> tuple[dict, dict, dict[str, str]]:
 
 def _manifest_and_submission() -> tuple[dict, dict, dict, dict]:
     reconciled, feasibility, clip_hashes = _review_inputs()
+    slots = [
+        slot
+        for proposal in reconciled["merge_proposals"]
+        for slot in proposal["member_slot_ids"]
+    ]
+    comparison_audio = {
+        slot: {
+            "recording_ordinal": index,
+            "speaker_ref": f"SPEAKER_{index}",
+            "clip_url": (
+                f"comparison-clips/recording-{index:02d}/SPEAKER_{index}.wav"
+            ),
+            "clip_sha256": f"{index + 100:064x}",
+        }
+        for index, slot in enumerate(slots, 1)
+    }
     manifest = review.build_review_manifest(
         reconciled,
         feasibility,
         clip_sha256_by_reference=clip_hashes,
+        comparison_audio_by_slot=comparison_audio,
         repository_authority={"commit": "fixture"},
     )
     decisions = [

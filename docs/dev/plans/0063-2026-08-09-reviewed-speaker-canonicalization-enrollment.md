@@ -2,10 +2,11 @@
 
 State: OPEN
 
-Checkpoint: original P4 review superseded after operator provenance correction;
-corrected no-calendar P4 published; operator decisions pending; private-copy
-rehearsal, A1 authority contract, and terminal live driver implemented; A1 not
-requested or authorized
+Checkpoint: both prior P4 surfaces superseded after operator provenance and
+answerability findings; paired-audio v3 replacement implemented pending freeze
+and publication; operator decisions pending; private-copy rehearsal, A1
+authority contract, and terminal live driver implemented; A1 not requested or
+authorized
 
 Lane: P10
 
@@ -162,9 +163,18 @@ Authenticated Previews session `b18f14803bd7`, artifact `e7ffdb4c90a5`, shows
 that Dr. Stefl came from listening review while Michael Forrester is absent
 from the recording. Browser proof covers 26/26 finite-duration WAVs, 30 blank
 choices, incomplete-export refusal, a 34-line v2 answer block, selected
-manual-copy fallback, and zero POST requests. A1 and all live
-canonical/biometric changes remain unauthorized until the operator returns the
-complete corrected block and separately authorizes the exact mutation gate.
+manual-copy fallback, and zero POST requests. Operator review then exposed a
+second blocking defect: each grouping card showed two raw slot IDs without the
+two audio samples needed to decide whether they are the same person, and its
+placement made the Michael Forrester cross-recording question appear attached
+to the separate Dr. Stefl correction. The v2 surface and submission are
+therefore superseded, not accepted. Review schema v3 requires six hash-bound
+Plan 0062 comparison clips, two visibly labeled samples inside each grouping
+card, direct-WAV fallbacks, and a separate no-answer-required Recording 2
+context notice. Its freeze and authenticated publication are pending. A1 and
+all live canonical/biometric changes remain unauthorized until the operator
+returns the complete v3 block and separately authorizes the exact mutation
+gate.
 
 ## P5 private-rehearsal implementation checkpoint
 

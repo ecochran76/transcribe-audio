@@ -738,7 +738,16 @@ session `cb529a51053b`, is superseded because its notice claimed calendar
 provenance the recording did not have. Corrected v2 review `486dce68...` is
 published as Previews session `b18f14803bd7`, artifact `e7ffdb4c90a5`; browser
 proof covers all 26 players, blank/incomplete export refusal, a working 30-row
-hash-bound export, clipboard fallback, and zero POST requests. The deterministic post-review transition plus
+hash-bound export, clipboard fallback, and zero POST requests. Operator review
+then found its merge decisions unanswerable: the compared slots had no paired
+audio, and the Michael cross-recording card appeared attached to the separate
+Dr. Stefl correction. That v2 submission is now superseded. The v3 replacement
+requires two labeled, hash-bound Plan 0062 audio samples inside every grouping
+card, six comparison clips total, direct-WAV fallbacks, and an explicitly
+separate no-answer-required Recording 2 notice; freeze and authenticated
+publication are pending. This review-surface repair advances the Level 2
+replayable human canonicalization target without changing the 30-decision
+denominator or authorizing application. The deterministic post-review transition plus
 conversation-knowledge and biometric private-copy rehearsal are now
 implemented: reviewed merges, slot bindings, voice/context agreement, source
 choices, governed store apply, reference generation, three-model profile

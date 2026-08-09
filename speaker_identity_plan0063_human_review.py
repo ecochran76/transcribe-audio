@@ -27,11 +27,17 @@ import speaker_identity_plan0063_enrollment_feasibility as feasibility
 import speaker_identity_plan0063_reconciliation as reconciliation
 
 
-REVIEW_SCHEMA = "transcribe-audio.plan0063-human-review.v2"
-RECEIPT_SCHEMA = "transcribe-audio.plan0063-human-review-receipt.v2"
-SUBMISSION_SCHEMA = "transcribe-audio.plan0063-human-review-submission.v2"
+REVIEW_SCHEMA = "transcribe-audio.plan0063-human-review.v3"
+RECEIPT_SCHEMA = "transcribe-audio.plan0063-human-review-receipt.v3"
+SUBMISSION_SCHEMA = "transcribe-audio.plan0063-human-review-submission.v3"
 SUPERSEDED_REVIEW_SHA256 = (
-    "bf53f4bff7f50c0ddc73277bc2500f513c19a6bd3004d5361efa73e4018893ac"
+    "486dce6804021314565b5b9c21aeeb58b92529e4a4d4f727324c8106f5753a8a"
+)
+PLAN0062_REVIEW_CONTENT_SHA256 = (
+    "bbdd481c2212401492786041ddfdb5ff1b4e7ff7774af5b33e0917d40987031d"
+)
+PLAN0062_REVIEW_MANIFEST_SHA256 = (
+    "420e49c92e24628643f05714e66c9713a4a8296dd523ef1b09d51105446d9bc8"
 )
 NO_CALENDAR_DOCUMENT_ID = "47ea79857aa1ac2d1d79"
 NO_CALENDAR_IDENTIFIED_SLOTS = {
@@ -50,6 +56,11 @@ FEASIBILITY_SHA256 = (
 )
 DEFAULT_RUNTIME_ROOT = Path.home() / ".local/state/transcribe-audio/plan-0063"
 DEFAULT_P1_ROOT = DEFAULT_RUNTIME_ROOT / "p3-audio-lineage"
+DEFAULT_PLAN0062_REVIEW_ROOT = (
+    Path.home()
+    / ".local/state/transcribe-audio/plan-0062"
+    / "p4-human-review-bbdd481c2212401492786041"
+)
 DECISION_KEY_RE = re.compile(
     r"^(?:MERGE::person-merge-[a-f0-9]{24}|"
     r"BINDING::voice-person-binding-[a-f0-9]{24}|"
@@ -200,6 +211,7 @@ def build_review_manifest(
     source_feasibility: Mapping[str, Any],
     *,
     clip_sha256_by_reference: Mapping[str, str],
+    comparison_audio_by_slot: Mapping[str, Mapping[str, Any]],
     repository_authority: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the exact blank review denominator from frozen P2/P3 evidence."""
@@ -218,11 +230,48 @@ def build_review_manifest(
         _fail("The frozen P2/P3 review inputs drifted.")
     labels = _person_labels(reconciled)
     merges = []
+    comparison_slots: set[str] = set()
     for raw in reconciled.get("merge_proposals") or []:
         if not isinstance(raw, Mapping) or raw.get("decision") != "pending":
             _fail("A merge proposal is not pending literal review.")
         person_id = str(raw.get("proposed_person_id") or "")
         merge_id = str(raw.get("merge_proposal_id") or "")
+        member_slots = list(raw.get("member_slot_ids") or [])
+        if len(member_slots) != 2 or any(
+            not isinstance(slot, str) or slot in comparison_slots
+            for slot in member_slots
+        ):
+            _fail("A merge proposal does not contain two distinct review slots.")
+        comparison_audio = []
+        for slot in member_slots:
+            audio = comparison_audio_by_slot.get(slot)
+            if not isinstance(audio, Mapping):
+                _fail("A merge proposal is missing comparison audio.")
+            recording_ordinal = audio.get("recording_ordinal")
+            speaker_ref = str(audio.get("speaker_ref") or "")
+            clip_url = str(audio.get("clip_url") or "")
+            clip_sha256 = str(audio.get("clip_sha256") or "")
+            if (
+                not isinstance(recording_ordinal, int)
+                or recording_ordinal < 1
+                or not re.fullmatch(r"SPEAKER_\d+", speaker_ref)
+                or not re.fullmatch(
+                    r"comparison-clips/recording-\d{2}/SPEAKER_\d+\.wav",
+                    clip_url,
+                )
+                or not re.fullmatch(r"[a-f0-9]{64}", clip_sha256)
+            ):
+                _fail("A merge comparison-audio binding is invalid.")
+            comparison_audio.append(
+                {
+                    "slot_id": slot,
+                    "recording_ordinal": recording_ordinal,
+                    "speaker_ref": speaker_ref,
+                    "clip_url": clip_url,
+                    "clip_sha256": clip_sha256,
+                }
+            )
+            comparison_slots.add(slot)
         merges.append(
             _decision(
                 key=f"MERGE::{merge_id}",
@@ -232,7 +281,8 @@ def build_review_manifest(
                     "merge_proposal_id": merge_id,
                     "proposed_person_id": person_id,
                     "basis": raw.get("basis"),
-                    "member_slot_ids": list(raw.get("member_slot_ids") or []),
+                    "member_slot_ids": member_slots,
+                    "comparison_audio": comparison_audio,
                 },
             )
         )
@@ -312,6 +362,11 @@ def build_review_manifest(
         26,
     ):
         _fail("The combined human-review denominator drifted.")
+    if (
+        set(comparison_audio_by_slot) != comparison_slots
+        or len(comparison_slots) != 6
+    ):
+        _fail("The exact grouping comparison-audio denominator drifted.")
     identified_person = next(
         (
             raw
@@ -348,6 +403,11 @@ def build_review_manifest(
         "supersedes_review_content_sha256": SUPERSEDED_REVIEW_SHA256,
         "reconciliation_content_sha256": RECONCILIATION_SHA256,
         "feasibility_content_sha256": FEASIBILITY_SHA256,
+        "comparison_audio_authority": {
+            "plan0062_review_content_sha256": PLAN0062_REVIEW_CONTENT_SHA256,
+            "plan0062_review_manifest_sha256": PLAN0062_REVIEW_MANIFEST_SHA256,
+            "clip_count": len(comparison_slots),
+        },
         "repository_authority": dict(repository_authority),
         "recording_context_correction": {
             "document_id": NO_CALENDAR_DOCUMENT_ID,
@@ -406,14 +466,33 @@ def render_review_html(manifest: Mapping[str, Any]) -> str:
         _fail("The review HTML decision denominator drifted.")
     merge_cards = []
     for item in manifest["merge_reviews"]:
-        slots = " and ".join(html.escape(value) for value in item["member_slot_ids"])
+        comparison_panels = []
+        for index, audio in enumerate(item["comparison_audio"], start=1):
+            url = html.escape(audio["clip_url"], quote=True)
+            comparison_panels.append(
+                '<div class="comparison-side"><h4>Voice sample '
+                + str(index)
+                + ": Recording "
+                + str(audio["recording_ordinal"])
+                + " · "
+                + html.escape(audio["speaker_ref"])
+                + "</h4><audio controls preload=\"none\" src=\""
+                + url
+                + '\"></audio><p><a href="'
+                + url
+                + '" target="_blank" rel="noopener">Open this WAV directly</a></p>'
+                + '<details><summary>Audit slot ID</summary><code>'
+                + html.escape(audio["slot_id"])
+                + "</code></details></div>"
+            )
         merge_cards.append(
             '<article class="card"><h3>'
             + html.escape(item["display_label"])
-            + "</h3><p>Should these reviewed slots be one person?</p><code>"
-            + slots
-            + "</code>"
-            + _radio_group(item, "Grouping decision")
+            + "</h3><p>Listen to both labeled voice samples. Are they the same person?</p>"
+            + '<div class="comparison-pair">'
+            + "".join(comparison_panels)
+            + "</div>"
+            + _radio_group(item, "Same-person decision")
             + "</article>"
         )
     binding_cards = []
@@ -434,7 +513,9 @@ def render_review_html(manifest: Mapping[str, Any]) -> str:
                 + str(index)
                 + "</h4><audio controls preload=\"none\" src=\""
                 + html.escape(window["clip_url"], quote=True)
-                + '\"></audio><p class="hint">Include only if this is the named person and is usable as voice training data.</p>'
+                + '\"></audio><p><a href="'
+                + html.escape(window["clip_url"], quote=True)
+                + '" target="_blank" rel="noopener">Open this WAV directly</a></p><p class="hint">Include only if this is the named person and is usable as voice training data.</p>'
                 + _radio_group(window, "Source decision")
                 + "</div>"
             )
@@ -467,13 +548,13 @@ def render_review_html(manifest: Mapping[str, Any]) -> str:
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Plan 0063 speaker grouping and source review</title>
 <style>
-:root{{--bg:#f5f2ea;--ink:#22231f;--card:#fffdf8;--accent:#315e52;--line:#d8d2c4;--warn:#8b541d}}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:24px}}h1{{font-size:clamp(1.7rem,4vw,2.6rem);line-height:1.08}}h2{{margin-top:40px}}.notice,.card,.export{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 5px 18px #312b1f12}}.notice{{border-left:6px solid var(--warn)}}code{{display:block;overflow-wrap:anywhere;white-space:normal}}.decision{{border:0;padding:8px 0 0;margin:10px 0}}.decision label{{display:inline-flex;gap:7px;align-items:center;margin:6px 16px 6px 0;padding:9px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer}}.clip{{border-top:1px solid var(--line);padding:14px 0}}audio{{width:100%;max-width:560px}}.hint{{color:#555;font-size:.92rem}}button{{border:0;border-radius:10px;background:var(--accent);color:white;padding:12px 16px;font-weight:700;margin:4px 8px 4px 0;cursor:pointer}}button.secondary{{background:#555}}textarea{{width:100%;min-height:260px;margin-top:12px;padding:12px;font:13px/1.35 ui-monospace,monospace}}#status{{min-height:1.5em;font-weight:650}}.missing{{outline:3px solid #bd2d2d55;border-radius:8px}}
+:root{{--bg:#f5f2ea;--ink:#22231f;--card:#fffdf8;--accent:#315e52;--line:#d8d2c4;--warn:#8b541d}}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}}main{{max-width:980px;margin:auto;padding:24px}}h1{{font-size:clamp(1.7rem,4vw,2.6rem);line-height:1.08}}h2{{margin-top:40px}}.notice,.card,.export{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 5px 18px #312b1f12}}.notice{{border-left:6px solid var(--warn);margin-bottom:56px}}code{{display:block;overflow-wrap:anywhere;white-space:normal}}.decision{{border:0;padding:8px 0 0;margin:10px 0}}.decision label{{display:inline-flex;gap:7px;align-items:center;margin:6px 16px 6px 0;padding:9px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer}}.clip{{border-top:1px solid var(--line);padding:14px 0}}.comparison-pair{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}}.comparison-side{{border:1px solid var(--line);border-radius:12px;padding:14px;background:#faf7ef}}audio{{width:100%;max-width:560px}}.hint{{color:#555;font-size:.92rem}}button{{border:0;border-radius:10px;background:var(--accent);color:white;padding:12px 16px;font-weight:700;margin:4px 8px 4px 0;cursor:pointer}}button.secondary{{background:#555}}textarea{{width:100%;min-height:260px;margin-top:12px;padding:12px;font:13px/1.35 ui-monospace,monospace}}#status{{min-height:1.5em;font-weight:650}}.missing{{outline:3px solid #bd2d2d55;border-radius:8px}}@media(max-width:700px){{.comparison-pair{{grid-template-columns:1fr}}}}
 </style></head><body><main>
 <h1>Speaker grouping and voice-source review</h1>
-<p>This review has 3 grouping decisions, 1 enrolled-voice/context binding, and 26 exact source clips. It starts blank and cannot apply changes.</p>
-<section class="notice"><h2>No-calendar correction</h2><p>Recording <code>{html.escape(correction['document_id'])}</code> has no calendar event. <strong>{html.escape(correction['identified_display_label'])}</strong> was identified by operator listening review, not calendar evidence. <strong>{html.escape(correction['absent_participant_display_label'])}</strong> is not present in that recording, and none of that person's reviewed slots or source clips comes from it.</p></section>
+<p>This review has 3 paired-audio grouping decisions, 1 enrolled-voice/context binding, and 26 exact source clips. It starts blank and cannot apply changes.</p>
+<section class="notice"><h2>Separate recording-context correction — no answer required</h2><p>This notice is not attached to the questions below. Recording 2 (<code>{html.escape(correction['document_id'])}</code>) has no calendar event. <strong>{html.escape(correction['identified_display_label'])}</strong> was identified by operator listening review, not calendar evidence. <strong>{html.escape(correction['absent_participant_display_label'])}</strong> is not present in that recording, and none of that person's reviewed slots or source clips comes from it.</p></section>
 <form id="review-form" action="" method="get" onsubmit="return false">
-<h2>1. Person grouping</h2>{''.join(merge_cards)}
+<h2>1. Speaker-slot comparisons</h2><p>Each card is independent. Listen to both samples shown inside that card before choosing.</p>{''.join(merge_cards)}
 <h2>2. Existing voice and contextual person</h2>{''.join(binding_cards)}
 <h2>3. New voice enrollment sources</h2>{''.join(source_cards)}
 <section class="export"><h2>Answer block</h2><p>Complete every choice, then build and copy the exact hash-bound block. No network request is made.</p><div><button type="button" id="build">Build answer block</button><button type="button" class="secondary" id="copy">Copy answer block</button></div><p id="status" role="status" aria-live="polite"></p><textarea id="answer" readonly spellcheck="false" aria-label="Answer block"></textarea></section>
@@ -572,7 +653,84 @@ def _paths(runtime_root: Path, content_sha256: str) -> dict[str, Path]:
         "receipt": run / "receipt.json",
         "html": run / "review.html",
         "clips": run / "clips",
+        "comparison_clips": run / "comparison-clips",
     }
+
+
+def _copy_comparison_audio(
+    *, source_root: Path, target_root: Path, required_slots: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Copy the six exact Plan 0062 clips needed for grouping comparisons."""
+
+    manifest_path = source_root / "private-manifest.json"
+    receipt_path = source_root / "receipt.json"
+    require_private_file(manifest_path, source_root.parent)
+    require_private_file(receipt_path, source_root.parent)
+    manifest = read_private_object(manifest_path)
+    receipt = read_private_object(receipt_path)
+    packet = manifest.get("packet") or {}
+    if (
+        sha256_file(manifest_path) != PLAN0062_REVIEW_MANIFEST_SHA256
+        or manifest.get("schema_version")
+        != "transcribe-audio.plan0062-human-review-manifest.v1"
+        or manifest.get("status") != "awaiting_literal_human_review"
+        or packet.get("content_sha256") != PLAN0062_REVIEW_CONTENT_SHA256
+        or receipt.get("content_sha256") != PLAN0062_REVIEW_CONTENT_SHA256
+        or receipt.get("manifest_sha256") != PLAN0062_REVIEW_MANIFEST_SHA256
+        or receipt.get("audio_clip_count") != 10
+        or receipt.get("live_mutation_count") != 0
+    ):
+        _fail("The frozen Plan 0062 comparison-audio authority drifted.")
+    cards = {
+        str(card.get("slot_id") or ""): card
+        for card in packet.get("cards") or []
+        if isinstance(card, Mapping)
+    }
+    audio_clips = {
+        str(item.get("slot_id") or ""): item
+        for item in manifest.get("audio_clips") or []
+        if isinstance(item, Mapping)
+    }
+    if (
+        not required_slots
+        or not required_slots.issubset(cards)
+        or not required_slots.issubset(audio_clips)
+    ):
+        _fail("A required Plan 0062 comparison slot is unavailable.")
+    result: dict[str, dict[str, Any]] = {}
+    for slot in sorted(required_slots):
+        card = cards[slot]
+        audio = audio_clips[slot]
+        relative_path = Path(str(audio.get("relative_path") or ""))
+        source = source_root / "preview" / relative_path
+        require_private_file(source, source_root)
+        if sha256_file(source) != audio.get("sha256"):
+            _fail("A Plan 0062 comparison clip drifted.")
+        recording_ordinal = card.get("recording_ordinal")
+        speaker_ref = str(card.get("speaker_ref") or "")
+        if (
+            card.get("audio_path") != audio.get("relative_path")
+            or not isinstance(recording_ordinal, int)
+            or recording_ordinal < 1
+            or not re.fullmatch(r"SPEAKER_\d+", speaker_ref)
+        ):
+            _fail("A Plan 0062 comparison clip binding drifted.")
+        relative_target = (
+            Path("comparison-clips")
+            / f"recording-{recording_ordinal:02d}"
+            / f"{speaker_ref}.wav"
+        )
+        target = target_root / relative_target
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copyfile(source, target)
+        target.chmod(0o600)
+        result[slot] = {
+            "recording_ordinal": recording_ordinal,
+            "speaker_ref": speaker_ref,
+            "clip_url": relative_target.as_posix(),
+            "clip_sha256": sha256_file(target),
+        }
+    return result
 
 
 def replay_review(
@@ -589,11 +747,21 @@ def replay_review(
         for person in manifest.get("source_reviews", [])
         for window in person.get("windows", [])
     ]
+    comparison_audio = [
+        audio
+        for item in manifest.get("merge_reviews", [])
+        for audio in item.get("comparison_audio", [])
+    ]
     for window in windows:
         clip = paths["run"] / str(window.get("clip_url") or "")
         require_private_file(clip, paths["run"])
         if sha256_file(clip) != window.get("clip_sha256"):
             _fail("A private review clip drifted.")
+    for audio in comparison_audio:
+        clip = paths["run"] / str(audio.get("clip_url") or "")
+        require_private_file(clip, paths["run"])
+        if sha256_file(clip) != audio.get("clip_sha256"):
+            _fail("A private grouping-comparison clip drifted.")
     if (
         manifest.get("schema_version") != REVIEW_SCHEMA
         or manifest.get("content_sha256") != content_sha256
@@ -604,7 +772,9 @@ def replay_review(
         or receipt.get("content_sha256") != content_sha256
         or receipt.get("manifest_sha256") != sha256_file(paths["manifest"])
         or receipt.get("review_html_sha256") != sha256_file(paths["html"])
-        or receipt.get("clip_count") != len(windows)
+        or receipt.get("source_clip_count") != len(windows)
+        or receipt.get("comparison_clip_count") != len(comparison_audio)
+        or receipt.get("clip_count") != len(windows) + len(comparison_audio)
         or receipt.get("live_mutation_count") != 0
     ):
         _fail("The frozen Plan 0063 human review drifted.")
@@ -622,6 +792,7 @@ def freeze_exact_review(
     *,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
     p1_root: Path = DEFAULT_P1_ROOT,
+    plan0062_review_root: Path = DEFAULT_PLAN0062_REVIEW_ROOT,
 ) -> dict[str, Any]:
     """Extract exact clips and freeze the blank, non-applying P4 review."""
 
@@ -654,10 +825,21 @@ def freeze_exact_review(
                     target,
                 )
                 clip_hashes[reference_id] = sha256_file(target)
+        required_comparison_slots = {
+            str(slot)
+            for proposal in reconciled.get("merge_proposals") or []
+            for slot in proposal.get("member_slot_ids") or []
+        }
+        comparison_audio = _copy_comparison_audio(
+            source_root=plan0062_review_root,
+            target_root=stage,
+            required_slots=required_comparison_slots,
+        )
         manifest = build_review_manifest(
             reconciled,
             source_feasibility,
             clip_sha256_by_reference=clip_hashes,
+            comparison_audio_by_slot=comparison_audio,
             repository_authority=_repository_authority(),
         )
         paths = _paths(runtime_root, manifest["content_sha256"])
@@ -677,7 +859,9 @@ def freeze_exact_review(
             "content_sha256": manifest["content_sha256"],
             "manifest_sha256": sha256_file(stage / "private-manifest.json"),
             "review_html_sha256": sha256_file(stage / "review.html"),
-            "clip_count": len(clip_hashes),
+            "source_clip_count": len(clip_hashes),
+            "comparison_clip_count": len(comparison_audio),
+            "clip_count": len(clip_hashes) + len(comparison_audio),
             "decision_count": manifest["decision_count"],
             "live_mutation_count": 0,
             "negative_actions_preserved": True,
