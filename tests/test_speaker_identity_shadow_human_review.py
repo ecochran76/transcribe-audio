@@ -131,8 +131,11 @@ def test_renderer_is_complete_unselected_and_client_only() -> None:
 
     assert page.count("data-review-slot") == 10
     assert page.count("data-decision ") == 10
-    assert page.count("Open this recording in the authenticated transcript console") == 3
-    assert page.count("https://transcripts.ecochran.dyndns.org/?") == 3
+    assert page.count("data-review-audio") == 10
+    assert page.count('type="audio/wav"') == 10
+    assert page.count("Open this speaker WAV directly") == 10
+    assert page.count('preload="metadata"') == 10
+    assert "transcripts.ecochran.dyndns.org" not in page
     assert "http://transcripts.localhost" not in page
     assert "must-not-appear@example.com" not in page
     assert "also-private@example.com" not in page
@@ -225,11 +228,47 @@ def test_private_worksheet_freezes_and_replays_without_decisions(
         "_validated_live_source",
         lambda **_: (source, bindings),
     )
+    acoustic_root = tmp_path / "acoustic"
+    acoustic_root.mkdir(mode=0o700)
+    clips = []
+    for case in review.normalized_review_cases(source):
+        for slot in case["slots"]:
+            clip_path = acoustic_root / f"clip-{len(clips) + 1:02d}.wav"
+            clip_path.write_bytes(b"RIFF" + bytes([len(clips) + 1]) * 80)
+            clip_path.chmod(0o600)
+            clips.append(
+                {
+                    "slot_id": slot["slot_id"],
+                    "document_id": case["document_id"],
+                    "speaker_ref": slot["speaker_ref"],
+                    "relative_path": slot["audio_url"],
+                    "source_path": clip_path,
+                    "sha256": review.sha256_file(clip_path),
+                    "bytes": clip_path.stat().st_size,
+                }
+            )
+    monkeypatch.setattr(
+        review,
+        "_validated_audio_sources",
+        lambda *_: (
+            clips,
+            {
+                "schema_version": "test-acoustic.v1",
+                "manifest_sha256": "c" * 64,
+                "recording_count": 3,
+                "speaker_clip_count": 10,
+            },
+        ),
+    )
     runtime_root = tmp_path / "plan-0061"
 
-    frozen = review.prepare_live_worksheet(runtime_root=runtime_root)
+    frozen = review.prepare_live_worksheet(
+        runtime_root=runtime_root, acoustic_root=acoustic_root
+    )
     replay = review.replay_live_worksheet(
-        frozen["worksheet_sha256"], runtime_root=runtime_root
+        frozen["worksheet_sha256"],
+        runtime_root=runtime_root,
+        acoustic_root=acoustic_root,
     )
 
     assert frozen["idempotent_replay"] is False
@@ -238,6 +277,12 @@ def test_private_worksheet_freezes_and_replays_without_decisions(
     assert replay["preselected_decision_count"] == 0
     assert replay["human_decision_count"] == 0
     assert replay["apply_enabled"] is False
-    assert replay["review_console_base_url"] == review.REVIEW_CONSOLE_BASE_URL
+    assert replay["contains_private_audio_clips"] is True
+    assert replay["contains_full_recording_audio"] is False
+    assert replay["audio_clip_count"] == 10
     for path_key in ("worksheet_path", "manifest_path"):
         assert os.stat(replay[path_key]).st_mode & 0o777 == 0o600
+    for clip in clips:
+        copied = Path(replay["bundle_path"]) / clip["relative_path"]
+        assert copied.read_bytes() == Path(clip["source_path"]).read_bytes()
+        assert copied.stat().st_mode & 0o777 == 0o600

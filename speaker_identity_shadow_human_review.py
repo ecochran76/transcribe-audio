@@ -6,13 +6,13 @@ import html
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
 
 import acoustic_plan0057
 import speaker_identity_shadow_join_execution as plan0060
@@ -42,21 +42,24 @@ FROZEN_IDENTITY_STATE_SHA256 = (
     "64e0a7f44f59563ee848212a93d00e817be59c5471f035a96db7a75f8810924a"
 )
 
-WORKSHEET_SCHEMA = "transcribe-audio.plan0061-human-review-worksheet.v1"
+WORKSHEET_SCHEMA = "transcribe-audio.plan0061-human-review-worksheet.v2"
 WORKSHEET_MANIFEST_SCHEMA = (
-    "transcribe-audio.plan0061-human-review-worksheet-manifest.v1"
+    "transcribe-audio.plan0061-human-review-worksheet-manifest.v2"
 )
 WORKSHEET_RECEIPT_SCHEMA = (
-    "transcribe-audio.plan0061-human-review-worksheet-receipt.v1"
+    "transcribe-audio.plan0061-human-review-worksheet-receipt.v2"
 )
 DECISION_SUBMISSION_SCHEMA = (
     "transcribe-audio.plan0061-human-review-submission.v1"
 )
 MODULE_PATH = Path(__file__).name
 DEFAULT_PLAN0060_ROOT = Path("~/.local/state/transcribe-audio/plan-0060")
+DEFAULT_PLAN0060_ACOUSTIC_ROOT = Path(
+    "~/.local/state/transcribe-audio/plan-0060/"
+    "p2a-acoustic-08afc1b021a30f2a06f6e45b"
+)
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0061")
 DEFAULT_LIVE_STORE_ROOT = Path("~/.transcripts")
-REVIEW_CONSOLE_BASE_URL = "https://transcripts.ecochran.dyndns.org"
 
 SPEAKER_RE = re.compile(r"SPEAKER_[1-9][0-9]*")
 OPAQUE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,255}")
@@ -350,6 +353,9 @@ def normalized_review_cases(manifest: Mapping[str, Any]) -> list[dict[str, Any]]
                 {
                     "slot_id": slot_id,
                     "speaker_ref": speaker_ref,
+                    "audio_url": (
+                        f"media/recording-{case_ordinal:02d}/{speaker_ref}.wav"
+                    ),
                     "allowed_decisions": [candidate["person_id"] for candidate in candidates]
                     + list(NON_PERSON_DECISIONS),
                     "acoustic": {
@@ -405,21 +411,11 @@ def normalized_review_cases(manifest: Mapping[str, Any]) -> list[dict[str, Any]]
                     "max_records": int(raw_scope.get("max_records") or 0),
                 }
             )
-        query = urlencode(
-            {
-                "view": "Library",
-                "kind": "transcript",
-                "selected": document_id,
-                "conversation": "1",
-                "workflow": "speakers",
-            }
-        )
         normalized.append(
             {
                 "case_ordinal": case_ordinal,
                 "document_id": document_id,
                 "recording_id": recording_id,
-                "review_url": f"{REVIEW_CONSOLE_BASE_URL}/?{query}",
                 "candidates": candidates,
                 "warnings": [
                     _text(item, field="case warning", maximum=600) for item in warnings
@@ -512,10 +508,17 @@ def render_review_worksheet(manifest: Mapping[str, Any]) -> str:
             condition_sections = "".join(
                 _condition_html(condition) for condition in slot["conditions"]
             )
+            audio_url = html.escape(slot["audio_url"], quote=True)
             slot_sections.append(
                 '<article class="slot" data-review-slot '
                 f'data-slot-id="{html.escape(slot["slot_id"], quote=True)}">'
                 f'<h3>{html.escape(slot["speaker_ref"])}</h3>'
+                '<p class="listen"><strong>Listen to this speaker clip:</strong></p>'
+                '<audio controls preload="metadata" data-review-audio '
+                f'data-slot-id="{html.escape(slot["slot_id"], quote=True)}">'
+                f'<source src="{audio_url}" type="audio/wav"></audio>'
+                f'<p><a class="audio-fallback" href="{audio_url}" '
+                'target="_blank" rel="noopener">Open this speaker WAV directly</a></p>'
                 "<p><strong>Acoustic summary:</strong> "
                 f"{html.escape(acoustic['disposition'])}; "
                 f"{html.escape(acoustic['confidence_band'])} confidence; "
@@ -539,10 +542,8 @@ def render_review_worksheet(manifest: Mapping[str, Any]) -> str:
         sections.append(
             '<section class="case">'
             f"<h2>Recording {case['case_ordinal']}</h2>"
-            '<p><a class="listen-link" target="_blank" rel="noopener noreferrer" '
-            f'href="{html.escape(case["review_url"], quote=True)}">'
-            "Open this recording in the authenticated transcript console</a>. Listen, inspect "
-            "the transcript, and use its Speakers view; then return here to decide.</p>"
+            "<p>Listen to each bound speaker clip directly below, compare all three frozen "
+            "evidence conditions, then make one canonical decision per speaker.</p>"
             f"<p><strong>Case warnings:</strong> {html.escape(warnings)}</p>"
             f"<p><strong>Case source failures:</strong> {html.escape(failures)}</p>"
             f"<details><summary>Bounded evidence scopes</summary><ul>{scope_rows}</ul></details>"
@@ -639,7 +640,7 @@ updateProgress();
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="review-surface-schema" content="{WORKSHEET_SCHEMA}">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>Plan 0061 joined speaker-identity review</title><style>
 :root{{--ink:#18202a;--muted:#536273;--line:#c9d3df;--paper:#fff;--wash:#f2f5f8;--accent:#315c9c;--warn:#8a5a00}}
 body{{font:16px/1.45 system-ui,sans-serif;max-width:1180px;margin:2rem auto;padding:0 1rem;background:var(--wash);color:var(--ink)}}
@@ -648,10 +649,11 @@ h1,h2,h3,h4{{line-height:1.2}}.notice,.case,.slot,.export{{background:var(--pape
 .condition{{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:.8rem}}.condition p,.condition li{{font-size:.92rem}}label{{display:block;font-weight:700;margin-top:1rem}}
 select,textarea,button,.download{{font:inherit}}select,textarea{{box-sizing:border-box;width:100%;padding:.7rem;margin:.4rem 0;border:1px solid #8797a8;border-radius:7px}}
 textarea{{min-height:18rem}}button,.download{{display:inline-block;padding:.7rem 1rem;margin:.35rem .35rem .35rem 0}}button:disabled{{opacity:.5}}code{{display:block;word-break:break-all;color:var(--muted);margin-top:.5rem}}
+.listen{{margin-bottom:.35rem}}audio{{display:block;width:100%;max-width:44rem;margin:.35rem 0}}.audio-fallback{{font-size:.92rem}}
 .sticky{{position:sticky;top:0;z-index:2;background:#eef3f8;border:1px solid var(--line);border-radius:9px;padding:.7rem 1rem}}:focus-visible{{outline:3px solid #1769d2;outline-offset:2px}}
 </style></head><body><main>
 <h1>Plan 0061 joined speaker-identity review</h1>
-<div class="notice"><strong>Human gold, not an apply screen.</strong> Review all three frozen evidence conditions and the local recording before choosing. This page stores choices only in this browser tab. It cannot submit decisions, apply assignments, create identities, update profiles or references, write providers or Graphiti, restart watchers, or reprocess history.</div>
+<div class="notice"><strong>Human gold, not an apply screen.</strong> Listen to the bound speaker clip and review all three frozen evidence conditions before choosing. This page stores choices only in this browser tab. It cannot submit decisions, apply assignments, create identities, update profiles or references, write providers or Graphiti, restart watchers, or reprocess history.</div>
 <div class="sticky"><strong id="review-progress" aria-live="polite">0 / {EXPECTED_SPEAKERS} decisions complete</strong></div>
 {''.join(sections)}
 <section class="export"><h2>Export the complete decision block</h2>
@@ -828,9 +830,155 @@ def _worksheet_paths(runtime_root: Path, worksheet_sha256: str) -> dict[str, Pat
         "root": root,
         "run": run,
         "worksheet": run / "review.html",
+        "media": run / "media",
         "manifest": run / "private-manifest.json",
         "receipt": run / "receipt.json",
     }
+
+
+def _validated_audio_sources(
+    manifest: Mapping[str, Any], acoustic_root: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Bind each review slot to one frozen Plan 0060 P2A speaker clip."""
+
+    cases = normalized_review_cases(manifest)
+    root = acoustic_root.expanduser().absolute()
+    authority_path = root / "private-manifest.json"
+    require_private_file(authority_path, root)
+    authority = read_private_object(authority_path)
+    negative_actions = authority.get("negative_actions")
+    results = authority.get("results")
+    if (
+        authority.get("schema_version")
+        != "transcribe-audio.plan0060-p2a-acoustic-manifest.v1"
+        or authority.get("status") != "acoustic_lane_complete"
+        or authority.get("activation_sha256") != PLAN0060_ACTIVATION_SHA256
+        or authority.get("recording_count") != EXPECTED_RECORDINGS
+        or authority.get("speaker_ref_count") != EXPECTED_SPEAKERS
+        or not isinstance(negative_actions, Mapping)
+        or not negative_actions
+        or any(value is not False for value in negative_actions.values())
+        or not isinstance(results, list)
+        or len(results) != EXPECTED_RECORDINGS
+    ):
+        _fail("The frozen Plan 0060 acoustic clip authority drifted.")
+    result_by_document = {
+        str(result.get("document_id") or ""): result
+        for result in results
+        if isinstance(result, Mapping)
+    }
+    if len(result_by_document) != EXPECTED_RECORDINGS:
+        _fail("The acoustic authority document set drifted.")
+
+    proposal_paths = sorted((root / "sources").glob("*/acoustic/proposals.json"))
+    if len(proposal_paths) != EXPECTED_RECORDINGS:
+        _fail("The acoustic proposal source set drifted.")
+    source_by_document: dict[str, Path] = {}
+    speaker_refs_by_document: dict[str, set[str]] = {}
+    for proposal_path in proposal_paths:
+        require_private_file(proposal_path, root)
+        proposal = read_private_object(proposal_path)
+        document_id = _opaque(proposal.get("document_id"), field="acoustic document ID")
+        rows = proposal.get("rows")
+        if (
+            document_id in source_by_document
+            or not isinstance(rows, list)
+            or proposal.get("speaker_count") != len(rows)
+        ):
+            _fail("A frozen acoustic proposal set drifted.")
+        speaker_refs = {
+            str(row.get("speaker_ref") or "")
+            for row in rows
+            if isinstance(row, Mapping)
+        }
+        if len(speaker_refs) != len(rows) or any(
+            not SPEAKER_RE.fullmatch(item) for item in speaker_refs
+        ):
+            _fail("A frozen acoustic proposal speaker set drifted.")
+        source_by_document[document_id] = proposal_path.parent.parent
+        speaker_refs_by_document[document_id] = speaker_refs
+
+    clips: list[dict[str, Any]] = []
+    for case in cases:
+        document_id = case["document_id"]
+        result = result_by_document.get(document_id)
+        source_dir = source_by_document.get(document_id)
+        expected_refs = {slot["speaker_ref"] for slot in case["slots"]}
+        if (
+            not isinstance(result, Mapping)
+            or source_dir is None
+            or result.get("recording_id") != case["recording_id"]
+            or result.get("speaker_ref_count") != len(expected_refs)
+            or speaker_refs_by_document.get(document_id) != expected_refs
+        ):
+            _fail("The acoustic clips do not match the sealed review cases.")
+        for slot in case["slots"]:
+            source_path = source_dir / "acoustic" / "clips" / f"{slot['speaker_ref']}.wav"
+            require_private_file(source_path, root)
+            source_sha256 = sha256_file(source_path)
+            byte_count = source_path.stat().st_size
+            if byte_count <= 44:
+                _fail("A frozen acoustic speaker clip is empty.")
+            clips.append(
+                {
+                    "slot_id": slot["slot_id"],
+                    "document_id": document_id,
+                    "speaker_ref": slot["speaker_ref"],
+                    "relative_path": slot["audio_url"],
+                    "source_path": source_path,
+                    "sha256": source_sha256,
+                    "bytes": byte_count,
+                }
+            )
+    if len(clips) != EXPECTED_SPEAKERS:
+        _fail("The acoustic speaker clip denominator drifted.")
+    return clips, {
+        "schema_version": authority["schema_version"],
+        "manifest_sha256": sha256_file(authority_path),
+        "recording_count": EXPECTED_RECORDINGS,
+        "speaker_clip_count": EXPECTED_SPEAKERS,
+    }
+
+
+def _public_audio_manifest(clips: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "slot_id": clip["slot_id"],
+            "document_id": clip["document_id"],
+            "speaker_ref": clip["speaker_ref"],
+            "relative_path": clip["relative_path"],
+            "sha256": clip["sha256"],
+            "bytes": clip["bytes"],
+        }
+        for clip in clips
+    ]
+
+
+def _copy_private_audio(
+    clip: Mapping[str, Any], *, destination: Path, runtime_root: Path, acoustic_root: Path
+) -> None:
+    source = Path(clip["source_path"])
+    require_private_file(source, acoustic_root)
+    ensure_private_tree(runtime_root, destination.parent)
+    if destination.exists():
+        require_private_file(destination, runtime_root)
+        if (
+            destination.stat().st_size != clip["bytes"]
+            or sha256_file(destination) != clip["sha256"]
+        ):
+            _fail("A copied review clip changed in place.")
+        return
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with source.open("rb") as input_stream, os.fdopen(descriptor, "wb") as output_stream:
+        shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
+        output_stream.flush()
+        os.fsync(output_stream.fileno())
+    if (
+        sha256_file(source) != clip["sha256"]
+        or destination.stat().st_size != clip["bytes"]
+        or sha256_file(destination) != clip["sha256"]
+    ):
+        _fail("A review clip changed during its bounded private copy.")
 
 
 def _write_private_text(path: Path, content: str, root: Path) -> None:
@@ -851,6 +999,7 @@ def _write_private_text(path: Path, content: str, root: Path) -> None:
 def prepare_live_worksheet(
     *,
     plan0060_root: Path = DEFAULT_PLAN0060_ROOT,
+    acoustic_root: Path = DEFAULT_PLAN0060_ACOUSTIC_ROOT,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
     live_store_root: Path = DEFAULT_LIVE_STORE_ROOT,
 ) -> dict[str, Any]:
@@ -860,6 +1009,9 @@ def prepare_live_worksheet(
     source, bindings = _validated_live_source(
         plan0060_root=plan0060_root, live_store_root=live_store_root
     )
+    audio_sources, acoustic_binding = _validated_audio_sources(source, acoustic_root)
+    bindings = {**bindings, "acoustic_clips": acoustic_binding}
+    audio_manifest = _public_audio_manifest(audio_sources)
     worksheet = render_review_worksheet(source)
     worksheet_sha256 = hashlib.sha256(worksheet.encode("utf-8")).hexdigest()
     paths = _worksheet_paths(runtime_root, worksheet_sha256)
@@ -867,6 +1019,7 @@ def prepare_live_worksheet(
         return replay_live_worksheet(
             worksheet_sha256,
             plan0060_root=plan0060_root,
+            acoustic_root=acoustic_root,
             runtime_root=runtime_root,
             live_store_root=live_store_root,
         )
@@ -874,12 +1027,18 @@ def prepare_live_worksheet(
         _fail("A partial Plan 0061 worksheet directory already exists.")
     ensure_private_tree(paths["root"], paths["run"])
     _write_private_text(paths["worksheet"], worksheet, paths["root"])
+    for clip in audio_sources:
+        _copy_private_audio(
+            clip,
+            destination=paths["run"] / str(clip["relative_path"]),
+            runtime_root=paths["root"],
+            acoustic_root=acoustic_root.expanduser().absolute(),
+        )
     manifest = {
         "schema_version": WORKSHEET_MANIFEST_SCHEMA,
         "status": "human_review_worksheet_prepared",
         "worksheet_schema_version": WORKSHEET_SCHEMA,
         "worksheet_sha256": worksheet_sha256,
-        "review_console_base_url": REVIEW_CONSOLE_BASE_URL,
         "source_bindings": bindings,
         "repository_authority": repository,
         "recording_count": EXPECTED_RECORDINGS,
@@ -888,7 +1047,11 @@ def prepare_live_worksheet(
         "preselected_decision_count": 0,
         "human_decision_count": 0,
         "apply_enabled": False,
-        "contains_raw_audio": False,
+        "contains_private_audio_clips": True,
+        "contains_full_recording_audio": False,
+        "audio_clip_count": EXPECTED_SPEAKERS,
+        "audio_total_bytes": sum(clip["bytes"] for clip in audio_manifest),
+        "audio_clips": audio_manifest,
         "contains_raw_transcript": False,
         "contains_candidate_labels": True,
         "contains_candidate_email": False,
@@ -899,7 +1062,6 @@ def prepare_live_worksheet(
         "schema_version": WORKSHEET_RECEIPT_SCHEMA,
         "status": "human_review_worksheet_prepared",
         "worksheet_sha256": worksheet_sha256,
-        "review_console_base_url": REVIEW_CONSOLE_BASE_URL,
         "manifest_sha256": sha256_file(paths["manifest"]),
         "p4_content_sha256": PLAN0060_P4_CONTENT_SHA256,
         "p4_manifest_sha256": PLAN0060_P4_MANIFEST_SHA256,
@@ -909,7 +1071,10 @@ def prepare_live_worksheet(
         "preselected_decision_count": 0,
         "human_decision_count": 0,
         "apply_enabled": False,
-        "contains_raw_audio": False,
+        "contains_private_audio_clips": True,
+        "contains_full_recording_audio": False,
+        "audio_clip_count": EXPECTED_SPEAKERS,
+        "audio_total_bytes": sum(clip["bytes"] for clip in audio_manifest),
         "contains_raw_transcript": False,
         "live_mutation_count": 0,
         "mode": "0600",
@@ -919,6 +1084,7 @@ def prepare_live_worksheet(
     return {
         **receipt,
         "worksheet_path": str(paths["worksheet"]),
+        "bundle_path": str(paths["run"]),
         "manifest_path": str(paths["manifest"]),
         "idempotent_replay": False,
     }
@@ -928,6 +1094,7 @@ def replay_live_worksheet(
     worksheet_sha256: str,
     *,
     plan0060_root: Path = DEFAULT_PLAN0060_ROOT,
+    acoustic_root: Path = DEFAULT_PLAN0060_ACOUSTIC_ROOT,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
     live_store_root: Path = DEFAULT_LIVE_STORE_ROOT,
 ) -> dict[str, Any]:
@@ -940,10 +1107,22 @@ def replay_live_worksheet(
     source, bindings = _validated_live_source(
         plan0060_root=plan0060_root, live_store_root=live_store_root
     )
+    audio_sources, acoustic_binding = _validated_audio_sources(source, acoustic_root)
+    bindings = {**bindings, "acoustic_clips": acoustic_binding}
+    audio_manifest = _public_audio_manifest(audio_sources)
+    for clip in audio_sources:
+        destination = paths["run"] / str(clip["relative_path"])
+        require_private_file(destination, paths["root"])
+        if (
+            destination.stat().st_size != clip["bytes"]
+            or sha256_file(destination) != clip["sha256"]
+        ):
+            _fail("A frozen Plan 0061 review clip drifted.")
     expected_worksheet = render_review_worksheet(source)
     expected_manifest = {
         **manifest,
         "source_bindings": bindings,
+        "audio_clips": audio_manifest,
     }
     receipt_core = {key: value for key, value in receipt.items() if key != "content_sha256"}
     if (
@@ -953,21 +1132,28 @@ def replay_live_worksheet(
         or manifest != expected_manifest
         or manifest.get("schema_version") != WORKSHEET_MANIFEST_SCHEMA
         or manifest.get("worksheet_sha256") != selected_sha256
-        or manifest.get("review_console_base_url") != REVIEW_CONSOLE_BASE_URL
         or manifest.get("preselected_decision_count") != 0
         or manifest.get("human_decision_count") != 0
         or manifest.get("apply_enabled") is not False
         or manifest.get("negative_actions") != NEGATIVE_ACTIONS
+        or manifest.get("contains_private_audio_clips") is not True
+        or manifest.get("contains_full_recording_audio") is not False
+        or manifest.get("audio_clip_count") != EXPECTED_SPEAKERS
+        or manifest.get("audio_total_bytes")
+        != sum(clip["bytes"] for clip in audio_manifest)
         or receipt.get("schema_version") != WORKSHEET_RECEIPT_SCHEMA
         or receipt.get("worksheet_sha256") != selected_sha256
-        or receipt.get("review_console_base_url") != REVIEW_CONSOLE_BASE_URL
         or receipt.get("manifest_sha256") != sha256_file(paths["manifest"])
+        or receipt.get("contains_private_audio_clips") is not True
+        or receipt.get("contains_full_recording_audio") is not False
+        or receipt.get("audio_clip_count") != EXPECTED_SPEAKERS
         or receipt.get("content_sha256") != canonical_artifact_hash(receipt_core)
     ):
         _fail("The frozen Plan 0061 worksheet evidence drifted.")
     return {
         **receipt,
         "worksheet_path": str(paths["worksheet"]),
+        "bundle_path": str(paths["run"]),
         "manifest_path": str(paths["manifest"]),
         "idempotent_replay": True,
     }
@@ -980,11 +1166,17 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--plan0060-root", type=Path, default=DEFAULT_PLAN0060_ROOT)
+    prepare.add_argument(
+        "--acoustic-root", type=Path, default=DEFAULT_PLAN0060_ACOUSTIC_ROOT
+    )
     prepare.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
     prepare.add_argument("--live-store-root", type=Path, default=DEFAULT_LIVE_STORE_ROOT)
     replay = subparsers.add_parser("replay")
     replay.add_argument("--worksheet-sha256", required=True)
     replay.add_argument("--plan0060-root", type=Path, default=DEFAULT_PLAN0060_ROOT)
+    replay.add_argument(
+        "--acoustic-root", type=Path, default=DEFAULT_PLAN0060_ACOUSTIC_ROOT
+    )
     replay.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
     replay.add_argument("--live-store-root", type=Path, default=DEFAULT_LIVE_STORE_ROOT)
     validate = subparsers.add_parser("validate-answers")
@@ -999,6 +1191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "prepare":
             result = prepare_live_worksheet(
                 plan0060_root=args.plan0060_root,
+                acoustic_root=args.acoustic_root,
                 runtime_root=args.runtime_root,
                 live_store_root=args.live_store_root,
             )
@@ -1006,6 +1199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = replay_live_worksheet(
                 args.worksheet_sha256,
                 plan0060_root=args.plan0060_root,
+                acoustic_root=args.acoustic_root,
                 runtime_root=args.runtime_root,
                 live_store_root=args.live_store_root,
             )
