@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 338: Close Plan 0061 with human gold (2026-08-08)
+
+Summary: Accepted the operator's exact 10/10 decision block, froze private
+human gold, independently scored all three blinded conditions, and closed Plan
+0061 at terminal `refine`. No identity, assignment, profile, reference,
+provider, Graphiti, watcher, or historical mutation occurred.
+
+Evidence:
+
+- Submission content is `30b0a376...`; the private decision manifest is
+  `e330189d...`. Gold contains 3 canonical-person, 7 `not_listed`, and zero
+  unresolved decisions.
+- Candidate recall is 3/10. Context-only, acoustic-only, and combined each
+  abstained 10/10, correctly abstained for all 7 unlisted speakers, missed all
+  3 known-person speakers, made zero wrong/high-confidence-wrong proposals,
+  had 10/10 provenance-complete views, zero provider failures, and zero
+  duplicate-person forks. All condition deltas are zero.
+- Comparison content is `12a45055...`, comparison manifest is `0e278046...`,
+  and terminal manifest is `565f9646...`. Exact replay passed with private
+  `0700`/`0600` modes and live mutation count zero.
+- The unexpected second person option came from the frozen two-contact
+  compatibility snapshot. P2B had zero calendar candidates and empty clue IDs,
+  then repeated the same recording-level candidates across every speaker slot;
+  it was not calendar-derived identity evidence.
+- Comparison authority landed and pushed at `8bd4fe4`. Focused validation
+  passed 11 tests; the cache-cleared full suite passed 937 tests; compilation,
+  active planning audit, CodeGraph readback, and diff validation passed.
+
+Checkpoint: `OPEN/P2-human-gate -> CLOSED/refine`; progress
+`outcome_progress`; no subagent. The seven `not_listed` choices are not named
+identity authority. A successor biometric-enrollment packet must first collect
+explicit person-to-speaker decisions and then cross a separate private
+profile/reference mutation gate.
+
 ## Turn 337: Authorize Plan 0061 direct-audio review (2026-08-08)
 
 Summary: Reopened and completed P2 through one final bounded review-surface cycle after the

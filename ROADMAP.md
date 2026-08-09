@@ -206,6 +206,8 @@ Plans:
 - `docs/dev/plans/0035-2026-07-30-blind-combined-speaker-outcome-measurement.md`
 - `docs/dev/plans/0036-2026-07-30-literal-fts-blind-speaker-rerun.md`
 - `docs/dev/plans/0059-2026-08-08-speaker-identity-foundation-shadow-orchestration.md`
+- `docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md`
+- `docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`
 
 Milestone Focus:
 
@@ -235,9 +237,14 @@ Milestone Focus:
   the 3-recording/10-speaker denominator. Plan 0060 is the closed
   `review_ready` successor: independent P2A and P2B receipts cover all 3
   recordings/10 speakers, P3 froze 30 blinded abstentions, P4 sealed 10 empty
-  decision slots with apply disabled, and P6 proved unchanged live state. P5
-  remains `not_started` until 10/10 literal human decisions exist; no gold was
-  invented. Plan 0059 authorizes no live
+  decision slots with apply disabled, and P6 proved unchanged live state.
+  Closed Plan 0061 supplied the literal 10/10 human-gold successor: 3
+  canonical-person and 7 `not_listed` decisions yielded candidate recall 3/10,
+  zero known-person recall for all three conditions, 7/7 appropriate
+  abstentions per condition, zero wrong proposals, and terminal `refine` with
+  no live mutation. The next biometric step requires explicit named-person
+  review for the seven unlisted speakers plus a separate profile/reference
+  mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:

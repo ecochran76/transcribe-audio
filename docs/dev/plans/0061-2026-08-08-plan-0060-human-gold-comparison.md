@@ -1,8 +1,8 @@
 # Plan 0061 | Plan 0060 human gold and comparison
 
-State: OPEN
+State: CLOSED
 
-Checkpoint: P2 direct-audio review published; P3 blocked on literal human decisions
+Checkpoint: P5 complete; terminal `refine`
 
 Lane: P09
 
@@ -37,24 +37,65 @@ instruction then activated A0 after the exact readbacks below.
 
 ## Current state
 
-A0, P1, and the direct-audio P2 republish are complete. The prior external
-transcript-console route returned 502-backed fallback data and did not expose
-linked media, so it is no longer part of the decision workflow. Plan 0061 remains
-`OPEN` at the literal human decision gate. The sealed
-Plan 0060 packet still contains exactly 3 recordings, 10 empty decision slots,
-and 30 condition views; no review choice is preselected and apply remains
-disabled. The replacement authenticated worksheet exposes all ten choices and
-one bound speaker clip beside each choice, and produces a strict hash-bound
-export only after 10/10 selections. P3
-human-gold capture remains blocked on the operator's literal complete export;
-current decision count is zero and preview feedback is empty.
+Plan 0061 is closed at terminal `refine`. The operator returned the exact
+13-line export, strict parsing accepted all 10 decisions, and P3 froze the
+private immutable human-gold receipt. P4 independently scored all 30 frozen
+views and P5 replayed the comparison against the unchanged Plan 0060 packet and
+live baselines. No review choice was inferred, repaired, or applied.
 
 The operator's instruction, "I'd prefer to simply listen directly through the
 previews pages as we have before", is explicit authority for this narrow media
 expansion. It opens one final bounded review-surface cycle. Sessions
 `c9c4d5d5fbd0` and `03268b59db56` are superseded for decision work. Direct-audio
-session `11aabed660d2` is the sole active review surface; none of the sessions
-contains human gold.
+session `11aabed660d2` is the sole active review surface. None of the sessions
+contains the frozen human-gold receipt, which remains only in the private
+Plan 0061 runtime.
+
+## P3-P5 terminal closeout
+
+The exact submission content SHA-256 is
+`30b0a3769ff501126b2ba3090cd9ebdd0e8e8359e00dca0867f88309cf91ccd9`.
+It contains 3 canonical-person decisions, 7 `not_listed` decisions, and zero
+`unresolved` decisions over the complete 10-slot denominator. The private
+human-gold manifest SHA-256 is
+`e330189d0edb7a4795c87f735cb96030d1afebcc37ca0718629b4801bd3886cb`.
+
+All three conditions abstained on all ten slots. Each therefore achieved 7/7
+appropriate abstentions, zero wrong or high-confidence-wrong proposals, 10/10
+provenance-complete evaluations, zero provider failures, and zero duplicate-
+person forks. Each also missed all 3 canonical-person decisions, so
+top-person correctness and enrolled recall are both 0/3. Candidate recall is
+3/10 because seven literal decisions establish that the true speaker was not
+in the frozen candidate list. Context-only, acoustic-only, and combined deltas
+are zero. The comparison content SHA-256 is
+`12a45055b7c3e9fc15af0e297af4b4decde67c32603c981642857678c476f4fd`;
+its manifest SHA-256 is
+`0e27804629ca803e2f4d926d33bfd1c951bc175f23bb9ce3fab39ebb97e721cd`.
+
+The unexpected second candidate was traced to the frozen compatibility-contact
+snapshot, not to calendar or transcript-context inference. P2B recorded two
+compatibility candidates for every recording, `calendar_candidate_count=0`,
+and empty clue IDs. The join then exposed that recording-level set for every
+speaker slot. This explains both the irrelevant option and the absence of more
+useful calendar/context candidates.
+
+The terminal audit selected `refine`: the candidate pool missed 7/10 reviewed
+speakers, every condition missed all three known-person slots, and no condition
+improved recall. Terminal manifest SHA-256 is
+`565f9646b38fa4e37d05687fe70b0c8456ac23ffa3e055c55250f329ca28e592`.
+Replay is exact; directories/files remain `0700`/`0600`; SQLite, identity state,
+and both services remain at their frozen baselines; live mutation count is
+zero. Implementation authority is commit `8bd4fe4`; focused validation passed
+11 tests and the full suite passed 937 tests. Compilation, active planning
+audit, CodeGraph readback, diff validation, clean commit, and upstream push
+passed.
+
+The seven `not_listed` decisions do not identify seven people and therefore
+cannot authorize new biometric profiles or references. A successor must first
+bind each useful speaker slot to an explicit named/canonical person using
+calendar participants and reviewed context, then obtain a distinct biometric-
+purpose enrollment authority. Plan 0061 creates no contact, person, profile,
+reference, assignment, provider record, Graphiti memory, or historical run.
 
 ## P2 direct-audio closeout
 
