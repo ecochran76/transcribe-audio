@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Checkpoint: A0 active; non-applying implementation only; A1 not authorized
+Checkpoint: P4 review published; operator decisions pending; A1 not authorized
 
 Lane: P10
 
@@ -106,6 +106,49 @@ three speaker assignments, zero knowledge tables, identity state
 `64e0a7f4...`, and both transcript services active/running with zero restarts.
 P1 and P2 may now proceed; live person, assignment, reference, profile, and
 embedding changes remain unauthorized.
+
+## P1-P4 execution checkpoint
+
+P1 is implemented and pushed. Calendar titles, descriptions, attendees, and
+secondary matching-calendar titles now receive stable packet-bound evidence
+IDs; invented and cross-packet IDs fail closed; calendar-only clues remain
+candidate evidence rather than proof of speech. The exact human-observed title
+fixture yields the corrected candidate spelling. The stored clinical document
+is nevertheless attached to an unrelated selected event, and a bounded
+read-only primary-calendar check found no matching appointment. The correct
+calendar source/account is therefore a visible source gap, not silently
+reconstructed evidence. Provider command execution now has a bounded timeout.
+
+P2 private reconciliation is frozen at content
+82a6834165b20e9457536fbbe67e1540a583ee6dd72374296de55e5b6ccf7f05,
+manifest file 4843b56e..., and receipt file 06ff9400.... It covers all ten
+slots: nine named, one role placeholder, six person proposals, three merge
+proposals, one existing voice/person binding, and five new enrollment
+candidates. Unselected Plan 0062 biometric display options are not promoted to
+bindings. Replay is idempotent and records zero mutation.
+
+P3 replays P2 plus the three exact P1 audio lineages and is frozen at content
+99078e24c28cc94727eda8a05147f7cd533def6069f2dea370978d31376bfb1c,
+manifest file 5b78daa9..., and receipt file 133f923a.... All five proposed new
+people are source-feasible pending review across 26 exact 3-15 second windows.
+Every window is tagged as a development/training candidate and all three
+source recordings are excluded from future holdouts. Device metadata remains
+explicitly unverified; no enrollment is authorized.
+
+P4 is frozen at content
+bf53f4bff7f50c0ddc73277bc2500f513c19a6bd3004d5361efa73e4018893ac,
+manifest file 7f60e0a5..., HTML file a9555394..., and receipt file
+b4e82a8e.... The private 0700 review contains 26 mode-0600 WAV clips and 30
+blank decisions: three groupings, one enrolled-voice/context binding, and 26
+source include/exclude choices. Authenticated remote Previews session
+cb529a51053b was browser-validated: the corrected calendar candidate and all
+players render; audio reaches ready state 4 with no media error; incomplete
+export is refused; complete export contains 30 decision rows plus four exact
+headers; clipboard denial selects the full fallback block; and no POST request
+occurs. The single allowed review rework cycle was consumed fixing the
+generated newline that caused the first export script to fail. A1 and all live
+canonical/biometric changes remain unauthorized until the operator returns the
+complete block and separately authorizes the exact mutation gate.
 
 ## Authority and non-goals
 

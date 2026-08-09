@@ -1,5 +1,42 @@
 # Runbook
 
+## Turn 349: Publish Plan 0063 grouping and voice-source review (2026-08-09)
+
+Summary: Completed the non-applying P1-P4 implementation, froze governed
+enrollment-source evidence, and published one remote direct-audio review.
+
+Evidence:
+
+- P1 gives calendar title, description, attendee, and secondary-calendar
+  evidence stable prepared IDs with fail-closed citation validation. The exact
+  title fixture recovers the reviewed spelling, but the stored clinical
+  document points at an unrelated event and the correct calendar source is not
+  captured. The review exposes that gap rather than inventing provenance.
+- P2 content 82a68341... covers 10 slots, 6 person proposals, 3 merge
+  proposals, 1 exact voice/person binding, and 5 new enrollment candidates.
+  Its receipt file is 06ff9400...; replay records zero mutation.
+- P3 content 99078e24... covers 5 source-feasible people and 26 exact windows
+  across 3 replay-valid source recordings. Its receipt file is 133f923a...;
+  every source is development-only and future-holdout-excluded.
+- P4 content is bf53f4bf...; manifest file is 7f60e0a5..., HTML file is
+  a9555394..., and receipt file is b4e82a8e.... The private tree is 0700 with
+  26 mode-0600 WAV clips and 30 blank choices.
+- Remote browser validation of authenticated Previews session cb529a51053b
+  proved all players render, one clip reaches ready state 4 with duration 15
+  seconds and no error, incomplete export is refused, complete export has 30
+  decisions plus 4 exact headers, blocked clipboard writes select the complete
+  manual-copy fallback, and no POST request occurs.
+- The one allowed P4 rework cycle fixed the generated-newline JavaScript defect
+  caught by browser testing. Commits 7c4cde3 and 1e0dcd9 are pushed.
+
+Next:
+
+- Wait for the operator's complete P4 answer block. Validate and freeze it
+  literally, rehearse one private-copy apply and rollback, then present the
+  exact A1 person/source/apply hashes. Do not mutate live people, assignments,
+  references, profiles, embeddings, observations, providers, or Graphiti
+  without that separate literal A1 authorization.
+
 ## Turn 348: Activate non-applying Plan 0063 work (2026-08-09)
 
 Summary: Replayed the exact Plan 0062 source and current live baseline, then

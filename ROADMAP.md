@@ -724,14 +724,19 @@ authority.
 
 Plan 0063 is the open P09/P10 successor in
 `docs/dev/plans/0063-2026-08-09-reviewed-speaker-canonicalization-enrollment.md`.
-It will turn the exact Plan 0062 human gold into a reviewed provisional-person
-map, repair the missing calendar-title citation path, qualify governed speech
-sources for genuinely new speakers, and publish one combined grouping/source
-review. A0 is non-applying; live canonical or biometric mutation remains behind
-the separate exact A1 gate with private-copy apply and rollback proof.
-Its A0 activation is frozen at content `3c84d2ef...` against pushed plan commit
-`6007978`; the live baseline remains unchanged with zero mutation. P1 calendar
-evidence and P2 private person reconciliation are authorized to proceed.
+Its non-applying P1-P4 implementation now turns the exact Plan 0062 human gold
+into six deterministic provisional-person proposals, three literal merge
+choices, one preserved enrolled-voice/context binding, and five new enrollment
+candidates backed by 26 replay-valid source windows. Calendar title,
+description, attendee, and secondary-calendar evidence is now independently
+citable and fail-closed, while the correct live source for the reviewed
+calendar-title spelling remains explicitly uncaptured. The combined direct-WAV
+review is frozen at `bf53f4bf...` and published through authenticated Previews
+session `cb529a51053b`; browser proof covers all 26 players, blank/incomplete
+export refusal, a working 30-row hash-bound export, clipboard fallback, and
+zero POST requests. Operator decisions are now pending. A0 remains
+non-applying; live canonical or biometric mutation is still behind the
+separate exact A1 gate with private-copy apply and rollback proof.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
