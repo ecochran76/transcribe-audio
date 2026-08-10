@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -209,3 +210,115 @@ def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
         runner._direct_readout(
             {"run_id": "run-1", "prompt_packet": {"prompt_text": "Return JSON."}}
         )
+
+
+def _hydration_fixture(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    frozen_root = runtime / "p0-frozen"
+    frozen_root.mkdir(parents=True, mode=0o700)
+    transcript_path = tmp_path / "transcript.json"
+    conversation_id = str(uuid4())
+    recording_id = str(uuid4())
+    transcript_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "conversation_id": conversation_id,
+                "recording_id": recording_id,
+                "utterances": [{"speaker": "A", "text": "hello"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    new_hash = p2.sha256_file(transcript_path)
+    old_row = {
+        "document_id": "doc-1",
+        "disposition": "selected_evaluation_candidate",
+        "speaker_labels": ["A"],
+        "artifact_sha256": "a" * 64,
+        "conversation_id": None,
+        "recording_id": None,
+        "transcript_artifact": {
+            "path": str(transcript_path),
+            "sha256": "a" * 64,
+        },
+    }
+    new_row = {
+        **old_row,
+        "artifact_sha256": new_hash,
+        "conversation_id": conversation_id,
+        "recording_id": recording_id,
+        "transcript_artifact": {
+            "path": str(transcript_path),
+            "sha256": new_hash,
+        },
+    }
+    frozen = {
+        "schema_version": "p0-test",
+        "repository_authority": {"commit": "b" * 40},
+        "evaluation_cohort": {
+            "cohort_sha256": "c" * 64,
+            "selected_count": 1,
+            "considered": [old_row],
+        },
+        "content_sha256": "d" * 64,
+    }
+    current = {
+        **frozen,
+        "evaluation_cohort": {
+            **frozen["evaluation_cohort"],
+            "cohort_sha256": "e" * 64,
+            "considered": [new_row],
+        },
+        "content_sha256": "f" * 64,
+    }
+    manifest_path = frozen_root / "manifest.json"
+    manifest_path.write_text(json.dumps(frozen), encoding="utf-8")
+    manifest_path.chmod(0o600)
+    receipt = {
+        "manifest_content_sha256": frozen["content_sha256"],
+        "manifest_file_sha256": p2.sha256_file(manifest_path),
+        "action_counts": dict(p2.ACTION_COUNTS),
+        "content_sha256": "1" * 64,
+    }
+    receipt_path = frozen_root / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    receipt_path.chmod(0o600)
+    monkeypatch.setattr(
+        p2,
+        "replay_p0",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            p2.Plan0064P0Error("p0_live_state_drift", "expected hydration")
+        ),
+    )
+    monkeypatch.setattr(
+        p2,
+        "p0_paths",
+        lambda *_args: {"root": frozen_root, "manifest": manifest_path, "receipt": receipt_path},
+    )
+    monkeypatch.setattr(p2, "validate_p0_manifest", lambda _manifest: frozen["content_sha256"])
+    monkeypatch.setattr(p2, "build_p0_manifest", lambda **_kwargs: current)
+    return runtime, frozen, current
+
+
+def test_phase_safe_p0_accepts_only_synchronized_identity_hydration(
+    tmp_path, monkeypatch
+):
+    runtime, frozen, _current = _hydration_fixture(tmp_path, monkeypatch)
+    replay, bridge = p2._phase_safe_p0(
+        frozen["content_sha256"], runtime_root=runtime
+    )
+    assert replay["status"] == "p0_frozen_with_validated_identity_hydration"
+    assert bridge["status"] == "validated_transcript_identity_hydration"
+    assert bridge["changed_recording_count"] == 1
+    assert bridge["preserved_speaker_slot_count"] == 1
+    assert bridge["action_counts"] == p2.ACTION_COUNTS
+
+
+def test_phase_safe_p0_rejects_non_identity_row_drift(tmp_path, monkeypatch):
+    runtime, frozen, current = _hydration_fixture(tmp_path, monkeypatch)
+    current["evaluation_cohort"]["considered"][0]["speaker_labels"] = ["B"]
+    with pytest.raises(
+        p2.Plan0064P2Error, match="outside sanctioned identity hydration"
+    ):
+        p2._phase_safe_p0(frozen["content_sha256"], runtime_root=runtime)

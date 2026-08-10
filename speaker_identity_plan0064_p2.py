@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import requests
 
@@ -29,7 +30,14 @@ from acoustic_audio_derivatives import (
 )
 import app_intelligence_ledger
 from speaker_evaluation_baseline import CasePredictionFailure, LocalSpeakerCaseRunner
-from speaker_identity_plan0064_p0 import DEFAULT_RUNTIME_ROOT, replay_p0
+from speaker_identity_plan0064_p0 import (
+    DEFAULT_RUNTIME_ROOT,
+    Plan0064P0Error,
+    _paths as p0_paths,
+    _validate_manifest as validate_p0_manifest,
+    build_p0_manifest,
+    replay_p0,
+)
 
 
 P2_SCHEMA = "transcribe-audio.plan0064-p2-context-evidence.v1"
@@ -43,6 +51,10 @@ ACTION_COUNTS = {
     "provider_writes": 0,
     "external_provider_writes": 0,
 }
+HYDRATION_BRIDGE_SCHEMA = "transcribe-audio.plan0064-p0-identity-hydration-bridge.v1"
+HYDRATION_FIELDS = frozenset(
+    {"artifact_sha256", "conversation_id", "recording_id", "transcript_artifact"}
+)
 
 
 class Plan0064P2Error(ValueError):
@@ -204,13 +216,133 @@ def _read_object(path: Path) -> dict[str, Any]:
     return value
 
 
+def _uuid(value: Any) -> str:
+    try:
+        return str(UUID(str(value or "")))
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise Plan0064P2Error("Hydrated transcript identity is not a UUID.") from exc
+
+
+def _phase_safe_p0(
+    p0_content_sha256: str, *, runtime_root: Path
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Replay P0 or prove the workflow's exact ID-only transcript hydration."""
+    try:
+        return (
+            replay_p0(content_sha256=p0_content_sha256, runtime_root=runtime_root),
+            None,
+        )
+    except Plan0064P0Error as exc:
+        if exc.reason_code != "p0_live_state_drift":
+            raise
+    paths = p0_paths(runtime_root, p0_content_sha256)
+    require_private_file(paths["manifest"], paths["root"])
+    require_private_file(paths["receipt"], paths["root"])
+    frozen = _read_object(paths["manifest"])
+    receipt = _read_object(paths["receipt"])
+    if (
+        validate_p0_manifest(frozen) != p0_content_sha256
+        or receipt.get("manifest_content_sha256") != p0_content_sha256
+        or receipt.get("manifest_file_sha256") != sha256_file(paths["manifest"])
+        or any(receipt.get("action_counts", {}).values())
+    ):
+        raise Plan0064P2Error("The frozen P0 authority drifted before hydration review.")
+    current = build_p0_manifest(repository=frozen["repository_authority"])
+    for key in sorted(set(frozen) | set(current)):
+        if key not in {"content_sha256", "evaluation_cohort"} and frozen.get(key) != current.get(key):
+            raise Plan0064P2Error(f"P0 drift outside transcript identity hydration: {key}.")
+    old_cohort = frozen["evaluation_cohort"]
+    new_cohort = current["evaluation_cohort"]
+    for key in sorted(set(old_cohort) | set(new_cohort)):
+        if key not in {"cohort_sha256", "considered"} and old_cohort.get(key) != new_cohort.get(key):
+            raise Plan0064P2Error(f"P0 cohort drift outside transcript hydration: {key}.")
+    old_rows, new_rows = old_cohort["considered"], new_cohort["considered"]
+    if len(old_rows) != len(new_rows):
+        raise Plan0064P2Error("P0 cohort length changed during transcript hydration.")
+    changed = []
+    normalized_payload_hashes = []
+    for old, new in zip(old_rows, new_rows):
+        if old.get("document_id") != new.get("document_id"):
+            raise Plan0064P2Error("P0 chronological document order changed.")
+        fields = {
+            key for key in set(old) | set(new) if old.get(key) != new.get(key)
+        }
+        if not fields:
+            continue
+        if not fields <= HYDRATION_FIELDS or old.get("disposition") != "selected_evaluation_candidate":
+            raise Plan0064P2Error("A P0 row changed outside sanctioned identity hydration.")
+        old_artifact = old.get("transcript_artifact") or {}
+        new_artifact = new.get("transcript_artifact") or {}
+        if old_artifact.get("path") != new_artifact.get("path"):
+            raise Plan0064P2Error("Transcript hydration changed the governed artifact path.")
+        transcript_path = Path(str(new_artifact.get("path") or ""))
+        payload = json.loads(transcript_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise Plan0064P2Error("A hydrated transcript is not a JSON object.")
+        conversation_id = _uuid(payload.get("conversation_id"))
+        recording_id = _uuid(payload.get("recording_id"))
+        if (
+            conversation_id != new.get("conversation_id")
+            or recording_id != new.get("recording_id")
+            or int(payload.get("schema_version") or 0) < 2
+            or sha256_file(transcript_path) != new.get("artifact_sha256")
+        ):
+            raise Plan0064P2Error("Hydrated transcript identity is not synchronized.")
+        normalized = dict(payload)
+        normalized.pop("conversation_id", None)
+        normalized.pop("recording_id", None)
+        normalized.pop("schema_version", None)
+        normalized_payload_hashes.append(_hash(normalized))
+        changed.append(
+            {
+                "document_id_sha256": _hash(str(old["document_id"])),
+                "old_artifact_sha256": old["artifact_sha256"],
+                "new_artifact_sha256": new["artifact_sha256"],
+                "conversation_id_sha256": _hash(conversation_id),
+                "recording_id_sha256": _hash(recording_id),
+                "changed_fields": sorted(fields),
+            }
+        )
+    if not changed:
+        raise Plan0064P2Error("P0 replay failed without an identity-hydration delta.")
+    bridge = _content_addressed(
+        {
+            "schema_version": HYDRATION_BRIDGE_SCHEMA,
+            "status": "validated_transcript_identity_hydration",
+            "p0_content_sha256": p0_content_sha256,
+            "old_cohort_sha256": old_cohort["cohort_sha256"],
+            "current_cohort_sha256": new_cohort["cohort_sha256"],
+            "changed_recording_count": len(changed),
+            "changed_rows": changed,
+            "normalized_payload_set_sha256": _hash(sorted(normalized_payload_hashes)),
+            "preserved_recording_count": old_cohort["selected_count"],
+            "preserved_speaker_slot_count": sum(
+                len(row["speaker_labels"])
+                for row in old_rows
+                if row["disposition"] == "selected_evaluation_candidate"
+            ),
+            "allowed_fields": sorted(HYDRATION_FIELDS),
+            "action_counts": dict(ACTION_COUNTS),
+        }
+    )
+    replay = {
+        "status": "p0_frozen_with_validated_identity_hydration",
+        "content_sha256": p0_content_sha256,
+        "receipt_content_sha256": receipt["content_sha256"],
+        "private_manifest_path": str(paths["manifest"]),
+        "private_receipt_path": str(paths["receipt"]),
+        "idempotent_replay": True,
+    }
+    return replay, bridge
+
+
 def build_p2_preview(
     p0_content_sha256: str,
     *,
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
     """Bind P2 to P0, current canonical bindings, and the full slot denominator."""
-    p0 = replay_p0(content_sha256=p0_content_sha256, runtime_root=runtime_root)
+    p0, _bridge = _phase_safe_p0(p0_content_sha256, runtime_root=runtime_root)
     manifest = _read_object(Path(p0["private_manifest_path"]))
     selected = [
         item
@@ -401,7 +533,9 @@ def execute_p2(
 ) -> dict[str, Any]:
     """Run missing cases once, checkpoint each, and freeze the complete P2 receipt."""
     preview = build_p2_preview(p0_content_sha256, runtime_root=runtime_root)
-    p0 = replay_p0(content_sha256=p0_content_sha256, runtime_root=runtime_root)
+    p0, hydration_bridge = _phase_safe_p0(
+        p0_content_sha256, runtime_root=runtime_root
+    )
     manifest = _read_object(Path(p0["private_manifest_path"]))
     selected = [item for item in manifest["evaluation_cohort"]["considered"]
                 if item["disposition"] == "selected_evaluation_candidate"]
@@ -414,6 +548,14 @@ def execute_p2(
     cases_root = root / "cases"
     receipt_path = root / "receipt.json"
     ensure_private_tree(root, cases_root)
+    bridge_path = root / "identity-hydration-bridge.json"
+    if hydration_bridge is not None:
+        if bridge_path.exists():
+            require_private_file(bridge_path, root)
+            if _read_object(bridge_path) != hydration_bridge:
+                raise Plan0064P2Error("The P0 identity-hydration bridge conflicts.")
+        else:
+            write_immutable_private_json(bridge_path, hydration_bridge)
     runner = runner_factory()
     cases = []
     for index, recording in enumerate(selected, start=1):
@@ -482,6 +624,9 @@ def execute_p2(
             "p0_content_sha256": p0_content_sha256,
             "case_content_sha256s": case_hashes,
             "case_set_sha256": _hash(case_hashes),
+            "identity_hydration_bridge_content_sha256": (
+                hydration_bridge["content_sha256"] if hydration_bridge else None
+            ),
             "summary": summary,
             "action_counts": dict(ACTION_COUNTS),
         }
@@ -502,10 +647,18 @@ def replay_p2(
     runtime_root: Path = DEFAULT_RUNTIME_ROOT,
 ) -> dict[str, Any]:
     preview = build_p2_preview(p0_content_sha256, runtime_root=runtime_root)
+    _p0, hydration_bridge = _phase_safe_p0(
+        p0_content_sha256, runtime_root=runtime_root
+    )
     root = runtime_root.expanduser().absolute() / f"p2-{preview['content_sha256'][:24]}"
     receipt_path = root / "receipt.json"
     require_private_file(receipt_path, root)
     receipt = _read_object(receipt_path)
+    bridge_path = root / "identity-hydration-bridge.json"
+    if hydration_bridge is not None:
+        require_private_file(bridge_path, root)
+        if _read_object(bridge_path) != hydration_bridge:
+            raise Plan0064P2Error("The P0 hydration bridge drifted on replay.")
     case_hashes = []
     for path in sorted((root / "cases").glob("*.json")):
         require_private_file(path, root)
@@ -520,6 +673,8 @@ def replay_p2(
         or receipt.get("preview_content_sha256") != preview["content_sha256"]
         or receipt.get("case_content_sha256s") != case_hashes
         or receipt.get("case_set_sha256") != _hash(case_hashes)
+        or receipt.get("identity_hydration_bridge_content_sha256")
+        != (hydration_bridge["content_sha256"] if hydration_bridge else None)
         or receipt.get("content_sha256") != _hash(
             {key: value for key, value in receipt.items() if key != "content_sha256"}
         )
