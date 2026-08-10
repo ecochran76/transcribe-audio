@@ -355,6 +355,21 @@ def recompute_measurement(
             counter["candidate_lineage_complete_count"] += int(
                 bool(proposed) and lineage_complete
             )
+            residual_rule = (
+                condition == "residual_policy"
+                and view.get("reason_code")
+                == "two_known_plus_one_independently_supported_residual"
+            )
+            counter["residual_rule_candidate_count"] += int(
+                residual_rule and bool(proposed)
+            )
+            counter["residual_rule_correct_count"] += int(
+                residual_rule and correct
+            )
+            counter["residual_rule_wrong_count"] += int(residual_rule and wrong)
+            counter["residual_rule_lineage_complete_count"] += int(
+                residual_rule and bool(proposed) and lineage_complete
+            )
             condition_rows.append(
                 {
                     "condition": condition,
@@ -395,6 +410,10 @@ def recompute_measurement(
             "high_support_wrong_count",
             "high_support_unverifiable_count",
             "candidate_lineage_complete_count",
+            "residual_rule_candidate_count",
+            "residual_rule_correct_count",
+            "residual_rule_wrong_count",
+            "residual_rule_lineage_complete_count",
         ):
             metrics.setdefault(key, 0)
         candidate_count = counter["candidate_count"]
@@ -434,14 +453,18 @@ def recompute_measurement(
         )
         == 0,
         "combined_correct_acceptance_observed": combined["correct_candidate_count"] >= 1,
-        "residual_correct_acceptance_observed": residual["correct_candidate_count"] >= 1,
+        "residual_correct_acceptance_observed": residual[
+            "residual_rule_correct_count"
+        ]
+        >= 1,
         "combined_candidate_lineage_complete": (
             combined["candidate_count"] >= 1
             and combined["candidate_lineage_completeness"] == 1.0
         ),
         "residual_candidate_lineage_complete": (
-            residual["candidate_count"] >= 1
-            and residual["candidate_lineage_completeness"] == 1.0
+            residual["residual_rule_candidate_count"] >= 1
+            and residual["residual_rule_lineage_complete_count"]
+            == residual["residual_rule_candidate_count"]
         ),
         "reviewed_development_replay_passed": development["passed"],
     }

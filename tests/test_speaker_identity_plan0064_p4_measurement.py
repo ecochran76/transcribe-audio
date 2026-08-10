@@ -222,6 +222,9 @@ def test_measurement_advances_only_with_correct_join_residual_lineage_and_develo
     assert measurement["condition_metrics"]["combined"]["correct_candidate_count"] == 2
     assert measurement["condition_metrics"]["residual_policy"]["correct_candidate_count"] == 3
     assert measurement["condition_metrics"]["residual_policy"][
+        "residual_rule_correct_count"
+    ] == 1
+    assert measurement["condition_metrics"]["residual_policy"][
         "candidate_lineage_completeness"
     ] == 1.0
     assert measurement["acceptance_gate"]["failed_checks"] == []
