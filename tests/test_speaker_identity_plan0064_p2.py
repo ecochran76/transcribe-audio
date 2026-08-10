@@ -224,14 +224,27 @@ def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
     prompt_path = tmp_path / "prompt.txt"
     prompt_path.write_text("Return JSON.", encoding="utf-8")
     prompt_path.chmod(0o600)
-    monkeypatch.setattr(p2.app_intelligence_ledger, "append_event", lambda **_kwargs: {})
+    events = []
+    monkeypatch.setattr(
+        p2.app_intelligence_ledger,
+        "append_event",
+        lambda **kwargs: events.append(kwargs) or {},
+    )
     monkeypatch.setattr(
         p2.requests,
         "post",
-        lambda *_args, **_kwargs: SimpleNamespace(status_code=429),
+        lambda *_args, **_kwargs: SimpleNamespace(
+            status_code=429,
+            json=lambda: {
+                "error": {
+                    "type": "insufficient_quota",
+                    "message": "Quota exhausted.",
+                }
+            },
+        ),
     )
     runner = p2.OpenAICompatibleCaseRunner(api_key="test-key", state_root=tmp_path)
-    with pytest.raises(p2.Plan0064P2Error, match="HTTP 429"):
+    with pytest.raises(p2.Plan0064P2Error, match="HTTP 429.*insufficient_quota"):
         runner._direct_readout(
             {
                 "run_id": "run-1",
@@ -240,6 +253,8 @@ def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
                 "prompt_packet": {"prompt_path": str(prompt_path)},
             }
         )
+    assert events[-1]["event_type"] == "model_turn_fallback_failed"
+    assert events[-1]["payload"]["reason_code"] == "insufficient_quota"
 
 
 def _hydration_fixture(tmp_path, monkeypatch):

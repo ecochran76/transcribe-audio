@@ -165,10 +165,46 @@ class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
                 timeout=self.timeout_seconds,
             )
         except requests.RequestException as exc:
+            app_intelligence_ledger.append_event(
+                state_root=self.state_root,
+                run_id=run_id,
+                event_type="model_turn_fallback_failed",
+                payload={
+                    "provider": "openai-compatible",
+                    "model": self.model,
+                    "reason_code": "request_failed",
+                    "will_execute_downstream_action": False,
+                },
+            )
             raise Plan0064P2Error("The OpenAI-compatible fallback request failed.") from exc
         if response.status_code >= 400:
+            error: Mapping[str, Any] = {}
+            try:
+                response_payload = response.json()
+                if isinstance(response_payload, Mapping) and isinstance(
+                    response_payload.get("error"), Mapping
+                ):
+                    error = response_payload["error"]
+            except (TypeError, ValueError):
+                pass
+            provider_code = str(error.get("code") or error.get("type") or "http_error")
+            provider_message = str(error.get("message") or "")[:300]
+            app_intelligence_ledger.append_event(
+                state_root=self.state_root,
+                run_id=run_id,
+                event_type="model_turn_fallback_failed",
+                payload={
+                    "provider": "openai-compatible",
+                    "model": self.model,
+                    "http_status": response.status_code,
+                    "reason_code": provider_code,
+                    "provider_message": provider_message,
+                    "will_execute_downstream_action": False,
+                },
+            )
             raise Plan0064P2Error(
-                f"The OpenAI-compatible fallback returned HTTP {response.status_code}."
+                "The OpenAI-compatible fallback returned "
+                f"HTTP {response.status_code} ({provider_code}): {provider_message}"
             )
         try:
             payload = response.json()
