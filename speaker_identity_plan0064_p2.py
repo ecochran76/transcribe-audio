@@ -86,9 +86,19 @@ class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
     def _direct_readout(self, prepared: Mapping[str, Any]) -> dict[str, Any]:
         run_id = str(prepared.get("run_id") or "")
         packet = prepared.get("prompt_packet")
-        prompt = str(packet.get("prompt_text") or "") if isinstance(packet, Mapping) else ""
-        if not run_id or not prompt:
+        packet_prompt_path = (
+            str(packet.get("prompt_path") or "")
+            if isinstance(packet, Mapping)
+            else ""
+        )
+        prompt_path = str(prepared.get("prompt_path") or "")
+        if not run_id or not prompt_path or prompt_path != packet_prompt_path:
             raise Plan0064P2Error("The fallback run lacks a prepared host prompt.")
+        selected_prompt_path = Path(prompt_path).expanduser().absolute()
+        require_private_file(selected_prompt_path, self.state_root)
+        prompt = selected_prompt_path.read_text(encoding="utf-8")
+        if not prompt.strip():
+            raise Plan0064P2Error("The fallback host prompt is empty.")
         app_intelligence_ledger.append_event(
             state_root=self.state_root,
             run_id=run_id,

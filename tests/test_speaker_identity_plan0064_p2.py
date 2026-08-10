@@ -168,6 +168,9 @@ def test_unexpected_prediction_shape_fails_closed():
 
 def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
     events = []
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text("Return JSON.", encoding="utf-8")
+    prompt_path.chmod(0o600)
     monkeypatch.setattr(
         p2.app_intelligence_ledger,
         "append_event",
@@ -188,7 +191,11 @@ def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
         state_root=tmp_path,
     )
     readout = runner._direct_readout(
-        {"run_id": "run-1", "prompt_packet": {"prompt_text": "Return JSON."}}
+        {
+            "run_id": "run-1",
+            "prompt_path": str(prompt_path),
+            "prompt_packet": {"prompt_path": str(prompt_path)},
+        }
     )
     assert readout == {"schema_version": "test"}
     assert [event["event_type"] for event in events] == [
@@ -199,6 +206,9 @@ def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
 
 
 def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
+    prompt_path = tmp_path / "prompt.txt"
+    prompt_path.write_text("Return JSON.", encoding="utf-8")
+    prompt_path.chmod(0o600)
     monkeypatch.setattr(p2.app_intelligence_ledger, "append_event", lambda **_kwargs: {})
     monkeypatch.setattr(
         p2.requests,
@@ -208,7 +218,11 @@ def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
     runner = p2.OpenAICompatibleCaseRunner(api_key="test-key", state_root=tmp_path)
     with pytest.raises(p2.Plan0064P2Error, match="HTTP 429"):
         runner._direct_readout(
-            {"run_id": "run-1", "prompt_packet": {"prompt_text": "Return JSON."}}
+            {
+                "run_id": "run-1",
+                "prompt_path": str(prompt_path),
+                "prompt_packet": {"prompt_path": str(prompt_path)},
+            }
         )
 
 
