@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 359: Write Plan 0064 fresh-context handoff (2026-08-09)
+
+Summary: Added a repo-native handoff that gives a fresh agent the exact Plan
+0064 authority, installed live identity state, operator expectations, startup
+readbacks, safety boundaries, and P0 execution packet without duplicating the
+architecture note or active plan.
+
+Evidence:
+
+- Handoff:
+  `docs/dev/notes/0057-2026-08-09-plan0064-fresh-agent-handoff.md`.
+- It references Plan 0064 and Note 0056 as authority, preserves the Plan 0063
+  terminal receipt and snapshot handles, and names P0 as the next ready unit.
+- It records that ordinary in-plan progression requires no repeated approval,
+  while external provider writes and other significant departures remain out
+  of scope.
+- It carries forward the remote-audio, question-placement, no-calendar,
+  full-name, agreeing-evidence, source-overlap, and residual-inference lessons.
+- Graphiti runtime was healthy, but focused `transcribe_audio_main` discovery
+  returned older Plan 0025 context and no Plan 0064 fact; repo sources remain
+  authoritative.
+
+Next:
+
+- A fresh agent should execute Plan 0064 P0 directly: freeze the active
+  profile/person-binding inventory and a source-disjoint chronological cohort,
+  then continue to P1/P2 when the zero-effect receipt and validation pass.
+
 ## Turn 358: Apply Plan 0063 and open automatic recognition successor (2026-08-09)
 
 Summary: Treated the operator's explicit `okay go` as authority for the exact
