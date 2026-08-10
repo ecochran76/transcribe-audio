@@ -7,6 +7,7 @@ from array import array
 import html
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
 import struct
 from typing import Any, Mapping, Sequence
 import wave
@@ -21,14 +22,30 @@ from acoustic_audio_derivatives import (
 )
 from speaker_identity_plan0064_p0 import DEFAULT_RUNTIME_ROOT
 from speaker_identity_plan0064_p1 import SAMPLE_RATE, _decode, _slot_probe
-from speaker_identity_plan0064_p2 import _phase_safe_p0
-from speaker_identity_plan0064_p3 import replay_p3
 
 
-PREVIEW_SCHEMA = "transcribe-audio.plan0064-p4-review-preview.v1"
-AUTHORITY_SCHEMA = "transcribe-audio.plan0064-p4-review-authority.v1"
-RECEIPT_SCHEMA = "transcribe-audio.plan0064-p4-review-receipt.v1"
+PREVIEW_SCHEMA = "transcribe-audio.plan0064-p4-review-preview.v2"
+AUTHORITY_SCHEMA = "transcribe-audio.plan0064-p4-review-authority.v2"
+RECEIPT_SCHEMA = "transcribe-audio.plan0064-p4-review-receipt.v2"
 DECISION_SCHEMA = "transcribe-audio.plan0064-p4-human-gold-decisions.v1"
+P3_PREVIEW_CONTENT_SHA256 = (
+    "2ec73512fc8122efd79201471473b9ac6f5e7f1197f4a5a9c644eebe1537a55b"
+)
+P3_RESOLUTION_CONTENT_SHA256 = (
+    "2f55e7adb9a48e44073e402bd3bc802ddc10c518cdb3d158d00f5a5058492dcb"
+)
+P3_RECEIPT_CONTENT_SHA256 = (
+    "b630d12d6ce21804d8cd0ad4e24ff6f22730ad365c0ea271f9e2db6d661d115e"
+)
+P2_PREVIEW_CONTENT_SHA256 = (
+    "d6014903bf89a4398d3fd392b9feae65d9105c093f21264d954a2649c5253a23"
+)
+P2_RECEIPT_CONTENT_SHA256 = (
+    "50a7f4fd15b8c65c1faf4628309e72796661ac7760651eb7c9666d9117d9bd6b"
+)
+P2_HYDRATION_BRIDGE_CONTENT_SHA256 = (
+    "fc0f3a506492741623516f5aff7d7a5674f797a72a4f1bbb3aac18480cdae222"
+)
 ACTION_COUNTS = {
     "speaker_assignments": 0,
     "new_enrollments": 0,
@@ -63,11 +80,57 @@ def _read(path: Path) -> dict[str, Any]:
 def _authority_inputs(
     p0_content_sha256: str, *, runtime_root: Path
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    p0, _bridge = _phase_safe_p0(p0_content_sha256, runtime_root=runtime_root)
-    manifest = _read(Path(p0["private_manifest_path"]))
-    p3_receipt = replay_p3(p0_content_sha256, runtime_root=runtime_root)
-    resolution = _read(Path(p3_receipt["private_resolution_path"]))
-    return manifest, p3_receipt, resolution
+    root = runtime_root.expanduser().absolute()
+    p0_root = root / f"p0-{p0_content_sha256[:24]}"
+    manifest_path, p0_receipt_path = (
+        p0_root / "private-manifest.json",
+        p0_root / "receipt.json",
+    )
+    p3_root = root / f"p3-{P3_PREVIEW_CONTENT_SHA256[:24]}"
+    resolution_path, p3_receipt_path = (
+        p3_root / "private-resolution.json",
+        p3_root / "receipt.json",
+    )
+    for path, private_root in (
+        (manifest_path, root),
+        (p0_receipt_path, root),
+        (resolution_path, root),
+        (p3_receipt_path, root),
+    ):
+        require_private_file(path, private_root)
+    manifest, p0_receipt = _read(manifest_path), _read(p0_receipt_path)
+    resolution, p3_receipt = _read(resolution_path), _read(p3_receipt_path)
+    if (
+        manifest.get("content_sha256") != p0_content_sha256
+        or _content_addressed(manifest) != manifest
+        or p0_receipt.get("manifest_content_sha256") != p0_content_sha256
+        or p0_receipt.get("manifest_file_sha256") != sha256_file(manifest_path)
+        or _content_addressed(p0_receipt) != p0_receipt
+        or any((p0_receipt.get("action_counts") or {}).values())
+        or resolution.get("content_sha256") != P3_RESOLUTION_CONTENT_SHA256
+        or resolution.get("preview_content_sha256") != P3_PREVIEW_CONTENT_SHA256
+        or _content_addressed(resolution) != resolution
+        or any((resolution.get("action_counts") or {}).values())
+        or resolution.get("contains_gold") is not False
+        or resolution.get("will_apply_speaker_identity") is not False
+        or p3_receipt.get("content_sha256") != P3_RECEIPT_CONTENT_SHA256
+        or p3_receipt.get("preview_content_sha256") != P3_PREVIEW_CONTENT_SHA256
+        or p3_receipt.get("resolution_content_sha256")
+        != P3_RESOLUTION_CONTENT_SHA256
+        or p3_receipt.get("resolution_file_sha256") != sha256_file(resolution_path)
+        or _content_addressed(p3_receipt) != p3_receipt
+        or any((p3_receipt.get("action_counts") or {}).values())
+    ):
+        raise Plan0064P4ReviewError("The frozen P0/P3 review authority drifted.")
+    return (
+        manifest,
+        {
+            **p3_receipt,
+            "private_resolution_path": str(resolution_path),
+            "idempotent_replay": True,
+        },
+        resolution,
+    )
 
 
 def _people(manifest: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -84,6 +147,147 @@ def _people(manifest: Mapping[str, Any]) -> list[dict[str, str]]:
     if len(people) != len({item["person_id"] for item in people}) or not people:
         raise Plan0064P4ReviewError("Canonical review options are incomplete or repeated.")
     return sorted(people, key=lambda item: (item["display_name"].casefold(), item["person_id"]))
+
+
+def _transcript_hash_allowlist(
+    recordings: Sequence[Mapping[str, Any]],
+    *,
+    p0_content_sha256: str,
+    runtime_root: Path,
+) -> dict[str, frozenset[str]]:
+    root = runtime_root.expanduser().absolute()
+    p2_root = root / f"p2-{P2_PREVIEW_CONTENT_SHA256[:24]}"
+    bridge_path, receipt_path = (
+        p2_root / "identity-hydration-bridge.json",
+        p2_root / "receipt.json",
+    )
+    require_private_file(bridge_path, root)
+    require_private_file(receipt_path, root)
+    bridge, receipt = _read(bridge_path), _read(receipt_path)
+    if (
+        bridge.get("content_sha256") != P2_HYDRATION_BRIDGE_CONTENT_SHA256
+        or bridge.get("p0_content_sha256") != p0_content_sha256
+        or _content_addressed(bridge) != bridge
+        or any((bridge.get("action_counts") or {}).values())
+        or receipt.get("content_sha256") != P2_RECEIPT_CONTENT_SHA256
+        or receipt.get("preview_content_sha256") != P2_PREVIEW_CONTENT_SHA256
+        or receipt.get("identity_hydration_bridge_content_sha256")
+        != P2_HYDRATION_BRIDGE_CONTENT_SHA256
+        or _content_addressed(receipt) != receipt
+        or any((receipt.get("action_counts") or {}).values())
+    ):
+        raise Plan0064P4ReviewError("The frozen P2 hydration authority drifted.")
+    changed_by_document_hash = {
+        str(row.get("document_id_sha256") or ""): row
+        for row in bridge.get("changed_rows") or []
+        if isinstance(row, Mapping)
+    }
+    if len(changed_by_document_hash) != bridge.get("changed_recording_count"):
+        raise Plan0064P4ReviewError("The P2 hydration rows are incomplete.")
+    allowed: dict[str, frozenset[str]] = {}
+    matched_changed: set[str] = set()
+    for recording in recordings:
+        document_id = str(recording.get("document_id") or "")
+        artifact = recording.get("transcript_artifact")
+        if not document_id or not isinstance(artifact, Mapping):
+            raise Plan0064P4ReviewError("A review recording lacks transcript lineage.")
+        old_sha256 = str(artifact.get("sha256") or "")
+        values = {old_sha256}
+        document_hash = _hash(document_id)
+        changed = changed_by_document_hash.get(document_hash)
+        if changed is not None:
+            if changed.get("old_artifact_sha256") != old_sha256:
+                raise Plan0064P4ReviewError("A P2 hydration row has the wrong parent.")
+            values.add(str(changed.get("new_artifact_sha256") or ""))
+            matched_changed.add(document_hash)
+        if any(len(value) != 64 for value in values):
+            raise Plan0064P4ReviewError("A transcript hash allowlist is invalid.")
+        allowed[document_id] = frozenset(values)
+    if matched_changed != set(changed_by_document_hash):
+        raise Plan0064P4ReviewError("P2 hydration covers a different recording set.")
+    return allowed
+
+
+def _original_recording_filename(
+    recording: Mapping[str, Any], *, allowed_sha256: frozenset[str]
+) -> str:
+    artifact = recording.get("transcript_artifact")
+    if not isinstance(artifact, Mapping):
+        raise Plan0064P4ReviewError("A review recording has no transcript authority.")
+    path = Path(str(artifact.get("path") or ""))
+    try:
+        private = (
+            path.is_file()
+            and not path.is_symlink()
+            and sha256_file(path) in allowed_sha256
+        )
+        transcript = json.loads(path.read_text(encoding="utf-8")) if private else None
+    except (OSError, json.JSONDecodeError):
+        transcript = None
+    if not isinstance(transcript, Mapping):
+        raise Plan0064P4ReviewError("A review transcript drifted or is unavailable.")
+    source_path = str(transcript.get("source_media_path") or "").strip()
+    filename = PurePosixPath(source_path.replace("\\", "/")).name
+    if (
+        not source_path
+        or not filename
+        or filename in {".", ".."}
+        or len(filename) > 255
+        or any(ord(character) < 32 for character in filename)
+        or "/" in filename
+        or "\\" in filename
+    ):
+        raise Plan0064P4ReviewError(
+            "A review transcript has no safe original recording filename."
+        )
+    return filename
+
+
+def _recording_filename_rows(
+    recordings: Sequence[Mapping[str, Any]],
+    *,
+    transcript_hashes: Mapping[str, frozenset[str]],
+) -> list[dict[str, str]]:
+    rows = [
+        {
+            "document_id": str(recording.get("document_id") or ""),
+            "recording_filename": _original_recording_filename(
+                recording,
+                allowed_sha256=transcript_hashes.get(
+                    str(recording.get("document_id") or ""), frozenset()
+                ),
+            ),
+        }
+        for recording in recordings
+    ]
+    if (
+        not rows
+        or any(not row["document_id"] for row in rows)
+        or len(rows) != len({row["document_id"] for row in rows})
+    ):
+        raise Plan0064P4ReviewError("Review recording filenames are incomplete.")
+    return rows
+
+
+def _case_recording_filename_rows(
+    cases: Sequence[Mapping[str, Any]],
+) -> list[dict[str, str]]:
+    by_document: dict[str, str] = {}
+    order: list[str] = []
+    for case in cases:
+        document_id = str(case.get("document_id") or "")
+        filename = str(case.get("recording_filename") or "")
+        if not document_id or not filename:
+            raise Plan0064P4ReviewError("A review case lacks recording provenance.")
+        if document_id not in by_document:
+            order.append(document_id)
+            by_document[document_id] = filename
+        elif by_document[document_id] != filename:
+            raise Plan0064P4ReviewError("A recording has conflicting original filenames.")
+    return [
+        {"document_id": document_id, "recording_filename": by_document[document_id]}
+        for document_id in order
+    ]
 
 
 def build_p4_review_preview(
@@ -110,6 +314,14 @@ def build_p4_review_preview(
     ):
         raise Plan0064P4ReviewError("P4 review denominator differs from P0/P3.")
     people = _people(manifest)
+    transcript_hashes = _transcript_hash_allowlist(
+        selected,
+        p0_content_sha256=p0_content_sha256,
+        runtime_root=runtime_root,
+    )
+    filename_rows = _recording_filename_rows(
+        selected, transcript_hashes=transcript_hashes
+    )
     return _content_addressed(
         {
             "schema_version": PREVIEW_SCHEMA,
@@ -120,6 +332,7 @@ def build_p4_review_preview(
             "recording_count": len(selected),
             "speaker_slot_count": len(slots),
             "canonical_option_count": len(people),
+            "recording_filename_set_sha256": _hash(filename_rows),
             "decision_options": ["canonical_person", "not_listed", "unresolved"],
             "model_predictions_visible": False,
             "contains_private_audio": True,
@@ -159,6 +372,9 @@ def build_review_html(
                     f'<article class="card" data-speaker-ref="{html.escape(case["speaker_ref"])}">',
                     f'<div class="ordinal">Speaker {index} of {len(cases)}</div>',
                     f'<h2>{html.escape(case["recording_label"])} · {html.escape(case["speaker_label"])}</h2>',
+                    '<p class="filename"><strong>Original recording:</strong> <code>',
+                    html.escape(case["recording_filename"]),
+                    '</code></p>',
                     '<p>Who is speaking in this direct audio sample?</p>',
                     f'<audio controls preload="metadata" src="{html.escape(case["clip_relative_path"])}"></audio>',
                     '<label>Identity decision<select class="decision">',
@@ -214,7 +430,7 @@ render();
 main{{max-width:980px;margin:auto;padding:28px}} header{{margin-bottom:24px}} h1{{margin:.2rem 0}} .muted,.ordinal{{color:var(--muted)}}
 .toolbar{{position:sticky;top:0;z-index:2;background:#f4f1eaf2;padding:12px 0;display:flex;gap:16px;align-items:center}}
 .card{{background:var(--card);border:1px solid #d8d2c7;border-radius:14px;padding:20px;margin:16px 0;box-shadow:0 4px 14px #0000000b}}
-.card h2{{margin:.25rem 0}} audio,select,textarea{{display:block;width:100%;margin:8px 0 16px}} select,textarea,button{{font:inherit;padding:10px;border-radius:8px;border:1px solid #9aa3ad}}
+.card h2{{margin:.25rem 0}} .filename{{margin:.5rem 0 1rem;color:var(--muted)}} .filename code{{color:var(--ink);overflow-wrap:anywhere}} audio,select,textarea{{display:block;width:100%;margin:8px 0 16px}} select,textarea,button{{font:inherit;padding:10px;border-radius:8px;border:1px solid #9aa3ad}}
 textarea{{min-height:64px}} button{{background:var(--accent);color:#fff;border:0;font-weight:700}} button:disabled{{opacity:.45}}
 #output{{min-height:220px;font-family:ui-monospace,monospace}} @media(max-width:600px){{main{{padding:16px}}}}
 </style></head><body><main>
@@ -245,6 +461,17 @@ def execute_p4_review(
         for item in manifest["evaluation_cohort"]["considered"]
         if item["disposition"] == "selected_evaluation_candidate"
     ]
+    transcript_hashes = _transcript_hash_allowlist(
+        selected,
+        p0_content_sha256=p0_content_sha256,
+        runtime_root=runtime_root,
+    )
+    filename_by_document = {
+        row["document_id"]: row["recording_filename"]
+        for row in _recording_filename_rows(
+            selected, transcript_hashes=transcript_hashes
+        )
+    }
     cases = []
     for recording_index, recording in enumerate(selected, start=1):
         transcript_path = Path(recording["transcript_artifact"]["path"])
@@ -262,6 +489,7 @@ def execute_p4_review(
                     "document_id": recording["document_id"],
                     "speaker_label": speaker,
                     "recording_label": f"Recording {recording_index} of {len(selected)}",
+                    "recording_filename": filename_by_document[recording["document_id"]],
                     "clip_relative_path": f"clips/{clip_name}",
                     "clip_sha256": sha256_file(clip_path),
                 }
@@ -276,6 +504,9 @@ def execute_p4_review(
             "preview_content_sha256": preview["content_sha256"],
             "p3_receipt_content_sha256": p3_receipt["content_sha256"],
             "p3_resolution_content_sha256": resolution["content_sha256"],
+            "recording_filename_set_sha256": preview[
+                "recording_filename_set_sha256"
+            ],
             "cases": cases,
             "people": people,
             "human_decision_count": 0,
@@ -312,6 +543,9 @@ def execute_p4_review(
             "html_file_sha256": sha256_file(html_path),
             "template_file_sha256": sha256_file(template_path),
             "clip_set_sha256": _hash([item["clip_sha256"] for item in cases]),
+            "recording_filename_set_sha256": preview[
+                "recording_filename_set_sha256"
+            ],
             "recording_count": preview["recording_count"],
             "speaker_slot_count": len(cases),
             "human_decision_count": 0,
@@ -332,6 +566,7 @@ def replay_p4_review(
     for path in (authority_path, html_path, template_path, receipt_path):
         require_private_file(path, root)
     authority, receipt = _read(authority_path), _read(receipt_path)
+    filename_rows = _case_recording_filename_rows(authority["cases"])
     clips = [root / item["clip_relative_path"] for item in authority["cases"]]
     for path in clips:
         require_private_file(path, root)
@@ -340,6 +575,11 @@ def replay_p4_review(
         != _hash({key: value for key, value in authority.items() if key != "content_sha256"})
         or receipt.get("preview_content_sha256") != preview["content_sha256"]
         or receipt.get("authority_content_sha256") != authority["content_sha256"]
+        or authority.get("recording_filename_set_sha256")
+        != preview["recording_filename_set_sha256"]
+        or _hash(filename_rows) != preview["recording_filename_set_sha256"]
+        or receipt.get("recording_filename_set_sha256")
+        != preview["recording_filename_set_sha256"]
         or receipt.get("authority_file_sha256") != sha256_file(authority_path)
         or receipt.get("html_file_sha256") != sha256_file(html_path)
         or receipt.get("template_file_sha256") != sha256_file(template_path)

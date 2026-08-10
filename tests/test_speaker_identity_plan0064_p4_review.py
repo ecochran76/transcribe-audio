@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from array import array
+import hashlib
+import json
 import wave
 
 import speaker_identity_plan0064_p4_review as p4
@@ -33,6 +35,7 @@ def test_review_html_has_one_blind_audio_question_per_case():
         {
             "speaker_ref": f"doc::{label}",
             "recording_label": "Recording 1 of 1",
+            "recording_filename": "Original & recording.m4a",
             "speaker_label": label,
             "clip_relative_path": f"clips/{label}.wav",
         }
@@ -48,6 +51,28 @@ def test_review_html_has_one_blind_audio_question_per_case():
     assert page.count('class="decision"') == 2
     assert "no model predictions shown" in page
     assert "Copy complete JSON" in page
+    assert page.count("Original recording:") == 2
+    assert page.count("Original &amp; recording.m4a") == 2
+
+
+def test_original_recording_filename_uses_hash_bound_source_basename(tmp_path):
+    transcript_path = tmp_path / "transcript.json"
+    payload = {
+        "source_media_path": r"C:\\Users\\operator\\Sound Recordings\\Original recording.m4a"
+    }
+    transcript_path.write_text(json.dumps(payload), encoding="utf-8")
+    transcript_path.chmod(0o600)
+    digest = hashlib.sha256(transcript_path.read_bytes()).hexdigest()
+
+    assert p4._original_recording_filename(
+        {
+            "transcript_artifact": {
+                "path": str(transcript_path),
+                "sha256": digest,
+            }
+        },
+        allowed_sha256=frozenset({digest}),
+    ) == "Original recording.m4a"
 
 
 def test_write_clip_creates_private_pcm16_wave(tmp_path):

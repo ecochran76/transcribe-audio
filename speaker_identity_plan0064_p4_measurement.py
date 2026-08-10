@@ -25,10 +25,10 @@ from acoustic_audio_derivatives import (
     write_immutable_private_json,
 )
 from speaker_identity_plan0064_p0 import DEFAULT_RUNTIME_ROOT
-from speaker_identity_plan0064_p3 import replay_p3
 from speaker_identity_plan0064_p4_review import (
     ACTION_COUNTS,
     DECISION_SCHEMA,
+    _authority_inputs as p4_authority_inputs,
     replay_p4_review,
 )
 
@@ -91,10 +91,9 @@ def _authorities(
     authority = _read(authority_path)
     _validate_content_addressed(authority, label="P4 review authority")
 
-    p3_receipt = replay_p3(p0_content_sha256, runtime_root=runtime_root)
-    resolution_path = Path(str(p3_receipt["private_resolution_path"]))
-    require_private_file(resolution_path, runtime_root.expanduser().absolute())
-    resolution = _read(resolution_path)
+    _manifest, p3_receipt, resolution = p4_authority_inputs(
+        p0_content_sha256, runtime_root=runtime_root
+    )
     _validate_content_addressed(resolution, label="P3 resolution")
     if (
         review_receipt.get("authority_content_sha256")
