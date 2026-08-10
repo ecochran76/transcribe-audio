@@ -452,7 +452,7 @@ def execute_p1(
         "action_counts": dict(ACTION_COUNTS),
         "will_perform_external_write": False,
     })
-    ensure_private_tree(root, result_path, receipt_path)
+    ensure_private_tree(root, root)
     write_immutable_private_json(result_path, evidence)
     receipt = _content_addressed({
         "schema_version": RECEIPT_SCHEMA,

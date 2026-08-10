@@ -173,3 +173,10 @@ def test_decode_normalizes_signed_pcm(monkeypatch):
     assert min(decoded) == -1.0
     assert max(decoded) < 1.0
     assert all(-1.0 <= value <= 1.0 for value in decoded)
+
+
+def test_private_publication_tree_accepts_result_and_receipt(tmp_path):
+    root = tmp_path / "p1-authority"
+    p1.ensure_private_tree(root, root)
+    assert root.is_dir()
+    assert root.stat().st_mode & 0o777 == 0o700
