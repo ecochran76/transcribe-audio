@@ -520,8 +520,10 @@ def prepare_model_turn_packet(
         "created_at": utc_now(),
     }
     write_json(packet_json, {**packet, "prompt_text": prompt_text})
+    packet_json.chmod(0o600)
     packet_text.parent.mkdir(parents=True, exist_ok=True)
     packet_text.write_text(prompt_text, encoding="utf-8")
+    packet_text.chmod(0o600)
 
     prompt_packets = run.get("prompt_packets") if isinstance(run.get("prompt_packets"), list) else []
     prompt_summary = {

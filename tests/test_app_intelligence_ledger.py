@@ -171,6 +171,8 @@ def test_prepare_model_turn_packet_writes_review_artifact_without_send(tmp_path:
     assert prepared["will_send_prompt"] is False
     assert Path(prepared["packet_path"]).exists()
     assert Path(prepared["prompt_path"]).read_text(encoding="utf-8") == "Review this transcript."
+    assert Path(prepared["packet_path"]).stat().st_mode & 0o777 == 0o600
+    assert Path(prepared["prompt_path"]).stat().st_mode & 0o777 == 0o600
     assert prepared["packet"]["future_required_approval_token_for_send"] == app_intelligence_ledger.MODEL_TURN_SEND_TOKEN
     assert shown["run"]["prompt_packets"][0]["sent"] is False
     assert shown["events"][-1]["event_type"] == "model_turn_preflight_prepared"
