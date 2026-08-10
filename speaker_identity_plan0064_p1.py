@@ -201,7 +201,7 @@ def _decode(path: Path) -> array:
     result = subprocess.run(
         [
             "ffmpeg", "-v", "error", "-nostdin", "-i", str(path),
-            "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "f32le", "pipe:1",
+            "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "s16le", "pipe:1",
         ],
         check=False,
         stdout=subprocess.PIPE,
@@ -209,11 +209,11 @@ def _decode(path: Path) -> array:
     )
     if result.returncode:
         raise Plan0064P1Error("Source media decode failed.")
-    samples = array("f")
-    samples.frombytes(result.stdout)
-    if samples.itemsize != 4:
-        raise Plan0064P1Error("Unexpected float sample width.")
-    return samples
+    pcm = array("h")
+    pcm.frombytes(result.stdout)
+    if pcm.itemsize != 2:
+        raise Plan0064P1Error("Unexpected signed PCM sample width.")
+    return array("f", (sample / 32768.0 for sample in pcm))
 
 
 def _slot_probe(transcript: Mapping[str, Any], speaker: str, samples: array) -> array:

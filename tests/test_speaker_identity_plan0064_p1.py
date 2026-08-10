@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -157,3 +158,18 @@ def test_caching_adapter_embeds_same_probe_once():
     assert wrapped.calls == 1
     assert adapter.embed(list(probe), sample_rate=16_000) == (2.0, 16_000.0)
     assert wrapped.calls == 2
+
+
+def test_decode_normalizes_signed_pcm(monkeypatch):
+    pcm = p1.array("h", [-32768, -1, 0, 1, 32767])
+    monkeypatch.setattr(
+        p1.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0, stdout=pcm.tobytes(), stderr=b""
+        ),
+    )
+    decoded = p1._decode(Path("fixture.wav"))
+    assert min(decoded) == -1.0
+    assert max(decoded) < 1.0
+    assert all(-1.0 <= value <= 1.0 for value in decoded)
