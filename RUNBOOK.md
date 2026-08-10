@@ -16,21 +16,22 @@ Evidence:
   and residual-policy conditions, and cannot grant P5 apply authority.
 - `speaker_identity_plan0064_development_replay.py` binds the reviewed Plan
   0063 corpus, Plan 0062 contextual evidence, the current 21 active profiles,
-  and the committed module authority. Preview `294493b9...` completed all
-  three recordings and ten speaker slots; immediate replay was exact.
-- Immutable development evidence `262d6046...`, gate `cb942cbd...`, and receipt
-  `d9ded32b...` report three correct combined candidates, five reviews, two
+  and committed module authority `69520da...`. Preview `a2a3e65c...` completed
+  all three recordings and ten speaker slots; immediate replay was exact.
+- Immutable development evidence `d5097df9...`, gate `cb942cbd...`, and receipt
+  `878c1cbf...` report three correct combined candidates, five reviews, two
   abstentions, zero high-support wrong identities, and zero candidates emitted
   by the specific residual rule. The gate therefore records
   `quality_gate_passed=false`.
-- The first command's visible output stopped after progress line 3/10 because
-  the execution tool yielded before returning the rest of the stream. The
-  frozen receipt and successful exact replay establish the actual terminal
-  outcome; the partial visible stream was not a runtime failure.
-- Focused Plan 0064 validation passes 22 tests. Speaker assignment, enrollment,
+- A final replay check found that the first authority schema incorrectly bound
+  repository HEAD, so an unrelated docs commit changed the run ID. Commit
+  `69520da...` now binds the latest commit that changed the replay module. The
+  replacement receipt replayed exactly and remains stable across unrelated
+  commits.
+- Focused Plan 0064 validation passes 23 tests. Speaker assignment, enrollment,
   profile mutation, knowledge write, threshold mutation, provider write, and
   external-write counters are all zero.
-- The full suite passes 1,038 tests in 73.38 seconds.
+- The full suite passes 1,039 tests in 82.81 seconds.
 
 Next:
 

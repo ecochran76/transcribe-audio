@@ -177,12 +177,12 @@ external effect.
   two-known-plus-one-independently-supported-residual rule, complete lineage,
   and a passing reviewed-development gate. It never grants apply authority.
 - Reviewed-development preview
-  `294493b9a68fa8888844ba62d6da6a4fe04d5f5226711351ebadb10bc3cd82f3`
+  `a2a3e65cd1a35531348c179583c0fd667af98ee01b7a1e6636c8f1911412542b`
   replayed the exact three Plan 0063 conversations, ten speaker slots, and
   current twenty-one-profile inventory. Evidence content
-  `262d6046865ff944bd305b229a4ccf0db6df52db3984e9d7fcd372079a449472`
+  `d5097df904f25989395eb02facd62e2e0df9743275a90f7fc230d073c5c9a7c2`
   and receipt content
-  `d9ded32b36e27e413d25614aae72a546d67396996cfd70f2b203d273a8522b69`
+  `878c1cbff9b6e6bd280cb780757d2dc9bdda1ca0067197079659108dfb5275db`
   are immutable and replay exactly.
 - The reviewed replay produced three correct combined candidates, five
   reviews, two abstentions, and zero high-support wrong identities. Its
