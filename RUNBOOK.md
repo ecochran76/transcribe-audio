@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 361: Freeze and replay Plan 0064 P0 (2026-08-09)
+
+Summary: Committed and pushed the corrected Plan 0064 P0 authority, froze the
+complete governed inventory and oldest-forward source-disjoint evaluation
+cohort in a private content-addressed artifact, and immediately replayed the
+same receipt without identity, knowledge, provider, or external effects.
+
+Evidence:
+
+- Committed authority is
+  `eda7e4c15dd1b7fd08c537814613d6dc561c7f58`; the branch was clean and
+  upstream-even before freeze.
+- Immutable P0 content is
+  `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`;
+  receipt content is
+  `27a07c73bf66042fdd2fa2c92d50514977d7be46739b20e657663719e6d4bf05`.
+- The complete active inventory contains seven references, twenty-one profiles,
+  seven subjects, three model adapters, and six identity-ready subjects with
+  eighteen eligible profiles. One unbound subject and its three profiles
+  remain inventoried but cannot emit a canonical-person candidate.
+- The evaluation denominator considered fifty-eight chronological recordings
+  to freeze twelve eligible recordings. Exclusions are reason-coded for prior
+  identity exposure, development overlap, repeated recording hash, missing or
+  insufficient diarization, and unavailable source media.
+- Immediate replay returned `idempotent_replay: true` with the same manifest
+  and receipt hashes. Assignment, enrollment, historical-reprocessing,
+  knowledge, provider, Graphiti, and external-write counters are all zero.
+
+Next:
+
+- Execute P1 dynamic active-profile acoustic scoring and P2 contextual evidence
+  reuse against the exact frozen P0 corpus, preserving independent pillars and
+  canonical-person abstention for the unbound subject.
+
 ## Turn 360: Correct Plan 0064 and implement the P0 freeze seam (2026-08-09)
 
 Summary: Audited the fresh-context handoff and Plan 0064 against the complete

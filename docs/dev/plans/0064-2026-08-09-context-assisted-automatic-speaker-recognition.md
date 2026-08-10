@@ -3,8 +3,9 @@
 State: OPEN
 
 Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
-P0 contract is corrected against the complete live inventory and the corpus
-freeze has not yet run
+P0 is terminal on immutable private corpus
+`f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`
+with zero identity or external effects; P1/P2 are next
 
 Lane: P09/P10
 
