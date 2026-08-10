@@ -6,7 +6,7 @@ Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
 P0 is terminal on immutable private corpus
 `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`
 with zero identity or external effects; P1 and P2 are terminal and replayed;
-P3 is next
+P3 is terminal and replayed; P4 awaits 39 literal human-gold decisions
 
 Lane: P09/P10
 
@@ -136,6 +136,30 @@ external effect.
   semantic cohort drift.
 - Both packets replay idempotently. Speaker assignment, enrollment, profile,
   knowledge, provider, and external-write counters remain zero.
+
+### P3 and P4 review checkpoint
+
+- P3 preview `2ec73512fc8122efd79201471473b9ac6f5e7f1197f4a5a9c644eebe1537a55b`
+  binds the exact P1 and P2 receipts over all 39 slots. Resolution content
+  `2f55e7adb9a48e44073e402bd3bc802ddc10c518cdb3d158d00f5a5058492dcb`
+  and receipt `b630d12d6ce21804d8cd0ad4e24ff6f22730ad365c0ea271f9e2db6d661d115e`
+  replay idempotently.
+- Acoustic-only produces 12 candidates, one review, and 26 abstentions. The
+  combined and residual conditions produce 13 reviews and 26 abstentions,
+  with zero candidates and zero residual acceptances because P2 produced no
+  canonical context candidate. This preserves the independent evidence
+  pillars and does not manufacture agreement.
+- P4 review receipt `f0816114de9e1711f2cf3e844b1441a644a63a9f793faef8b3cb8716309c61c8`
+  binds 39 private speaker-specific clips and review authority
+  `6df988b11c152b78f9da59ab6d2324516082196d70d0340ecba2298051582f67`.
+  The review hides model predictions and requires one literal decision for
+  every slot before it exports the decision contract.
+- Browser checks found 39 cards, 39 playable audio controls, and 39 selectors;
+  the export stays disabled at 0/39 and becomes enabled only at 39/39. Desktop
+  and 390-pixel mobile screenshots show the question adjacent to its audio and
+  decision control.
+- P4 measurement, P5 local acceptance, and P6 proposals remain blocked on the
+  complete 39-row human-gold export. No P5 apply authority exists.
 
 ### P0 corrected freeze contract
 

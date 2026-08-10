@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 363: Freeze Plan 0064 P3 and publish P4 review (2026-08-09)
+
+Summary: Joined the exact P1/P2 pillars through a deterministic conversation
+resolver, replayed the zero-effect P3 receipt, generated one private
+speaker-specific audio clip for every frozen slot, and published the complete
+blind P4 human-gold review. P5 remains disabled.
+
+Evidence:
+
+- P3 preview `2ec73512...`, resolution `2f55e7ad...`, and receipt `b630d12d...`
+  cover 12 recordings and 39 slots. Acoustic-only produces 12 candidates, one
+  review, and 26 abstentions. Combined and residual-policy produce 13 reviews,
+  26 abstentions, zero candidates, and zero residual acceptances.
+- P4 preview `e65e0739...`, authority `6df988b1...`, clip set `9b372144...`, and
+  receipt `f0816114...` bind 39 private clips and zero human decisions.
+- Browser verification found 39 cards, 39 selectors, and 39 playable audio
+  controls. Clip durations range from 16.84 to 30 seconds. The complete export
+  remains disabled until all 39 decisions exist and then emits exactly 39
+  authority-bound rows.
+- Desktop and 390-pixel mobile layouts keep each question adjacent to its
+  audio and decision control. The published Previews session is
+  `401c9eac3275`.
+- Speaker assignment, enrollment, profile mutation, knowledge write, provider
+  write, and external-write counters remain zero.
+
+Next:
+
+- Obtain the complete literal 39-row human-gold export. Then measure all four
+  P4 conditions. Do not enable P5 unless the plan's error and lineage gates
+  pass; do not infer missing human decisions.
+
 ## Turn 362: Complete and replay Plan 0064 P1/P2 (2026-08-09)
 
 Summary: Completed independent acoustic and contextual evidence packets over

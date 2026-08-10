@@ -159,6 +159,7 @@ def test_private_proposal_apply_and_replay(tmp_path, monkeypatch):
         "_git",
         lambda arguments, binary=False: b"module" if arguments[0] == "show" else "",
     )
+    monkeypatch.setattr(gold, "_e1_preview", lambda: {})
     applied = gold.apply_generation5_evaluation_gold(
         preview,
         expected_content_sha256=preview["content_sha256"],

@@ -807,7 +807,12 @@ receipt `50a7f4fd...` preserves the same denominator with four completed
 context workflows, eight reason-coded unavailable cases, and an exact replay.
 The last four cases are unavailable because both configured model routes are
 externally exhausted. All effect counters remain zero. P3 conversation-level
-resolution is the next execution packet.
+resolution is terminal at receipt `b630d12d...`: acoustic-only has 12
+candidates, while combined and residual-policy remain fully review/abstain
+because context produced no canonical candidate. P4 review receipt
+`f0816114...` binds all 39 private direct-audio decisions and is browser
+verified. Measurement and any P5 local acceptance now wait for the complete
+human-gold export; no apply authority exists.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
