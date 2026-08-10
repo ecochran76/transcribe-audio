@@ -6,7 +6,9 @@ Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
 P0 is terminal on immutable private corpus
 `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`
 with zero identity or external effects; P1 and P2 are terminal and replayed;
-P3 is terminal and replayed; P4 awaits 39 literal human-gold decisions
+P3 is terminal and replayed; strict P4 ingestion/measurement is implemented
+but awaits 39 literal human-gold decisions; the reviewed-development replay
+failed the required residual-rule gate; P5 is withheld
 
 Lane: P09/P10
 
@@ -158,8 +160,41 @@ external effect.
   the export stays disabled at 0/39 and becomes enabled only at 39/39. Desktop
   and 390-pixel mobile screenshots show the question adjacent to its audio and
   decision control.
-- P4 measurement, P5 local acceptance, and P6 proposals remain blocked on the
-  complete 39-row human-gold export. No P5 apply authority exists.
+- P4 source-disjoint measurement remains blocked on the complete 39-row
+  human-gold export. No P5 apply authority exists.
+
+### P4 measurement and reviewed-development gate checkpoint
+
+- `speaker_identity_plan0064_p4_measurement.py` accepts only the exact
+  authority-bound 39-row decision contract. It rejects missing, reordered,
+  duplicate, extra, or non-allowlisted decisions and freezes private
+  human-gold, four-condition metrics, a terminal gate, and an exact replay
+  receipt. Human `unresolved` decisions are measured as unverifiable rather
+  than silently counted as correct or wrong.
+- The P4 gate is intentionally non-vacuous. It requires complete gold, zero
+  high-support wrong or unverifiable identities, at least one correct combined
+  acceptance, at least one correct acceptance whose reason is the specific
+  two-known-plus-one-independently-supported-residual rule, complete lineage,
+  and a passing reviewed-development gate. It never grants apply authority.
+- Reviewed-development preview
+  `294493b9a68fa8888844ba62d6da6a4fe04d5f5226711351ebadb10bc3cd82f3`
+  replayed the exact three Plan 0063 conversations, ten speaker slots, and
+  current twenty-one-profile inventory. Evidence content
+  `262d6046865ff944bd305b229a4ccf0db6df52db3984e9d7fcd372079a449472`
+  and receipt content
+  `d9ded32b36e27e413d25614aae72a546d67396996cfd70f2b203d273a8522b69`
+  are immutable and replay exactly.
+- The reviewed replay produced three correct combined candidates, five
+  reviews, two abstentions, and zero high-support wrong identities. Its
+  residual-policy view has the same three pillar-agreement candidates but zero
+  candidates produced by the actual residual rule. Gate content
+  `cb942cbd9efea0bdfc64a633a8e8aa179149d6ed67beb1dbd780fb01e132b0c1`
+  therefore records `quality_gate_passed=false`.
+- P4 source-disjoint measurement remains impossible until the complete literal
+  39-row export is supplied. That export alone cannot authorize P5: the
+  reviewed-development residual requirement must also pass after an
+  evidence-backed correction or a new reviewed corpus demonstrates the rule.
+  P5 and P6 remain withheld, and all action counters remain zero.
 
 ### P0 corrected freeze contract
 

@@ -2,10 +2,23 @@
 
 Date: 2026-08-09
 
-Purpose: Give a fresh-context agent the exact authority, current live state,
+Purpose: Preserve the exact historical authority, live-state baseline,
 operator expectations, startup checks, and first bounded implementation packet
-needed to continue Plan 0064 without relying on chat history or reopening an
-approval ritual.
+that began Plan 0064 without relying on chat history or reopening an approval
+ritual.
+
+## Current-status correction
+
+This is the historical P0 startup handoff, not the current execution pointer.
+P0 through P3 are now terminal, P4 direct-audio review is published, and the
+strict P4 ingestion/measurement implementation is ready. A complete literal
+39-row human-gold export has not been received, so source-disjoint measurement
+cannot run. The separate reviewed Plan 0063 development replay completed with
+three correct combined acceptances and zero high-support wrong identities, but
+it produced zero acceptances through the specific residual rule and therefore
+failed its non-vacuous quality gate. P5 remains unauthorized and P6 remains
+withheld. Use the active plan and latest Runbook turn for current execution;
+the P0 instructions below are retained as historical evidence.
 
 ## Outcome first
 
@@ -295,10 +308,11 @@ Planning validation:
 git diff --check
 ```
 
-## Blockers and residual risk
+## Historical blockers and residual risk
 
-No current blocker prevents P0. The principal risks are confusing Plan 0063
-apply deltas with the complete live inventory, training/evaluation or prior
+P0 had no blocker when this handoff was issued and is now complete. The
+principal risks identified at that point were confusing Plan 0063 apply deltas
+with the complete live inventory, training/evaluation or prior
 evaluation overlap, using inactive profiles, allowing the one unbound active
 subject to emit a person candidate, losing authoritative voice/person
 bindings, and treating a context candidate as residual proof without
@@ -322,9 +336,11 @@ refreshed through a separately authorized memory-write workflow.
 - `app-intelligence-automation` when P2 begins reusing the reviewed two-phase
   contextual workflow.
 
-## Best recommendation
+## Historical recommendation
 
-Execute Plan 0064 P0 immediately under standing authority. Freeze the active
-profile/person-binding inventory and source-disjoint chronological denominator,
-write the zero-effect receipt, validate drift and overlap fail-closed, then
-checkpoint and proceed automatically to P1 and P2 if the evidence is clean.
+The recommendation at handoff time was to execute Plan 0064 P0 immediately
+under standing authority. That packet and P1 through P3 are now complete. The
+current next evidence boundary is the complete 39-row human-gold export; even
+after it arrives, P5 must remain disabled unless the source-disjoint and
+reviewed-development gates both demonstrate the plan's non-vacuous acceptance
+requirements.

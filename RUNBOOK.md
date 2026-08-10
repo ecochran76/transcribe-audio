@@ -1,5 +1,45 @@
 # Runbook
 
+## Turn 364: Implement Plan 0064 measurement and fail residual gate (2026-08-09)
+
+Summary: Added strict authority-bound P4 human-gold ingestion and measurement,
+then replayed the exact reviewed Plan 0063 corpus against the current governed
+profile inventory. Combined recognition was correct where accepted, but the
+specific residual rule was never exercised. The non-vacuous development gate
+failed, and P5/P6 remain withheld with zero effects.
+
+Evidence:
+
+- `speaker_identity_plan0064_p4_measurement.py` requires exactly 39 ordered,
+  allowlisted decisions bound to review authority `6df988b1...`. It separates
+  wrong from human-unverifiable outcomes, measures acoustic, context, combined,
+  and residual-policy conditions, and cannot grant P5 apply authority.
+- `speaker_identity_plan0064_development_replay.py` binds the reviewed Plan
+  0063 corpus, Plan 0062 contextual evidence, the current 21 active profiles,
+  and the committed module authority. Preview `294493b9...` completed all
+  three recordings and ten speaker slots; immediate replay was exact.
+- Immutable development evidence `262d6046...`, gate `cb942cbd...`, and receipt
+  `d9ded32b...` report three correct combined candidates, five reviews, two
+  abstentions, zero high-support wrong identities, and zero candidates emitted
+  by the specific residual rule. The gate therefore records
+  `quality_gate_passed=false`.
+- The first command's visible output stopped after progress line 3/10 because
+  the execution tool yielded before returning the rest of the stream. The
+  frozen receipt and successful exact replay establish the actual terminal
+  outcome; the partial visible stream was not a runtime failure.
+- Focused Plan 0064 validation passes 22 tests. Speaker assignment, enrollment,
+  profile mutation, knowledge write, threshold mutation, provider write, and
+  external-write counters are all zero.
+- The full suite passes 1,038 tests in 73.38 seconds.
+
+Next:
+
+- Obtain the complete literal 39-row human-gold export and run the strict P4
+  measurement. Do not authorize P5 unless source-disjoint measurement passes
+  and reviewed evidence also demonstrates at least one correct acceptance by
+  the actual residual rule. Do not produce P6 proposals from unaccepted
+  observations.
+
 ## Turn 363: Freeze Plan 0064 P3 and publish P4 review (2026-08-09)
 
 Summary: Joined the exact P1/P2 pillars through a deterministic conversation
