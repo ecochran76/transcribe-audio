@@ -1,5 +1,50 @@
 # Runbook
 
+## Turn 360: Correct Plan 0064 and implement the P0 freeze seam (2026-08-09)
+
+Summary: Audited the fresh-context handoff and Plan 0064 against the complete
+live governed stores, corrected transition-delta and evaluation-denominator
+drift, and implemented one focused read-only P0 inventory/cohort module. The
+private freeze has not run yet because it requires this module to be committed,
+pushed, clean, and upstream-even first.
+
+Evidence:
+
+- The Plan 0063 terminal receipt created five references, fifteen model
+  profiles, and twenty-three selected sources, but current whole-store evidence
+  contains seven active reference heads, twenty-one active profiles across
+  three adapters, and sixty-three historical source claims over eleven
+  recording hashes.
+- Five active acoustic subjects use canonical-person IDs directly, one older
+  subject has an accepted explicit canonical binding, and one older active
+  subject remains unbound. Its three profiles are inventoried but ineligible to
+  emit a person candidate.
+- `speaker_identity_plan0064_p0.py` exposes a small
+  `build_p0_manifest`/`freeze_p0`/`replay_p0` interface. It validates reference
+  heads, generations, descendants, model manifests and bytes, lifecycle
+  receipts, canonical bindings, source affinities, prior identity exposure,
+  and a complete oldest-forward cohort denominator.
+- Live preview enumerated 390 transcript documents and selected twelve
+  source-disjoint, previously unexposed, hash-matched recordings after
+  reason-coding fifty-eight chronological rows. It recorded zero assignments,
+  enrollments, knowledge writes, provider writes, Graphiti writes, historical
+  reprocessing, or external writes.
+- Six focused P0 tests cover complete versus delta inventory, withdrawn
+  profiles, missing bindings, reference/profile lineage drift, development
+  overlap, prior exposure, repeated recording hashes, missing media,
+  incomplete denominators, private artifact modes, and idempotent replay.
+- The adjacent biometric/profile set passes 84 tests. The full suite passes
+  1005 tests in 128.83 seconds. Python compilation, `git diff --check`, and
+  CodeGraph post-edit sync/readback pass; CodeGraph reports 283 indexed files,
+  8,723 nodes, 29,538 edges, and zero pending changes.
+
+Next:
+
+- Commit and push the corrected contract and P0 seam. From that clean,
+  upstream-even authority, regenerate the content hash, freeze and immediately
+  replay the private zero-effect P0 receipt, then checkpoint P0 terminal
+  evidence before P1/P2 progression.
+
 ## Turn 359: Write Plan 0064 fresh-context handoff (2026-08-09)
 
 Summary: Added a repo-native handoff that gives a fresh agent the exact Plan

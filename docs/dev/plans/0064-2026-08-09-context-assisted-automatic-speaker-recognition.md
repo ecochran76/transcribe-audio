@@ -3,7 +3,8 @@
 State: OPEN
 
 Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
-P0 contract and corpus freeze are ready
+P0 contract is corrected against the complete live inventory and the corpus
+freeze has not yet run
 
 Lane: P09/P10
 
@@ -50,10 +51,28 @@ low-touch use on future conversations.
 
 Plan 0063 terminal receipt
 `259ea605015ecd6b681140e529002c23e131b6e5cada0d1cdd62fc2b151e3dd5`
-replays one completed live apply with six canonical people, nine reviewed slot
-bindings, one active voice/person binding, five references, fifteen profiles,
-and twenty-three enrollment sources. Both transcript services are
-`active/running` with zero restarts.
+replays one completed live apply that created six canonical people, nine
+reviewed slot bindings, one active voice/person binding, five references,
+fifteen profiles, and twenty-three selected enrollment sources. Those are
+Plan 0063 apply deltas, not the complete governed biometric inventory.
+
+Fresh read-only P0 discovery found seven active reference heads and twenty-one
+active model profiles across seven acoustic subjects and three governed
+adapters. The reference store also retains two superseded generations, and
+the profile store retains six superseded profiles. The active references bind
+sixty-three source claims over eleven distinct recording hashes. Five active
+subjects use canonical-person IDs directly, one older acoustic subject has an
+accepted explicit canonical-person binding, and one older active subject is
+not canonically bound. Its three profiles remain visible for lifecycle and
+drift accounting but are ineligible to emit a person candidate.
+
+The transcript document store currently contains 390 transcript artifacts:
+371 retain a source-recording blob, 320 have non-empty diarized utterances,
+276 have at least two diarized speaker labels, and 312 retain local calendar
+event context. The schema-v3 conversation sidecar has no projected
+conversations yet, so P0 must enumerate the authoritative document/blob store
+rather than treating `knowledge_conversations` as the historical corpus. Both
+transcript services are `active/running` with zero restarts.
 
 The repository already has per-speaker Clue Discovery and Identity Evaluation,
 bounded provider retrieval, canonical-person evidence bundles, acoustic shadow
@@ -90,6 +109,37 @@ P1 and P2 may run independently after P0. P3 joins them. P4 must pass before
 P5 can enable any automatic local acceptance. P6 does not authorize an
 external effect.
 
+### P0 corrected freeze contract
+
+- Inventory the complete live governed stores. Keep Plan 0063-created counts
+  separate from whole-store active, superseded, and withdrawn counts.
+- Reconcile every active reference head, eligible descendant, active model
+  profile, model revision, source generation, and state receipt. Any drift or
+  repeated profile identity fails closed.
+- Resolve acoustic subjects to canonical people only by direct canonical
+  person identity or an accepted explicit voice/person binding. Preserve
+  unbound subjects in the inventory with `missing_canonical_person_binding`;
+  they cannot become identity candidates.
+- Build the development exclusion from every source claim reachable from an
+  active reference, not only the twenty-three sources added by Plan 0063.
+  Exclude the whole recording hash and retain the exact source windows so
+  partial-window reuse cannot masquerade as unseen evidence.
+- Continue the established oldest-forward chronological corpus by recording
+  time and stable document ID. Exclude recordings already exposed through
+  prior speaker-identity gold, review, or prediction artifacts from the unseen
+  denominator; do not silently restart at chronological rank one.
+- Retain one reason-coded row for every recording considered through the
+  twelfth eligible selection. Structural eligibility requires a readable,
+  hash-matching transcript, a readable hash-matching source recording,
+  non-empty diarization with at least two labels, no repeated recording hash,
+  and no development overlap. Calendar context is classified independently as
+  locally available or requiring bounded P2 retrieval; lack of a calendar
+  event alone does not erase an otherwise eligible conversation.
+- Freeze at most twelve selected recordings in chronological order. P0 reads
+  no gold, scores no speaker, performs no historical reprocessing, and records
+  zero assignments, enrollments, provider writes, Graphiti writes, or other
+  external effects.
+
 ## Execution bounds
 
 - `max_work_unit_attempts`: 2 per packet.
@@ -115,6 +165,9 @@ subagents unless the user explicitly requests them.
   evidence bundles or a reason-coded unavailable state.
 - Active acoustic subjects resolve to canonical people only through reviewed
   voice/person bindings; agreement and conflict with context remain visible.
+- Active profiles whose acoustic subject lacks a reviewed canonical-person
+  binding remain inventoried but can only yield an unavailable/abstention
+  state, never a person candidate.
 - The resolver operates over the full speaker-slot set and supports both
   one-to-one coverage and same-person multi-label cases.
 - Residual assignment requires two accepted known-person bindings, exactly one
@@ -122,7 +175,8 @@ subagents unless the user explicitly requests them.
   support, complete provenance, and no material contradiction.
 - Ambiguous, incomplete, duplicate, or conflicting cases abstain and produce a
   useful audio-linked review rather than a context-free question.
-- Development sources never enter evaluation metrics as unseen evidence.
+- Development sources and recordings previously exposed through identity gold,
+  review, or prediction never enter evaluation metrics as unseen evidence.
 - The source-disjoint evaluation has zero unacceptable high-confidence wrong
   identities before any automatic local acceptance is enabled.
 - Accepted local observations round-trip through canonical profiles and

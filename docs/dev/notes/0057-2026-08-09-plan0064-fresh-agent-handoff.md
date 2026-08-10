@@ -23,12 +23,13 @@ accept a residual speaker only when one independently supported canonical
 candidate remains without material contradiction. Accepted local observations
 then enrich canonical/contact provenance for future retrieval.
 
-The next ready unit is Plan 0064 P0. Freeze the current active profile/person
-binding inventory and one chronological source-disjoint evaluation cohort of
-at most twelve conversations. Then P1 dynamic acoustic evidence and P2
-contextual evidence reuse may begin independently. No new operator approval is
-needed for ordinary implementation, testing, repair, private shadow artifacts,
-or bounded progression inside Plan 0064.
+The next ready unit is Plan 0064 P0. Freeze the complete active
+reference/profile/person-binding inventory and one oldest-forward,
+source-disjoint, previously unexposed evaluation cohort of at most twelve
+conversations. Then P1 dynamic acoustic evidence and P2 contextual evidence
+reuse may begin independently. No new operator approval is needed for ordinary
+implementation, testing, repair, private shadow artifacts, or bounded
+progression inside Plan 0064.
 
 ## Authority order
 
@@ -52,9 +53,13 @@ surfaces, not substitutes for those sources.
 
 - Repository: `/home/ecochran76/workspace.local/transcribe-audio`
 - Branch: `plan-0037-campaign`
-- Current pushed commit at handoff preparation:
+- Plan 0063 closeout commit:
   `d4d61a68af2996c8256eb4d6b1fa0484d8000ea6`
-- The branch was clean and exactly upstream-even before this handoff edit.
+- This handoff's pushed commit:
+  `ea1ba2f8194cf2b9c974a000ff1cc2ddfbc458bb`
+- Both commits are historical anchors. Require them to remain ancestors of the
+  current clean, upstream-even branch; do not require HEAD to stay frozen at
+  either commit while Plan 0064 progresses.
 - Plan 0063: `CLOSED`
 - Plan 0064: `OPEN`
 - No code changed in the Plan 0063 closeout/Plan 0064 planning commit.
@@ -81,14 +86,14 @@ The terminal receipt records:
 - six reviewed canonical people;
 - nine reviewed speaker-slot bindings;
 - one active enrolled-voice/person binding;
-- five biometric reference generations;
-- fifteen active model profiles;
+- five newly created biometric reference generations;
+- fifteen newly created active model profiles;
 - twenty-three selected enrollment sources;
 - one logical/live apply;
 - zero rollbacks; and
 - zero unauthorized effects.
 
-Its replayed current snapshot hashes are:
+Its replayed post-apply snapshot hashes are:
 
 - knowledge:
   `a7a97fa5fea5ca74f607bd71516f81ad36d09c91208e4d82bc87c8abc9b2e2e9`
@@ -96,6 +101,22 @@ Its replayed current snapshot hashes are:
   `474fd70b144d8017a27913fecf76b83f215de518bad7a5b45cb2db7f2678bae8`
 - references:
   `b117238c325de8d9f5fdffab3e82bfaf7b513dfbc629b79a93d2594389ac64bf`
+
+Complete live inventory discovered after the handoff commit:
+
+- seven active reference heads over seven acoustic subjects;
+- twenty-one active model profiles over three governed adapters;
+- two superseded reference generations and six superseded model profiles;
+- sixty-three active-reference source claims over eleven distinct recording
+  hashes;
+- five subjects directly identified by canonical-person IDs, one older subject
+  resolved by the accepted explicit voice/person binding, and one older active
+  subject with no reviewed canonical binding; and
+- eighteen identity-ready active profiles plus three unbound profiles that
+  must remain visible but cannot emit a person candidate.
+
+The Plan 0063-created 5/15/23 counts are deltas inside this 7/21 whole-store
+state. P0 must not freeze only the delta.
 
 Live roots:
 
@@ -164,16 +185,19 @@ Required outputs:
    bindings, active/withdrawn state, and current state hashes.
 2. A private, content-addressed inventory of authoritative voice-subject to
    canonical-person bindings and current canonical source affinities.
-3. An exact development exclusion set containing every Plan 0063 enrollment
-   recording and source window.
-4. A chronological candidate evaluation cohort of at most twelve eligible
-   recordings that is source-disjoint from all enrollment/development media.
+3. An exact development exclusion set containing every source claim reachable
+   from an active reference, including every Plan 0063 enrollment recording
+   and source window.
+4. An oldest-forward candidate evaluation cohort of at most twelve eligible
+   recordings that is source-disjoint from all enrollment/development media
+   and excludes prior speaker-identity gold, review, and prediction exposure.
 5. Eligibility, exclusion, overlap, media-availability, diarization, and
    context-availability reason codes for every considered recording.
 6. A frozen P0 receipt that records zero speaker assignments, new enrollments,
    provider writes, Graphiti writes, or historical reprocessing.
-7. Focused tests for inventory drift, withdrawn profiles, missing voice/person
-   bindings, source overlap, repeated recording hashes, and incomplete
+7. Focused tests for whole-store versus transition-delta accounting, inventory
+   drift, withdrawn profiles, missing voice/person bindings, source overlap,
+   prior-evaluation exposure, repeated recording hashes, and incomplete
    candidate denominators.
 
 P0 may read live user-scoped state and create private manifests/receipts. It
@@ -247,18 +271,19 @@ sqlite3 -readonly /home/ecochran76/.transcripts/transcripts.sqlite3 \
   "PRAGMA quick_check; SELECT COUNT(*) FROM knowledge_people;"
 ```
 
-Expected before handoff commit:
+Historical handoff baseline:
 
-- branch `plan-0037-campaign` at pushed commit `d4d61a6...`;
+- branch `plan-0037-campaign` with `d4d61a6...` and `ea1ba2f...` as pushed
+  ancestors;
 - upstream counts `0 0`;
 - Graphiti runtime healthy but focused recall stale for Plan 0064;
 - both services active/running with zero restarts;
 - SQLite `ok`; and
 - six canonical people.
 
-After reading the authority order, update the expected commit to this handoff's
-own pushed commit and proceed with P0 if the branch remains clean and
-upstream-even.
+Proceed with P0 when the current branch remains clean and upstream-even and
+both historical anchors remain ancestors. Record the current HEAD in each new
+P0 checkpoint rather than editing this handoff after every commit.
 
 Planning validation:
 
@@ -272,11 +297,13 @@ git diff --check
 
 ## Blockers and residual risk
 
-No current blocker prevents P0. The principal risks are training/evaluation
-overlap, using inactive profiles, losing authoritative voice/person bindings,
-and treating a context candidate as residual proof without independent slot
-support. Freeze and test those conditions before implementing automatic
-scoring or acceptance.
+No current blocker prevents P0. The principal risks are confusing Plan 0063
+apply deltas with the complete live inventory, training/evaluation or prior
+evaluation overlap, using inactive profiles, allowing the one unbound active
+subject to emit a person candidate, losing authoritative voice/person
+bindings, and treating a context candidate as residual proof without
+independent slot support. Freeze and test those conditions before implementing
+automatic scoring or acceptance.
 
 Graphiti discovery was healthy at handoff creation but returned older Plan
 0025 context and no Plan 0064 fact. Use it only as advisory routing until it is
