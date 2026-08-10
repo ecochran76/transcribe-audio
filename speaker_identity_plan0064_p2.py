@@ -117,6 +117,15 @@ class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
                 raise Plan0064P2Error(
                     "A fallback prompt artifact is not a regular file."
                 )
+            relative_parent = resolved.parent.relative_to(selected_root)
+            current_parent = selected_root
+            for part in relative_parent.parts:
+                current_parent = current_parent / part
+                if current_parent.is_symlink() or not current_parent.is_dir():
+                    raise Plan0064P2Error(
+                        "A fallback prompt artifact has an unsafe parent directory."
+                    )
+                current_parent.chmod(0o700)
             path.chmod(0o600)
             require_private_file(path, self.state_root)
         selected_prompt_path = selected_paths[1]
