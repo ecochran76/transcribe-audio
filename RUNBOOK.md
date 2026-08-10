@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 362: Complete and replay Plan 0064 P1/P2 (2026-08-09)
+
+Summary: Completed independent acoustic and contextual evidence packets over
+the exact P0 denominator. P1 scored all slots against the current active
+profile matrix. P2 preserved all slots, checkpointed completed workflows and
+reason-coded unavailable cases, and replayed without speaker, profile,
+knowledge, provider-write, or external effects.
+
+Evidence:
+
+- P1 preview `8dc9ef4e...`, evidence `b6a87465...`, and receipt `d0e2441a...`
+  cover 12 recordings, 39 speaker slots, and 819 trials. They produce 12
+  multi-model candidates, one single-model review, and 26 abstentions.
+- P2 preview `d6014903...` and receipt `50a7f4fd...` cover the same 12 recordings
+  and 39 slots. Four cases completed, eight are unavailable, 13 slots abstain,
+  and 26 slots are unavailable.
+- The primary App Intelligence route reached `usageLimitExceeded`. The
+  configured OpenAI-compatible fallback later returned
+  `credit_balance_exhausted`. Cases 9 through 12 were therefore checkpointed
+  as `provider_routes_unavailable` without another provider request.
+- P2 bridge `fc0f3a50...` validates the workflow-owned transcript identity
+  hydration while rejecting semantic cohort drift. Immediate P2 replay
+  returned `idempotent_replay: true`.
+- Assignment, enrollment, profile mutation, knowledge write, provider write,
+  and external-write counters remain zero.
+
+Next:
+
+- Join the exact P1 and P2 receipts in P3. Preserve independent evidence,
+  conflicts, unavailable pillars, and the residual-assignment safeguards.
+
 ## Turn 361: Freeze and replay Plan 0064 P0 (2026-08-09)
 
 Summary: Committed and pushed the corrected Plan 0064 P0 authority, froze the

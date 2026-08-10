@@ -801,8 +801,13 @@ Plan 0064 P0 is terminal on private content
 `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`:
 the complete seven-reference/twenty-one-profile inventory and twelve-recording
 oldest-forward source-disjoint cohort replay idempotently with zero identity,
-knowledge, provider, or external effects. P1 dynamic acoustic scoring and P2
-contextual evidence reuse are the next execution packets.
+knowledge, provider, or external effects. P1 dynamic acoustic evidence
+`b6a87465...` and receipt `d0e2441a...` cover all 39 slots and 819 trials. P2
+receipt `50a7f4fd...` preserves the same denominator with four completed
+context workflows, eight reason-coded unavailable cases, and an exact replay.
+The last four cases are unavailable because both configured model routes are
+externally exhausted. All effect counters remain zero. P3 conversation-level
+resolution is the next execution packet.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

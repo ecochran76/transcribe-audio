@@ -5,7 +5,8 @@ State: OPEN
 Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
 P0 is terminal on immutable private corpus
 `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`
-with zero identity or external effects; P1/P2 are next
+with zero identity or external effects; P1 and P2 are terminal and replayed;
+P3 is next
 
 Lane: P09/P10
 
@@ -109,6 +110,32 @@ knowledge.
 P1 and P2 may run independently after P0. P3 joins them. P4 must pass before
 P5 can enable any automatic local acceptance. P6 does not authorize an
 external effect.
+
+### P1 and P2 terminal checkpoint
+
+- P1 preview `8dc9ef4e6cde703869480409b9f7f0f3bda1489636671dfb27555c04369006e2`
+  scored all 39 speaker slots in the 12-recording P0 cohort against the active
+  governed profile matrix. Its immutable evidence content is
+  `b6a87465ddcdef0a781554c56cf1fe8bdad6b86c8ac7b5ae2905300db320bbb4`,
+  and its terminal receipt content is
+  `d0e2441adbbaadf22fd401946a36a858317d3f0f36a26a72607e7f2973407a30`.
+  The run completed 819 model/profile trials and produced 12 multi-model
+  candidates, one single-model review, and 26 abstentions.
+- P2 preview `d6014903bf89a4398d3fd392b9feae65d9105c093f21264d954a2649c5253a23`
+  preserved the same 12 recordings and 39 slots. Its terminal receipt content
+  is `50a7f4fd15b8c65c1faf4628309e72796661ac7760651eb7c9666d9117d9bd6b`.
+  Four contextual workflows completed, while eight became reason-coded
+  unavailable. The final four use `provider_routes_unavailable` after the
+  primary route reached `usageLimitExceeded` and the configured fallback
+  returned `credit_balance_exhausted`; no later retry occurred.
+- P2 validated and recorded the workflow-owned transcript identity hydration
+  in bridge content
+  `fc0f3a506492741623516f5aff7d7a5674f797a72a4f1bbb3aac18480cdae222`.
+  The bridge permits only synchronized conversation ID, recording ID, schema,
+  and artifact-hash changes on the selected transcript rows. It rejects any
+  semantic cohort drift.
+- Both packets replay idempotently. Speaker assignment, enrollment, profile,
+  knowledge, provider, and external-write counters remain zero.
 
 ### P0 corrected freeze contract
 
