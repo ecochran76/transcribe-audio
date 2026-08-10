@@ -13,8 +13,11 @@ import argparse
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 import json
+import os
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from acoustic_audio_derivatives import (
     canonical_artifact_hash,
@@ -24,6 +27,7 @@ from acoustic_audio_derivatives import (
     sha256_file,
     write_immutable_private_json,
 )
+import app_intelligence_ledger
 from speaker_evaluation_baseline import CasePredictionFailure, LocalSpeakerCaseRunner
 from speaker_identity_plan0064_p0 import DEFAULT_RUNTIME_ROOT, replay_p0
 
@@ -43,6 +47,144 @@ ACTION_COUNTS = {
 
 class Plan0064P2Error(ValueError):
     """Raised when P2 authority, model evidence, or replay drifts."""
+
+
+class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
+    """Configured direct-HTTP fallback when the primary app-server is unavailable."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str = "",
+        api_key: str = "",
+        model: str = "gpt-4o-mini",
+        timeout_seconds: float = 180.0,
+        state_root: Path = Path("~/.local/state/transcribe-audio"),
+    ) -> None:
+        super().__init__(timeout_seconds=timeout_seconds)
+        self.openai_base_url = (
+            base_url or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+        ).rstrip("/")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
+        self.model = model
+        self.state_root = state_root.expanduser().absolute()
+        if not self.api_key:
+            raise Plan0064P2Error("The configured OpenAI-compatible fallback lacks an API key.")
+
+    def _direct_readout(self, prepared: Mapping[str, Any]) -> dict[str, Any]:
+        run_id = str(prepared.get("run_id") or "")
+        packet = prepared.get("prompt_packet")
+        prompt = str(packet.get("prompt_text") or "") if isinstance(packet, Mapping) else ""
+        if not run_id or not prompt:
+            raise Plan0064P2Error("The fallback run lacks a prepared host prompt.")
+        app_intelligence_ledger.append_event(
+            state_root=self.state_root,
+            run_id=run_id,
+            event_type="model_turn_fallback_started",
+            payload={
+                "provider": "openai-compatible",
+                "model": self.model,
+                "host_owns_control_flow": True,
+                "will_execute_downstream_action": False,
+            },
+        )
+        try:
+            response = requests.post(
+                f"{self.openai_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "temperature": 0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "Return only the requested JSON object. Do not execute actions.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise Plan0064P2Error("The OpenAI-compatible fallback request failed.") from exc
+        if response.status_code >= 400:
+            raise Plan0064P2Error(
+                f"The OpenAI-compatible fallback returned HTTP {response.status_code}."
+            )
+        try:
+            payload = response.json()
+            content = str(payload["choices"][0]["message"]["content"])
+            readout = app_intelligence_ledger.extract_json_object(content)
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise Plan0064P2Error("The fallback response was not a JSON object.") from exc
+        app_intelligence_ledger.append_event(
+            state_root=self.state_root,
+            run_id=run_id,
+            event_type="model_turn_fallback_completed",
+            payload={
+                "provider": "openai-compatible",
+                "model": self.model,
+                "output_sha256": _hash(readout),
+                "will_execute_downstream_action": False,
+            },
+        )
+        return readout
+
+    def __call__(self, document_id: str) -> dict[str, Any]:
+        discovery = self._post(
+            f"/api/conversations/{document_id}/speaker-preprocessing/prepare-discovery",
+            {},
+        )
+        run_references = {"clue_discovery_run_id": discovery["run_id"]}
+        discovery_readout = self._direct_readout(discovery)
+        try:
+            evaluation = self._post(
+                f"/api/conversations/{document_id}/speaker-preprocessing/prepare-evaluation",
+                {
+                    "clue_discovery_run_id": discovery["run_id"],
+                    "discovery_readout": discovery_readout,
+                },
+            )
+        except ValueError as exc:
+            raise CasePredictionFailure(
+                "fallback_clue_discovery_validation",
+                str(exc),
+                run_references=run_references,
+            ) from exc
+        run_references["identity_evaluation_run_id"] = evaluation["run_id"]
+        evaluation_readout = self._direct_readout(evaluation)
+        try:
+            persisted = self._post(
+                f"/api/conversations/{document_id}/speaker-preprocessing/capture-evaluation",
+                {**run_references, "readout": evaluation_readout},
+            )
+        except ValueError as exc:
+            raise CasePredictionFailure(
+                "fallback_identity_evaluation_validation",
+                str(exc),
+                run_references=run_references,
+            ) from exc
+        record = persisted.get("record") if isinstance(persisted.get("record"), dict) else {}
+        current_id = str(record.get("current_evaluation_id") or "")
+        prediction = next(
+            (
+                item
+                for item in record.get("evaluations") or []
+                if isinstance(item, dict) and str(item.get("evaluation_id") or "") == current_id
+            ),
+            None,
+        )
+        if prediction is None:
+            raise Plan0064P2Error("Fallback capture did not expose its current evaluation.")
+        return {
+            "prediction": prediction,
+            "run_references": run_references,
+            "execution_provider": "openai-compatible",
+        }
 
 
 def _hash(value: Any) -> str:
@@ -239,6 +381,9 @@ def _successful_case(
             "evaluation_id": str(prediction.get("evaluation_id") or ""),
             "evaluation_status": str(prediction.get("status") or ""),
             "run_references": dict(result.get("run_references") or {}),
+            "execution_provider": str(
+                result.get("execution_provider") or "codex-app-server"
+            ),
             "speaker_slots": rows,
             "prediction": dict(prediction),
             "provider_failures": list(prediction.get("source_failures") or []),
@@ -316,6 +461,14 @@ def execute_p2(
         "provider_failure_count": sum(len(case["provider_failures"]) for case in cases),
         "warning_count": sum(len(case["warnings"]) for case in cases),
         "app_intelligence_run_count": sum(len(case["run_references"]) for case in cases),
+        "execution_provider_counts": dict(
+            sorted(
+                Counter(
+                    str(case.get("execution_provider") or "unavailable")
+                    for case in cases
+                ).items()
+            )
+        ),
     }
     case_hashes = [
         case["content_sha256"]
@@ -382,11 +535,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("action", choices=("preview", "execute", "replay"))
     parser.add_argument("--p0-content-sha256", required=True)
     parser.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
+    parser.add_argument(
+        "--runner",
+        choices=("codex-app-server", "openai-compatible"),
+        default="codex-app-server",
+    )
     args = parser.parse_args(argv)
     if args.action == "preview":
         result = build_p2_preview(args.p0_content_sha256, runtime_root=args.runtime_root)
     elif args.action == "execute":
-        result = execute_p2(args.p0_content_sha256, runtime_root=args.runtime_root)
+        factory = (
+            OpenAICompatibleCaseRunner
+            if args.runner == "openai-compatible"
+            else LocalSpeakerCaseRunner
+        )
+        result = execute_p2(
+            args.p0_content_sha256,
+            runtime_root=args.runtime_root,
+            runner_factory=factory,
+        )
     else:
         result = replay_p2(args.p0_content_sha256, runtime_root=args.runtime_root)
     print(json.dumps(result, indent=2, sort_keys=True))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -161,4 +162,50 @@ def test_unexpected_prediction_shape_fails_closed():
     with pytest.raises(p2.Plan0064P2Error, match="no prediction"):
         p2._successful_case(
             document_id="doc", speaker_labels=["A"], result={}, canonical_people=PEOPLE
+        )
+
+
+def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
+    events = []
+    monkeypatch.setattr(
+        p2.app_intelligence_ledger,
+        "append_event",
+        lambda **kwargs: events.append(kwargs) or {},
+    )
+    monkeypatch.setattr(
+        p2.requests,
+        "post",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "choices": [{"message": {"content": '{"schema_version":"test"}'}}]
+            },
+        ),
+    )
+    runner = p2.OpenAICompatibleCaseRunner(
+        api_key="test-key", base_url="https://example.invalid/v1",
+        state_root=tmp_path,
+    )
+    readout = runner._direct_readout(
+        {"run_id": "run-1", "prompt_packet": {"prompt_text": "Return JSON."}}
+    )
+    assert readout == {"schema_version": "test"}
+    assert [event["event_type"] for event in events] == [
+        "model_turn_fallback_started",
+        "model_turn_fallback_completed",
+    ]
+    assert all(event["payload"]["provider"] == "openai-compatible" for event in events)
+
+
+def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
+    monkeypatch.setattr(p2.app_intelligence_ledger, "append_event", lambda **_kwargs: {})
+    monkeypatch.setattr(
+        p2.requests,
+        "post",
+        lambda *_args, **_kwargs: SimpleNamespace(status_code=429),
+    )
+    runner = p2.OpenAICompatibleCaseRunner(api_key="test-key", state_root=tmp_path)
+    with pytest.raises(p2.Plan0064P2Error, match="HTTP 429"):
+        runner._direct_readout(
+            {"run_id": "run-1", "prompt_packet": {"prompt_text": "Return JSON."}}
         )
