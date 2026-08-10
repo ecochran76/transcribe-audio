@@ -61,6 +61,21 @@ class Plan0064P2Error(ValueError):
     """Raised when P2 authority, model evidence, or replay drifts."""
 
 
+class ProviderUnavailableCaseRunner:
+    """Close the denominator after both configured model routes fail externally."""
+
+    def __call__(self, _document_id: str) -> Mapping[str, Any]:
+        raise CasePredictionFailure(
+            "provider_routes_unavailable",
+            (
+                "The primary codex-app-server route reached usageLimitExceeded, "
+                "and the configured OpenAI-compatible fallback reached "
+                "credit_balance_exhausted; no further provider request was made."
+            ),
+            run_references={},
+        )
+
+
 class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
     """Configured direct-HTTP fallback when the primary app-server is unavailable."""
 
@@ -545,6 +560,11 @@ def _failure_case(
     *, document_id: str, speaker_labels: Sequence[str], stage: str,
     message: str, run_references: Mapping[str, Any],
 ) -> dict[str, Any]:
+    reason_code = (
+        stage
+        if stage == "provider_routes_unavailable"
+        else "context_workflow_failed"
+    )
     return _content_addressed(
         {
             "schema_version": CASE_SCHEMA,
@@ -558,7 +578,7 @@ def _failure_case(
                     "speaker_ref": f"{document_id}::{label}",
                     "speaker_label": label,
                     "disposition": "unavailable",
-                    "reason_code": "context_workflow_failed",
+                    "reason_code": reason_code,
                     "candidate_person_id": None,
                     "candidates": [],
                 }
@@ -771,18 +791,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--runtime-root", type=Path, default=DEFAULT_RUNTIME_ROOT)
     parser.add_argument(
         "--runner",
-        choices=("codex-app-server", "openai-compatible"),
+        choices=(
+            "codex-app-server",
+            "openai-compatible",
+            "provider-unavailable",
+        ),
         default="codex-app-server",
     )
     args = parser.parse_args(argv)
     if args.action == "preview":
         result = build_p2_preview(args.p0_content_sha256, runtime_root=args.runtime_root)
     elif args.action == "execute":
-        factory = (
-            OpenAICompatibleCaseRunner
-            if args.runner == "openai-compatible"
-            else LocalSpeakerCaseRunner
-        )
+        factory = {
+            "codex-app-server": LocalSpeakerCaseRunner,
+            "openai-compatible": OpenAICompatibleCaseRunner,
+            "provider-unavailable": ProviderUnavailableCaseRunner,
+        }[args.runner]
         result = execute_p2(
             args.p0_content_sha256,
             runtime_root=args.runtime_root,

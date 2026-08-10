@@ -82,6 +82,22 @@ def test_failure_case_preserves_complete_slot_denominator():
     assert case["action_counts"] == p2.ACTION_COUNTS
 
 
+def test_provider_unavailable_runner_is_reason_coded_without_model_work():
+    with pytest.raises(p2.CasePredictionFailure) as raised:
+        p2.ProviderUnavailableCaseRunner()("doc")
+    assert raised.value.stage == "provider_routes_unavailable"
+    case = p2._failure_case(
+        document_id="doc",
+        speaker_labels=["A", "B"],
+        stage=raised.value.stage,
+        message=str(raised.value),
+        run_references=raised.value.run_references,
+    )
+    assert {
+        row["reason_code"] for row in case["speaker_slots"]
+    } == {"provider_routes_unavailable"}
+
+
 def test_execute_checkpoints_each_case_and_replays_without_new_model_turns(
     tmp_path, monkeypatch
 ):
