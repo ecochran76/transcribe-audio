@@ -1,8 +1,50 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
+from types import SimpleNamespace
 
 import speaker_identity_plan0064_development_replay as development
+
+
+def test_repository_authority_is_stable_across_unrelated_commits(monkeypatch):
+    module_bytes = b"committed development replay module"
+    module_commit = "a" * 40
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        if command[1:3] == ["status", "--porcelain=v1"]:
+            return SimpleNamespace(returncode=0, stdout="")
+        if command[1:3] == ["rev-list", "--left-right"]:
+            return SimpleNamespace(returncode=0, stdout="0 0\n")
+        if command[1:3] == ["log", "-1"]:
+            return SimpleNamespace(returncode=0, stdout=f"{module_commit}\n")
+        if command[1] == "show":
+            assert command[2] == (
+                f"{module_commit}:speaker_identity_plan0064_development_replay.py"
+            )
+            return SimpleNamespace(returncode=0, stdout=module_bytes)
+        raise AssertionError(command)
+
+    monkeypatch.setattr(development.subprocess, "run", run)
+    monkeypatch.setattr(
+        development,
+        "sha256_file",
+        lambda _path: hashlib.sha256(module_bytes).hexdigest(),
+    )
+
+    authority = development._repository_authority()
+
+    assert authority == {
+        "module_commit": module_commit,
+        "module_name": "speaker_identity_plan0064_development_replay.py",
+        "module_sha256": hashlib.sha256(module_bytes).hexdigest(),
+        "clean": True,
+        "upstream_ahead": 0,
+        "upstream_behind": 0,
+    }
+    assert not any(command[1:3] == ["rev-parse", "HEAD"] for command in commands)
 
 
 def _transition():

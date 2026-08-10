@@ -133,15 +133,16 @@ def _repository_authority() -> dict[str, Any]:
         text=True,
         check=False,
     )
-    commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+    module_commit = subprocess.run(
+        ["git", "log", "-1", "--format=%H", "--", Path(__file__).name],
         cwd=root,
         capture_output=True,
         text=True,
         check=False,
     )
+    module_commit_sha = module_commit.stdout.strip()
     committed = subprocess.run(
-        ["git", "show", f"HEAD:{Path(__file__).name}"],
+        ["git", "show", f"{module_commit_sha}:{Path(__file__).name}"],
         cwd=root,
         capture_output=True,
         check=False,
@@ -152,15 +153,17 @@ def _repository_authority() -> dict[str, Any]:
         or status.stdout.strip()
         or even.returncode
         or even.stdout.split() != ["0", "0"]
-        or commit.returncode
+        or module_commit.returncode
+        or len(module_commit_sha) != 40
         or committed.returncode
         or hashlib.sha256(committed.stdout).hexdigest() != local_sha256
     ):
         raise Plan0064DevelopmentReplayError(
             "Development replay requires a clean, upstream-even committed module."
-        )
+    )
     return {
-        "commit": commit.stdout.strip(),
+        "module_commit": module_commit_sha,
+        "module_name": Path(__file__).name,
         "module_sha256": local_sha256,
         "clean": True,
         "upstream_ahead": 0,
