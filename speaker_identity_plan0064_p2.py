@@ -92,10 +92,34 @@ class OpenAICompatibleCaseRunner(LocalSpeakerCaseRunner):
             else ""
         )
         prompt_path = str(prepared.get("prompt_path") or "")
-        if not run_id or not prompt_path or prompt_path != packet_prompt_path:
+        packet_path = str(prepared.get("packet_path") or "")
+        if (
+            not run_id
+            or not prompt_path
+            or prompt_path != packet_prompt_path
+            or not packet_path
+        ):
             raise Plan0064P2Error("The fallback run lacks a prepared host prompt.")
-        selected_prompt_path = Path(prompt_path).expanduser().absolute()
-        require_private_file(selected_prompt_path, self.state_root)
+        selected_paths = [
+            Path(packet_path).expanduser().absolute(),
+            Path(prompt_path).expanduser().absolute(),
+        ]
+        selected_root = self.state_root.resolve(strict=True)
+        for path in selected_paths:
+            resolved = path.resolve(strict=True)
+            try:
+                resolved.relative_to(selected_root)
+            except ValueError as exc:
+                raise Plan0064P2Error(
+                    "A fallback prompt artifact escaped the private state root."
+                ) from exc
+            if path.is_symlink() or not path.is_file():
+                raise Plan0064P2Error(
+                    "A fallback prompt artifact is not a regular file."
+                )
+            path.chmod(0o600)
+            require_private_file(path, self.state_root)
+        selected_prompt_path = selected_paths[1]
         prompt = selected_prompt_path.read_text(encoding="utf-8")
         if not prompt.strip():
             raise Plan0064P2Error("The fallback host prompt is empty.")

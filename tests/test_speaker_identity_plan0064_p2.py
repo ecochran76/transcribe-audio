@@ -168,9 +168,12 @@ def test_unexpected_prediction_shape_fails_closed():
 
 def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
     events = []
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text("{}", encoding="utf-8")
+    packet_path.chmod(0o644)
     prompt_path = tmp_path / "prompt.txt"
     prompt_path.write_text("Return JSON.", encoding="utf-8")
-    prompt_path.chmod(0o600)
+    prompt_path.chmod(0o644)
     monkeypatch.setattr(
         p2.app_intelligence_ledger,
         "append_event",
@@ -193,6 +196,7 @@ def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
     readout = runner._direct_readout(
         {
             "run_id": "run-1",
+            "packet_path": str(packet_path),
             "prompt_path": str(prompt_path),
             "prompt_packet": {"prompt_path": str(prompt_path)},
         }
@@ -203,9 +207,14 @@ def test_openai_fallback_records_host_ledger_events(monkeypatch, tmp_path):
         "model_turn_fallback_completed",
     ]
     assert all(event["payload"]["provider"] == "openai-compatible" for event in events)
+    assert packet_path.stat().st_mode & 0o777 == 0o600
+    assert prompt_path.stat().st_mode & 0o777 == 0o600
 
 
 def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text("{}", encoding="utf-8")
+    packet_path.chmod(0o600)
     prompt_path = tmp_path / "prompt.txt"
     prompt_path.write_text("Return JSON.", encoding="utf-8")
     prompt_path.chmod(0o600)
@@ -220,6 +229,7 @@ def test_openai_fallback_http_error_fails_closed(monkeypatch, tmp_path):
         runner._direct_readout(
             {
                 "run_id": "run-1",
+                "packet_path": str(packet_path),
                 "prompt_path": str(prompt_path),
                 "prompt_packet": {"prompt_path": str(prompt_path)},
             }
