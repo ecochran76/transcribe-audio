@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 365: Add original recording filenames to Plan 0064 review (2026-08-10)
+
+Summary: Rebuilt and republished the private Plan 0064 P4 worksheet so every
+speaker card shows the original recording basename beside its direct-audio
+sample. The decision contract is unchanged, no human decisions were inferred,
+and P5/P6 remain withheld.
+
+Evidence:
+
+- Commit `851d2ab` derives each displayed filename only from the basename of
+  the hash-bound source media path. It never exposes the private parent path or
+  substitutes a working-media filename.
+- Review preview `87a58a64...`, authority `e2df49c9...`, filename-set
+  `97eeb3ed...`, clip set `9b372144...`, and receipt `22bbfd4e...` bind 12
+  original recording filenames to the existing 39 speaker-specific clips.
+  Exact replay is idempotent and every assignment, enrollment, profile,
+  knowledge, provider, and external-write counter remains zero.
+- P4 now consumes the exact frozen P0/P2/P3 lineage instead of rebuilding the
+  append-only transcript inventory. The P2 hydration bridge remains the only
+  authority for the nine transcript rows whose content hashes changed during
+  the frozen contextual workflow.
+- Browser validation found 39 cards, 39 filename labels, 39 selectors, and 39
+  audio controls. The 12 distinct basenames are readable beside their correct
+  clips; one clip advanced during playback with ready state 4 and no media
+  error. The export is disabled at 0/39, no model prediction is shown, desktop
+  layout is intact, and the 390-pixel layout has no horizontal overflow.
+- Authenticated Previews artifact `dbfba8a5b884`, session `9357f163bc29`,
+  supersedes the filename-free worksheet. The public route correctly redirects
+  unauthenticated clients to login.
+- Focused review and measurement tests pass 8 tests; the full suite passes
+  1,040 tests in 58.33 seconds. Python compilation and `git diff --check` pass.
+
+Next:
+
+- Obtain the complete literal 39-row human-gold export from the replacement
+  worksheet and run the strict P4 measurement. Do not authorize P5 unless both
+  the source-disjoint gate and the reviewed residual-rule gate pass; keep P6
+  and all external effects withheld.
+
 ## Turn 364: Implement Plan 0064 measurement and fail residual gate (2026-08-09)
 
 Summary: Added strict authority-bound P4 human-gold ingestion and measurement,

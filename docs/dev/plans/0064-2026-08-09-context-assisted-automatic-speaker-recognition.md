@@ -151,15 +151,22 @@ external effect.
   with zero candidates and zero residual acceptances because P2 produced no
   canonical context candidate. This preserves the independent evidence
   pillars and does not manufacture agreement.
-- P4 review receipt `f0816114de9e1711f2cf3e844b1441a644a63a9f793faef8b3cb8716309c61c8`
-  binds 39 private speaker-specific clips and review authority
-  `6df988b11c152b78f9da59ab6d2324516082196d70d0340ecba2298051582f67`.
-  The review hides model predictions and requires one literal decision for
-  every slot before it exports the decision contract.
-- Browser checks found 39 cards, 39 playable audio controls, and 39 selectors;
-  the export stays disabled at 0/39 and becomes enabled only at 39/39. Desktop
-  and 390-pixel mobile screenshots show the question adjacent to its audio and
-  decision control.
+- P4 review v2 receipt
+  `22bbfd4eb3559801af97dab4f94dbb1d79c559820e1297a74299e77a79612680`
+  binds 39 private speaker-specific clips, review authority
+  `e2df49c9fb081ea50d17d77a09b8c26a577b0e6f3cb3b64d8acb580e7b8a0daf`,
+  and the 12-source original-recording filename set
+  `97eeb3ed600491117ebb889ce6476735575050d75f48428cca36a34959764ca5`.
+  Each card shows only the basename from its hash-bound source media path; no
+  private parent directory is exposed. The review hides model predictions and
+  requires one literal decision for every slot before it exports the unchanged
+  decision contract.
+- Browser checks found 39 cards, 39 original-filename labels, 39 playable audio
+  controls, and 39 selectors; the export stays disabled at 0/39 and becomes
+  enabled only at 39/39. Desktop and 390-pixel mobile screenshots show the
+  filename and question adjacent to the correct audio and decision control,
+  with no mobile horizontal overflow. Authenticated Previews artifact
+  `dbfba8a5b884` supersedes the filename-free review artifact.
 - P4 source-disjoint measurement remains blocked on the complete 39-row
   human-gold export. No P5 apply authority exists.
 

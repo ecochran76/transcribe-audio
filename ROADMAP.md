@@ -809,11 +809,14 @@ The last four cases are unavailable because both configured model routes are
 externally exhausted. All effect counters remain zero. P3 conversation-level
 resolution is terminal at receipt `b630d12d...`: acoustic-only has 12
 candidates, while combined and residual-policy remain fully review/abstain
-because context produced no canonical candidate. P4 review receipt
-`f0816114...` binds all 39 private direct-audio decisions and is browser
-verified. Strict authority-bound human-gold ingestion and four-condition
-measurement are implemented, but measurement still waits for the complete
-literal 39-row export. The exact three-conversation reviewed development replay
+because context produced no canonical candidate. P4 review v2 receipt
+`22bbfd4e...` binds all 39 private direct-audio decisions, the 12-source
+original-recording filename set `97eeb3ed...`, and is browser verified on
+desktop and mobile. Each review card exposes only the hash-bound source
+basename; the strict decision export remains unchanged. Strict authority-bound
+human-gold ingestion and four-condition measurement are implemented, but
+measurement still waits for the complete literal 39-row export. The exact
+three-conversation reviewed development replay
 produced three correct pillar-agreement acceptances, zero high-support wrong
 identities, and zero acceptances through the specific residual rule, so its
 non-vacuous gate failed. P5 local acceptance remains unauthorized even after
