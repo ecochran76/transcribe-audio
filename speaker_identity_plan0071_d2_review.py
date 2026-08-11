@@ -132,7 +132,7 @@ def _prediction_authority(runtime_root: Path) -> dict[str, Any]:
     people = plan0064_p4._people(
         read_private_object(Path(inherited["p0_binding"]["path"]))
     )
-    if len(people) != 7:
+    if len(people) != 6:
         raise Plan0071D2ReviewError("The canonical decision roster drifted.")
     return {
         "replay": replay,

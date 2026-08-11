@@ -40,3 +40,43 @@ def test_review_binds_exact_prediction_terminal() -> None:
         "bf1876e0610f668ea8eaa4f5a0c4f3748540df36523e39b4410eb8428ebfe931"
     )
     assert all(value == 0 for value in review.MUTATION_EFFECT_COUNTS.values())
+
+
+def test_prediction_authority_requires_frozen_six_person_roster(monkeypatch) -> None:
+    monkeypatch.setattr(review.attempt2, "replay_attempt2", lambda **_kwargs: {
+        "content_sha256": review.PREDICTION_RECEIPT_CONTENT_SHA256
+    })
+    monkeypatch.setattr(review.attempt2, "_paths", lambda _root: {
+        "manifest": "manifest.json", "resolution": "resolution.json"
+    })
+    manifest = {
+        "content_sha256": review.PREDICTION_MANIFEST_CONTENT_SHA256,
+        "human_gold_read": False,
+        "execution_counts": {"capture_evaluation_calls": 0},
+        "mutation_effect_counts": review.MUTATION_EFFECT_COUNTS,
+    }
+    resolution = {
+        "content_sha256": review.PREDICTION_RESOLUTION_CONTENT_SHA256
+    }
+    monkeypatch.setattr(
+        review,
+        "read_private_object",
+        lambda path: manifest if str(path) == "manifest.json" else resolution,
+    )
+    monkeypatch.setattr(review, "_validate_content", lambda *_args: None)
+    monkeypatch.setattr(review.predictions, "_bound_authorities", lambda _root: {
+        "cohort_manifest": {}, "p0_binding": {"path": "p0.json"}
+    })
+    monkeypatch.setattr(review.predictions, "_selected", lambda _manifest: [])
+    monkeypatch.setattr(
+        review.plan0064_p4,
+        "_people",
+        lambda _manifest: [
+            {"person_id": str(index), "display_name": f"Person {index}"}
+            for index in range(6)
+        ],
+    )
+
+    result = review._prediction_authority(review.DEFAULT_RUNTIME_ROOT)
+
+    assert len(result["people"]) == 6
