@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 369: Freeze Plan 0065 D0 diagnostic authority (2026-08-11)
+
+Summary: Completed D0 with immutable, replayed development authority and no
+model turn or product effect. D1 acoustic safety recovery is now the only
+active packet; D2 is independently ready but remains serialized.
+
+Evidence:
+
+- Private manifest `a38891bb...` and receipt `14290463...` replay exactly.
+- The permanent exposure set binds 23 recording hashes, 63 source windows,
+  39 review clips, and 39 human-gold decision references. All Plan 0064 and
+  earlier reference-development sources are excluded from fresh evaluation.
+- Current inventory binds seven active references, 21 active profiles, and 18
+  identity-ready profiles. The configured speaker-disambiguation primary route
+  is ready; D0 started no session and sent no model turn.
+- The first freeze attempt failed before artifact creation when the live task
+  route proved keyed-object shaped. A red-capable regression covers the
+  corrected parser at commit `75ab717`; the adjacent Plan 0064/0065 suite
+  passes 47 tests.
+- Speaker assignments, enrollments, profile/reference mutations, threshold
+  changes, knowledge/Graphiti/provider/external writes, historical
+  reprocessing, and model turns all remain zero.
+- Progress classification is `blocker_reduction`: authority and exposure are
+  frozen, while all D1-D3 and E0-E3 acceptance work remains open.
+
+Next:
+
+- Reproduce the 11 correct and one wrong Plan 0064 acoustic candidates, test
+  probe/diarization purity independently from calibration and consensus, and
+  freeze one reusable D1 safety policy or terminate `acoustic_recovery_failed`.
+
 ## Turn 368: Activate Plan 0065 recovery execution (2026-08-11)
 
 Summary: The operator explicitly activated no-apply Plan 0065. The repository

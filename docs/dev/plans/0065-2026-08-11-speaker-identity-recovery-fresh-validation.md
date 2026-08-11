@@ -8,8 +8,9 @@ high-support wrong identity, context produced zero candidates, and neither the
 reviewed-development nor source-disjoint corpus exercised a correct residual
 acceptance. The operator explicitly activated Plan 0065 on 2026-08-11 from a
 clean, upstream-even repository at `8e252c268acdb0e4a44342023b1db415ecd7c148`.
-D0 is active; no provider/model execution, identity mutation, knowledge write,
-or external effect has occurred.
+D0 is complete at immutable manifest `a38891bb...` and zero-effect receipt
+`14290463...`; exact replay is idempotent. D1 is active. No provider/model
+turn, identity mutation, knowledge write, or external effect has occurred.
 
 Lane: P09/P10
 
@@ -228,6 +229,29 @@ route budget.
 
 Delegation receipt: `not_spawned`. Current system authority forbids proactive
 subagents unless the user explicitly requests them.
+
+## Checkpoints
+
+### D0 | Complete (2026-08-11)
+
+- Immutable private manifest `a38891bb...` binds the exact Plan 0064 terminal,
+  gold, acoustic, contextual, resolver, review, and development-gate lineage.
+  Plan 0064 replays `withhold_p5` exactly.
+- The permanent development exclusion contains 23 recording hashes, 63 source
+  windows, 39 review clips, and all 39 literal decision references. It contains
+  the 12 Plan 0064 recordings plus every earlier reference-development source.
+- Current read-only inventory contains seven active references, 21 active
+  profiles, and 18 identity-ready profiles. Current contextual routing is
+  ready for bounded execution.
+- Receipt `14290463...` replays exactly with every action counter, including
+  model turns and historical reprocessing, equal to zero.
+- The first freeze attempt failed closed before artifact creation because the
+  live task map is keyed rather than list-shaped. The corrected parser is
+  covered by regression tests and committed at `75ab717`; no extra route or
+  model turn was consumed.
+- Progress classification: `blocker_reduction`. D0 removes authority and
+  exposure ambiguity; it does not itself satisfy acoustic, context, residual,
+  or fresh-evaluation acceptance.
 
 ## Acceptance Criteria
 
