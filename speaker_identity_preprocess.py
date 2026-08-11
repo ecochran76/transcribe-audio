@@ -883,6 +883,115 @@ def _validated_factor_assessments(
     return result
 
 
+def normalize_grouped_utterance_assignments(
+    packet: dict[str, Any],
+    readout: dict[str, Any],
+) -> dict[str, Any]:
+    """Expand unambiguous plural utterance assignments without mutating input."""
+
+    _, evidence_ids, _, independence_keys = _prepared_identity_references(packet)
+    prepared_utterance_ids = {
+        evidence_id
+        for evidence_id, independence_key in independence_keys.items()
+        if independence_key.startswith("transcript:")
+    }
+    result = json.loads(json.dumps(readout))
+    assignments = result.get("speaker_assignments")
+    if not isinstance(assignments, list):
+        raise ValueError("Identity evaluation speaker_assignments must be a list.")
+    seen_utterance_ids: set[str] = set()
+    changes: list[dict[str, Any]] = []
+    expanded_count = 0
+    for assignment_index, assignment in enumerate(assignments):
+        if not isinstance(assignment, dict):
+            raise ValueError("Identity evaluation contains a non-object speaker assignment.")
+        utterances = assignment.get("utterance_assignments", [])
+        if not isinstance(utterances, list):
+            raise ValueError("Speaker assignment utterance_assignments must be a list.")
+        expanded: list[dict[str, Any]] = []
+        for utterance_index, utterance in enumerate(utterances):
+            if not isinstance(utterance, dict):
+                raise ValueError("Speaker assignment contains a non-object utterance assignment.")
+            path = (
+                f"speaker_assignments[{assignment_index}]."
+                f"utterance_assignments[{utterance_index}]"
+            )
+            has_singular = "utterance_id" in utterance
+            has_plural = "utterance_ids" in utterance
+            if has_singular and has_plural:
+                raise ValueError(
+                    f"Utterance assignment has both utterance_id and utterance_ids: {path}."
+                )
+            if not has_plural:
+                utterance_id = normalize_string(utterance.get("utterance_id"))
+                if utterance_id not in prepared_utterance_ids:
+                    raise ValueError(
+                        f"Utterance assignment references unprepared evidence: {utterance_id}."
+                    )
+                if utterance_id in seen_utterance_ids:
+                    raise ValueError(
+                        f"Utterance {utterance_id} is assigned more than once."
+                    )
+                seen_utterance_ids.add(utterance_id)
+                expanded.append(utterance)
+                continue
+
+            grouped_ids = utterance.get("utterance_ids")
+            if not isinstance(grouped_ids, list) or not grouped_ids:
+                raise ValueError(
+                    f"Grouped utterance_ids must be a non-empty list: {path}."
+                )
+            if any(
+                not isinstance(value, str)
+                or not value.strip()
+                or value != value.strip()
+                for value in grouped_ids
+            ):
+                raise ValueError(
+                    f"Grouped utterance_ids must contain exact non-empty strings: {path}."
+                )
+            if len(set(grouped_ids)) != len(grouped_ids):
+                raise ValueError(f"Grouped utterance_ids contains a duplicate: {path}.")
+            unknown = set(grouped_ids) - prepared_utterance_ids
+            if unknown:
+                raise ValueError(
+                    f"Grouped utterance assignment references unprepared evidence: {sorted(unknown)}."
+                )
+            duplicate = set(grouped_ids) & seen_utterance_ids
+            if duplicate:
+                raise ValueError(
+                    f"Utterance {sorted(duplicate)[0]} is assigned more than once."
+                )
+            base = {
+                key: json.loads(json.dumps(value))
+                for key, value in utterance.items()
+                if key != "utterance_ids"
+            }
+            for utterance_id in grouped_ids:
+                expanded.append(
+                    {
+                        **json.loads(json.dumps(base)),
+                        "utterance_id": utterance_id,
+                    }
+                )
+            seen_utterance_ids.update(grouped_ids)
+            expanded_count += len(grouped_ids)
+            changes.append(
+                {
+                    "path": path,
+                    "utterance_ids": list(grouped_ids),
+                    "expanded_count": len(grouped_ids),
+                }
+            )
+        assignment["utterance_assignments"] = expanded
+    return {
+        "readout": result,
+        "normalized_group_count": len(changes),
+        "expanded_utterance_assignment_count": expanded_count,
+        "changes": changes,
+    }
+
+
 def validate_and_score_identity_evaluation(
     packet: dict[str, Any],
     readout: dict[str, Any],

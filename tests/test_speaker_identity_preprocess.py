@@ -749,6 +749,123 @@ def test_validate_identity_evaluation_supports_grouped_and_utterance_assignments
     ]
 
 
+def test_normalize_grouped_utterance_assignments_expands_and_preserves_fields() -> None:
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=_discovery_transcript(),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+    grouped = {
+        "utterance_ids": ["utterance-1", "utterance-2"],
+        "person_id": "",
+        "status": "unresolved",
+        "rationale": "One conclusion for both utterances.",
+        "review_flags": ["human_confirmation_required"],
+        "factors": [{"factor": "speaker_mixing_or_contradiction"}],
+    }
+    readout = {
+        "speaker_assignments": [
+            {
+                "speaker_labels": ["Speaker A"],
+                "utterance_assignments": [deepcopy(grouped)],
+            }
+        ]
+    }
+    original = deepcopy(readout)
+
+    result = speaker_identity_preprocess.normalize_grouped_utterance_assignments(
+        packet, readout
+    )
+
+    assert readout == original
+    assert result["normalized_group_count"] == 1
+    assert result["expanded_utterance_assignment_count"] == 2
+    assert result["changes"][0]["utterance_ids"] == [
+        "utterance-1",
+        "utterance-2",
+    ]
+    expanded = result["readout"]["speaker_assignments"][0][
+        "utterance_assignments"
+    ]
+    assert expanded == [
+        {**{key: value for key, value in grouped.items() if key != "utterance_ids"},
+         "utterance_id": "utterance-1"},
+        {**{key: value for key, value in grouped.items() if key != "utterance_ids"},
+         "utterance_id": "utterance-2"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "grouped,reason",
+    [
+        ({"utterance_ids": []}, "non-empty list"),
+        ({"utterance_ids": [""]}, "non-empty strings"),
+        (
+            {"utterance_ids": ["utterance-1", "utterance-1"]},
+            "duplicate",
+        ),
+        ({"utterance_ids": ["utterance-999"]}, "unprepared evidence"),
+        (
+            {"utterance_id": "utterance-1", "utterance_ids": ["utterance-1"]},
+            "both utterance_id and utterance_ids",
+        ),
+    ],
+)
+def test_normalize_grouped_utterance_assignments_rejects_ambiguous_input(
+    grouped: dict[str, object], reason: str
+) -> None:
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=_discovery_transcript(),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match=reason):
+        speaker_identity_preprocess.normalize_grouped_utterance_assignments(
+            packet,
+            {
+                "speaker_assignments": [
+                    {"utterance_assignments": [grouped]}
+                ]
+            },
+        )
+
+
+def test_normalize_grouped_utterance_assignments_rejects_cross_group_duplicate() -> None:
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=_discovery_transcript(),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="assigned more than once"):
+        speaker_identity_preprocess.normalize_grouped_utterance_assignments(
+            packet,
+            {
+                "speaker_assignments": [
+                    {
+                        "utterance_assignments": [
+                            {"utterance_ids": ["utterance-1"]},
+                            {"utterance_id": "utterance-1"},
+                        ]
+                    }
+                ]
+            },
+        )
+
+
 def test_validate_identity_evaluation_rejects_invented_evidence() -> None:
     packet = speaker_identity_preprocess.build_identity_evaluation_packet(
         transcript=_discovery_transcript(),
