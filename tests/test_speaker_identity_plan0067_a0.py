@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -75,3 +76,21 @@ def test_case_binding_rejects_calendar_id_absent_from_host_catalog() -> None:
 
     with pytest.raises(a0.Plan0067A0Error, match="outside the host catalog"):
         a0.build_case_binding(**values)
+
+
+def test_bound_legacy_input_requires_containment_without_requiring_0600(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "legacy.json"
+    artifact.write_text("{}", encoding="utf-8")
+    artifact.chmod(0o644)
+
+    assert a0._require_bound_input(artifact, tmp_path) == artifact.resolve()
+
+    outside = tmp_path.parent / "outside-plan0067.json"
+    outside.write_text("{}", encoding="utf-8")
+    try:
+        with pytest.raises(a0.Plan0067A0Error, match="outside its authority root"):
+            a0._require_bound_input(outside, tmp_path)
+    finally:
+        outside.unlink()

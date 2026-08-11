@@ -95,6 +95,20 @@ def _artifact_binding(path: Path, root: Path) -> dict[str, str]:
     return {"path": str(resolved), "file_sha256": sha256_file(resolved)}
 
 
+def _require_bound_input(path: Path, root: Path) -> Path:
+    """Require an existing contained regular input without mutating legacy modes."""
+
+    expanded = path.expanduser().absolute()
+    if expanded.is_symlink() or not expanded.is_file():
+        raise Plan0067A0Error(f"Bound input is not a regular file: {expanded}.")
+    resolved = expanded.resolve()
+    try:
+        resolved.relative_to(root.expanduser().resolve())
+    except ValueError as exc:
+        raise Plan0067A0Error(f"Bound input is outside its authority root: {resolved}.") from exc
+    return resolved
+
+
 def _calendar_citations(value: Any) -> list[str]:
     result: list[str] = []
     if isinstance(value, Mapping):
@@ -247,9 +261,10 @@ def build_activation_manifest(
         binding = bindings.get(document_id)
         if not binding:
             raise Plan0067A0Error(f"Missing Plan 0066 source binding: {document_id}.")
-        transcript_path = Path(str(binding.get("stored_path") or "")).expanduser().resolve()
-        transcript_root = transcript_path.parent
-        require_private_file(transcript_path, transcript_root)
+        transcript_path = _require_bound_input(
+            Path(str(binding.get("stored_path") or "")),
+            Path("~/.transcripts/artifacts"),
+        )
         if sha256_file(transcript_path) != binding.get("stored_sha256"):
             raise Plan0067A0Error(f"Stored transcript binding drifted: {document_id}.")
         transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
