@@ -130,12 +130,6 @@ def build_activation_manifest(
     p65 = plan0065_root.expanduser().resolve()
     p69 = plan0069_root.expanduser().resolve()
     authority_root = p65.parent
-    plan0065_d1.replay_d1(
-        policy_content_sha256=plan0065_d1.POLICY_CONTENT_SHA256,
-        runtime_root=p65,
-    )
-    plan0069_terminal.replay_terminal(runtime_root=p69)
-
     p65_d0_path = _one(list(p65.glob("d0-*/private-manifest.json")), "Plan 0065 D0 manifest")
     p65_d1_policy_path = _one(list(p65.glob("d1-*/policy.json")), "Plan 0065 D1 policy")
     p65_d1_evidence_path = p65_d1_policy_path.with_name("private-development-evidence.json")
@@ -151,6 +145,13 @@ def build_activation_manifest(
     p64_p1_receipt_path = plan64_paths["p1"] / "receipt.json"
     p64_gold_path = plan64_paths["measurement"] / "human-gold.json"
 
+    p65_d1_policy = read_private_object(p65_d1_policy_path)
+    plan0065_d1.replay_d1(
+        policy_content_sha256=str(p65_d1_policy.get("content_sha256") or ""),
+        runtime_root=p65,
+    )
+    plan0069_terminal.replay_terminal(runtime_root=p69)
+
     p65_d0 = read_private_object(p65_d0_path)
     p65_d1_evidence = read_private_object(p65_d1_evidence_path)
     p65_d2_receipt = read_private_object(p65_d2_receipt_path)
@@ -161,6 +162,7 @@ def build_activation_manifest(
     p64_gold = read_private_object(p64_gold_path)
     for value, label in (
         (p65_d0, "Plan 0065 D0 manifest"),
+        (p65_d1_policy, "Plan 0065 D1 policy"),
         (p65_d1_evidence, "Plan 0065 D1 evidence"),
         (p65_d2_receipt, "Plan 0065 D2 receipt"),
         (p69_a0, "Plan 0069 A0 manifest"),
