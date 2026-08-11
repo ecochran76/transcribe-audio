@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Active packet: D0 corrected authority freeze
+Active packet: D1 deterministic joined reconstruction
 
 Checkpoint: Plan 0070 terminal content
 `35cf5ae92835962df1e6fe23062dd3578118a2ffb0d23e8519e53c22d58555f9`
@@ -18,6 +18,16 @@ Cross-lane dependency: closed Plans 0064-0070
 Critical-Path Owner: primary agent
 
 ## Current State
+
+Corrected D0 passed on its first attempt. Activation content
+`27b011dcce9b3df6922ae0d1f91b077249c2ca991e804e0ada0d40c5713ac931`
+and receipt content
+`ef0c0e8af6b54701668847ec22a407e71226b4aaf4a26e97b5a9ff14c6b79a69`
+replay from a private 0700/0600 tree. They bind all seven exposure
+collections at their exact lengths and hashes, 12 Plan 0065 cases, six Plan
+0069 cases, six original recording filenames, the Plan 0070 terminal, and
+clean upstream-even source authority. Model turns and every effect count are
+zero.
 
 Plan 0065's corrected acoustic evidence has 10 correct and zero wrong
 candidates. Plan 0069's six filename-bearing context cases complete a

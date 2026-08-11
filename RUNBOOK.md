@@ -1,5 +1,30 @@
 # Runbook
 
+## Turn 384: Pass corrected Plan 0071 D0 authority freeze (2026-08-11)
+
+Summary: Corrected D0 passed on its first attempt and replayed exactly. The
+private manifest binds every inherited evidence surface needed for the
+12-recording/39-slot joined reconstruction without model or product effects.
+
+Evidence:
+
+- Activation content `27b011dcce9b3df6...`, file
+  `62051d7bdcf8cf75...`, and receipt content `ef0c0e8af6b54701...`
+  replay `d0_corrected_authority_frozen_zero_effect`.
+- Seven exposure collections passed exact list, length, and inherited set-hash
+  validation: 44/12/23/39/63/39/39.
+- D0 binds 12 Plan 0065 cases, six Plan 0069 cases, six original recording
+  filenames, Plan 0064 P1/gold, the Plan 0069 PASS terminal, and the Plan 0070
+  WITHHOLD terminal.
+- Runtime root/run modes are 0700 and both manifest/receipt modes are 0600.
+- Model turns, source/store/index writes, assignment, identity, knowledge,
+  biometric, provider, Graphiti, and external effects are zero.
+
+Next:
+
+- Materialize and replay D1's deterministic 12-recording/39-slot joined
+  resolution and its non-vacuous pillar-agreement/residual-gap measurement.
+
 ## Turn 383: Activate corrected Plan 0071 authority freeze (2026-08-11)
 
 Summary: Activated the corrected successor to Plan 0070. D0 now validates the

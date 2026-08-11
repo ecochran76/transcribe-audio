@@ -921,6 +921,11 @@ residual acceptance on a bounded supplemental development cohort before one
 fresh source-disjoint evaluation may open. Original recording filenames remain
 mandatory; live assignment, knowledge, Graphiti, provider-write, and external
 effects remain closed.
+Corrected D0 passed on its first attempt: activation `27b011dc...` binds all
+seven exact exposure collections, 12 inherited Plan 0065 cases, six Plan 0069
+cases, six original recording filenames, and the Plan 0070 terminal with zero
+model turns and zero effects. D1 deterministic joined reconstruction is now
+active.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
