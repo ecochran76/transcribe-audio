@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 366: Close Plan 0064 fail-safe at the P4 gate (2026-08-11)
+
+Summary: Ingested all 39 operator decisions, proved an exact authority-only
+bridge from the filename-free worksheet to review v2, corrected a P4
+measurement mismatch for review-only acoustic hints, and ran the
+source-disjoint gate. Plan 0064 execution is closed, but product acceptance
+failed; P5/P6 remain withheld with zero effects.
+
+Evidence:
+
+- Authority bridge `031ce0f0...` rebinds the unchanged decision rows
+  `707ce0b9...` from authority `6df988b1...` to `e2df49c9...`. The only changed
+  field is `authority_content_sha256`; all cases, P3 lineage, clips, people,
+  decisions, and zero-action counters are invariant. Gold counts are 11
+  canonical-person, 24 not-listed, and four unresolved.
+- P4 initially failed because the measurement layer rejected P3's intentional
+  `single_model_acoustic_support` review-only person hint as if it were a
+  candidate. A red-capable regression now proves that shape remains a review
+  with no proposed person, while every other non-candidate person ID still
+  fails closed.
+- Human-gold content `1645c31a...`, measurement `baa26f05...`, and terminal
+  `f178f418...` replay exactly. Acoustic-only produced 12 candidates, 11
+  correct and one high-support wrong. Context produced zero candidates;
+  combined and residual-policy each produced zero candidates, 13 reviews, and
+  26 abstentions. The actual residual rule accepted zero speakers.
+- Reviewed-development gate `cb942cbd...` remains false because it contains no
+  residual-rule acceptance. Terminal decision `withhold_p5` also fails the
+  source-disjoint zero-wrong and combined/residual acceptance and lineage
+  checks. P5/P6 did not run; every action counter is zero.
+- The focused P4 tests pass 10 tests; the full suite passes 1,042 tests in
+  65.57 seconds. Python compilation and exact artifact replay pass.
+
+Next:
+
+- Open a bounded successor only to correct the acoustic false acceptance and
+  missing context/residual evidence. Treat these 39 decisions as development
+  or hindsight evidence and require a fresh source-disjoint human-gold cohort
+  before seeking local acceptance, enrichment, provider, or external effects.
+
 ## Turn 365: Add original recording filenames to Plan 0064 review (2026-08-10)
 
 Summary: Rebuilt and republished the private Plan 0064 P4 worksheet so every

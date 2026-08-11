@@ -1,14 +1,14 @@
 # Plan 0064 | Context-assisted automatic speaker recognition and enrichment
 
-State: OPEN
+State: CLOSED
 
 Checkpoint: Plan 0063 terminal live learning state is installed and replayed;
 P0 is terminal on immutable private corpus
 `f24722166f5f147ee6b26b13bba87d1f12ab60530c3ca0add3d8687046c5675a`
 with zero identity or external effects; P1 and P2 are terminal and replayed;
-P3 is terminal and replayed; strict P4 ingestion/measurement is implemented
-but awaits 39 literal human-gold decisions; the reviewed-development replay
-failed the required residual-rule gate; P5 is withheld
+P3 is terminal and replayed; all 39 literal P4 human-gold decisions are frozen
+and measured; the source-disjoint and reviewed-development gates failed; Plan
+0064 therefore closed fail-safe at P4 with P5/P6 withheld and zero effects
 
 Lane: P09/P10
 
@@ -167,8 +167,16 @@ external effect.
   filename and question adjacent to the correct audio and decision control,
   with no mobile horizontal overflow. Authenticated Previews artifact
   `dbfba8a5b884` supersedes the filename-free review artifact.
-- P4 source-disjoint measurement remains blocked on the complete 39-row
-  human-gold export. No P5 apply authority exists.
+- The operator supplied all 39 literal decisions against the filename-free v1
+  authority `6df988b11c152b78f9da59ab6d2324516082196d70d0340ecba2298051582f67`.
+  Exact bridge content
+  `031ce0f0f2864e3c34a1ff081644629557395f4a948f06b0c2d9c2f3179ea67d`
+  proved that v2 changed only the review authority hash by adding the 12
+  display-only basenames. It rebound the unchanged 39 decision rows, hash
+  `707ce0b9bb0d2b147b4ec09d8325e56bfa78c2e13541202ab1a6e654b8f5f58d`,
+  to v2 authority `e2df49c9fb081ea50d17d77a09b8c26a577b0e6f3cb3b64d8acb580e7b8a0daf`.
+  The gold contains 11 canonical-person, 24 not-listed, and four unresolved
+  decisions. No model output, decision, or action counter changed.
 
 ### P4 measurement and reviewed-development gate checkpoint
 
@@ -197,11 +205,31 @@ external effect.
   candidates produced by the actual residual rule. Gate content
   `cb942cbd9efea0bdfc64a633a8e8aa179149d6ed67beb1dbd780fb01e132b0c1`
   therefore records `quality_gate_passed=false`.
-- P4 source-disjoint measurement remains impossible until the complete literal
-  39-row export is supplied. That export alone cannot authorize P5: the
-  reviewed-development residual requirement must also pass after an
-  evidence-backed correction or a new reviewed corpus demonstrates the rule.
-  P5 and P6 remain withheld, and all action counters remain zero.
+- Private P4 measurement content
+  `baa26f05bee01165ddf9f5dd77de39b47cc1da9be71fbda5568a73673f8c09c7`
+  evaluated all 39 rows and replays exactly. Acoustic-only produced 12
+  candidates: 11 correct and one wrong, including one high-support wrong
+  identity; precision is `0.916667` and recall across known gold is `1.0`.
+  Context produced zero candidates. Combined and residual-policy each produced
+  zero candidates, 13 reviews, and 26 abstentions, with zero residual-rule
+  acceptances.
+- Terminal content
+  `f178f4187d0e8c877362310563738144854508fb4acba8b3ea227b79e829d5b6`
+  records `withhold_p5`. The failed checks are zero high-support wrong,
+  combined and residual acceptance/lineage, the specific residual-rule
+  acceptance, and the reviewed-development gate. P5 and P6 were not run; all
+  assignment, enrollment, profile, knowledge, provider, and external-write
+  counters remain zero.
+
+### Terminal disposition
+
+Plan 0064 execution is closed because its bounded P0-P4 campaign reached a
+deterministic terminal gate and no in-plan apply authority remains. Product
+acceptance and the target maturity movement were not achieved. A successor
+must treat these 39 decisions as development/hindsight evidence, correct the
+acoustic false acceptance and missing context/residual evidence, and validate
+the revised policy on a fresh source-disjoint cohort before requesting any
+local acceptance or enrichment authority.
 
 ### P0 corrected freeze contract
 
@@ -300,8 +328,9 @@ subagents unless the user explicitly requests them.
 
 ## Definition of done
 
-Plan 0064 is complete when future eligible conversations automatically use the
-reviewed biometric identities and the existing contextual workflow together;
+The following product outcome remains unmet; terminal fail-safe closure above
+does not claim it. Future work is complete only when eligible conversations
+use the reviewed biometric identities and the existing contextual workflow together;
 the measured high-support band can correctly accept known speakers and a
 context-supported residual speaker without elimination-only guessing; accepted
 local observations enrich canonical/contact provenance for later retrieval;

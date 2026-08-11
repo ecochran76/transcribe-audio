@@ -783,7 +783,7 @@ bindings, one voice/person binding, five references, fifteen profiles, and
 twenty-three enrollment sources. Both transcript services returned to
 active/running with zero restarts, and terminal replay is idempotent.
 
-Plan 0064 is the open P09/P10 implementation successor in
+Plan 0064 is the closed fail-safe P09/P10 implementation campaign in
 `docs/dev/plans/0064-2026-08-09-context-assisted-automatic-speaker-recognition.md`.
 Its durable architecture decision is Note 0056. It makes the newly installed
 voice/person learning state part of the existing contextual workflow: new
@@ -813,15 +813,19 @@ because context produced no canonical candidate. P4 review v2 receipt
 `22bbfd4e...` binds all 39 private direct-audio decisions, the 12-source
 original-recording filename set `97eeb3ed...`, and is browser verified on
 desktop and mobile. Each review card exposes only the hash-bound source
-basename; the strict decision export remains unchanged. Strict authority-bound
-human-gold ingestion and four-condition measurement are implemented, but
-measurement still waits for the complete literal 39-row export. The exact
-three-conversation reviewed development replay
+basename; the strict decision export remains unchanged. The operator supplied
+all 39 literal human-gold decisions. An exact filename-only authority bridge
+preserved every decision while rebinding the submission to review v2.
+Source-disjoint measurement produced 12 acoustic candidates: 11 correct and
+one high-support wrong; context, combined, and residual-policy produced zero
+candidates. The exact three-conversation reviewed development replay
 produced three correct pillar-agreement acceptances, zero high-support wrong
 identities, and zero acceptances through the specific residual rule, so its
-non-vacuous gate failed. P5 local acceptance remains unauthorized even after
-human gold arrives unless both gates pass; P6 remains withheld and all action
-counters remain zero.
+non-vacuous gate also failed. Terminal P4 content `f178f418...` records
+`withhold_p5`; Plan 0064 is closed without reaching its product acceptance or
+target maturity movement. P5/P6 remain withheld and all action counters remain
+zero. A successor must use this gold only as development/hindsight evidence
+and validate any correction on a fresh source-disjoint cohort.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
