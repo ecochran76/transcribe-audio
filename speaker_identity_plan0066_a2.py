@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import app_intelligence_ledger
-import intelligence_config
 import speaker_identity_plan0066_a1 as a1
 import speaker_identity_preprocess
 import transcript_api
@@ -177,9 +176,15 @@ def _prior_packet(state_root: Path, document_id: str) -> dict[str, Any]:
 def _prepare_cases(run_root: Path, source_state_root: Path) -> list[dict[str, Any]]:
     prepared_root = run_root / "prepared"
     ensure_private_tree(run_root, prepared_root)
-    route = intelligence_config.resolve_task_config(
-        "speaker_identity_evaluation"
-    ).to_dict()
+    first_document_id = a1.SELECTED_DEVELOPMENT_CASES[0][0]
+    first_a1_case = read_private_object(
+        run_root.parent / "a1/cases" / f"{first_document_id}.json"
+    )
+    frozen_prompt = json.loads(
+        Path(first_a1_case["prompt_packet_path"]).read_text(encoding="utf-8")
+    )
+    frozen_packet = frozen_prompt.get("packet") or {}
+    route = dict(frozen_packet.get("route") or {})
     if route.get("provider") != "codex-app-server":
         raise Plan0066A2Error("A2 primary route is not codex-app-server.")
     prepared_cases: list[dict[str, Any]] = []
