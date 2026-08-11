@@ -178,13 +178,13 @@ def test_provider_readiness_contract_does_not_authorize_a_turn(monkeypatch):
             ]
         },
         "/api/intelligence/config": {
-            "tasks": [
-                {
+            "tasks": {
+                "speaker_disambiguation": {
                     "task": "speaker_disambiguation",
                     "provider": "codex-app-server",
                     "model": "model-a",
                 }
-            ]
+            }
         },
     }
 

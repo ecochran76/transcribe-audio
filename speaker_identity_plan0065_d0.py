@@ -372,13 +372,18 @@ def provider_readiness(*, base_url: str = DEFAULT_API_BASE_URL) -> dict[str, Any
         for item in provider_payload.get("providers") or []
         if isinstance(item, Mapping)
     }
-    tasks = [
-        item
-        for item in config_payload.get("tasks") or []
-        if isinstance(item, Mapping)
-        and str(item.get("task") or item.get("task_id") or item.get("id") or "")
-        == "speaker_disambiguation"
-    ]
+    task_config = config_payload.get("tasks") or {}
+    if isinstance(task_config, Mapping):
+        configured = task_config.get("speaker_disambiguation")
+        tasks = [configured] if isinstance(configured, Mapping) else []
+    else:
+        tasks = [
+            item
+            for item in task_config
+            if isinstance(item, Mapping)
+            and str(item.get("task") or item.get("task_id") or item.get("id") or "")
+            == "speaker_disambiguation"
+        ]
     if len(tasks) != 1:
         raise Plan0065D0Error("The speaker_disambiguation task route is ambiguous.")
     task = tasks[0]
@@ -386,7 +391,12 @@ def provider_readiness(*, base_url: str = DEFAULT_API_BASE_URL) -> dict[str, Any
     selected = providers.get(provider_id)
     if not provider_id or not isinstance(selected, Mapping):
         raise Plan0065D0Error("The selected speaker provider is not registered.")
-    fallback_id = str(task.get("fallback_provider") or "") or None
+    fallback_ids = list(task.get("fallbacks") or [])
+    if task.get("fallback_provider") and not fallback_ids:
+        fallback_ids = [task["fallback_provider"]]
+    if len(fallback_ids) > 1:
+        raise Plan0065D0Error("D0 permits at most one contextual fallback route.")
+    fallback_id = str(fallback_ids[0]) if fallback_ids else None
     fallback = providers.get(fallback_id) if fallback_id else None
     sanitized_provider = {
         "provider_id": provider_id,
