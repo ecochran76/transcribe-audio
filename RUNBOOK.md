@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 377: Close Plan 0067 and activate Plan 0068 (2026-08-11)
+
+Summary: Plan 0067 closed before A0 artifact creation after exhausting its
+three fail-closed attempts. Plan 0068 inherits the unchanged product diagnosis
+under one corrected, mode-preserving legacy-input contract.
+
+Authority: `docs/dev/plans/0068-2026-08-11-legacy-bound-calendar-evidence-replay.md`.
+
+Evidence:
+
+- Plan 0067 terminal content `8c11ed7c3cd0f8bb...` and file
+  `a834a55b3bdf1f60...` replay exactly with reason
+  `a0_legacy_artifact_mode_contract_mismatch`.
+- The three failures were authority-harness assumptions: inherited transcript
+  and status files were not `0600`, and Plan 0066 A2 intentionally carried
+  prior provenance into A1 packets. No A0 artifact, product change, or retained
+  output replay occurred.
+- Plan 0068 accepts inherited inputs only when they are regular,
+  non-symlinked, contained under exact frozen roots, and exact-hash bound. It
+  never changes their modes. Newly written Plan 0068 evidence remains private
+  `0600`.
+- All model, retry, reference-repair, fresh-retrieval, evaluation,
+  source/store/index, identity, knowledge, biometric, provider, Graphiti, and
+  external budgets remain zero.
+
+Next:
+
+- Freeze the six exact Plan 0066 packet/status/output pairs under Plan 0068 A0,
+  then execute the calendar contract tests, product fix, and zero-turn replay.
+
 ## Turn 376: Revise Plan 0067 A0 authority check (2026-08-11)
 
 - Both initial A0 executions failed closed before artifact creation: one on a

@@ -1,8 +1,8 @@
 # Plan 0067 | Calendar evidence contract reconciliation and zero-turn replay
 
-State: OPEN
+State: CLOSED
 
-Active packet: A0 authority and diagnosis freeze.
+Active packet: None. Terminal A0 authority gate exhausted.
 
 Checkpoint: Plan 0066 remains immutably closed `withhold` at terminal
 `c5a843f80939972f...`. A post-closeout source/runtime audit proved its six
@@ -203,3 +203,15 @@ boundary with candidate-only safety intact, all six exact retained outputs
 receive terminal zero-turn dispositions, and A3 emits either a non-vacuous
 `context_candidate_recovered` result with zero wrong candidates or a
 reason-coded `withhold`. No live or external effect is part of done.
+
+## Terminal closeout
+
+Plan 0067 closed `withhold` before A0 wrote an artifact. Its three bounded
+attempts exposed inherited-artifact mode assumptions in the freeze harness and
+the intentional Plan 0066 A1-to-A2 provenance transformation; the product
+calendar contract was not changed and no retained output was replayed.
+Terminal content `8c11ed7c3cd0f8bbd1185f299f9d9f6a81fee28f8612609f6b7a21ff990c47c4`
+and file `a834a55b3bdf1f609a277be7a6d9c46b9f60df0531557f2d0b1f81170405ccef`
+replay with reason `a0_legacy_artifact_mode_contract_mismatch`. All model,
+retrieval, repair, source/store/index, identity, knowledge, biometric,
+provider, Graphiti, and external effect counts are zero.

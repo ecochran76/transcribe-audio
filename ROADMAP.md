@@ -860,16 +860,25 @@ source transcripts, live index rows, identity/biometric state, accepted
 knowledge, Graphiti, provider records, and external systems remained
 non-mutating.
 
-Plan 0067 is the active, zero-model-turn reconciliation in
+Plan 0067 is the closed, zero-effect reconciliation attempt in
 `docs/dev/plans/0067-2026-08-11-calendar-evidence-contract-reconciliation.md`.
-It carries the explicit validated calendar evidence catalog across the
-first-pass/second-pass boundary, preserves calendar evidence as candidate-only,
-and revalidates the six exact retained Plan 0066 outputs without modifying
-them or sending another model/provider request. It may reach Level 2 context
-candidate quality only with at least one correct, zero wrong, zero invalid, and
-lineage-complete development candidate. It cannot open joined/residual, fresh
-evaluation, live acceptance, knowledge projection, Graphiti, provider-write,
-or external work.
+Its three bounded A0 attempts failed closed before artifact creation because
+the freeze imposed new-artifact `0600` mode policy on inherited read-only
+transcript and model-status files and initially byte-equated A1 with the
+documented A2 provenance transformation. Terminal `8c11ed7c...` closes
+`withhold`; the product contract and retained outputs were untouched and every
+effect count is zero.
+
+Plan 0068 is the active, zero-model-turn successor in
+`docs/dev/plans/0068-2026-08-11-legacy-bound-calendar-evidence-replay.md`.
+It applies one uniform legacy-input rule—regular, non-symlinked, exact-root,
+exact-hash, mode-preserving—to inherited Plan 0064/0066 evidence while keeping
+new Plan 0068 artifacts private `0600`. It then carries the explicit calendar
+catalog into second-pass validation and replays the six exact retained outputs.
+Level 2 context-candidate quality still requires at least one correct, zero
+wrong, zero invalid, lineage-complete candidate; no joined/residual, fresh
+evaluation, live acceptance, knowledge, Graphiti, provider-write, or external
+gate is authorized.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
