@@ -1,13 +1,26 @@
 # Plan 0066 | Non-mutating prepared context candidate recovery
 
-State: OPEN
+State: CLOSED
 
-Active packet: A2 bounded development inference. A0 froze and replayed
-activation `8b1580e69c281e61...`; A1 froze and replayed manifest
-`400f67864170dbd0...`. Six selected development packets each contain the exact
-six-person reviewed roster, retain their original recording basename in the
-private case receipt, and report zero source/stored/index changes and zero model
-turns. The full 12-document binding hash is unchanged at `95533131a221486a...`.
+Active packet: none. A0 froze and replayed activation
+`8b1580e69c281e61...`; A1 froze and replayed manifest `400f67864170dbd0...`;
+A2 consumed exactly six primary turns with zero fallback and zero retry; and A3
+sealed terminal `c5a843f80939972f...` with reason
+`evidence_reference_compliance_failed`. Every A1 packet contained the exact
+six-person reviewed roster, retained its original recording basename only in
+the private receipt, and left all selected source/stored/index evidence exact.
+The full 12-document binding hash remained `95533131a221486a...`.
+
+Execution outcome: the non-mutating preparation and reviewed-roster product
+repair passed, advancing source integrity and candidate preparation to the
+target Level 2 shadow capability. Candidate recovery did not pass: all six
+model readouts cited calendar evidence IDs absent from the frozen prepared
+allowlist and therefore failed strict validation before persistence. The final
+measurement is zero correct, zero wrong, 22 abstained slots, six unavailable
+cases, six validation failures, and zero incomplete candidate-provenance
+records. Context evidence quality remains Level 1. No assignment was applied,
+no joined/residual or fresh gate opened, and no successor is activated by this
+closeout.
 
 Checkpoint: Plan 0065 is closed `withhold` at terminal `e73e2ebc...` because
 its D2 context gate produced zero correct prepared candidates. All 11 completed
@@ -89,10 +102,10 @@ projected into live conversation knowledge.
 
 | Finding | Criterion | Evidence | Disposition |
 | --- | --- | --- | --- |
-| F1 source-container mutation | Retrieval preparation must be read-only for source/store/index | Plan 0065 reconciliation detected three mutated documents and restored five copies/three rows | `blocking` |
-| F2 zero prepared people | Development packet must contain the bounded reviewed roster | All 11 completed D2 packets report `people=0` | `blocking` |
-| F3 opaque candidate display | Prepared people must carry reviewed primary names without inventing identity | Current adapter derives display only from exact email or opaque ID | `needs_evidence` |
-| F4 evidence may remain insufficient | At least one correct prepared candidate is non-vacuous | Existing evidence has support factors but no candidate roster | `needs_evidence` |
+| F1 source-container mutation | Retrieval preparation must be read-only for source/store/index | A1 changed zero source/stored/index bytes or rows and replayed exactly | `resolved` |
+| F2 zero prepared people | Development packet must contain the bounded reviewed roster | All six A1 packets contain the exact six-person reviewed roster | `resolved` |
+| F3 opaque candidate display | Prepared people must carry reviewed primary names without inventing identity | A1 packets carry host-reviewed primary names through the retrieval adapter | `resolved` |
+| F4 evidence may remain insufficient | At least one correct prepared candidate is non-vacuous | All six A2 outputs invented unprepared calendar citation IDs and were rejected | `withhold` |
 
 The goal-level broad drift-discovery pass is consumed by this ledger. After A0,
 review is closed-world against F1-F4 plus critical regressions introduced by

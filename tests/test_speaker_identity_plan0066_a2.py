@@ -62,3 +62,43 @@ def test_measurement_requires_nonvacuous_correct_and_zero_wrong() -> None:
     assert result["passed"] is True
     assert result["correct_prepared_candidate_count"] == 1
     assert result["wrong_prepared_candidate_count"] == 0
+
+
+def test_measurement_cannot_pass_with_a_validation_failure() -> None:
+    cases = [
+        {
+            "status": "model_readout_validated",
+            "document_id": "272cfe27e462506228a4",
+            "validated_readout": {
+                "speaker_assignments": [
+                    {
+                        "speaker_labels": ["B"],
+                        "status": "candidate_match",
+                        "person_id": "person-1",
+                        "provenance_source_ids": ["source-1"],
+                        "factors": [{"factor": "verified_identifier_match"}],
+                    }
+                ]
+            },
+        },
+        {
+            "status": "validation_failed",
+            "document_id": "413f68d5a8723309e8f8",
+        },
+    ]
+    gold = {
+        "decisions": [
+            {
+                "speaker_ref": "272cfe27e462506228a4::B",
+                "decision": "canonical_person",
+                "person_id": "person-1",
+            }
+        ]
+    }
+
+    result = a2.measure_cases(cases, gold)
+
+    assert result["passed"] is False
+    assert result["correct_prepared_candidate_count"] == 1
+    assert result["validation_failure_count"] == 1
+    assert result["unavailable_case_count"] == 1

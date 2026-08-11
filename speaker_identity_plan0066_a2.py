@@ -149,7 +149,13 @@ def measure_cases(
             correct += 1
         else:
             wrong += 1
-    passed = correct >= 1 and wrong == 0 and incomplete_provenance == 0
+    passed = (
+        correct >= 1
+        and wrong == 0
+        and incomplete_provenance == 0
+        and validation_failures == 0
+        and unavailable == 0
+    )
     return {
         "status": (
             "context_candidate_recovered" if passed else "context_candidate_not_recovered"

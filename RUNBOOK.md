@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 374: Close Plan 0066 at strict evidence-reference validation (2026-08-11)
+
+Summary: Closed Plan 0066 `withhold` after the source-integrity and reviewed-
+roster recovery passed but all six bounded development readouts failed the
+frozen evidence-reference allowlist. Nothing was applied and no later gate
+opened.
+
+Evidence:
+
+- A1 manifest `400f67864170dbd0...` retains the exact six-person reviewed
+  roster and each original recording basename in private case receipts while
+  preserving source/stored/index binding `95533131a221486a...` exactly.
+- A2 manifest `9a5ef73ba9ec806e...` consumed six primary model turns, zero
+  fallback turns, and zero retries. Each of the six readouts referenced one or
+  more calendar evidence IDs not present in its frozen prepared packet, so all
+  six failed strict validation and none was persisted.
+- Measurement is zero correct prepared candidates, zero wrong candidates, 22
+  abstained slots, zero incomplete candidate-provenance records, six
+  unavailable cases, and six validation failures.
+- Terminal content `c5a843f80939972f...` and file `3d9c86a4d6715809...`
+  replay exactly with status `plan0066_closed_withhold` and reason
+  `evidence_reference_compliance_failed`.
+- Source/stored transcript writes, transcript-index writes, assignment,
+  identity, knowledge, biometric, provider, Graphiti, and external writes are
+  all zero. Joined/residual and fresh evaluation remain closed.
+- Product acceptance is limited to the non-mutating snapshot and complete
+  reviewed-roster preparation repair. Plan-level context-candidate acceptance
+  failed and no successor was activated.
+- All 1,072 repository tests pass. Python compilation, `git diff --check`,
+  active planning audit, goal-only audit, and CodeGraph post-edit readback also
+  pass; a transcription/DOCX smoke is not applicable because transcription and
+  export behavior did not change.
+
+Next:
+
+- Stop. A future separately authorized plan may constrain model evidence IDs to
+  the prepared allowlist or normalize eligible calendar references host-side,
+  but cannot reinterpret this failed terminal.
+
 ## Turn 373: Pass Plan 0066 A0/A1 source and roster gate (2026-08-11)
 
 Summary: Froze and replayed Plan 0066 A0/A1. Retrieval preparation now uses a
