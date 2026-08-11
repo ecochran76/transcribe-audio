@@ -194,6 +194,19 @@ def test_background_abstention_and_cross_model_disagreement_do_not_promote():
     assert disagreement_result["candidate_person_id"] is None
 
 
+def test_transcript_container_drift_is_safe_only_when_acoustic_authority_is_exact():
+    audit = {
+        "source_hash_matches": True,
+        "transcript_hash_matches": False,
+        "probe_hash_matches": True,
+        "probe_duration_matches": True,
+    }
+
+    assert d1.probe_authority_is_exact(audit) is True
+    assert d1.probe_authority_is_exact({**audit, "probe_hash_matches": False}) is False
+    assert d1.probe_authority_is_exact({**audit, "source_hash_matches": False}) is False
+
+
 def test_development_gate_requires_zero_wrong_and_retains_ten_correct():
     rows = [
         {"gold": "correct", "before": "candidate", "after": "candidate"}

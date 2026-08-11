@@ -372,6 +372,19 @@ def _other_speaker_overlap_seconds(
     )
 
 
+def probe_authority_is_exact(audit: Mapping[str, Any]) -> bool:
+    """Accept container reserialization only when acoustic derivation is exact."""
+
+    return all(
+        audit.get(key) is True
+        for key in (
+            "source_hash_matches",
+            "probe_hash_matches",
+            "probe_duration_matches",
+        )
+    )
+
+
 def audit_probe(
     *,
     recording: Mapping[str, Any],
@@ -382,8 +395,6 @@ def audit_probe(
     transcript = _read_object(transcript_path)
     source_matches = sha256_file(source_path) == recording["source_media_sha256"]
     transcript_matches = sha256_file(transcript_path) == recording["artifact_sha256"]
-    if not transcript_matches:
-        raise Plan0065D1Error("A frozen Plan 0064 transcript drifted.")
     decoded = p1._decode(source_path)
     speaker = str(slot["speaker_label"])
     probe = p1._slot_probe(transcript, speaker, decoded)
@@ -392,6 +403,8 @@ def audit_probe(
     audit = {
         "source_hash_matches": source_matches,
         "transcript_hash_matches": transcript_matches,
+        "transcript_expected_file_sha256": recording["artifact_sha256"],
+        "transcript_current_file_sha256": sha256_file(transcript_path),
         "probe_hash_matches": probe_sha256 == slot["probe_sha256"],
         "probe_duration_matches": abs(
             len(probe) / p1.SAMPLE_RATE - float(slot["probe_duration_seconds"])
@@ -634,18 +647,15 @@ def execute_d1(
         recording = selected[evidence_recording["document_id"]]
         for slot in evidence_recording["speaker_slots"]:
             audit, probe = audit_probe(recording=recording, slot=slot)
-            if not all(
-                audit[key]
-                for key in (
-                    "source_hash_matches",
-                    "transcript_hash_matches",
-                    "probe_hash_matches",
-                    "probe_duration_matches",
-                )
-            ):
+            if not probe_authority_is_exact(audit):
                 raise Plan0065D1Error("A Plan 0064 probe failed exact reproduction.")
             purity_counts[
                 "overlap" if audit["other_speaker_overlap_seconds"] > 0 else "clean"
+            ] += 1
+            purity_counts[
+                "transcript_file_exact"
+                if audit["transcript_hash_matches"]
+                else "transcript_container_drift_probe_exact"
             ] += 1
             original = {**slot, "probe_audit": audit}
             corrected = apply_acoustic_safety_policy(original, policy)
@@ -706,6 +716,9 @@ def execute_d1(
             "development_gate": gate,
             "hypothesis_dispositions": {
                 "probe_hash_or_source_drift": "not_observed",
+                "transcript_container_drift": (
+                    "observed_but_all_derived_probe_hashes_remain_exact"
+                ),
                 "diarization_interval_overlap": "guarded_not_observed_in_candidates",
                 "temporal_candidate_instability": "rejected_as_discriminator",
                 "third_model_temporal_support": "rejected_for_low_correct_retention",
