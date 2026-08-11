@@ -234,8 +234,9 @@ def _context_cases(
         _validate_content(case, f"Plan 0069 context case {path.stem}")
         document_id = path.stem
         prior = contexts[document_id]
-        if case.get("original_recording_filename") != filenames[document_id]:
-            raise Plan0071D1Error("Plan 0069 original recording filename drifted.")
+        plan0069_filename = str(case.get("original_recording_filename") or "")
+        if not plan0069_filename:
+            raise Plan0071D1Error("Plan 0069 source artifact filename is missing.")
         labels = [str(item["speaker_label"]) for item in prior["speaker_slots"]]
         validated = case.get("validated_readout") or {}
         slots = plan0064_p2._proposal_slot_rows(
@@ -251,6 +252,7 @@ def _context_cases(
             "prediction": dict(validated),
             "provider_failures": [],
             "original_recording_filename": filenames[document_id],
+            "plan0069_source_artifact_filename": plan0069_filename,
             "plan0069_case_content_sha256": case["content_sha256"],
         }
     return contexts
