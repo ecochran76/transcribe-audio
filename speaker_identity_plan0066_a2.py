@@ -183,8 +183,7 @@ def _prepare_cases(run_root: Path, source_state_root: Path) -> list[dict[str, An
     frozen_prompt = json.loads(
         Path(first_a1_case["prompt_packet_path"]).read_text(encoding="utf-8")
     )
-    frozen_packet = frozen_prompt.get("packet") or {}
-    route = dict(frozen_packet.get("route") or {})
+    route = dict(frozen_prompt.get("route") or {})
     if route.get("provider") != "codex-app-server":
         raise Plan0066A2Error("A2 primary route is not codex-app-server.")
     prepared_cases: list[dict[str, Any]] = []
