@@ -1,5 +1,43 @@
 # Runbook
 
+## Turn 372: Activate Plan 0066 non-mutating context recovery (2026-08-11)
+
+Summary: The operator instructed the agent to plan and execute the bounded
+successor to Plan 0065. Plan 0066 is `OPEN` with A0 as the only active packet.
+It must make retrieval preparation source/index read-only, project the complete
+reviewed-person roster into the private shadow store, and prove or disprove one
+correct prepared context candidate on development-only evidence.
+
+Evidence:
+
+- Repository authority was clean and upstream-even at
+  `8bc6b01e91c848c9e2752358c83dea7b170ed8ae` before planning.
+- Graphiti runtime and FalkorDB were healthy. Focused discovery in
+  `transcribe_audio_main` returned eight facts, five nodes, and five episodes,
+  but none described Plan 0065/0066; current repo and immutable runtime
+  artifacts remain authoritative.
+- Plan 0065 D2 has 11 completed cases and one unavailable case across 39 slots.
+  Every completed packet contains zero prepared people despite zero to 15
+  provenance sources; 35 slots report `no_prepared_candidate_match`.
+- The current live knowledge store contains six reviewed people with primary
+  names; four have verified email identities. Their reviewed source scopes were
+  never mirrored into the Plan 0065 shadow preparation store.
+- Retrieval mode currently invokes durable transcript identity backfill before
+  preparation. Plan 0065 proved this changed three legacy containers across
+  five copies and three index rows before exact reconciliation.
+- Accepted findings F1 source mutation and F2 zero prepared people are
+  `blocking`; F3 primary-name propagation and F4 remaining evidence sufficiency
+  are `needs_evidence`. This consumes the goal-level broad discovery pass;
+  verification is closed-world from A0 onward.
+- Delegation is `not_spawned`; current system authority prohibits proactive
+  subagents. Model budget is at most six primary turns, one per development
+  case, with no fallback or retry.
+
+Next:
+
+- Freeze A0 authority and add red-capable source-immutability and reviewed-roster
+  tests before any model/provider turn.
+
 ## Turn 371: Close Plan 0065 at the non-vacuous context gate (2026-08-11)
 
 Summary: Completed D2 and closed Plan 0065 `withhold` with reason

@@ -841,6 +841,18 @@ container mutation and zero identity, knowledge, Graphiti, provider-write, or
 external effect remain. The exposed Plan 0064 development sources remain
 permanently excluded from any future unseen evaluation.
 
+Plan 0066 is the active, no-apply recovery in
+`docs/dev/plans/0066-2026-08-11-nonmutating-context-candidate-recovery.md`.
+It addresses the two independently measured Plan 0065 blockers: retrieval-mode
+preparation must not rewrite legacy transcript containers, and host retrieval
+must project the complete six-person reviewed roster into the private shadow
+store before model reasoning. It permits one development-only pass of at most
+six primary model turns against already exposed evidence, requires at least one
+correct lineage-complete prepared candidate and zero wrong candidates, and
+cannot open joined/residual or fresh evaluation work. All source transcripts,
+live index rows, identity/biometric state, accepted knowledge, Graphiti,
+provider records, and external systems remain non-mutating.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference
