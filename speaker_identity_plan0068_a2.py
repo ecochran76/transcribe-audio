@@ -178,7 +178,8 @@ def execute_a2(*, runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> dict[str, Any]:
     a0_manifest = read_private_object(Path(a0_receipt["manifest_path"]))
     source_authority = _source_authority()
     case_root = run_root / "cases"
-    ensure_private_tree(root, run_root, case_root)
+    ensure_private_tree(root, run_root)
+    ensure_private_tree(root, case_root)
     cases: list[dict[str, Any]] = []
     for case_authority in a0_manifest["cases"]:
         case = _case_from_retained(case_authority)
