@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
+from uuid import UUID, uuid5
 
 import conversation_processing
 import transcript_store
+
+
+_PREPARATION_ID_NAMESPACE = UUID("f8c325d2-fd13-50d9-a5f0-b6bb2688c6a3")
 
 
 class TranscriptArtifactAccessError(ValueError):
@@ -29,6 +35,131 @@ class ResolvedTranscriptArtifact:
             "expected_sha256": self.expected_sha256,
             "actual_sha256": self.actual_sha256,
         }
+
+
+@dataclass(frozen=True)
+class PrivateTranscriptIdentitySnapshot:
+    path: Path
+    source_path: Path
+    source_transcript_sha256: str
+    preparation_transcript_sha256: str
+    source_was_derived: bool
+    conversation_id: str
+    recording_id: str
+
+
+def _valid_uuid(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(UUID(text))
+    except ValueError:
+        return ""
+
+
+def materialize_private_transcript_identity_snapshot(
+    transcript_path: Path,
+    *,
+    document_id: str,
+    state_root: Path,
+) -> PrivateTranscriptIdentitySnapshot:
+    """Materialize a replayable schema-2 transcript without changing its source."""
+
+    source_path = transcript_path.expanduser().resolve(strict=True)
+    source_bytes = source_path.read_bytes()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    try:
+        source = json.loads(source_bytes)
+    except json.JSONDecodeError as exc:
+        raise TranscriptArtifactAccessError(
+            f"Selected transcript artifact is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(source, dict):
+        raise TranscriptArtifactAccessError(
+            "Selected transcript artifact must contain a JSON object."
+        )
+    payload = dict(source)
+    conversation_id = _valid_uuid(payload.get("conversation_id"))
+    recording_id = _valid_uuid(payload.get("recording_id"))
+    source_was_derived = bool(
+        int(payload.get("schema_version") or 1) < 2
+        or not conversation_id
+        or not recording_id
+    )
+    if not conversation_id:
+        conversation_id = str(
+            uuid5(
+                _PREPARATION_ID_NAMESPACE,
+                f"conversation\x1f{document_id}\x1f{source_sha256}",
+            )
+        )
+    if not recording_id:
+        legacy_import = payload.get("legacy_import")
+        legacy_import = legacy_import if isinstance(legacy_import, dict) else {}
+        recording_authority = str(
+            payload.get("source_media_sha256")
+            or payload.get("source_media_path")
+            or legacy_import.get("source_sha256")
+            or source_sha256
+        )
+        recording_id = str(
+            uuid5(
+                _PREPARATION_ID_NAMESPACE,
+                f"recording\x1f{recording_authority}",
+            )
+        )
+    payload["schema_version"] = max(int(payload.get("schema_version") or 1), 2)
+    payload["conversation_id"] = conversation_id
+    payload["recording_id"] = recording_id
+    prepared_bytes = (
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    prepared_sha256 = hashlib.sha256(prepared_bytes).hexdigest()
+
+    snapshot_root = (
+        state_root.expanduser().resolve() / "speaker-preprocessing-snapshots"
+    )
+    snapshot_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    snapshot_root.chmod(0o700)
+    document_hash = hashlib.sha256(str(document_id).encode("utf-8")).hexdigest()
+    snapshot_path = snapshot_root / (
+        f"{document_hash[:24]}-{source_sha256[:24]}.transcript.json"
+    )
+    if snapshot_path.exists():
+        if snapshot_path.is_symlink() or snapshot_path.stat().st_nlink != 1:
+            raise TranscriptArtifactAccessError(
+                "Private transcript snapshot containment is invalid."
+            )
+        if snapshot_path.read_bytes() != prepared_bytes:
+            raise TranscriptArtifactAccessError(
+                "Private transcript snapshot content drifted."
+            )
+    else:
+        descriptor = os.open(
+            snapshot_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = -1
+                stream.write(prepared_bytes)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+    snapshot_path.chmod(0o600)
+    return PrivateTranscriptIdentitySnapshot(
+        path=snapshot_path,
+        source_path=source_path,
+        source_transcript_sha256=source_sha256,
+        preparation_transcript_sha256=prepared_sha256,
+        source_was_derived=source_was_derived,
+        conversation_id=conversation_id,
+        recording_id=recording_id,
+    )
 
 
 def _is_transcript_path(path: Path) -> bool:

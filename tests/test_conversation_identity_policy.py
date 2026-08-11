@@ -7,7 +7,9 @@ import context_sources
 import conversation_identity_policy
 import conversation_identity_retrieval
 import conversation_knowledge_evidence
+import conversation_knowledge_store
 import pytest
+import transcript_artifact_access
 
 
 def test_policy_uses_only_explicit_retrieval_source_identity_and_scope() -> None:
@@ -166,6 +168,131 @@ def test_discovery_provider_terms_include_person_hints_and_model_terms() -> None
         "Project Orchard",
         "orchard catalyst",
     )
+
+
+def test_legacy_transcript_materializes_deterministic_private_identity_snapshot(
+    tmp_path: Path,
+) -> None:
+    transcript_path = tmp_path / "legacy.transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transcript_title": "Legacy review",
+                "source_media_path": "/recordings/original-name.m4a",
+                "transcript_text": "Hello.",
+                "utterances": [
+                    {"speaker": "A", "start": 0, "end": 1000, "text": "Hello."}
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_bytes = transcript_path.read_bytes()
+
+    first = transcript_artifact_access.materialize_private_transcript_identity_snapshot(
+        transcript_path,
+        document_id="document-legacy-1",
+        state_root=tmp_path / "state",
+    )
+    second = transcript_artifact_access.materialize_private_transcript_identity_snapshot(
+        transcript_path,
+        document_id="document-legacy-1",
+        state_root=tmp_path / "state",
+    )
+
+    assert transcript_path.read_bytes() == source_bytes
+    assert first == second
+    assert first.source_was_derived is True
+    assert first.path != transcript_path
+    assert first.path.stat().st_mode & 0o777 == 0o600
+    assert first.path.parent.stat().st_mode & 0o777 == 0o700
+    snapshot = json.loads(first.path.read_text(encoding="utf-8"))
+    assert snapshot["schema_version"] == 2
+    assert snapshot["conversation_id"]
+    assert snapshot["recording_id"]
+
+
+def test_transcript_preparation_mirrors_reviewed_people_into_shadow_scope(
+    tmp_path: Path,
+) -> None:
+    transcript_path = tmp_path / "legacy.transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transcript_title": "Reviewed roster test",
+                "transcript_text": "Hello.",
+                "utterances": [
+                    {"speaker": "A", "start": 0, "end": 1000, "text": "Hello."}
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_bytes = transcript_path.read_bytes()
+    person_id = "00000000-0000-4000-8000-000000000921"
+    source_store = conversation_knowledge_store.ConversationKnowledgeStore(
+        tmp_path / "source-store"
+    )
+    source_store.migrate(backup=False)
+    source_store.save_person_snapshot(
+        conversation_knowledge_store.PersonSnapshot(
+            person=conversation_knowledge_store.PersonRecord(
+                person_id=person_id,
+                status="reviewed",
+                primary_name="Reviewed Person",
+            ),
+            source_records=(
+                conversation_knowledge_store.SourceRecord(
+                    source_record_id="review-source-1",
+                    person_id=person_id,
+                    source_profile_id="plan0062-human-review",
+                    provider_kind="human_review",
+                    account_id="",
+                    tenant_id="",
+                    external_ref="reviewed-person-1",
+                    label="Reviewed Person",
+                    relationship_scope="speaker_identity",
+                    identifier_authority="operator_review",
+                    observed_at="2026-08-09T12:00:00Z",
+                    content_hash="a" * 64,
+                ),
+            ),
+        )
+    )
+
+    prepared = conversation_identity_policy.prepare_transcript_identity_evidence(
+        transcript_path,
+        {"speaker_clues": [], "conversation_clues": []},
+        state_root=tmp_path / "state",
+        source_store_root=tmp_path / "source-store",
+        document_id="document-reviewed-roster",
+        resolved={
+            "gws": [],
+            "odollo": [],
+            "source_contexts": [],
+            "retrieval_sources": [],
+            "warnings": [],
+        },
+        environment={"PATH": "/bin"},
+        requested_at="2026-08-11T12:00:00Z",
+    )
+
+    assert transcript_path.read_bytes() == source_bytes
+    assert prepared.preparation_transcript_path != transcript_path
+    assert prepared.bundle.request.prepared_person_ids == (person_id,)
+    assert prepared.bundle.people[0].display_name == "Reviewed Person"
+    assert prepared.bundle.people[0].source_profile_ids == (
+        "plan0062-human-review",
+    )
+    assert [scope.source_profile_id for scope in prepared.bundle.request.scopes] == [
+        "plan0062-human-review"
+    ]
 
 
 def test_transcript_preparation_projects_privately_and_freezes_request_before_adapter(

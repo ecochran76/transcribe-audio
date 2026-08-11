@@ -154,6 +154,7 @@ def _retrieval_bundle() -> PreparedIdentityEvidenceBundle:
                 source_profile_ids=("gws-personal",),
                 match_reasons=("calendar_attendee_email",),
                 exact_identities=("email:alice@example.com",),
+                display_name="Alice Example",
             ),
         ),
         relationships=(),
@@ -607,6 +608,7 @@ def test_retrieval_bundle_drives_identity_packet_and_preserves_review_gate(
     included_id = bundle.evidence[0].snapshot.evidence_id
     excluded_id = bundle.evidence[1].snapshot.evidence_id
     assert packet["people"][0]["person_id"] == person_id
+    assert packet["people"][0]["display_name"] == "Alice Example"
     assert [item["source_id"] for item in packet["provenance_sources"]] == [
         included_id
     ]

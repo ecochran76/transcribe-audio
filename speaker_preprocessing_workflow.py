@@ -307,7 +307,9 @@ def _identity_inputs_from_retrieval_bundle(
         people.append(
             {
                 "person_id": candidate.person_id,
-                "display_name": emails[0] if emails else candidate.person_id,
+                "display_name": candidate.display_name or (
+                    emails[0] if emails else candidate.person_id
+                ),
                 "emails": emails,
                 "source_records": [
                     {

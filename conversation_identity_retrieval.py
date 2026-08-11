@@ -99,6 +99,7 @@ class IdentityCandidate:
     source_profile_ids: tuple[str, ...]
     match_reasons: tuple[str, ...]
     exact_identities: tuple[str, ...]
+    display_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -723,6 +724,16 @@ def _exact_candidates(
             ),
             match_reasons=tuple(sorted(state["match_reasons"])),
             exact_identities=tuple(sorted(state["exact_identities"])),
+            display_name=(
+                snapshot.person.primary_name
+                if (
+                    snapshot := ConversationKnowledgeStore(
+                        repository.root
+                    ).load_person_snapshot(person_id)
+                )
+                is not None
+                else ""
+            ),
         )
         for person_id, state in sorted(candidate_state.items())
     )

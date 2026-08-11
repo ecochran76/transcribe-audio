@@ -1917,11 +1917,14 @@ def prepare_selected_speaker_identity_evaluation(
     operator: str = "",
 ) -> dict[str, Any]:
     """Validate discovery, retrieve bounded evidence, and prepare phase two."""
+    mode = str(evidence_mode or "retrieval").strip()
+    if mode not in {"retrieval", "legacy_rollback"}:
+        raise ValueError("Unsupported speaker evidence mode.")
     detail, transcript, transcript_path = _selected_transcript_artifact(
         document_id,
         root=store_root,
         state_root=state_root,
-        ensure_identity=True,
+        ensure_identity=(mode == "legacy_rollback"),
     )
     source_document_id = str(
         (detail.get("transcript_document") or detail.get("selected_document") or {}).get("id")
@@ -1943,7 +1946,6 @@ def prepare_selected_speaker_identity_evaluation(
             state_root=state_root,
             run_id=clue_discovery_run_id,
         )
-    mode = str(evidence_mode or "retrieval").strip()
     legacy_receipt: dict[str, str] = {}
     retrieval_metadata: dict[str, Any] = {}
     if mode == "legacy_rollback":
@@ -1997,9 +1999,11 @@ def prepare_selected_speaker_identity_evaluation(
             state_root=state_root,
             resolved=resolved_sources,
             run_id=clue_discovery_run_id,
+            source_store_root=store_root,
+            document_id=source_document_id,
         )
         prepared = speaker_preprocessing_workflow.prepare_identity_evaluation(
-            transcript_path,
+            retrieved.preparation_transcript_path,
             document_id=source_document_id,
             state_root=state_root,
             discovery_readout=discovery_readout,
@@ -2024,6 +2028,12 @@ def prepare_selected_speaker_identity_evaluation(
                 retrieved.retrieval_receipt_sha256
             ),
             "shadow_root": str(retrieved.shadow_root),
+            "source_transcript_sha256": retrieved.source_transcript_sha256,
+            "preparation_transcript_sha256": (
+                retrieved.preparation_transcript_sha256
+            ),
+            "source_was_derived": retrieved.source_was_derived,
+            "capture_supported": not retrieved.source_was_derived,
         }
         source_warnings = unique_strings(
             [
@@ -2031,8 +2041,6 @@ def prepare_selected_speaker_identity_evaluation(
                 *retrieved.bundle.warnings,
             ]
         )
-    else:
-        raise ValueError("Unsupported speaker evidence mode.")
     return {
         **prepared,
         "transcript_artifact": detail["transcript_artifact"],

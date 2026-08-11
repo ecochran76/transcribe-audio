@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 import provenance_config
+import transcript_artifact_access
 from conversation_evidence_adapters import AdapterSourceScope
 from conversation_evidence_gws import (
     GWS_CAPABILITIES,
@@ -33,6 +34,7 @@ from conversation_knowledge_projection import (
     ReconciliationReceipt,
 )
 from conversation_knowledge_evidence import EvidenceScope
+from conversation_knowledge_store import ConversationKnowledgeStore
 
 
 ODOLLO_CAPABILITIES = ("contacts", "leads", "log_notes")
@@ -58,6 +60,10 @@ class PreparedTranscriptIdentityEvidence:
     shadow_root: Path
     retrieval_receipt_path: Path
     retrieval_receipt_sha256: str
+    preparation_transcript_path: Path
+    source_transcript_sha256: str
+    preparation_transcript_sha256: str
+    source_was_derived: bool
 
 
 def _utc_now() -> str:
@@ -163,6 +169,8 @@ def build_identity_evidence_policy(
     run_id: str = "",
     environment: Mapping[str, str] | None = None,
     prepared_query_terms: tuple[str, ...] = (),
+    prepared_person_ids: tuple[str, ...] = (),
+    additional_scopes: tuple[EvidenceScope, ...] = (),
     max_records: int = 20,
     max_characters: int = 12_000,
     max_per_source: int = 5,
@@ -282,11 +290,28 @@ def build_identity_evidence_policy(
     if gws_index != len(gws_configs) or odollo_index != len(odollo_configs):
         raise ValueError("Resolved provider configs and retrieval sources diverge.")
 
+    known_scope_keys = {
+        (scope.source_profile_id, scope.account_id, scope.tenant_id)
+        for scope in scopes
+    }
+    for scope in additional_scopes:
+        key = (scope.source_profile_id, scope.account_id, scope.tenant_id)
+        if not scope.source_profile_id:
+            raise ValueError("Additional identity scope requires a source profile.")
+        if key not in known_scope_keys:
+            scopes.append(scope)
+            known_scope_keys.add(key)
+    if additional_scopes:
+        capabilities.append("reviewed_identity")
+
     policy = IdentityEvidencePolicy(
         scopes=tuple(scopes),
         capabilities=_unique(capabilities),
         prepared_query_terms=_unique(
             [_text(value) for value in prepared_query_terms]
+        ),
+        prepared_person_ids=_unique(
+            [_text(value) for value in prepared_person_ids]
         ),
         provider_adapters=tuple(adapters),
         hindsight_policy="allow_later_retrieved",
@@ -301,9 +326,21 @@ def build_identity_evidence_policy(
     return IdentityEvidencePolicyBuild(
         policy=policy,
         source_contexts=tuple(
-            dict(value)
-            for value in resolved.get("source_contexts") or []
-            if isinstance(value, dict)
+            [
+                dict(value)
+                for value in resolved.get("source_contexts") or []
+                if isinstance(value, dict)
+            ]
+            + [
+                {
+                    "source_id": scope.source_profile_id,
+                    "source_profile": scope.source_profile_id,
+                    "account_id": scope.account_id,
+                    "tenant_id": scope.tenant_id,
+                    "relationship_scope": "reviewed_identity",
+                }
+                for scope in additional_scopes
+            ]
         ),
         retrieval_sources=tuple(retrieval_sources),
         warnings=tuple(_text(value) for value in resolved.get("warnings") or []),
@@ -393,20 +430,63 @@ def prepare_transcript_identity_evidence(
     provenance_profile: str | None = None,
     environment: Mapping[str, str] | None = None,
     resolved: Mapping[str, Any] | None = None,
+    source_store_root: Path | None = None,
+    document_id: str = "",
     run_id: str = "",
     requested_at: str = "",
 ) -> PreparedTranscriptIdentityEvidence:
     """Prepare the default immutable retrieval bundle in a private shadow store."""
     effective_requested_at = _text(requested_at) or _utc_now()
+    prepared_transcript = (
+        transcript_artifact_access
+        .materialize_private_transcript_identity_snapshot(
+            transcript_path,
+            document_id=document_id,
+            state_root=state_root,
+        )
+    )
     shadow_root = state_root.expanduser().resolve() / "conversation-identity-shadow"
     shadow_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     shadow_root.chmod(0o700)
 
     projector = ConversationKnowledgeProjector(shadow_root)
-    plan = projector.preview(transcript_path, document_id="")
+    plan = projector.preview(
+        prepared_transcript.path,
+        document_id="",
+    )
     projection_receipt = projector.apply(
         plan,
         approval_token=APPLY_APPROVAL_TOKEN,
+    )
+    reviewed_snapshots = (
+        ConversationKnowledgeStore(source_store_root).load_reviewed_person_snapshots()
+        if source_store_root is not None
+        else ()
+    )
+    for snapshot in reviewed_snapshots:
+        if (
+            snapshot.person.status != "reviewed"
+            or not snapshot.person.primary_name.strip()
+        ):
+            raise ValueError("Reviewed identity roster contains an invalid person.")
+        projector.store.save_person_snapshot(snapshot)
+    reviewed_scopes = tuple(
+        EvidenceScope(
+            source_profile_id=source.source_profile_id,
+            account_id=source.account_id,
+            tenant_id=source.tenant_id,
+        )
+        for key, source in sorted(
+            {
+                (
+                    source.source_profile_id,
+                    source.account_id,
+                    source.tenant_id,
+                ): source
+                for snapshot in reviewed_snapshots
+                for source in snapshot.source_records
+            }.items()
+        )
     )
     utterance_ids = tuple(
         item.utterance_id for item in plan.conversation_snapshot.utterances
@@ -437,6 +517,10 @@ def prepare_transcript_identity_evidence(
         run_id=run_id,
         environment=environment,
         prepared_query_terms=discovery_provider_terms(discovery_readout),
+        prepared_person_ids=tuple(
+            snapshot.person.person_id for snapshot in reviewed_snapshots
+        ),
+        additional_scopes=reviewed_scopes,
     )
     bundle = prepare_identity_evidence(
         plan.processing_history.conversation_id,
@@ -516,6 +600,25 @@ def prepare_transcript_identity_evidence(
             for item in bundle.evidence
         ],
         "projection_receipt_path": projection_receipt.receipt_path,
+        "source_transcript_sha256": prepared_transcript.source_transcript_sha256,
+        "preparation_transcript_sha256": (
+            prepared_transcript.preparation_transcript_sha256
+        ),
+        "source_was_derived": prepared_transcript.source_was_derived,
+        "reviewed_person_count": len(reviewed_snapshots),
+        "reviewed_roster_sha256": _sha256(
+            [
+                {
+                    "person_id": snapshot.person.person_id,
+                    "primary_name": snapshot.person.primary_name,
+                    "source_record_ids": [
+                        source.source_record_id
+                        for source in snapshot.source_records
+                    ],
+                }
+                for snapshot in reviewed_snapshots
+            ]
+        ),
         "recorded_at": effective_requested_at,
         "will_perform_external_write": False,
     }
@@ -542,6 +645,12 @@ def prepare_transcript_identity_evidence(
         retrieval_receipt_sha256=hashlib.sha256(
             retrieval_receipt_bytes
         ).hexdigest(),
+        preparation_transcript_path=prepared_transcript.path,
+        source_transcript_sha256=prepared_transcript.source_transcript_sha256,
+        preparation_transcript_sha256=(
+            prepared_transcript.preparation_transcript_sha256
+        ),
+        source_was_derived=prepared_transcript.source_was_derived,
     )
 
 

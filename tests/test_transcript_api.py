@@ -1199,6 +1199,17 @@ def test_selected_identity_evaluation_defaults_to_immutable_retrieval_bundle(
         embedding_provider="debug-hash",
         embedding_model="debug-hash",
     )
+    source_path = Path(transcript.source_path)
+    stored_path = Path(transcript.stored_path)
+    source_bytes = source_path.read_bytes()
+    stored_bytes = stored_path.read_bytes()
+    with transcript_store.connect(store_root) as con:
+        index_row_before = dict(
+            con.execute(
+                "SELECT * FROM documents WHERE id = ?",
+                (transcript.id,),
+            ).fetchone()
+        )
     resolved = {
         "gws": [],
         "odollo": [],
@@ -1241,6 +1252,10 @@ def test_selected_identity_evaluation_defaults_to_immutable_retrieval_bundle(
         shadow_root=Path("/private/shadow"),
         retrieval_receipt_path=Path("/private/retrieval.json"),
         retrieval_receipt_sha256="retrieval-receipt-hash",
+        preparation_transcript_path=state_root / "private-snapshot.transcript.json",
+        source_transcript_sha256="source-hash",
+        preparation_transcript_sha256="snapshot-hash",
+        source_was_derived=True,
     )
     retrieval_calls = []
     monkeypatch.setattr(
@@ -1287,6 +1302,9 @@ def test_selected_identity_evaluation_defaults_to_immutable_retrieval_bundle(
 
     assert len(retrieval_calls) == 1
     assert retrieval_calls[0][1]["resolved"] is resolved
+    assert retrieval_calls[0][1]["source_store_root"] == store_root
+    assert retrieval_calls[0][1]["document_id"] == transcript.id
+    assert prepared_calls[0][0][0] == retrieved.preparation_transcript_path
     assert prepared_calls[0][1]["retrieval_bundle"] is bundle
     assert result["evidence_mode"] == "retrieval"
     assert result["legacy_rollback_receipt"] == {}
@@ -1302,6 +1320,19 @@ def test_selected_identity_evaluation_defaults_to_immutable_retrieval_bundle(
         "config warning",
         "no_bounded_evidence",
     ]
+    assert result["retrieval"]["source_transcript_sha256"] == "source-hash"
+    assert result["retrieval"]["preparation_transcript_sha256"] == "snapshot-hash"
+    assert result["retrieval"]["source_was_derived"] is True
+    assert source_path.read_bytes() == source_bytes
+    assert stored_path.read_bytes() == stored_bytes
+    with transcript_store.connect(store_root) as con:
+        index_row_after = dict(
+            con.execute(
+                "SELECT * FROM documents WHERE id = ?",
+                (transcript.id,),
+            ).fetchone()
+        )
+    assert index_row_after == index_row_before
 
 
 def test_selected_speaker_reference_repair_uses_original_ledger_packet(

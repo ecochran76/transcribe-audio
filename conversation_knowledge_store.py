@@ -842,6 +842,36 @@ class ConversationKnowledgeStore:
             ),
         )
 
+    def load_reviewed_person_snapshots(
+        self,
+        *,
+        limit: int = 50,
+    ) -> tuple[PersonSnapshot, ...]:
+        """Load the bounded current roster whose person status is reviewed."""
+        if limit < 1 or limit > 100:
+            raise ValueError("Reviewed person snapshot limit must be 1..100.")
+        with transcript_store.connect(self.root) as con:
+            if not self._schema_is_current(con):
+                return ()
+            rows = con.execute(
+                """
+                SELECT id
+                FROM knowledge_people
+                WHERE status = 'reviewed'
+                ORDER BY id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        snapshots = tuple(
+            snapshot
+            for row in rows
+            if (snapshot := self.load_person_snapshot(str(row["id"]))) is not None
+        )
+        if any(snapshot.person.status != "reviewed" for snapshot in snapshots):
+            raise RuntimeError("Reviewed person roster changed while it was read.")
+        return snapshots
+
     def save_processing_history(
         self,
         history: ProcessingHistory,
