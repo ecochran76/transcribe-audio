@@ -911,6 +911,17 @@ then treated list-valued exposure fields as integer counts. Terminal
 evaluation opened, and live assignment, knowledge, Graphiti, provider-write,
 and external effects remained zero.
 
+Plan 0071 is the active corrected shadow successor in
+`docs/dev/plans/0071-2026-08-11-corrected-joined-residual-shadow-validation.md`.
+It inherits the unchanged 12-recording/39-slot counterfactual and the exact
+Plan 0070 terminal. Its D0 reads the frozen Plan 0065 policy hash from the
+artifact and validates exact lengths for all seven list-valued exposure fields
+before writing anything. It must reproduce the joined gate and prove an actual
+residual acceptance on a bounded supplemental development cohort before one
+fresh source-disjoint evaluation may open. Original recording filenames remain
+mandatory; live assignment, knowledge, Graphiti, provider-write, and external
+effects remain closed.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference

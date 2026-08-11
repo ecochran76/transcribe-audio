@@ -1,5 +1,34 @@
 # Runbook
 
+## Turn 383: Activate corrected Plan 0071 authority freeze (2026-08-11)
+
+Summary: Activated the corrected successor to Plan 0070. D0 now validates the
+actual collection-shaped exposure contract and binds the Plan 0070 terminal;
+the joined/residual development and fresh-evaluation sequence is otherwise
+unchanged.
+
+Authority:
+`docs/dev/plans/0071-2026-08-11-corrected-joined-residual-shadow-validation.md`.
+
+Evidence:
+
+- Plan 0070 terminal content is `35cf5ae92835962d...`; no Plan 0070 D0,
+  supplemental-development, or fresh-evaluation artifact exists.
+- The frozen exposure manifest fields are lists with exact lengths:
+  documents 44, full recordings 12, recording hashes 23, probe hashes 39,
+  source windows 63, review clips 39, and decision rows 39.
+- D0 must read the immutable Plan 0065 policy hash from `policy.json`, bind all
+  collection contents and upstream artifact hashes, and preserve six original
+  recording filenames.
+- Model turns, source/store/index writes, assignment, identity, knowledge,
+  biometric, provider, Graphiti, and external effects remain zero. Delegation
+  is `not_spawned`.
+
+Next:
+
+- Commit and push activation, then execute corrected D0 from clean
+  upstream-even source authority and replay its private receipt.
+
 ## Turn 382: Close Plan 0070 after bounded D0 harness failures (2026-08-11)
 
 Summary: Closed Plan 0070 fail-safe after its two D0 attempts failed before
