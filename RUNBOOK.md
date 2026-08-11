@@ -1,5 +1,51 @@
 # Runbook
 
+## Turn 371: Close Plan 0065 at the non-vacuous context gate (2026-08-11)
+
+Summary: Completed D2 and closed Plan 0065 `withhold` with reason
+`context_recovery_failed`. D2 gave all 39 speaker slots one terminal
+disposition but produced zero correct prepared candidates, so D3 and E0-E3
+never opened. A terminal preflight detected and exactly reconciled three local
+transcript-container identity backfills before sealing terminal `e73e2ebc...`.
+
+Evidence:
+
+- D2 receipt `8d65f6be...` binds 12 cases: 11 complete and one unavailable.
+  Schema/citation violations, wrong prepared candidates, incomplete candidate
+  provenance, and unavailable-workflow identity inference are all zero.
+- Four historical reference-repair cases validate after uncited neutral factors
+  are removed without inventing support. Four current cases consumed one
+  primary provider model turn each; no fallback turn or retry was used.
+- Correct prepared candidate count is zero. The non-vacuous context gate failed
+  `context_recovery_failed`, so joined/residual development and fresh blind
+  evaluation were not attempted. No E2 review or filename-bearing review asset
+  was published.
+- Terminal close initially refused to write because D2's prepare-evaluation API
+  had lazily added transcript identity fields to three legacy containers.
+  Exact reconstruction tests proved that removing only those two IDs and
+  restoring schema version 1 reproduces all three frozen Plan 0064 hashes.
+- Reconciliation receipt `a916fca4...` retains private backups, restores five
+  source/stored copies, reconciles three index rows, and replays with zero
+  lasting container mutation. Plan 0064 review and Plan 0065 D0-D2 then replay
+  exactly.
+- Terminal content `e73e2ebc...` and file `0f32d0ac...` record `withhold`, zero
+  product/external effects, 24 local biometric half probes, four primary
+  provider turns, zero fallback turns, and zero fresh-evaluation runs.
+- Final validation passes 20 focused Plan 0065 tests and all 1,062 repository
+  tests. Python compilation, active and goal-only planning audits, and
+  `git diff --check` pass. A transcription/DOCX smoke is not applicable because
+  this slice did not change normalized transcription or export behavior.
+- Delegation remained `not_spawned`; no subagent was authorized. Progress is
+  `outcome_progress` for reaching a verified terminal, while product acceptance
+  remains failed.
+
+Next:
+
+- Keep Plan 0065 closed. Any further speaker-identity recovery requires a new
+  bounded successor that first demonstrates a correct prepared context
+  candidate without mutating source transcript containers; do not reopen D3 or
+  reuse the exposed Plan 0064 cohort as unseen evaluation.
+
 ## Turn 370: Pass Plan 0065 D1 acoustic safety recovery (2026-08-11)
 
 Summary: Froze and replayed a calibration-derived acoustic boundary guard.

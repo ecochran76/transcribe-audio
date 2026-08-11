@@ -827,18 +827,19 @@ target maturity movement. P5/P6 remain withheld and all action counters remain
 zero. A successor must use this gold only as development/hindsight evidence
 and validate any correction on a fresh source-disjoint cohort.
 
-Plan 0065 is the active, no-apply successor in
+Plan 0065 is the closed, no-apply successor in
 `docs/dev/plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md`.
-It first diagnoses the Plan 0064 acoustic false acceptance and the split
-context failures: four citation-validation failures, four provider-route
-failures, and four completed cases with no prepared candidate match. It then
-requires a corrected development gate with a genuine residual acceptance
-before freezing one new oldest-forward blind cohort. The Plan 0064 cohort and
-all additional development sources remain permanently excluded from unseen
-evaluation. Original recording basenames are required in the first review
-publication. Even a passing Plan 0065 terminal can only declare readiness for
-a separate local-acceptance plan; all identity, knowledge, Graphiti, provider,
-and external effects remain unauthorized.
+Its acoustic development correction retained 10 of 11 prior correct candidates
+while demoting the prior wrong candidate, but D2 produced zero correct prepared
+context candidates across 39 terminal slot dispositions. The mandatory
+non-vacuous context gate failed `context_recovery_failed`, so D3 and the fresh
+E0-E3 cohort never opened and no filename-bearing review publication was
+created. Terminal `e73e2ebc...` closes `withhold`. A bounded reconciliation
+restored three lazily identity-backfilled transcript containers across five
+copies and three index rows to their frozen Plan 0064 bytes; zero lasting local
+container mutation and zero identity, knowledge, Graphiti, provider-write, or
+external effect remain. The exposed Plan 0064 development sources remain
+permanently excluded from any future unseen evaluation.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

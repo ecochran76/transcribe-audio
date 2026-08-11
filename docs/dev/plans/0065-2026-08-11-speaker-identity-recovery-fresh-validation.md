@@ -1,6 +1,6 @@
 # Plan 0065 | Speaker identity recovery and fresh source-disjoint validation
 
-State: OPEN
+State: CLOSED
 
 Checkpoint: Plan 0064 is closed fail-safe at P4. Its 39 human-gold decisions
 are now development/hindsight evidence; its acoustic band produced one
@@ -10,8 +10,15 @@ acceptance. The operator explicitly activated Plan 0065 on 2026-08-11 from a
 clean, upstream-even repository at `8e252c268acdb0e4a44342023b1db415ecd7c148`.
 D0 is complete at immutable manifest `a38891bb...` and zero-effect receipt
 `14290463...`. D1 is complete at policy `006c6770...` and receipt
-`7685aa85...`; both replay exactly. D2 is active. No provider model turn,
-identity mutation, knowledge write, or external effect has occurred.
+`7685aa85...`; both replay exactly. D2 closed on receipt `8d65f6be...` after
+four primary provider turns: all 39 slots received a terminal disposition, but
+zero correct prepared candidates made the non-vacuous context gate fail.
+Terminal `e73e2ebc...` therefore records `withhold` with reason
+`context_recovery_failed`; D3 and E0-E3 never opened. D2's prepare API lazily
+backfilled transcript-container IDs in three documents. Reconciliation receipt
+`a916fca4...` restored five source/stored copies and three index rows to the
+frozen Plan 0064 bytes, leaving zero lasting container mutation and zero
+identity, knowledge, Graphiti, provider-write, or external effect.
 
 Lane: P09/P10
 
@@ -275,6 +282,41 @@ subagents unless the user explicitly requests them.
   units, zero provider model turns, and every action/effect counter zero.
 - Progress classification: `acceptance_advancement`. The acoustic development
   criterion now passes, while D2-D3 and the fresh E0-E3 evaluation remain open.
+
+### D2 and terminal | Closed withhold (2026-08-11)
+
+- D2 receipt `8d65f6be...` binds 12 development cases: 11 complete and one
+  unavailable. All 39 speaker slots have one terminal disposition. Schema or
+  citation violations, wrong prepared candidates, incomplete candidate
+  provenance, and identity inference from unavailable workflows are all zero.
+- The four historical citation failures validate after uncited neutral factors
+  are removed without inventing support. Four previously unavailable cases
+  consumed one current primary provider turn each and zero fallback turns.
+- Correct prepared candidate matches remain zero. The mandatory non-vacuous
+  context gate therefore failed `context_recovery_failed`; D3, the residual
+  development gate, and the fresh E0-E3 evaluation were not opened. No E2
+  review publication was created, so no new filename-bearing review artifact
+  exists under this plan.
+- Terminal closing initially failed safely because the D2 prepare-evaluation
+  API had lazily changed transcript-container bytes for three documents. The
+  bounded reconciliation proves that removing only the added
+  `conversation_id`/`recording_id` fields and restoring schema version 1
+  reproduces every frozen Plan 0064 SHA-256 exactly.
+- Reconciliation receipt `a916fca4...` retains private pre-restoration backups,
+  restores five source/stored artifact copies, reconciles three transcript
+  index rows, and reports zero lasting container mutations. Product identity,
+  knowledge, Graphiti, provider-write, and external effect counters remain
+  zero.
+- Terminal content `e73e2ebc...` (file `0f32d0ac...`) replays the D0, D1, D2,
+  reconciliation, and Plan 0064 authorities exactly. Its decision is
+  `withhold`; readiness for a separate local-acceptance plan is false.
+- Final validation passes 20 focused Plan 0065 tests and the complete
+  1,062-test suite. Python compilation, active and goal-only planning audits,
+  and diff validation also pass; transcription/DOCX smoke is not applicable
+  because normalized transcription and export behavior did not change.
+- Progress classification: `outcome_progress` for executing the context gate
+  and reaching a reason-coded terminal, but product acceptance did not advance.
+  The terminal fail-safe prevented a vacuous pass.
 
 ## Acceptance Criteria
 
