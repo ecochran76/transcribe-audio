@@ -11,6 +11,7 @@ from typing import Any, Mapping
 
 import app_intelligence_ledger
 import speaker_identity_preprocess
+import speaker_identity_plan0066_a2 as plan0066_a2
 from acoustic_audio_derivatives import (
     ensure_private_tree,
     read_private_object,
@@ -25,6 +26,7 @@ RECEIPT_SCHEMA_VERSION = "transcribe-audio.plan0067-a0-receipt.v1"
 PLAN_ACTIVATION_COMMIT = "1601717"
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0067")
 DEFAULT_PLAN0066_ROOT = Path("~/.local/state/transcribe-audio/plan-0066")
+DEFAULT_SOURCE_STATE_ROOT = Path("~/.local/state/transcribe-audio")
 DEFAULT_GOLD_PATH = Path(
     "~/.local/state/transcribe-audio/plan-0064/"
     "p4-submission-6df988b11c152b78f9da59ab/submitted-decisions.json"
@@ -130,6 +132,7 @@ def build_case_binding(
     document_id: str,
     a1_case: Mapping[str, Any],
     prepared: Mapping[str, Any],
+    expected_packet: Mapping[str, Any],
     failed_case: Mapping[str, Any],
     status: Mapping[str, Any],
     calendar_evidence: list[dict[str, Any]],
@@ -140,8 +143,8 @@ def build_case_binding(
         raise Plan0067A0Error("Retained case document binding drifted.")
     if prepared.get("run_id") != status.get("run_id") or status.get("completed") is not True:
         raise Plan0067A0Error("Retained model status is incomplete or bound to another run.")
-    if prepared.get("packet") != a1_case.get("packet"):
-        raise Plan0067A0Error("Plan 0066 A1/A2 packet content drifted.")
+    if prepared.get("packet") != expected_packet:
+        raise Plan0067A0Error("Plan 0066 A1-to-A2 packet transformation drifted.")
     if prepared.get("packet_sha256") != _hash(prepared.get("packet")):
         raise Plan0067A0Error("Retained packet hash drifted.")
     filename = str(prepared.get("original_recording_filename") or "")
@@ -288,10 +291,27 @@ def build_activation_manifest(
             f"retained status for {document_id}",
         )
         status = read_private_object(status_path)
+        prior_run_id = plan0066_a2.PRIOR_IDENTITY_RUNS[document_id]
+        prior_packet_path = (
+            app_intelligence_ledger.run_dir(
+                DEFAULT_SOURCE_STATE_ROOT.expanduser().resolve(), prior_run_id
+            )
+            / "artifacts/speaker-preprocessing/identity_evaluation.input.json"
+        )
+        prior_packet_path = _require_bound_input(
+            prior_packet_path,
+            DEFAULT_SOURCE_STATE_ROOT,
+        )
+        prior_packet = json.loads(prior_packet_path.read_text(encoding="utf-8"))
+        expected_packet = plan0066_a2.build_a2_packet(
+            a1_case["packet"],
+            prior_packet,
+        )
         case = build_case_binding(
             document_id=document_id,
             a1_case=a1_case,
             prepared=prepared,
+            expected_packet=expected_packet,
             failed_case=failed_case,
             status=status,
             calendar_evidence=discovery_packet["calendar_evidence"],
@@ -302,6 +322,10 @@ def build_activation_manifest(
                 "prepared_case": _artifact_binding(prepared_path, source_root),
                 "failed_case": _artifact_binding(failed_path, source_root),
                 "status_artifact": _artifact_binding(status_path, source_root),
+                "prior_packet_artifact": {
+                    "path": str(prior_packet_path),
+                    "file_sha256": sha256_file(prior_packet_path),
+                },
                 "transcript_artifact": {
                     "path": str(transcript_path),
                     "file_sha256": sha256_file(transcript_path),
@@ -350,7 +374,14 @@ def _validate_artifact_bindings(manifest: Mapping[str, Any], runtime_root: Path)
         if sha256_file(path) != binding["file_sha256"]:
             raise Plan0067A0Error(f"Frozen artifact drifted: {path}.")
     for case in manifest.get("cases") or []:
-        for key in ("a1_case", "prepared_case", "failed_case", "status_artifact", "transcript_artifact"):
+        for key in (
+            "a1_case",
+            "prepared_case",
+            "failed_case",
+            "status_artifact",
+            "prior_packet_artifact",
+            "transcript_artifact",
+        ):
             binding = case[key]
             path = Path(str(binding["path"])).expanduser().resolve()
             if sha256_file(path) != binding["file_sha256"]:

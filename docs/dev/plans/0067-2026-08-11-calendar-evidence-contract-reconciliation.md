@@ -133,7 +133,7 @@ implementation, and replay steps share one tightly coupled evidence seam.
 
 ## Execution bounds
 
-- `max_work_unit_attempts`: 2 per packet.
+- `max_work_unit_attempts`: 3 for A0 and 2 for each remaining packet.
 - `max_policy_revisions`: 1 before A2; 0 after replay begins.
 - `max_review_rework_cycles`: 1 closed-world F1-F4 cycle.
 - `max_hardening_checkpoints_without_outcome_progress`: 2.
@@ -146,6 +146,16 @@ implementation, and replay steps share one tightly coupled evidence seam.
 - `checkpoint_interval`: after each packet and before replay.
 - `review_discovery_passes`: 0 additional; inherited goal total remains 1.
 - `review_verification_mode`: closed_world.
+
+Revision 1 (pre-A2): A0's first two fail-closed executions exposed two
+authority-check assumptions rather than evidence drift: legacy transcript
+store inputs are hash-bound regular files but not necessarily mode `0600`, and
+Plan 0066 A2 intentionally transforms A1 packets by carrying forward prior
+provenance, retrieval, and source contexts. No A0 artifact was written. The
+single allowed policy revision adds one A0 attempt so the freeze can validate
+the documented `build_a2_packet` transformation and preserve strict private
+mode requirements for newly written Plan 0067 artifacts. Model, retrieval,
+repair, evaluation, and effect budgets remain zero.
 
 ## Acceptance Criteria
 

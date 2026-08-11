@@ -1,5 +1,17 @@
 # Runbook
 
+## Turn 376: Revise Plan 0067 A0 authority check (2026-08-11)
+
+- Both initial A0 executions failed closed before artifact creation: one on a
+  legacy transcript-store mode assumption and one on byte-equating A1 with the
+  documented A2 provenance transformation.
+- Plan 0067 used its single pre-A2 policy revision to allow one additional A0
+  attempt. The revised freeze accepts no new evidence: it requires regular,
+  non-symlinked, root-contained, exact-hash legacy inputs and reconstructs the
+  exact `build_a2_packet` transformation from each retained prior packet.
+- Model turns, retries, reference repairs, fresh retrieval, evaluation runs,
+  source/store/index writes, identity writes, and external effects remain zero.
+
 ## Turn 375: Activate Plan 0067 calendar evidence reconciliation (2026-08-11)
 
 Summary: Activated a bounded, zero-model-turn successor after proving the Plan

@@ -34,6 +34,7 @@ def _case_values() -> dict[str, object]:
             "packet_sha256": a0._hash(packet),
             "original_recording_filename": "Original recording.transcript.json",
         },
+        "expected_packet": packet,
         "failed_case": {
             "document_id": "document-1",
             "reason": (
