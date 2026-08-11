@@ -189,6 +189,85 @@ def test_normalize_human_gold_requires_exact_complete_ordered_allowlisted_export
         )
 
 
+def test_bridge_human_gold_authority_allows_only_filename_display_revision():
+    authority, resolution, submission = _sources()
+    source_cases = []
+    target_cases = []
+    filename_rows = []
+    seen_documents = set()
+    for index, case in enumerate(authority["cases"]):
+        speaker_ref = case["speaker_ref"]
+        _, speaker_label = speaker_ref.split("::", 1)
+        document_id = f"document-{min(index // 3, 11):02d}"
+        base = {
+            "speaker_ref": speaker_ref,
+            "document_id": document_id,
+            "speaker_label": speaker_label,
+            "recording_label": f"Recording {index // 3 + 1}",
+            "clip_relative_path": f"clips/{index:02d}.wav",
+            "clip_sha256": f"{index + 1:064x}",
+        }
+        source_cases.append(base)
+        filename = f"recording-{min(index // 3, 11) + 1}.m4a"
+        target_cases.append({**base, "recording_filename": filename})
+        if document_id not in seen_documents:
+            filename_rows.append(
+                {"document_id": document_id, "recording_filename": filename}
+            )
+            seen_documents.add(document_id)
+    shared = {
+        "status": "p4_human_gold_required",
+        "human_decision_count": 0,
+        "model_predictions_visible": False,
+        "p3_receipt_content_sha256": "b" * 64,
+        "p3_resolution_content_sha256": resolution["content_sha256"],
+        "people": authority["people"],
+        "action_counts": dict(p4m.ACTION_COUNTS),
+    }
+    source = p4m._content_addressed(
+        {
+            "schema_version": p4m.LEGACY_REVIEW_AUTHORITY_SCHEMA,
+            **shared,
+            "preview_content_sha256": "c" * 64,
+            "cases": source_cases,
+        }
+    )
+    target = p4m._content_addressed(
+        {
+            "schema_version": p4m.CURRENT_REVIEW_AUTHORITY_SCHEMA,
+            **shared,
+            "preview_content_sha256": "d" * 64,
+            "recording_filename_set_sha256": p4m._hash(filename_rows),
+            "cases": target_cases,
+        }
+    )
+    submission["authority_content_sha256"] = source["content_sha256"]
+
+    rebound, bridge = p4m.bridge_human_gold_authority(
+        submission,
+        source_authority=source,
+        target_authority=target,
+        resolution=resolution,
+    )
+
+    assert rebound["decisions"] == submission["decisions"]
+    assert rebound["authority_content_sha256"] == target["content_sha256"]
+    assert bridge["changed_fields"] == ["authority_content_sha256"]
+    assert bridge["decision_count"] == 39
+    assert not any(bridge["action_counts"].values())
+
+    changed_case = deepcopy(target)
+    changed_case["cases"][0]["clip_sha256"] = "e" * 64
+    changed_case = p4m._content_addressed(changed_case)
+    with pytest.raises(p4m.Plan0064P4MeasurementError):
+        p4m.bridge_human_gold_authority(
+            submission,
+            source_authority=source,
+            target_authority=changed_case,
+            resolution=resolution,
+        )
+
+
 def test_measurement_forbids_vacuous_zero_candidate_acceptance():
     authority, resolution, submission = _sources()
     gold = p4m.normalize_human_gold(
@@ -206,6 +285,38 @@ def test_measurement_forbids_vacuous_zero_candidate_acceptance():
     assert "residual_correct_acceptance_observed" in gate["failed_checks"]
     assert measurement["terminal_decision"] == "withhold_p5"
     assert measurement["apply_authorized"] is False
+
+
+def test_measurement_treats_single_model_review_identity_as_non_candidate():
+    authority, resolution, submission = _sources()
+    acoustic = resolution["recordings"][0]["speaker_slots"][0]["acoustic"]
+    acoustic.update(
+        {
+            "disposition": "review",
+            "reason_code": "single_model_acoustic_support",
+            "candidate_person_id": "person-1",
+            "alternative_person_ids": ["person-1"],
+            "confidence_band": "medium",
+            "supporting_model_count": 1,
+            "probe_sha256": "1" * 64,
+        }
+    )
+    resolution = p4m._content_addressed(resolution)
+    gold = p4m.normalize_human_gold(
+        submission, authority=authority, resolution=resolution
+    )
+
+    measurement = p4m.recompute_measurement(
+        authority=authority,
+        resolution=resolution,
+        gold=gold,
+        development_gate=_development_gate(),
+    )
+
+    assert measurement["condition_metrics"]["acoustic"]["review_count"] == 1
+    assert measurement["condition_metrics"]["acoustic"]["candidate_count"] == 0
+    assert measurement["condition_metrics"]["acoustic"]["correct_candidate_count"] == 0
+    assert measurement["rows"][0]["conditions"][0]["proposed_person_id"] is None
 
 
 def test_measurement_advances_only_with_correct_join_residual_lineage_and_development():

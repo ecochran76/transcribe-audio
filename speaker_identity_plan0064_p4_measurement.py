@@ -27,6 +27,7 @@ from acoustic_audio_derivatives import (
 from speaker_identity_plan0064_p0 import DEFAULT_RUNTIME_ROOT
 from speaker_identity_plan0064_p4_review import (
     ACTION_COUNTS,
+    AUTHORITY_SCHEMA as CURRENT_REVIEW_AUTHORITY_SCHEMA,
     DECISION_SCHEMA,
     _authority_inputs as p4_authority_inputs,
     replay_p4_review,
@@ -39,6 +40,8 @@ MEASUREMENT_SCHEMA = "transcribe-audio.plan0064-p4-measurement.v1"
 MEASUREMENT_RECEIPT_SCHEMA = "transcribe-audio.plan0064-p4-measurement-receipt.v1"
 TERMINAL_SCHEMA = "transcribe-audio.plan0064-p4-terminal.v1"
 DEVELOPMENT_GATE_SCHEMA = "transcribe-audio.plan0064-development-replay-gate.v1"
+LEGACY_REVIEW_AUTHORITY_SCHEMA = "transcribe-audio.plan0064-p4-review-authority.v1"
+AUTHORITY_BRIDGE_SCHEMA = "transcribe-audio.plan0064-p4-review-authority-bridge.v1"
 CONDITIONS = ("acoustic", "context", "combined", "residual_policy")
 DECISIONS = ("canonical_person", "not_listed", "unresolved")
 HIGH_SUPPORT_REASONS = {
@@ -107,6 +110,156 @@ def _authorities(
     ):
         raise Plan0064P4MeasurementError("P4 review and P3 resolution bindings drifted.")
     return authority, p3_receipt, resolution
+
+
+def bridge_human_gold_authority(
+    submission: Mapping[str, Any],
+    *,
+    source_authority: Mapping[str, Any],
+    target_authority: Mapping[str, Any],
+    resolution: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Rebind literal decisions across the filename-only P4 authority revision."""
+
+    _validate_content_addressed(source_authority, label="Source P4 review authority")
+    _validate_content_addressed(target_authority, label="Target P4 review authority")
+    if (
+        source_authority.get("schema_version") != LEGACY_REVIEW_AUTHORITY_SCHEMA
+        or target_authority.get("schema_version") != CURRENT_REVIEW_AUTHORITY_SCHEMA
+        or set(submission)
+        != {"schema_version", "authority_content_sha256", "decisions"}
+        or submission.get("schema_version") != DECISION_SCHEMA
+        or submission.get("authority_content_sha256")
+        != source_authority.get("content_sha256")
+    ):
+        raise Plan0064P4MeasurementError(
+            "The P4 authority bridge source is stale or malformed."
+        )
+
+    invariant_fields = (
+        "status",
+        "human_decision_count",
+        "model_predictions_visible",
+        "p3_receipt_content_sha256",
+        "p3_resolution_content_sha256",
+        "people",
+        "action_counts",
+    )
+    if any(
+        source_authority.get(key) != target_authority.get(key)
+        for key in invariant_fields
+    ):
+        raise Plan0064P4MeasurementError(
+            "The P4 authority bridge changes decision semantics or lineage."
+        )
+    if (
+        target_authority.get("p3_resolution_content_sha256")
+        != resolution.get("content_sha256")
+        or any((source_authority.get("action_counts") or {}).values())
+        or any((target_authority.get("action_counts") or {}).values())
+    ):
+        raise Plan0064P4MeasurementError(
+            "The P4 authority bridge escapes the frozen zero-effect resolution."
+        )
+
+    source_cases = source_authority.get("cases")
+    target_cases = target_authority.get("cases")
+    if not isinstance(source_cases, list) or not isinstance(target_cases, list):
+        raise Plan0064P4MeasurementError("The P4 authority bridge cases are malformed.")
+    target_without_filenames = [
+        {key: value for key, value in item.items() if key != "recording_filename"}
+        if isinstance(item, Mapping)
+        else item
+        for item in target_cases
+    ]
+    if source_cases != target_without_filenames:
+        raise Plan0064P4MeasurementError(
+            "The P4 authority bridge changes cases beyond recording filenames."
+        )
+
+    filename_rows: list[dict[str, str]] = []
+    filename_by_document: dict[str, str] = {}
+    for case in target_cases:
+        if not isinstance(case, Mapping):
+            raise Plan0064P4MeasurementError("A target P4 review case is invalid.")
+        document_id = str(case.get("document_id") or "")
+        filename = str(case.get("recording_filename") or "")
+        if (
+            not document_id
+            or not filename
+            or Path(filename).name != filename
+            or "/" in filename
+            or "\\" in filename
+        ):
+            raise Plan0064P4MeasurementError(
+                "A target P4 recording filename is invalid."
+            )
+        prior = filename_by_document.setdefault(document_id, filename)
+        if prior != filename:
+            raise Plan0064P4MeasurementError(
+                "A target recording has inconsistent filenames."
+            )
+        if prior == filename and not any(
+            row["document_id"] == document_id for row in filename_rows
+        ):
+            filename_rows.append(
+                {"document_id": document_id, "recording_filename": filename}
+            )
+    if (
+        len(filename_rows) != 12
+        or target_authority.get("recording_filename_set_sha256")
+        != _hash(filename_rows)
+    ):
+        raise Plan0064P4MeasurementError(
+            "The target P4 recording filename set drifted."
+        )
+
+    source_gold = normalize_human_gold(
+        submission, authority=source_authority, resolution=resolution
+    )
+    rebound = {
+        "schema_version": submission["schema_version"],
+        "authority_content_sha256": target_authority["content_sha256"],
+        "decisions": submission["decisions"],
+    }
+    target_gold = normalize_human_gold(
+        rebound, authority=target_authority, resolution=resolution
+    )
+    if source_gold["decisions"] != target_gold["decisions"]:
+        raise Plan0064P4MeasurementError(
+            "The P4 authority bridge changed literal human decisions."
+        )
+    bridge = _content_addressed(
+        {
+            "schema_version": AUTHORITY_BRIDGE_SCHEMA,
+            "status": "exact_filename_only_authority_bridge",
+            "source_authority_content_sha256": source_authority["content_sha256"],
+            "target_authority_content_sha256": target_authority["content_sha256"],
+            "source_preview_content_sha256": source_authority[
+                "preview_content_sha256"
+            ],
+            "target_preview_content_sha256": target_authority[
+                "preview_content_sha256"
+            ],
+            "p3_receipt_content_sha256": target_authority[
+                "p3_receipt_content_sha256"
+            ],
+            "p3_resolution_content_sha256": target_authority[
+                "p3_resolution_content_sha256"
+            ],
+            "recording_filename_set_sha256": target_authority[
+                "recording_filename_set_sha256"
+            ],
+            "source_submission_sha256": _hash(dict(submission)),
+            "rebound_submission_sha256": _hash(rebound),
+            "decision_rows_sha256": _hash(source_gold["decisions"]),
+            "decision_count": source_gold["decision_count"],
+            "decision_type_counts": source_gold["decision_type_counts"],
+            "changed_fields": ["authority_content_sha256"],
+            "action_counts": dict(ACTION_COUNTS),
+        }
+    )
+    return rebound, bridge
 
 
 def normalize_human_gold(
@@ -318,15 +471,26 @@ def recompute_measurement(
             if not isinstance(view, Mapping):
                 raise Plan0064P4MeasurementError("A P3 condition row is invalid.")
             disposition = str(view.get("disposition") or "")
-            proposed = view.get("candidate_person_id")
+            raw_person = view.get("candidate_person_id")
             if disposition == "candidate":
-                proposed = str(proposed or "")
+                proposed = str(raw_person or "")
                 if not proposed:
                     raise Plan0064P4MeasurementError("A candidate has no person ID.")
-            elif proposed is not None:
+            elif (
+                condition == "acoustic"
+                and disposition == "review"
+                and view.get("reason_code") == "single_model_acoustic_support"
+                and str(raw_person or "")
+                and int(view.get("supporting_model_count") or 0) == 1
+                and str(raw_person) in set(view.get("alternative_person_ids") or [])
+            ):
+                proposed = None
+            elif raw_person is not None:
                 raise Plan0064P4MeasurementError(
                     "A non-candidate P3 condition carries a person ID."
                 )
+            else:
+                proposed = None
             if disposition not in {"candidate", "review", "abstain", "unavailable"}:
                 raise Plan0064P4MeasurementError("A P3 disposition is invalid.")
             known = gold_type == "canonical_person"
