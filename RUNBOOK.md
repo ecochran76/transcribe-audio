@@ -1,5 +1,41 @@
 # Runbook
 
+## Turn 378: Repair calendar contract and close Plan 0068 (2026-08-11)
+
+Summary: Plan 0068 repaired the host calendar-evidence projection contract and
+replayed all six exact Plan 0066 outputs with zero model turns. Three retained
+outputs remained structurally invalid, so the development gate closed
+`withhold` without repair or retry.
+
+Evidence:
+
+- A0 content `4b62a8166e3d6134...` binds six packet/status/output pairs, all
+  six original recording filenames, seven previously rejected calendar IDs,
+  exact Plan 0066 A1-to-A2 transformations, and zero legacy mode changes.
+- The identity packet now carries the exact explicit `calendar_evidence`
+  catalog; strict validation accepts its IDs, groups same-event clues under one
+  independence key, still rejects absent IDs, and requires factor-level
+  transcript evidence for candidate matches.
+- A2 content `41620ce8eac7dffb...` replayed six outputs, changed zero output
+  bytes/text, and used zero model turns, fallback turns, retries, reference
+  repairs, retrievals, or fresh evaluations.
+- Three cases validated. Three failed on empty retained `utterance_id` values.
+  Measurement: one correct prepared candidate, zero wrong, 21 abstained, zero
+  incomplete provenance, three unavailable cases, and three validation
+  failures.
+- Terminal content `07d6bda43fea885d...` and file
+  `4ce2684f726d5e44...` replay `plan0068_closed_withhold` with reason
+  `retained_output_schema_compliance_failed`.
+- All source/store/index, assignment, identity, knowledge, biometric,
+  provider, Graphiti, and external effect counts are zero. Joined/residual and
+  fresh evaluation remained closed.
+
+Next:
+
+- Stop. Any attempt to repair or regenerate the three invalid retained outputs
+  requires separate authority; this plan does not permit another model turn or
+  reference repair.
+
 ## Turn 377: Close Plan 0067 and activate Plan 0068 (2026-08-11)
 
 Summary: Plan 0067 closed before A0 artifact creation after exhausting its

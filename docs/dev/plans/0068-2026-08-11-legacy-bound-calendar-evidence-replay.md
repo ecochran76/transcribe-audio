@@ -1,8 +1,8 @@
 # Plan 0068 | Legacy-bound calendar evidence replay
 
-State: OPEN
+State: CLOSED
 
-Active packet: A0 mode-preserving authority freeze.
+Active packet: None. Terminal replayed `withhold`.
 
 Checkpoint: Plan 0067 closed `withhold` at terminal `8c11ed7c...` before
 writing A0 evidence or changing the product. The original Plan 0066 diagnosis
@@ -100,3 +100,27 @@ readback, `git diff --check`, exact terminal replay, clean commits, push, and
 upstream equality. A transcription/DOCX smoke is not applicable unless
 transcription or export behavior changes. Done is an immutable pass/withhold
 terminal with the product safety contract repaired and no unauthorized effect.
+
+## Terminal closeout
+
+A0 manifest `4b62a8166e3d6134479f6ebbc4e17191edc5e192c46ddfef7b870121c73d8823`
+replays with six exact packet/status/output bindings, all six original
+recording filenames, seven rejected calendar IDs proven inside their explicit
+host catalogs, zero mode changes, and zero model/live effects. A1 carries the
+calendar catalog across the second-pass boundary, preserves same-event
+independence, rejects absent IDs, and requires factor-level transcript evidence
+for every candidate match.
+
+A2 replayed all six retained outputs without altering them. Three validated;
+three failed because retained utterance assignments contained empty
+`utterance_id` values. Measurement was one correct candidate, zero wrong, 21
+abstained slots, zero incomplete candidate provenance, three unavailable
+cases, and three validation failures. No repair or retry was authorized.
+
+Terminal content `07d6bda43fea885d0bbd42f1109674844d0329efa167cbd59661af4dd45aeed5`
+and file `4ce2684f726d5e44e1c5b34e930205cb77eacc0190ae6886fa1c1c47112c9282`
+close `plan0068_closed_withhold` with reason
+`retained_output_schema_compliance_failed`. The product calendar contract is
+repaired, but Level 2 candidate acceptance failed. Every source/store/index,
+assignment, identity, knowledge, biometric, provider, Graphiti, and external
+effect count remains zero; joined/residual and fresh evaluation stayed closed.

@@ -869,16 +869,19 @@ documented A2 provenance transformation. Terminal `8c11ed7c...` closes
 `withhold`; the product contract and retained outputs were untouched and every
 effect count is zero.
 
-Plan 0068 is the active, zero-model-turn successor in
+Plan 0068 is the closed, zero-model-turn successor in
 `docs/dev/plans/0068-2026-08-11-legacy-bound-calendar-evidence-replay.md`.
-It applies one uniform legacy-input rule—regular, non-symlinked, exact-root,
-exact-hash, mode-preserving—to inherited Plan 0064/0066 evidence while keeping
-new Plan 0068 artifacts private `0600`. It then carries the explicit calendar
-catalog into second-pass validation and replays the six exact retained outputs.
-Level 2 context-candidate quality still requires at least one correct, zero
-wrong, zero invalid, lineage-complete candidate; no joined/residual, fresh
-evaluation, live acceptance, knowledge, Graphiti, provider-write, or external
-gate is authorized.
+It froze six exact inherited cases with all six original recording filenames,
+repaired the first-pass/second-pass calendar catalog boundary, preserved
+calendar evidence as candidate-only, and replayed all six outputs without a
+model call or output edit. Three outputs validated and three independently
+failed on empty retained `utterance_id` assignments. Measurement was one
+correct, zero wrong, 21 abstained, and three validation failures. Terminal
+`07d6bda4...` closes `withhold` with reason
+`retained_output_schema_compliance_failed`. The product contract is repaired,
+but Level 2 context-candidate acceptance did not pass; no joined/residual,
+fresh evaluation, live acceptance, knowledge, Graphiti, provider-write, or
+external gate opened.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
