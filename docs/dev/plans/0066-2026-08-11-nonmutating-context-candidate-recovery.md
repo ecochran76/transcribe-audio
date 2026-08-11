@@ -14,13 +14,20 @@ The full 12-document binding hash remained `95533131a221486a...`.
 Execution outcome: the non-mutating preparation and reviewed-roster product
 repair passed, advancing source integrity and candidate preparation to the
 target Level 2 shadow capability. Candidate recovery did not pass: all six
-model readouts cited calendar evidence IDs absent from the frozen prepared
-allowlist and therefore failed strict validation before persistence. The final
-measurement is zero correct, zero wrong, 22 abstained slots, six unavailable
-cases, six validation failures, and zero incomplete candidate-provenance
-records. Context evidence quality remains Level 1. No assignment was applied,
-no joined/residual or fresh gate opened, and no successor is activated by this
-closeout.
+model readouts cited calendar evidence IDs that the frozen second-pass
+validator did not authorize, so strict validation failed before persistence.
+The final measurement is zero correct, zero wrong, 22 abstained slots, six
+unavailable cases, six validation failures, and zero incomplete candidate-
+provenance records. Context evidence quality remains Level 1. No assignment
+was applied and no joined/residual or fresh gate opened.
+
+Post-closeout correction: Plan 0067 established that all seven rejected
+citation occurrences were present in their case-local, host-validated
+first-pass `calendar_clue_ids`. They were not invented by the model. The
+second-pass builder dropped the explicit `calendar_evidence` catalog, leaving
+the validator unable to recognize those otherwise prepared IDs. This corrects
+the diagnosis but does not reopen, rewrite, or relabel terminal
+`c5a843f80939972f...`.
 
 Checkpoint: Plan 0065 is closed `withhold` at terminal `e73e2ebc...` because
 its D2 context gate produced zero correct prepared candidates. All 11 completed
@@ -105,7 +112,7 @@ projected into live conversation knowledge.
 | F1 source-container mutation | Retrieval preparation must be read-only for source/store/index | A1 changed zero source/stored/index bytes or rows and replayed exactly | `resolved` |
 | F2 zero prepared people | Development packet must contain the bounded reviewed roster | All six A1 packets contain the exact six-person reviewed roster | `resolved` |
 | F3 opaque candidate display | Prepared people must carry reviewed primary names without inventing identity | A1 packets carry host-reviewed primary names through the retrieval adapter | `resolved` |
-| F4 evidence may remain insufficient | At least one correct prepared candidate is non-vacuous | All six A2 outputs invented unprepared calendar citation IDs and were rejected | `withhold` |
+| F4 evidence may remain insufficient | At least one correct prepared candidate is non-vacuous | All six A2 outputs cited valid first-pass calendar IDs omitted from second-pass reference authority, so their candidates could not be measured | `withhold`; corrected by Plan 0067 |
 
 The goal-level broad drift-discovery pass is consumed by this ledger. After A0,
 review is closed-world against F1-F4 plus critical regressions introduced by

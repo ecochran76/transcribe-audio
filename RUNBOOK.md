@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 375: Activate Plan 0067 calendar evidence reconciliation (2026-08-11)
+
+Summary: Activated a bounded, zero-model-turn successor after proving the Plan
+0066 citation failures were caused by a host evidence-projection mismatch, not
+invented model IDs. Plan 0066 remains closed and immutable.
+
+Authority: `docs/dev/plans/0067-2026-08-11-calendar-evidence-contract-reconciliation.md`.
+
+Evidence:
+
+- All seven rejected calendar citation occurrences across the six Plan 0066
+  cases are members of their case-local, host-validated first-pass
+  `calendar_clue_ids`.
+- The first-pass builder creates an explicit `calendar_evidence` catalog and
+  validates discovery citations against it. The second-pass packet retains the
+  discovery readout and calendar context but drops that catalog; strict
+  identity reference collection therefore cannot authorize the same IDs.
+- Each of the six private Plan 0066 model-turn status artifacts retains exact
+  `output_text`, raw turn metadata, thread/turn IDs, and completed status.
+  Plan 0067 authorizes zero new model turns, retries, retrieval, or reference
+  repair.
+- Authority started from clean, upstream-even commit
+  `ff9deb07a982d2b33813ed245cbe66760dc90e41`. Graphiti was healthy but returned
+  no relevant Plan 0066/0067 facts; current source and immutable receipts are
+  authoritative.
+- The repo-policy selector reports `already-aligned`; no policy patch is
+  needed. Delegation is `not_spawned` because current system authority
+  prohibits proactive subagents and the critical path is tightly coupled.
+
+Next:
+
+- Freeze A0 packet/status/output/gold authority and add red contract/safety
+  tests before changing the second-pass packet or validator.
+
 ## Turn 374: Close Plan 0066 at strict evidence-reference validation (2026-08-11)
 
 Summary: Closed Plan 0066 `withhold` after the source-integrity and reviewed-
@@ -14,8 +48,10 @@ Evidence:
   preserving source/stored/index binding `95533131a221486a...` exactly.
 - A2 manifest `9a5ef73ba9ec806e...` consumed six primary model turns, zero
   fallback turns, and zero retries. Each of the six readouts referenced one or
-  more calendar evidence IDs not present in its frozen prepared packet, so all
-  six failed strict validation and none was persisted.
+  more calendar evidence IDs that the frozen second-pass validator did not
+  authorize, so all six failed strict validation and no validated readout was
+  persisted. Plan 0067 later proved all seven citation occurrences were valid
+  first-pass calendar IDs omitted from second-pass reference authority.
 - Measurement is zero correct prepared candidates, zero wrong candidates, 22
   abstained slots, zero incomplete candidate-provenance records, six
   unavailable cases, and six validation failures.

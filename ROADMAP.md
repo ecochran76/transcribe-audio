@@ -848,14 +848,28 @@ retrieval mode now leaves legacy transcript containers and index rows exact,
 and host retrieval projects the complete six-person reviewed roster with
 reviewed primary names into each private shadow packet. Its one bounded
 development pass consumed six primary turns with zero fallback and zero retry.
-All six readouts invented calendar evidence IDs outside the frozen prepared
-allowlist, so strict validation rejected them before persistence. Terminal
+All six readouts cited calendar evidence IDs outside the frozen second-pass
+validator authority, so strict validation rejected them before persistence. A
+later audit proved all seven rejected citation occurrences were valid
+host-prepared first-pass calendar IDs omitted from the second-pass evidence
+catalog; they were not invented by the model. Terminal
 `c5a843f8...` closes `withhold` with reason
 `evidence_reference_compliance_failed`: zero correct, zero wrong, six
 validation failures, and no joined/residual or fresh evaluation gate. All
 source transcripts, live index rows, identity/biometric state, accepted
 knowledge, Graphiti, provider records, and external systems remained
 non-mutating.
+
+Plan 0067 is the active, zero-model-turn reconciliation in
+`docs/dev/plans/0067-2026-08-11-calendar-evidence-contract-reconciliation.md`.
+It carries the explicit validated calendar evidence catalog across the
+first-pass/second-pass boundary, preserves calendar evidence as candidate-only,
+and revalidates the six exact retained Plan 0066 outputs without modifying
+them or sending another model/provider request. It may reach Level 2 context
+candidate quality only with at least one correct, zero wrong, zero invalid, and
+lineage-complete development candidate. It cannot open joined/residual, fresh
+evaluation, live acceptance, knowledge projection, Graphiti, provider-write,
+or external work.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
