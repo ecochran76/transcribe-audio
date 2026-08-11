@@ -827,7 +827,7 @@ target maturity movement. P5/P6 remain withheld and all action counters remain
 zero. A successor must use this gold only as development/hindsight evidence
 and validate any correction on a fresh source-disjoint cohort.
 
-Plan 0065 is that planned, no-apply successor in
+Plan 0065 is the active, no-apply successor in
 `docs/dev/plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md`.
 It first diagnoses the Plan 0064 acoustic false acceptance and the split
 context failures: four citation-validation failures, four provider-route

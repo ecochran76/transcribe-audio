@@ -1,5 +1,33 @@
 # Runbook
 
+## Turn 368: Activate Plan 0065 recovery execution (2026-08-11)
+
+Summary: The operator explicitly activated no-apply Plan 0065. The repository
+was clean and upstream-even at `8e252c2`; the plan transitioned from `PLANNED`
+to `OPEN`, with D0 as the only active packet. No model/provider call, new
+cohort selection, identity or knowledge mutation, or external effect occurred
+during activation.
+
+Evidence:
+
+- Plan authority remains
+  `docs/dev/plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md`.
+  Its bounds, one-evaluation rule, permanent Plan 0064 exposure exclusion, and
+  zero-apply terminal contract are unchanged.
+- Graphiti runtime was healthy, but focused `transcribe_audio_main` discovery
+  returned eight facts, five nodes, and five episodes with no Plan 0065 recall.
+  Current repository and private Plan 0064 receipts remain authoritative.
+- CodeGraph was current with 295 files, 9,051 nodes, 30,647 edges, and zero
+  pending changes before source work.
+- Delegation remains `not_spawned`; current system authority prohibits
+  proactive subagents. The primary agent owns the critical path.
+
+Next:
+
+- Implement and freeze D0: bind exact Plan 0064 terminal/gold/P1-P3 lineage,
+  current profile inventory and provider readiness, and the permanent
+  development exposure set before any D1/D2 model or provider work.
+
 ## Turn 367: Plan speaker identity recovery and fresh validation (2026-08-11)
 
 Summary: Created no-apply Plan 0065 in `PLANNED` state as the bounded

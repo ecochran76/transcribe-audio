@@ -1,13 +1,15 @@
 # Plan 0065 | Speaker identity recovery and fresh source-disjoint validation
 
-State: PLANNED
+State: OPEN
 
 Checkpoint: Plan 0064 is closed fail-safe at P4. Its 39 human-gold decisions
 are now development/hindsight evidence; its acoustic band produced one
 high-support wrong identity, context produced zero candidates, and neither the
 reviewed-development nor source-disjoint corpus exercised a correct residual
-acceptance. Plan 0065 has not been activated and authorizes no provider/model
-execution, identity mutation, knowledge write, or external effect.
+acceptance. The operator explicitly activated Plan 0065 on 2026-08-11 from a
+clean, upstream-even repository at `8e252c268acdb0e4a44342023b1db415ecd7c148`.
+D0 is active; no provider/model execution, identity mutation, knowledge write,
+or external effect has occurred.
 
 Lane: P09/P10
 
@@ -105,8 +107,9 @@ source-disjoint cohort produced zero acceptances through that exact rule.
 
 ## Authority and activation
 
-- `PLANNED` is non-executing. Activation requires a separate explicit operator
-  instruction and a clean, upstream-even repository readback.
+- The explicit operator instruction to execute Plan 0065 activated the plan
+  from clean, upstream-even commit
+  `8e252c268acdb0e4a44342023b1db415ecd7c148`.
 - Activation freezes the exact Plan 0064 terminal/gold lineage, current active
   profile inventory, current provider-route readiness, code authority, bounds,
   and zero-effect vector before model or provider calls.
