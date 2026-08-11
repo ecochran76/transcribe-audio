@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Active packet: D1 deterministic joined reconstruction
+Active packet: D2 supplemental development cohort and review
 
 Checkpoint: Plan 0070 terminal content
 `35cf5ae92835962df1e6fe23062dd3578118a2ffb0d23e8519e53c22d58555f9`
@@ -28,6 +28,22 @@ collections at their exact lengths and hashes, 12 Plan 0065 cases, six Plan
 0069 cases, six original recording filenames, the Plan 0070 terminal, and
 clean upstream-even source authority. Model turns and every effect count are
 zero.
+
+D1 passed on its second and final attempt and replays exactly. Its first
+attempt wrote no artifact because Plan 0069's nominal original-filename field
+contains enriched transcript-artifact names, while Plan 0064's bound review
+authority contains the actual `.m4a` recording filenames. D1 preserves both
+lineages and treats the Plan 0064 names as authoritative. Resolution content
+`a235ddcdbfad57915ad05a10c25f22756715798d7ccb995a46cd00e0752f83fa`,
+measurement content
+`32b7598262e9d0cf8baf9396bf1b7176b9e9747a39e62c02e8d3d140c05f3a9a`,
+and receipt content
+`13c6f879c0297b9fcdc53841954ec320f57b56d4905bcf3f4b379194300863c7`
+bind all 12 original filenames and the exact 39-slot result. Acoustic is
+10/0/29, context 5/1/33, combined 5/0/34, and residual-policy 5/0/34 for
+correct/wrong/abstained. The one wrong context-only proposal is safely
+unaccepted; actual residual acceptances remain zero. Fresh evaluation is still
+closed.
 
 Plan 0065's corrected acoustic evidence has 10 correct and zero wrong
 candidates. Plan 0069's six filename-bearing context cases complete a

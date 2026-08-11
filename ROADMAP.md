@@ -924,8 +924,12 @@ effects remain closed.
 Corrected D0 passed on its first attempt: activation `27b011dc...` binds all
 seven exact exposure collections, 12 inherited Plan 0065 cases, six Plan 0069
 cases, six original recording filenames, and the Plan 0070 terminal with zero
-model turns and zero effects. D1 deterministic joined reconstruction is now
-active.
+model turns and zero effects. D1 is complete: resolution `a235ddc...` and
+measurement `32b75982...` preserve all 12 actual `.m4a` filenames and
+reproduce acoustic 10/0, context 5/1, combined 5/0, and residual 5/0 candidate
+correctness. The context-only wrong proposal remains unaccepted and no
+residual acceptance exists, so D2 supplemental development is active while
+fresh evaluation stays closed.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

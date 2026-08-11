@@ -1,5 +1,37 @@
 # Runbook
 
+## Turn 385: Pass Plan 0071 D1 joined gate and filename authority (2026-08-11)
+
+Summary: D1 passed on its second and final attempt. It deterministically
+reconstructs all 12 reviewed recordings/39 slots, carries all 12 actual source
+recording filenames, proves the pillar-agreement gate, and proves the existing
+population has no residual acceptance.
+
+Evidence:
+
+- Attempt one wrote no artifact. It exposed that Plan 0069's nominal original
+  filename is an enriched transcript-artifact name; Plan 0064's bound review
+  authority holds the actual `.m4a` recording name.
+- D1 preserves the Plan 0069 value as source-artifact lineage and uses the Plan
+  0064 `.m4a` name as `original_recording_filename` for all 12 cases.
+- Resolution content `a235ddcdbfad5791...`, measurement content
+  `32b7598262e9d0cf...`, and receipt content `13c6f879c0297b9f...`
+  replay exactly from private 0700/0600 storage.
+- Correct/wrong/abstained counts are acoustic 10/0/29, context 5/1/33,
+  combined 5/0/34, and residual-policy 5/0/34.
+- Five pillar agreements are correct, zero combined identities are wrong, the
+  one wrong context-only proposal is safely unaccepted, and actual residual
+  acceptance count is zero.
+- Model turns and every source/store/index, assignment, identity, knowledge,
+  biometric, provider, Graphiti, and external effect remain zero. Fresh
+  evaluation remains disallowed.
+
+Next:
+
+- Freeze at most six structurally selected source-disjoint supplemental
+  development recordings, then prepare blinded direct-audio review carrying
+  each actual original recording filename.
+
 ## Turn 384: Pass corrected Plan 0071 D0 authority freeze (2026-08-11)
 
 Summary: Corrected D0 passed on its first attempt and replayed exactly. The
