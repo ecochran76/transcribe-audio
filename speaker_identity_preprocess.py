@@ -715,6 +715,7 @@ def build_identity_evaluation_packet(
         "task": "speaker_identity_evaluation",
         "conversation": discovery_packet["conversation"],
         "calendar_context": discovery_packet["calendar_context"],
+        "calendar_evidence": discovery_packet["calendar_evidence"],
         "source_contexts": discovery_packet["source_contexts"],
         "speakers": discovery_packet["speakers"],
         "discovery_readout": discovery_readout,
@@ -785,6 +786,22 @@ def _prepared_identity_references(
         if attendee_id:
             evidence_ids.add(attendee_id)
             independence_keys[attendee_id] = calendar_anchor
+    for calendar_item in packet.get("calendar_evidence", []):
+        if not isinstance(calendar_item, dict):
+            continue
+        calendar_evidence_id = normalize_string(calendar_item.get("evidence_id"))
+        if not calendar_evidence_id:
+            continue
+        if normalize_string(calendar_item.get("identity_use")) != "candidate_only":
+            continue
+        calendar_event_id = normalize_string(calendar_item.get("event_id"))
+        calendar_evidence_anchor = (
+            f"calendar:{calendar_event_id}"
+            if calendar_event_id
+            else f"calendar:prepared:{conversation_id or 'conversation'}"
+        )
+        evidence_ids.add(calendar_evidence_id)
+        independence_keys[calendar_evidence_id] = calendar_evidence_anchor
     for source_context in packet.get("source_contexts", []):
         if not isinstance(source_context, dict):
             continue
@@ -1016,6 +1033,17 @@ def validate_and_score_identity_evaluation(
             evidence_ids=evidence_ids,
             independence_keys=independence_keys,
         )
+        factor_evidence_ids = {
+            evidence_id
+            for factor in factors
+            for evidence_id in factor.get("evidence_ids", [])
+        }
+        if status == "candidate_match" and not (
+            factor_evidence_ids & prepared_utterance_ids
+        ):
+            raise ValueError(
+                "Candidate Match factor evidence must cite a prepared transcript clue."
+            )
         assignment["factors"] = factors
         assignment["confidence"] = calibrate_speaker_identity_confidence(
             assignment,

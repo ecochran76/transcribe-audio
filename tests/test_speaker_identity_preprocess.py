@@ -377,6 +377,136 @@ def test_build_identity_evaluation_packet_contains_only_host_retrieved_evidence(
     assert packet["policy"]["model_must_not_emit_numeric_confidence"] is True
 
 
+def test_identity_packet_carries_exact_first_pass_calendar_evidence_catalog() -> None:
+    transcript = _discovery_transcript()
+    discovery_packet = speaker_identity_preprocess.build_clue_discovery_packet(
+        transcript=transcript
+    )
+    discovery = {
+        "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+        "speaker_clues": [],
+        "conversation_clues": [],
+        "warnings": [],
+    }
+
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=transcript,
+        discovery_readout=discovery,
+    )
+
+    assert packet["calendar_evidence"] == discovery_packet["calendar_evidence"]
+
+
+def test_calendar_catalog_ids_validate_with_one_same_event_independence_group() -> None:
+    transcript = _discovery_transcript()
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=transcript,
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+    )
+    title_id, attendee_id = (
+        packet["calendar_evidence"][0]["evidence_id"],
+        packet["calendar_evidence"][1]["evidence_id"],
+    )
+    readout = {
+        "schema_version": "transcribe-audio.speaker-identity-evaluation-readout.v1",
+        "evaluation_id": packet["evaluation_id"],
+        "calendar_association": {
+            "status": "matched",
+            "factors": [
+                {
+                    "factor": "event_title_topic_alignment",
+                    "direction": "support",
+                    "strength": "strong",
+                    "evidence_ids": [title_id],
+                },
+                {
+                    "factor": "attendee_or_organization_alignment",
+                    "direction": "support",
+                    "strength": "moderate",
+                    "evidence_ids": [attendee_id],
+                },
+            ],
+        },
+        "person_links": [],
+        "speaker_assignments": [],
+        "warnings": [],
+    }
+
+    validated = speaker_identity_preprocess.validate_and_score_identity_evaluation(
+        packet, readout
+    )
+
+    assert {
+        factor["independence_key"]
+        for factor in validated["readout"]["calendar_association"]["factors"]
+    } == {"calendar:event-1"}
+
+
+def test_candidate_match_requires_factor_level_transcript_evidence() -> None:
+    packet = speaker_identity_preprocess.build_identity_evaluation_packet(
+        transcript=_discovery_transcript(),
+        discovery_readout={
+            "schema_version": "transcribe-audio.speaker-clue-discovery-readout.v1",
+            "speaker_clues": [],
+            "conversation_clues": [],
+            "warnings": [],
+        },
+        person_records=[
+            {
+                "contact_id": "gws-alice",
+                "label": "Alice Example",
+                "email": "alice@example.com",
+                "source_id": "gws-personal",
+                "source_type": "gws_contact",
+            }
+        ],
+    )
+    calendar_id = packet["calendar_evidence"][0]["evidence_id"]
+    readout = {
+        "schema_version": "transcribe-audio.speaker-identity-evaluation-readout.v1",
+        "evaluation_id": packet["evaluation_id"],
+        "calendar_association": {
+            "status": "matched",
+            "factors": [
+                {
+                    "factor": "event_title_topic_alignment",
+                    "direction": "support",
+                    "strength": "strong",
+                    "evidence_ids": [calendar_id],
+                }
+            ],
+        },
+        "person_links": [],
+        "speaker_assignments": [
+            {
+                "speaker_labels": ["Speaker A"],
+                "status": "candidate_match",
+                "person_id": packet["people"][0]["person_id"],
+                "transcript_clue_ids": ["utterance-1"],
+                "provenance_source_ids": [],
+                "factors": [
+                    {
+                        "factor": "calendar_attendee_topic_alignment",
+                        "direction": "support",
+                        "strength": "strong",
+                        "evidence_ids": [calendar_id],
+                    }
+                ],
+                "review_flags": [],
+            }
+        ],
+        "warnings": [],
+    }
+
+    with pytest.raises(ValueError, match="factor evidence must cite a prepared transcript clue"):
+        speaker_identity_preprocess.validate_and_score_identity_evaluation(packet, readout)
+
+
 def test_score_evidence_factors_deduplicates_correlated_sources_and_adds_band() -> None:
     factors = [
         {

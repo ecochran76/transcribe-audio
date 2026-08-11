@@ -645,13 +645,13 @@ def test_retrieval_bundle_drives_identity_packet_and_preserves_review_gate(
                 "person_id": person_id,
                 "transcript_clue_ids": ["utterance-1"],
                 "provenance_source_ids": [included_id],
-                "factors": [
-                    {
-                        "factor": "verified_identifier_match",
-                        "direction": "support",
-                        "strength": "strong",
-                        "evidence_ids": [included_id],
-                    }
+                    "factors": [
+                        {
+                            "factor": "verified_identifier_match",
+                            "direction": "support",
+                            "strength": "strong",
+                            "evidence_ids": [included_id, "utterance-1"],
+                        }
                 ],
                 "utterance_assignments": [],
                 "review_flags": [],
@@ -670,7 +670,10 @@ def test_retrieval_bundle_drives_identity_packet_and_preserves_review_gate(
     assert evaluation["retrieval"]["bundle_id"] == bundle.persisted_bundle.bundle_id
     assert evaluation["evidence_snapshots"][0]["freshness_state"] == "current"
     assert evaluation["evidence_snapshots"][0]["inclusion_reason"] == "ranked_support"
-    assert evaluation["proposals"][0]["factors"][0]["evidence_ids"] == [included_id]
+    assert evaluation["proposals"][0]["factors"][0]["evidence_ids"] == [
+        included_id,
+        "utterance-1",
+    ]
     assert evaluation["review_state"] == {
         "pending_count": 1,
         "requires_human_confirmation": True,
