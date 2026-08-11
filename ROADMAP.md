@@ -930,6 +930,10 @@ reproduce acoustic 10/0, context 5/1, combined 5/0, and residual 5/0 candidate
 correctness. The context-only wrong proposal remains unaccepted and no
 residual acceptance exists, so D2 supplemental development is active while
 fresh evaluation stays closed.
+D2 cohort manifest `ea37ea38...` now freezes six next-oldest source-disjoint
+three-speaker recordings/18 slots with six actual original `.m4a` filenames.
+It contains no predictions or gold and authorizes no fresh evaluation; bounded
+prediction and blinded review preparation are next.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

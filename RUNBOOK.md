@@ -1,5 +1,31 @@
 # Runbook
 
+## Turn 386: Freeze Plan 0071 supplemental three-speaker cohort (2026-08-11)
+
+Summary: Frozen and replayed the structurally selected D2 supplemental
+development cohort before any prediction or human-gold access. Six next-oldest
+source-disjoint recordings provide exactly 18 three-speaker slots.
+
+Evidence:
+
+- Manifest content `ea37ea3879f467ce...`, file `06ede0c8432c66c1...`,
+  and receipt content `d438ec1061b264df...` replay from private 0700/0600
+  storage.
+- Selection is oldest-forward and requires exactly three diarized labels,
+  hash-matched transcript/media files, a nonempty actual original filename,
+  and exclusion from every frozen development document and recording hash.
+- Selected chronological ranks are 59, 68, 74, 99, 131, and 133. All six
+  original names are `.m4a` recording names carried in the private manifest.
+- Prediction count is zero, human gold was not read, and fresh evaluation is
+  disallowed.
+- Model turns and every source/store/index, assignment, identity, knowledge,
+  biometric, provider-write, Graphiti, and external effect remain zero.
+
+Next:
+
+- Run bounded acoustic and context predictions in private state, then publish
+  a prediction-blind direct-audio review with the frozen original filenames.
+
 ## Turn 385: Pass Plan 0071 D1 joined gate and filename authority (2026-08-11)
 
 Summary: D1 passed on its second and final attempt. It deterministically

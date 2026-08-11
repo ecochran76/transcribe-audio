@@ -45,6 +45,16 @@ correct/wrong/abstained. The one wrong context-only proposal is safely
 unaccepted; actual residual acceptances remain zero. Fresh evaluation is still
 closed.
 
+D2's structural cohort is frozen before prediction or gold. Manifest content
+`ea37ea3879f467ce6604df53da55c184088e3a6a9accc21abf49eeb154b8f6c2`
+and receipt content
+`d438ec1061b264dff0233ca6956c2d2bf6532b4bfab4fcf969c1e4b8edcfefe2`
+bind six next-oldest source-disjoint recordings, exactly three diarized labels
+per recording, 18 slots, six actual original `.m4a` filenames, and hash-matched
+transcript/media artifacts. Prediction count is zero, human gold was not read,
+fresh evaluation is disallowed, and every effect count is zero. D2 prediction
+and blinded review preparation remain active.
+
 Plan 0065's corrected acoustic evidence has 10 correct and zero wrong
 candidates. Plan 0069's six filename-bearing context cases complete a
 12-recording/39-slot development reconstruction with five correct and one
