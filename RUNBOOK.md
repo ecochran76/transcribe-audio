@@ -1,5 +1,37 @@
 # Runbook
 
+## Turn 373: Pass Plan 0066 A0/A1 source and roster gate (2026-08-11)
+
+Summary: Froze and replayed Plan 0066 A0/A1. Retrieval preparation now uses a
+content-addressed private schema-2 transcript snapshot, mirrors the complete
+reviewed-person roster into the private shadow store, and carries reviewed
+primary names into prepared packets without changing live transcript evidence.
+
+Evidence:
+
+- A0 activation `8b1580e69c281e61...` binds 12 development cases, 39 speaker
+  slots, six reviewed people, provider readiness, and all source/stored/index
+  rows with zero model turns and zero effects.
+- The implementation adds deterministic private transcript IDs, reviewed-person
+  shadow mirroring and local scopes, candidate primary-name propagation, and a
+  retrieval API route that never invokes durable legacy identity backfill.
+- The red tests failed on all four diagnosed seams, then passed after the
+  implementation. The surrounding 93-test regression set and all 1,066
+  repository tests pass.
+- A1 selected six known-gold development cases before execution, independently
+  projected the same complete six-person roster into every packet, and retained
+  each original recording basename only in its private case receipt.
+- A1 manifest `400f67864170dbd0...` replays with six prepared cases, zero model
+  turns, and zero source/store/index changes. The complete 12-document binding
+  hash is `95533131a221486a...` both before and after.
+- A1 did not persist an evaluation, assignment, identity, accepted knowledge,
+  biometric state, provider write, Graphiti write, or external write.
+
+Next:
+
+- Run exactly one primary development model turn per selected A1 packet, with
+  zero fallback and zero retry, then close at the non-vacuous candidate gate.
+
 ## Turn 372: Activate Plan 0066 non-mutating context recovery (2026-08-11)
 
 Summary: The operator instructed the agent to plan and execute the bounded

@@ -2,6 +2,13 @@
 
 State: OPEN
 
+Active packet: A2 bounded development inference. A0 froze and replayed
+activation `8b1580e69c281e61...`; A1 froze and replayed manifest
+`400f67864170dbd0...`. Six selected development packets each contain the exact
+six-person reviewed roster, retain their original recording basename in the
+private case receipt, and report zero source/stored/index changes and zero model
+turns. The full 12-document binding hash is unchanged at `95533131a221486a...`.
+
 Checkpoint: Plan 0065 is closed `withhold` at terminal `e73e2ebc...` because
 its D2 context gate produced zero correct prepared candidates. All 11 completed
 Plan 0065 packets contained zero prepared people even when bounded provenance

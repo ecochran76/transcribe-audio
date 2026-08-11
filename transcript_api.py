@@ -1915,6 +1915,7 @@ def prepare_selected_speaker_identity_evaluation(
     evidence_mode: str = "retrieval",
     legacy_approval_token: str = "",
     operator: str = "",
+    source_config_state_root: Optional[Path] = None,
 ) -> dict[str, Any]:
     """Validate discovery, retrieve bounded evidence, and prepare phase two."""
     mode = str(evidence_mode or "retrieval").strip()
@@ -1990,7 +1991,7 @@ def prepare_selected_speaker_identity_evaluation(
         resolved_sources = (
             provenance_config
             .speaker_preprocessing_source_configs_from_provenance(
-                state_root=state_root,
+                state_root=source_config_state_root or state_root,
             )
         )
         retrieved = conversation_identity_policy.prepare_transcript_identity_evidence(
