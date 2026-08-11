@@ -899,16 +899,17 @@ zero unavailable, and zero validation failures. Terminal `2d53d01f...` closes
 PASS; no joined/residual, fresh-evaluation, live-apply, knowledge, Graphiti,
 provider-write, or external gate opened.
 
-Plan 0070 is the active shadow-only successor in
+Plan 0070 is the closed fail-safe shadow successor in
 `docs/dev/plans/0070-2026-08-11-joined-residual-and-fresh-shadow-validation.md`.
 Its verified starting counterfactual combines Plan 0065's corrected acoustic
 policy with Plan 0069 context evidence across 12 reviewed recordings/39 slots:
 five correct pillar agreements, zero combined wrong identities, and no actual
-residual acceptance. It first freezes that authority and a bounded supplemental
-development review to exercise the residual rule. Only a passing development
-gate may open one next-oldest source-disjoint blind evaluation. Original
-recording filenames remain mandatory in every review; live assignment,
-knowledge, Graphiti, provider-write, and external effects remain closed.
+residual acceptance. Both bounded D0 attempts failed before artifact creation
+because the authority harness first expected a nonexistent source constant and
+then treated list-valued exposure fields as integer counts. Terminal
+`35cf5ae9...` closes `withhold`; no supplemental development or fresh
+evaluation opened, and live assignment, knowledge, Graphiti, provider-write,
+and external effects remained zero.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

@@ -1,5 +1,37 @@
 # Runbook
 
+## Turn 382: Close Plan 0070 after bounded D0 harness failures (2026-08-11)
+
+Summary: Closed Plan 0070 fail-safe after its two D0 attempts failed before
+artifact creation. The inherited evidence did not drift; the authority harness
+first referenced a policy hash that is not exported as a source constant, then
+compared list-valued exposure fields directly with integer counts.
+
+Authority:
+`docs/dev/plans/0070-2026-08-11-joined-residual-and-fresh-shadow-validation.md`.
+
+Evidence:
+
+- D0 attempt count is 2 and `d0_artifact_written=false`; D1-D3 and E0-E3 did
+  not open.
+- Terminal content `35cf5ae92835962d...` and file
+  `ac90a03d92bf706e...` replay `plan0070_closed_withhold` from source commit
+  `812cafc`.
+- The private runtime root and run directory are mode 0700; the terminal is
+  mode 0600.
+- The read-only counterfactual remains 12 recordings/39 slots, 10 correct and
+  zero wrong acoustic candidates, five correct and one wrong context
+  proposals, five correct pillar agreements, zero combined wrong identities,
+  and zero residual acceptances.
+- Supplemental development, fresh evaluation, source/store/index writes,
+  assignment, identity, knowledge, biometric, provider, Graphiti, and external
+  effects are zero. Delegation remains `not_spawned`.
+
+Next:
+
+- Open a corrected successor whose D0 validates exposure collection lengths
+  and exact set hashes before reproducing the joined/residual result.
+
 ## Turn 381: Activate Plan 0070 joined/residual shadow validation (2026-08-11)
 
 Summary: Activated a bounded successor to prove the joined/residual contract

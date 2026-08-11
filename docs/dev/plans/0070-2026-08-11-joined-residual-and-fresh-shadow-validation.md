@@ -1,8 +1,8 @@
 # Plan 0070 | Joined residual and fresh shadow validation
 
-State: OPEN
+State: CLOSED — WITHHOLD
 
-Active packet: D0 authority freeze
+Active packet: terminal
 
 Checkpoint: Plan 0069 closed PASS after validating all six retained context
 outputs, preserving all six original recording filenames, and measuring five
@@ -21,6 +21,16 @@ Critical-Path Owner: primary agent
 
 ## Current State
 
+Plan 0070 closed before D0 after both bounded authority-freeze attempts failed
+without writing an artifact. The first harness incorrectly expected the frozen
+Plan 0065 policy hash as a source constant; the corrected replay then compared
+the exposure manifest's list-valued fields directly with integer counts. This
+is an authority-harness shape mismatch, not evidence drift. Terminal content
+`35cf5ae92835962df1e6fe23062dd3578118a2ffb0d23e8519e53c22d58555f9`
+and file
+`ac90a03d92bf706e7f5bc68429de904812114587118c76bccd0c66b0867242cd`
+replay from a private 0700/0600 tree with every effect count at zero.
+
 Plan 0065's corrected acoustic policy retains 10 correct candidates and zero
 wrong candidates. Plan 0069 supplies six schema-valid context cases. Combining
 those with the remaining Plan 0065 context dispositions covers all 12 reviewed
@@ -30,6 +40,10 @@ pillar agreements while safely withholding the context-only wrong proposal.
 No reviewed case contains the population needed for a genuine residual
 acceptance, so a bounded supplemental development cohort is required before a
 fresh evaluation can open.
+
+No D1-D3 or E0-E3 packet opened. The verified read-only counterfactual remains
+available to a corrected successor, but it is not an immutable Plan 0070 D1
+result.
 
 ## Scope
 
@@ -121,4 +135,3 @@ push, and upstream equality. Direct-audio review must be checked for filename,
 playback, answerability, prediction blindness, and disabled incomplete export.
 Done is a replayable readiness/withhold terminal; test success alone is not
 completion.
-
