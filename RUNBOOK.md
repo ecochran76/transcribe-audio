@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 370: Pass Plan 0065 D1 acoustic safety recovery (2026-08-11)
+
+Summary: Froze and replayed a calibration-derived acoustic boundary guard.
+The development gate now has zero retained wrong identities and retains 10 of
+11 formerly correct candidates. D2 contextual evidence recovery is active.
+
+Evidence:
+
+- Policy `006c6770...`, private development evidence `0958b3cf...`, and
+  receipt `7685aa85...` replay exactly.
+- The policy uses two-thirds of each usable model's minimum genuine surplus
+  from the frozen generation-3 calibration matrix. It does not tune default
+  thresholds and does not use the wrong row to derive its floor.
+- Original candidates reproduce as 11 correct and one wrong. Corrected output
+  retains 10 correct, demotes one correct boundary case and the wrong case to
+  review, and creates zero new wrong candidates.
+- All 39 source/probe derivations are exact and have zero cross-speaker
+  interval overlap. Thirty slot derivations span nine transcript JSON files
+  with container-byte drift, but every derived probe hash remains exact.
+- A 24-half local biometric audit found all 12 candidates temporally stable;
+  third-model half support retained only six correct rows. Neither diagnostic
+  became a policy input.
+- Local biometric half-probe units total 24. Provider model turns and all
+  assignment, enrollment, mutation, threshold-default, knowledge, Graphiti,
+  provider, external-write, and historical-reprocessing counters remain zero.
+- Progress classification is `acceptance_advancement`; acoustic development
+  passes, but contextual, joined/residual, and fresh evaluation remain open.
+
+Next:
+
+- Repair prepared-evidence calendar-factor handling at the validation seam,
+  preserve exact source lineage, and run at most one primary plus one fallback
+  request per development case under D2.
+
 ## Turn 369: Freeze Plan 0065 D0 diagnostic authority (2026-08-11)
 
 Summary: Completed D0 with immutable, replayed development authority and no

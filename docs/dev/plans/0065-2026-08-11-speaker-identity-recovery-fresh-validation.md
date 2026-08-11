@@ -9,8 +9,9 @@ reviewed-development nor source-disjoint corpus exercised a correct residual
 acceptance. The operator explicitly activated Plan 0065 on 2026-08-11 from a
 clean, upstream-even repository at `8e252c268acdb0e4a44342023b1db415ecd7c148`.
 D0 is complete at immutable manifest `a38891bb...` and zero-effect receipt
-`14290463...`; exact replay is idempotent. D1 is active. No provider/model
-turn, identity mutation, knowledge write, or external effect has occurred.
+`14290463...`. D1 is complete at policy `006c6770...` and receipt
+`7685aa85...`; both replay exactly. D2 is active. No provider model turn,
+identity mutation, knowledge write, or external effect has occurred.
 
 Lane: P09/P10
 
@@ -252,6 +253,28 @@ subagents unless the user explicitly requests them.
 - Progress classification: `blocker_reduction`. D0 removes authority and
   exposure ambiguity; it does not itself satisfy acoustic, context, residual,
   or fresh-evaluation acceptance.
+
+### D1 | Complete (2026-08-11)
+
+- Frozen acoustic policy `006c6770...` derives each usable model's safety
+  floor from two-thirds of its pre-existing minimum calibrated genuine-score
+  surplus. It does not change default thresholds.
+- Development evidence `0958b3cf...` reproduces the original 11 correct and
+  one wrong candidates. The successor retains 10 correct, demotes one correct
+  boundary case to review, demotes the wrong candidate, and creates zero new
+  wrong candidates. The D1 gate passes.
+- All 39 source-audio and derived-probe hashes reproduce exactly, with zero
+  cross-speaker interval overlap. Nine recording-level transcript JSON files
+  were reserialized after Plan 0064, affecting 30 slots, but all 30 derived
+  probe hashes remain exact; this container drift is private and explicit.
+- The diagnostic 24-half rerun found all 11 correct and the one wrong candidate
+  temporally stable. Third-model half support retained only six correct rows.
+  Both hypotheses were rejected as policy inputs before the calibration guard
+  was frozen.
+- Receipt `7685aa85...` replays exactly with 24 local biometric half-probe
+  units, zero provider model turns, and every action/effect counter zero.
+- Progress classification: `acceptance_advancement`. The acoustic development
+  criterion now passes, while D2-D3 and the fresh E0-E3 evaluation remain open.
 
 ## Acceptance Criteria
 
