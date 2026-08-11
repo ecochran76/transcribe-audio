@@ -19,6 +19,7 @@ from acoustic_audio_derivatives import (
 import speaker_identity_plan0065_d0 as d0
 import speaker_identity_plan0065_d1 as d1
 import speaker_identity_plan0065_d2 as d2
+import speaker_identity_plan0065_reconciliation as reconciliation
 
 
 SCHEMA = "transcribe-audio.plan0065-terminal.v1"
@@ -48,7 +49,20 @@ def build_terminal(
     d0_receipt: Mapping[str, Any],
     d1_receipt: Mapping[str, Any],
     d2_receipt: Mapping[str, Any],
+    reconciliation_receipt: Mapping[str, Any],
 ) -> dict[str, Any]:
+    local_effects = reconciliation_receipt.get("effect_accounting") or {}
+    local_product_effects = {
+        key: value
+        for key, value in local_effects.items()
+        if key
+        not in {
+            "d2_identity_container_mutation_document_count",
+            "restored_local_artifact_copy_count",
+            "reconciled_transcript_index_row_count",
+            "lasting_identity_container_mutation_count",
+        }
+    }
     if (
         d0_receipt.get("status") != "d0_frozen_zero_effect"
         or d1_receipt.get("status") != "d1_pass_zero_effect"
@@ -58,6 +72,15 @@ def build_terminal(
         or d2_receipt.get("context_gate", {}).get("terminal_status")
         != "context_recovery_failed"
         or any((d2_receipt.get("effect_counts") or {}).values())
+        or reconciliation_receipt.get("status")
+        != "d2_local_identity_metadata_reconciled"
+        or reconciliation_receipt.get("d2_receipt_content_sha256")
+        not in {None, D2_RECEIPT_SHA256}
+        or local_effects.get("d2_identity_container_mutation_document_count") != 3
+        or local_effects.get("restored_local_artifact_copy_count") != 5
+        or local_effects.get("reconciled_transcript_index_row_count") != 3
+        or local_effects.get("lasting_identity_container_mutation_count") != 0
+        or any(local_product_effects.values())
     ):
         raise Plan0065TerminalError("Plan 0065 terminal authority is incomplete.")
     return _content(
@@ -69,6 +92,9 @@ def build_terminal(
             "d0_receipt_content_sha256": d0_receipt["content_sha256"],
             "d1_receipt_content_sha256": d1_receipt["content_sha256"],
             "d2_receipt_content_sha256": d2_receipt["content_sha256"],
+            "d2_reconciliation_receipt_content_sha256": (
+                reconciliation_receipt["content_sha256"]
+            ),
             "packet_state": {
                 "d0": "complete",
                 "d1": "complete_pass",
@@ -98,6 +124,20 @@ def build_terminal(
                 ]["fallback_model_turn_count"],
                 "fresh_evaluation_run_count": 0,
             },
+            "local_reconciliation": {
+                "detected_document_count": local_effects[
+                    "d2_identity_container_mutation_document_count"
+                ],
+                "restored_artifact_copy_count": local_effects[
+                    "restored_local_artifact_copy_count"
+                ],
+                "reconciled_index_row_count": local_effects[
+                    "reconciled_transcript_index_row_count"
+                ],
+                "lasting_mutation_count": local_effects[
+                    "lasting_identity_container_mutation_count"
+                ],
+            },
             "effect_counts": dict(d2_receipt["effect_counts"]),
         }
     )
@@ -110,6 +150,9 @@ def _paths(runtime_root: Path) -> dict[str, Path]:
 
 
 def close_plan(*, runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> dict[str, Any]:
+    reconciliation_receipt = reconciliation.replay_reconciliation(
+        runtime_root=runtime_root
+    )
     d0_receipt = d0.replay_d0(
         manifest_content_sha256=D0_MANIFEST_SHA256,
         runtime_root=runtime_root,
@@ -123,6 +166,7 @@ def close_plan(*, runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> dict[str, Any]:
         d0_receipt=d0_receipt,
         d1_receipt=d1_receipt,
         d2_receipt=d2_receipt,
+        reconciliation_receipt=reconciliation_receipt,
     )
     paths = _paths(runtime_root)
     if paths["terminal"].exists():
@@ -144,8 +188,27 @@ def replay_terminal(*, runtime_root: Path = DEFAULT_RUNTIME_ROOT) -> dict[str, A
     core = {key: value for key, value in terminal.items() if key != "content_sha256"}
     if terminal.get("content_sha256") != _hash(core):
         raise Plan0065TerminalError("Plan 0065 terminal drifted.")
+    reconciliation_receipt = reconciliation.replay_reconciliation(
+        runtime_root=runtime_root
+    )
+    d0_receipt = d0.replay_d0(
+        manifest_content_sha256=D0_MANIFEST_SHA256,
+        runtime_root=runtime_root,
+    )
+    d1_receipt = d1.replay_d1(
+        policy_content_sha256=D1_POLICY_SHA256,
+        runtime_root=runtime_root,
+    )
     d2_receipt = d2.replay_d2(D2_ACTIVATION_SHA256, runtime_root=runtime_root)
-    if terminal.get("d2_receipt_content_sha256") != d2_receipt.get("content_sha256"):
+    if (
+        terminal.get("d0_receipt_content_sha256") != d0_receipt.get("content_sha256")
+        or terminal.get("d1_receipt_content_sha256")
+        != d1_receipt.get("content_sha256")
+        or terminal.get("d2_receipt_content_sha256")
+        != d2_receipt.get("content_sha256")
+        or terminal.get("d2_reconciliation_receipt_content_sha256")
+        != reconciliation_receipt.get("content_sha256")
+    ):
         raise Plan0065TerminalError("Plan 0065 terminal lost its D2 binding.")
     return {
         **terminal,
