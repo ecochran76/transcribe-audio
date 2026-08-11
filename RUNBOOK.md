@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 379: Activate Plan 0069 grouped-assignment normalization (2026-08-11)
+
+Summary: Activated a bounded zero-model-turn successor after read-only
+inspection refined the Plan 0068 schema failure. The three rejected outputs
+contain 10 legacy grouped `utterance_ids` objects covering 28 prepared
+utterances. Deterministically expanding those groups into singular
+`utterance_id` objects makes all six retained outputs validate without changing
+identity-bearing content.
+
+Authority:
+`docs/dev/plans/0069-2026-08-11-grouped-utterance-assignment-normalization.md`.
+
+Evidence:
+
+- The six Plan 0068 cases retain all six original recording filenames.
+- The read-only counterfactual validated all six exact retained output texts
+  and measured five correct prepared candidates, zero wrong, 17 abstained,
+  zero incomplete provenance, zero unavailable, and zero validation failures.
+- Normalization is limited to 10 exact grouped objects and 28 exact prepared
+  utterance IDs. It must preserve all other fields and fail closed on blank,
+  duplicate, mixed, unknown, or otherwise ambiguous input.
+- Model turns, retries, model repairs, retrievals, fresh evaluations,
+  source/store/index writes, identity writes, knowledge writes, Graphiti, and
+  external effects remain zero. Delegation is `not_spawned` under current
+  system authority.
+
+Next:
+
+- Freeze Plan 0069 A0 authority, add red tests, implement the normalization,
+  and replay the six retained outputs into new private Plan 0069 evidence.
+
 ## Turn 378: Repair calendar contract and close Plan 0068 (2026-08-11)
 
 Summary: Plan 0068 repaired the host calendar-evidence projection contract and
