@@ -1,5 +1,36 @@
 # Runbook
 
+## Turn 381: Activate Plan 0070 joined/residual shadow validation (2026-08-11)
+
+Summary: Activated a bounded successor to prove the joined/residual contract
+before one fresh source-disjoint evaluation. Plan 0069 context evidence and
+Plan 0065 corrected acoustic evidence now provide a complete deterministic D3
+starting point; the existing reviewed population cannot exercise the residual
+rule, so a bounded supplemental development review is the immediate gate.
+
+Authority:
+`docs/dev/plans/0070-2026-08-11-joined-residual-and-fresh-shadow-validation.md`.
+
+Evidence:
+
+- Current repository authority is clean and upstream-even at `d3e1133`.
+- Graphiti is healthy but returned five older unrelated facts; current plans,
+  source, and immutable receipts remain authoritative.
+- The read-only 12-recording/39-slot reconstruction yields 10 correct and zero
+  wrong acoustic candidates, five correct and one wrong context proposals,
+  five correct pillar agreements, zero combined wrong identities, and zero
+  actual residual acceptances.
+- The context-only wrong proposal remains `review` and is not accepted by the
+  join. The only existing three-speaker recording has only one canonical-person
+  gold slot and cannot satisfy the residual population contract.
+- Delegation is `not_spawned`. Live assignment, identity/biometric mutation,
+  knowledge, Graphiti, provider-write, and external effects remain zero.
+
+Next:
+
+- Freeze D0 authority, replay D1 as immutable evidence, then select and prepare
+  at most six supplemental development conversations with original filenames.
+
 ## Turn 380: Close Plan 0069 with six filename-bearing valid cases (2026-08-11)
 
 Summary: Plan 0069 reconciled the retained grouped utterance-assignment
