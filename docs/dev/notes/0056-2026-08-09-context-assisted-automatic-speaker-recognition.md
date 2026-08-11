@@ -111,6 +111,9 @@ the remainder abstains without reopening routine approval rituals.
 ## Planning authority
 
 [Plan 0064](../plans/0064-2026-08-09-context-assisted-automatic-speaker-recognition.md)
-is the active bounded implementation plan. `ROADMAP.md` places it on the P09
-and P10 critical path. This note is the durable architecture decision; the
-plan owns implementation, validation, and maturity evidence.
+closed fail-safe after source-disjoint measurement found one high-support wrong
+acoustic identity, zero context/combined candidates, and no actual residual
+acceptance. [Plan 0065](../plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md)
+is the planned no-apply recovery and fresh-validation successor on the P09/P10
+critical path. This note remains the durable architecture decision; the plans
+own their bounded implementation, validation, and maturity evidence.

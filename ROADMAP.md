@@ -827,6 +827,19 @@ target maturity movement. P5/P6 remain withheld and all action counters remain
 zero. A successor must use this gold only as development/hindsight evidence
 and validate any correction on a fresh source-disjoint cohort.
 
+Plan 0065 is that planned, no-apply successor in
+`docs/dev/plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md`.
+It first diagnoses the Plan 0064 acoustic false acceptance and the split
+context failures: four citation-validation failures, four provider-route
+failures, and four completed cases with no prepared candidate match. It then
+requires a corrected development gate with a genuine residual acceptance
+before freezing one new oldest-forward blind cohort. The Plan 0064 cohort and
+all additional development sources remain permanently excluded from unseen
+evaluation. Original recording basenames are required in the first review
+publication. Even a passing Plan 0065 terminal can only declare readiness for
+a separate local-acceptance plan; all identity, knowledge, Graphiti, provider,
+and external effects remain unauthorized.
+
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
 exact real-enrollment preview reported that no canonical real P3 reference

@@ -1,5 +1,43 @@
 # Runbook
 
+## Turn 367: Plan speaker identity recovery and fresh validation (2026-08-11)
+
+Summary: Created no-apply Plan 0065 in `PLANNED` state as the bounded
+successor to Plan 0064's terminal P4 withhold. The successor treats all 39
+revealed decisions as development/hindsight evidence, repairs the measured
+acoustic/context blockers, requires a genuine reviewed residual acceptance,
+and permits only one new blind chronological evaluation before terminal
+readiness or withhold.
+The plan authority is
+`docs/dev/plans/0065-2026-08-11-speaker-identity-recovery-fresh-validation.md`.
+
+Evidence:
+
+- Plan 0064 remains closed on terminal `f178f418...`: 12 acoustic candidates
+  included 11 correct and one high-support wrong; context, combined, and
+  residual-policy produced zero candidates; every effect counter is zero.
+- Private aggregate diagnosis found four complete contextual cases, four
+  prepared-evidence citation-validation failures, and four provider-route
+  failures. The complete cases produced no prepared candidate match. These are
+  frozen development findings, not permission to reuse the cohort as unseen.
+- Current code requires two accepted combined identities and one independent,
+  provenance-backed, non-contradicted context candidate before the residual
+  policy may accept the third slot. The rule is preserved rather than weakened
+  to make the prior corpus pass.
+- Plan 0065 uses versioned successor policy/artifacts, requires Plan 0064 exact
+  replay, permanently excludes all exposed development sources, includes
+  original recording basenames in review v1, and forbids local or external
+  apply even after a passing fresh measurement.
+- Graphiti discovery was degraded because its MCP endpoint was down; current
+  repository and private runtime evidence remained authoritative. No Graphiti
+  repair or write was attempted.
+
+Next:
+
+- Do not execute while Plan 0065 remains `PLANNED`. On explicit activation,
+  freeze D0 authority and run the acoustic/context diagnostic lanes before any
+  new cohort selection, model call, or provider request.
+
 ## Turn 366: Close Plan 0064 fail-safe at the P4 gate (2026-08-11)
 
 Summary: Ingested all 39 operator decisions, proved an exact authority-only
