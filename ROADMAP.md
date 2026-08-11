@@ -930,10 +930,17 @@ reproduce acoustic 10/0, context 5/1, combined 5/0, and residual 5/0 candidate
 correctness. The context-only wrong proposal remains unaccepted and no
 residual acceptance exists, so D2 supplemental development is active while
 fresh evaluation stays closed.
-D2 cohort manifest `ea37ea38...` now freezes six next-oldest source-disjoint
+D2 cohort manifest `ea37ea38...` freezes six next-oldest source-disjoint
 three-speaker recordings/18 slots with six actual original `.m4a` filenames.
-It contains no predictions or gold and authorizes no fresh evaluation; bounded
-prediction and blinded review preparation are next.
+Its two bounded prediction attempts are exhausted. The final receipt
+`8de26c83...`, manifest `71fc5685...`, and resolution `bf1876e0...` replay an
+acoustic result of seven review candidates/11 abstentions, 18 unavailable
+context outcomes, and therefore seven joined/residual review candidates/11
+abstentions with zero residual acceptances. Human gold remained unread and all
+effect counts stayed zero. Authenticated private review session
+`6b97d7a8da32` now contains 18 direct-audio decisions, displays the original
+filename on every card, hides predictions, and disables incomplete export.
+D2 awaits all 18 literal decisions; D3 and fresh evaluation remain closed.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

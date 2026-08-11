@@ -1,5 +1,48 @@
 # Runbook
 
+## Turn 387: Publish Plan 0071 blinded filename-bearing D2 review (2026-08-11)
+
+Summary: Exhausted D2's two bounded prediction attempts without reading human
+gold, then generated, replayed, and published the authenticated private
+18-slot direct-audio review. Every card displays its original recording
+filename and contains no prediction or preselected answer.
+
+Evidence:
+
+- Attempt one stopped before model execution because the isolated stored
+  transcript was outside the private store root. Receipt `94458b21dceabab...`
+  records zero model turns and zero effects.
+- Corrected attempt two replays with receipt `8de26c83af3a2dc1...`, manifest
+  `71fc568512b5a0c2...`, and resolution `bf1876e0610f668e...`. It used seven
+  clue-discovery and seven identity-evaluation attempts, one bounded
+  reference-only repair in each phase, and no fallback or capture call.
+- Acoustic prediction yielded seven review candidates and 11 abstentions.
+  Context yielded 18 unavailable outcomes; joined/residual therefore yielded
+  seven review candidates, 11 abstentions, and zero residual acceptances.
+- Review authority `3aac595b1dce3ba6...` and receipt
+  `996e92c9abe5e4c3...` replay exactly. The review has 18 WAV clips, 18 audio
+  controls, 18 empty decisions, six canonical reviewed-person options plus
+  `not_listed` and `unresolved`, no prediction fields, and disabled incomplete
+  export.
+- Original filenames are `2025-07-31 Schulman Mac Visit My recording 15
+  (1).m4a`, `2025-08-15 Dr Stefl Knee Replacement Consult.m4a`, `2025-08-22
+  Baker Pappajohn Pitch My recording 21.m4a`, `2025-09-09 UL SIP-1111 EPD
+  Follow up My recording 27.m4a`, `Recording
+  (8).sync-conflict-20260530-143344-LOSYV2W.m4a`, and `2026-01-07 Scott Roberts
+  Charlie Nacu Austin update Recording (10).m4a`.
+- Private modes are 0700/0600. All biometric, external, Graphiti, identity,
+  knowledge, provider, source/stored transcript, speaker assignment, and index
+  effect counts are zero. Human-decision count is zero and fresh evaluation
+  remains disallowed.
+- Authenticated Previews session is `6b97d7a8da32`; no public share link was
+  created. Delegation is `not_spawned`.
+
+Next:
+
+- Obtain all 18 literal decisions in schema
+  `transcribe-audio.plan0071-d2-human-gold-decisions.v1`. Only then measure D3
+  once; do not retry prediction, revise policy, or open fresh evaluation first.
+
 ## Turn 386: Freeze Plan 0071 supplemental three-speaker cohort (2026-08-11)
 
 Summary: Frozen and replayed the structurally selected D2 supplemental

@@ -2,7 +2,7 @@
 
 State: OPEN
 
-Active packet: D2 supplemental development cohort and review
+Active packet: D2 literal supplemental human-gold review
 
 Checkpoint: Plan 0070 terminal content
 `35cf5ae92835962df1e6fe23062dd3578118a2ffb0d23e8519e53c22d58555f9`
@@ -52,8 +52,33 @@ and receipt content
 bind six next-oldest source-disjoint recordings, exactly three diarized labels
 per recording, 18 slots, six actual original `.m4a` filenames, and hash-matched
 transcript/media artifacts. Prediction count is zero, human gold was not read,
-fresh evaluation is disallowed, and every effect count is zero. D2 prediction
-and blinded review preparation remain active.
+fresh evaluation is disallowed, and every effect count is zero.
+
+D2 prediction is now terminal after its two bounded runtime attempts. Attempt
+one stopped before any model turn because its isolated stored-transcript path
+was outside the private store root; immutable receipt content
+`94458b21dceabab024f7deed59544d1d0c696bbbddb2b7d94dfa05b6a61ca217`
+records zero turns and zero effects. Corrected attempt two replays with receipt
+content `8de26c83af3a2dc1da7c04633fad4c698adcccf3972d42d56f7a8aecf86971b6`,
+manifest content
+`71fc568512b5a0c24319445df3ffe0bdbc89957b94005cd46af6acc6b182ffd2`,
+and resolution content
+`bf1876e0610f668ea8eaa4f5a0c4f3748540df36523e39b4410eb8428ebfe931`.
+Acoustic prediction produced seven review candidates and 11 abstentions.
+Context produced 18 unavailable outcomes, so joined/residual prediction also
+contains seven review candidates, 11 abstentions, and zero accepted residual
+identities. Human gold remained unread and every mutation/effect count is
+zero.
+
+The prediction-blind private D2 review is published under authenticated
+Previews session `6b97d7a8da32`. Review authority content
+`3aac595b1dce3ba6b8e41d2de653fb399b56cd21841e782e505bbf2cf34c91ba`
+and receipt content
+`996e92c9abe5e4c394b0f7291d32901b1bb68d7c943e07447b4ec9a645d9cabf`
+bind 18 direct-audio clips, six original recording filenames, six reviewed
+canonical-person options plus `not_listed` and `unresolved`, no visible model
+predictions, and zero preselected decisions. Export remains disabled until all
+18 literal decisions are complete. D3 and fresh evaluation remain closed.
 
 Plan 0065's corrected acoustic evidence has 10 correct and zero wrong
 candidates. Plan 0069's six filename-bearing context cases complete a
