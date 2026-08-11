@@ -1,8 +1,8 @@
 # Plan 0069 | Grouped utterance-assignment normalization
 
-State: OPEN
+State: CLOSED
 
-Active packet: A0 authority freeze
+Active packet: None. Terminal replayed `pass`.
 
 Checkpoint: Plan 0068 closed `withhold` after strict validation reported three
 retained outputs with an empty singular `utterance_id`. Read-only inspection
@@ -20,11 +20,11 @@ Critical-Path Owner: primary agent
 
 ## Current State
 
-Plan 0068 is closed and immutable. Its six retained output texts, repaired
-packets, frozen gold, and six original recording filenames are available as
-exact private inputs. A read-only counterfactual has established the bounded
-10-group/28-utterance normalization inventory, but Plan 0069 has not yet
-written A0 authority or changed product code.
+Plan 0069 is closed with an immutable PASS terminal. Its six retained output
+texts remain byte-exact, all six original recording filenames are bound in A0,
+A2, case, and terminal evidence, and deterministic normalization reconciled
+the exact 10-group/28-utterance legacy serialization without any model, live,
+or external effect.
 
 ## Scope
 
@@ -123,3 +123,28 @@ readback, `git diff --check`, exact terminal replay, mode checks, clean commits,
 push, and upstream equality. A transcription/DOCX smoke is not applicable
 because transcription and export behavior do not change. Done is an immutable
 pass/withhold terminal with filenames retained and no unauthorized effect.
+
+## Terminal closeout
+
+A0 content `fd05ffce34c0fcb6dbbba88e203843636a1a3fbf6f509997e9eabb545fd04db2`
+binds all six original recording filenames, six exact retained output hashes,
+and exactly 10 grouped objects covering 28 prepared utterance IDs. A1 added an
+explicit fail-closed normalizer that deep-copies the readout, preserves every
+substantive field, and rejects blank, duplicate, mixed, unknown, or repeated
+utterance IDs.
+
+A2 manifest content
+`c069bd52c0d747b9d075ae355ec001a33d85c24f1a85974b6042c4e758647471`
+replays all six exact output texts. All six validate after in-memory
+normalization; frozen human-gold measurement reports five correct candidates,
+zero wrong, 17 abstained, zero incomplete provenance, zero unavailable, and
+zero validation failures. Retained output changes, model turns, retries,
+model repairs, retrievals, and fresh evaluations are all zero.
+
+Terminal content
+`2d53d01fbe9b4d953bb79ba0192206ed67f207d8c4c194fa18c2831e74770cfe`
+and file `f3962ebbdd913cf6064b7ef45b5322759da0b45267a2f09a2ab37f741681fd78`
+close `plan0069_closed_pass` with reason
+`grouped_assignment_schema_reconciled`. Joined/residual, fresh evaluation,
+live apply, knowledge, Graphiti, provider-write, and external gates remain
+closed, and every effect count is zero.

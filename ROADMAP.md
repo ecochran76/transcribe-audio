@@ -883,7 +883,7 @@ but Level 2 context-candidate acceptance did not pass; no joined/residual,
 fresh evaluation, live acceptance, knowledge, Graphiti, provider-write, or
 external gate opened.
 
-Plan 0069 is the active, zero-model-turn successor in
+Plan 0069 is the closed, zero-model-turn successor in
 `docs/dev/plans/0069-2026-08-11-grouped-utterance-assignment-normalization.md`.
 It refines the Plan 0068 failure diagnosis: the three rejected outputs contain
 10 substantive grouped `utterance_ids` objects covering 28 prepared
@@ -892,6 +892,12 @@ each unambiguous grouped object into otherwise-identical singular
 `utterance_id` objects. It retains all six original recording filenames and
 keeps model, retrieval, fresh-evaluation, live-apply, knowledge, Graphiti,
 provider-write, and external effect budgets at zero.
+Its exact normalization validated all six retained outputs while preserving
+all six original recording filenames. Frozen human-gold measurement reports
+five correct candidates, zero wrong, 17 abstained, zero incomplete provenance,
+zero unavailable, and zero validation failures. Terminal `2d53d01f...` closes
+PASS; no joined/residual, fresh-evaluation, live-apply, knowledge, Graphiti,
+provider-write, or external gate opened.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

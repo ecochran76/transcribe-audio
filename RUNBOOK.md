@@ -1,5 +1,34 @@
 # Runbook
 
+## Turn 380: Close Plan 0069 with six filename-bearing valid cases (2026-08-11)
+
+Summary: Plan 0069 reconciled the retained grouped utterance-assignment
+serialization with a deterministic fail-closed host normalization. All six
+exact outputs now validate, the non-vacuous context-candidate gate passes, and
+all six original recording filenames remain attached to the private evidence.
+
+Evidence:
+
+- A0 content `fd05ffce34c0fcb6...` binds six filenames, six exact retained
+  output hashes, and the exact 10-group/28-utterance inventory.
+- The normalizer deep-copies input, expands only unambiguous plural objects,
+  preserves every other field, and rejects blank, duplicate, mixed, unknown,
+  or repeated utterance IDs.
+- A2 manifest content `c069bd52c0d747b9...` validates all six exact retained
+  outputs. Measurement is five correct candidates, zero wrong, 17 abstained,
+  zero incomplete provenance, zero unavailable, and zero validation failures.
+- Terminal content `2d53d01fbe9b4d95...` and file `f3962ebbdd913cf6...`
+  close `plan0069_closed_pass` with reason
+  `grouped_assignment_schema_reconciled`.
+- Retained output changes, model turns, fallback turns, retries, model repairs,
+  retrievals, fresh evaluations, source/store/index writes, identity writes,
+  knowledge writes, Graphiti, provider writes, and external effects are zero.
+
+Next:
+
+- Preserve the immutable PASS evidence. Joined/residual, unseen evaluation,
+  live apply, and publication remain outside Plan 0069 authority.
+
 ## Turn 379: Activate Plan 0069 grouped-assignment normalization (2026-08-11)
 
 Summary: Activated a bounded zero-model-turn successor after read-only
