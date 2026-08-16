@@ -67,11 +67,11 @@ for later conversations without treating unreviewed predictions as truth.
 - Durable conversation and recording IDs, append-only processing evaluations,
   review decisions, source artifacts, and current-evaluation pointers already
   exist. Sidecars remain processing authority during migration.
-- Schema version 4 now adds the A1 immutable correction ledger and rebuildable
-  identity/contact projections to the existing canonical people, external
-  identities, independently addressable source records, observations, claims,
-  relationships, evidence snapshots, and rebuildable person/affinity
-  projections in the user-scoped SQLite store.
+- Schema version 5 now extends the A1 immutable identity/contact ledger with
+  A2 terminology, immutable raw and normalized transcript generations,
+  reviewed span corrections, transcript-only semantic maps, dual-layer search,
+  reindex lineage, and bounded identity-cascade records in the user-scoped
+  SQLite store.
 - Host-owned retrieval already supports exact-first identity lookup, bounded
   lexical/semantic/relationship search, tenant/account/capability/as-of
   filtering, evidence-independence groups, partial-provider failures, and
@@ -91,7 +91,7 @@ for later conversations without treating unreviewed predictions as truth.
 
 ## Current execution state
 
-Packets A0 and A1 are closed. Both were non-live and produced no provider,
+Packets A0-A2 are closed. All were non-live and produced no provider,
 private-directory, biometric, publication, deployment, or external effects.
 
 | Field | A0 control |
@@ -149,9 +149,41 @@ identity values are hashes. Provider-write count remains zero.
 
 A1 did not read a private baseline directory, migrate a live store, call a
 provider, collect biometric material, publish a dashboard, deploy a service,
-or write Graphiti memory. A2 is the next safe packet: terminology and layered
-transcript correction on redacted/synthetic fixtures. A3 remains independently
-available after A1 but retains its separate biometric custody gates.
+or write Graphiti memory.
+
+| Field | A2 control |
+| --- | --- |
+| Bounded outcome | Add scoped terminology, immutable raw/normalized transcript generations, reviewed span corrections, transcript-only semantic maps, dual-layer search, and bounded identity cascades. |
+| Write surface | Knowledge schema v5, transcript correction ledger, tests, redacted fixtures, reference docs, plan/roadmap/runbook state. |
+| Inputs | A0 correction contracts, A1 schema/identity lineage, this plan, Note 0058, and synthetic fixture text. |
+| Validation | Migration/rollback, scope precedence/conflicts, hint eligibility, correction supersession, raw preservation, normalization, search/reindex provenance, semantic lineage, cascade bounds, full-suite, planning, CodeGraph, and git checks. |
+| Terminal condition | All A2 behavioral gates pass with zero historical/private processing, live migration, provider, biometric, publication, deployment, or external effects. |
+
+A2 delivered knowledge schema v5 and
+[`transcript_correction_ledger.py`](../../../transcript_correction_ledger.py),
+with a focused [transcript-learning reference](../../correction-first-transcript-learning.md)
+and redacted fixtures under `docs/dev/fixtures/plan-0072-a2/`. The v5 migration
+is additive over A1 and rolls back to v4 without changing A1 identity history.
+Authoritative v5 artifacts are append-only; the selected-normalized projection
+and raw/normalized FTS index are derived and replaceable.
+
+Synthetic disposable-store tests prove reviewed-only terminology hints with
+version/content-hash pinning, conversation-to-global scope precedence,
+equal-scope review conflicts, explicit decision supersession, non-destructive
+raw/normalized replay, exact span and semantic lineage, dual-layer search and
+reindex receipts, two correction passes, one identity requeue, and a manual
+stop on the second cascade. The redacted SESO fixture remains chemistry-scoped.
+
+A2 validation passed 19 focused correction/store/rollback tests, the
+1,149-test full suite, Python compilation, active and goal-only planning
+audits, internal-link checks, `git diff --check`, and a fresh CodeGraph
+readback with 353 indexed files, 10,316 nodes, and 35,384 edges.
+
+A2 did not process a private conversation, migrate a live store, activate a
+provider hint, call or write a provider, collect biometric material, publish a
+dashboard, deploy a service, schedule a worker, or write Graphiti memory. A3
+is the next safe packet but retains its separate biometric custody and private
+artifact gates.
 
 A1 validation passed 33 focused ledger/store/profile/evidence/private-
 rehearsal tests, the 1,139-test full suite, Python compilation, active and
@@ -543,10 +575,10 @@ A6-A9 are serialized launch stages.
 
 ## Packet closeout and next authority
 
-A0 and A1 are closed at their non-live terminal gates. The next safe slice is
-A2 only: add the terminology registry, immutable raw and normalized transcript
-generations, scoped span corrections, semantic map, reindex lineage, and
-bounded correction cascades against redacted/synthetic fixtures. A2 does not
-authorize historical processing, a live migration, provider access, or
-publication. A3 may follow A1 independently only under its exact biometric
-custody and private-artifact gates.
+A0-A2 are closed at their non-live terminal gates. The next safe slice is A3
+only: add voice-sample inventory, soft anonymous clustering, exclusions,
+deletion, and governed profile-family/version/invalidation/rebuild behavior.
+A3 does not authorize historical processing, a live migration, named-profile
+enrollment from unreviewed evidence, provider access, publication, or
+deployment, and it retains its exact biometric-custody and private-artifact
+gates.

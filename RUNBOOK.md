@@ -1,5 +1,72 @@
 # Runbook
 
+## Turn 393: Close Plan 0072 A2 transcript correction (2026-08-16)
+
+Summary: Closed the non-live A2 transcript-learning packet on redacted and
+synthetic disposable stores. Knowledge schema v5 adds reviewed scoped
+terminology, immutable raw/normalized transcript generations, append-only span
+decisions, dual-layer search/reindex lineage, transcript-only semantic maps,
+and the two-pass/one-cascade manual-stop boundary.
+
+Authority:
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-transcript-learning.md`, Note 0058, and the A0
+correction contracts.
+
+Evidence:
+
+- `ConversationKnowledgeStore` migrates v4 to v5 additively and rolls v5 back
+  to v4 without changing the A1 identity/contact ledger or older transcript
+  data.
+- `transcript_correction_ledger.py` freezes immutable raw text and diarization,
+  accepted span corrections, normalized generations, semantic maps, correction
+  runs, identity cascades, and reindex receipts. SQLite triggers reject update
+  and delete on authoritative v5 tables.
+- Reviewed terminology resolves in conversation, project/matter,
+  organization, domain, then global order. Equal-scope canonical conflicts
+  require review. Hint bundles include only reviewed applicable entries and
+  pin the exact terminology version/content hash without activating a provider.
+- Correction decisions are idempotent and append-only. Every later decision
+  explicitly supersedes the current decision; normalization selects the chain
+  head rather than trusting timestamps.
+- Accepted, applicable corrections create a new selected normalized generation
+  without rewriting raw ASR. Search returns both layers with generation,
+  conversation, recording, and layer provenance; reindex receipts bind both
+  transcript hashes and the index version.
+- Transcript-only semantic claims require exact normalized spans and non-empty
+  raw-generation span lineage. Enrichment fields are rejected for A2.
+- Each processing version permits one pre-identity and one post-identity pass.
+  The first material identity cascade requeues; the second records
+  `manual_resolution_required`; a third is refused.
+- Three committed redacted fixtures replay the chemistry-scoped CISO-to-SESO
+  example, exact raw preservation, normalized output, reindex, and semantic
+  lineage. They contain no private transcript, contact, provider, or biometric
+  data.
+- A2 used no historical/private conversation, live store, provider call/write,
+  backend-hint activation, biometric material, dashboard, deployment, worker,
+  external effect, delegation, or Graphiti write.
+
+Validation:
+
+- Focused correction/store/evidence/profile rollback validation passes 19
+  tests.
+- `.venv/bin/python -m pytest -q` passes 1,149 tests in 111.48 seconds.
+- Python compilation, active and goal-only planning audits, internal-link
+  checks, and `git diff --check` pass. The active audit reports `ok: true`,
+  zero problems, and Plan 0072 as `OPEN`.
+- CodeGraph reports 353 indexed files, 10,316 nodes, and 35,384 edges with no
+  pending-file or worktree-mismatch warning.
+- A transcription smoke is not applicable because A2 changes no transcription
+  provider, watcher, media, DOCX/TXT output, or installed runtime path.
+
+Next:
+
+- Execute Plan 0072 A3 only under its biometric-custody and private-artifact
+  gates: add voice-sample inventory, soft anonymous clustering, exclusions,
+  deletion, profile families/versions, invalidation, and deterministic rebuild.
+  Do not open historical processing, live migration, unreviewed named-profile
+  enrollment, provider, publication, or deployment effects.
+
 ## Turn 392: Close Plan 0072 A1 identity/contact ledger (2026-08-16)
 
 Summary: Closed the non-live A1 schema-critical packet on synthetic disposable

@@ -993,9 +993,14 @@ correction events, hashed external identities, rebuildable people, source,
 role, relationship, and reconciliation projections, merge/split/reversal,
 exact scoped deduplication, and fail-closed baseline reconciliation proved only
 on synthetic disposable stores. No live migration, private directory read,
-provider effect, biometric effect, or publication occurred. A2's terminology
-and layered transcript correction is the next safe packet; A3 retains its
-separate biometric custody gates.
+provider effect, biometric effect, or publication occurred. A2 is closed on
+redacted/synthetic stores: knowledge schema v5 adds reviewed scope-aware
+terminology and version-pinned hint bundles, immutable raw and normalized
+transcript generations, superseding span decisions, dual-layer search/reindex
+lineage, transcript-only semantic maps, and the two-pass/one-cascade manual-stop
+boundary. It produced no private, live, provider, biometric, publication, or
+deployment effects. A3 is the next safe packet and retains its separate
+biometric custody and private-artifact gates.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

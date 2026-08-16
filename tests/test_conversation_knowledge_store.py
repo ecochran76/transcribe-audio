@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import conversation_knowledge_store
+import identity_learning_ledger
 import transcript_store
 
 
@@ -54,9 +55,9 @@ def test_core_schema_migration_preserves_existing_store_and_sidecar_authority(
 
     assert before.schema_version == 0
     assert receipt.from_version == 0
-    assert receipt.to_version == 4
-    assert receipt.applied_versions == (1, 2, 3, 4)
-    assert after.schema_version == 4
+    assert receipt.to_version == 5
+    assert receipt.applied_versions == (1, 2, 3, 4, 5)
+    assert after.schema_version == 5
     assert after.authority_mode == "sidecar"
     assert after.dirty is False
     assert search_results[0]["title"] == "Migration compatibility conversation"
@@ -129,9 +130,9 @@ def test_migration_backup_and_rollback_preserve_legacy_store(
     assert Path(migration.backup_path).is_file()
     assert stat.S_IMODE(Path(migration.backup_path).parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(Path(migration.backup_path).stat().st_mode) == 0o600
-    assert rollback.from_version == 4
+    assert rollback.from_version == 5
     assert rollback.to_version == 0
-    assert rollback.rolled_back_versions == (4, 3, 2, 1)
+    assert rollback.rolled_back_versions == (5, 4, 3, 2, 1)
     assert rollback.backup_path
     assert store.schema_status().schema_version == 0
     assert transcript_store.search_store(
@@ -209,6 +210,56 @@ def test_v4_identity_ledger_migration_is_additive_and_reversible(
         embedding_provider="debug-hash",
         embedding_model="debug-hash-v1",
     )
+
+
+def test_v5_transcript_correction_migration_preserves_v4_identity_history(
+    tmp_path: Path,
+) -> None:
+    store = conversation_knowledge_store.ConversationKnowledgeStore(tmp_path)
+    store.migrate(target_version=4, backup=False)
+    ledger = identity_learning_ledger.IdentityLearningLedger(tmp_path)
+    person_id = "00000000-0000-4000-8000-000000000098"
+    ledger.append_event(
+        event_type="person_created",
+        payload={
+            "person_id": person_id,
+            "primary_name": "Existing A1 Person",
+            "status": "reviewed",
+        },
+        actor_id="reviewer:test",
+        occurred_at="2026-08-16T13:00:00Z",
+        idempotency_key="existing-a1-person",
+    )
+
+    migration = store.migrate(target_version=5, backup=False)
+
+    assert migration.from_version == 4
+    assert migration.to_version == 5
+    assert migration.applied_versions == (5,)
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        correction_table = con.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'knowledge_raw_transcript_generations'
+            """
+        ).fetchone()
+    assert correction_table is not None
+
+    rollback = store.rollback(target_version=4, backup=False)
+
+    assert rollback.rolled_back_versions == (5,)
+    ledger.rebuild()
+    assert person_id in ledger.projection_snapshot()["people"]
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        correction_table = con.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'knowledge_raw_transcript_generations'
+            """
+        ).fetchone()
+    assert correction_table is None
 
 
 def test_person_snapshot_preserves_cross_source_identity_context(

@@ -1,0 +1,28 @@
+{
+  "schema_version": "transcribe-audio.transcript-semantic-map-fixture.v1",
+  "synthetic_test_only": true,
+  "created_at": "2026-08-16T20:05:00Z",
+  "sections": {
+    "topics": [],
+    "terms": [
+      {
+        "label": "SESO",
+        "normalized_span": {
+          "start": 39,
+          "end": 43,
+          "text_sha256": "b934fd1600209308bb151f82b40215101ab091b993709415e10ab15afff45d38"
+        },
+        "raw_lineage": [
+          {
+            "raw_generation_id": "$raw_generation_id",
+            "start": 39,
+            "end": 43,
+            "text_sha256": "d0bc3f7393ae4895d7b2979caff7511f8de9eb5eacae0d988149a2f3bb8ba51b"
+          }
+        ]
+      }
+    ],
+    "entities": [],
+    "questions": []
+  }
+}

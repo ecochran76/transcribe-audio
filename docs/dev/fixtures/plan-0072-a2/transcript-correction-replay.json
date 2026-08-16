@@ -1,0 +1,59 @@
+{
+  "schema_version": "transcribe-audio.transcript-correction-replay-fixture.v1",
+  "synthetic_test_only": true,
+  "raw_transcript": {
+    "conversation_id": "00000000-0000-4000-8000-000000000271",
+    "recording_id": "00000000-0000-4000-8000-000000000272",
+    "source_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "transcript_text": "The synthetic chemistry team discussed CISO stability.",
+    "utterances": [
+      {
+        "speaker": "SPEAKER_1",
+        "start_ms": 0,
+        "end_ms": 3200,
+        "text": "The synthetic chemistry team discussed CISO stability."
+      }
+    ],
+    "captured_at": "2026-08-15T20:00:00Z",
+    "created_at": "2026-08-16T20:01:00Z"
+  },
+  "correction_proposal": {
+    "raw_generation_id": "$raw_generation_id",
+    "span_start": 39,
+    "span_end": 43,
+    "replacement_text": "SESO",
+    "correction_kind": "asr_confusion",
+    "terminology_entry_id": "term-redacted-seso",
+    "scope": {"type": "domain", "id": "chemistry"},
+    "evidence_ids": ["observation-redacted-term-1"],
+    "confidence": 0.98,
+    "correction_pass": "pre_identity",
+    "processing_version": "correction-redacted-v1",
+    "cascade_count": 0,
+    "created_at": "2026-08-16T20:02:00Z"
+  },
+  "review_decision": {
+    "proposal_id": "$proposal_id",
+    "action": "accept",
+    "reviewer": "reviewer:redacted",
+    "method": "redacted_fixture_review",
+    "decided_at": "2026-08-16T20:03:00Z",
+    "idempotency_key": "decision-redacted-a2-1"
+  },
+  "normalization": {
+    "raw_generation_id": "$raw_generation_id",
+    "processing_version": "correction-redacted-v1",
+    "correction_pass": "pre_identity",
+    "context": {"domain": "chemistry"},
+    "terminology_version_id": "$terminology_version_id",
+    "index_version": "transcript-layers-redacted-v1",
+    "created_at": "2026-08-16T20:04:00Z"
+  },
+  "expected": {
+    "raw_transcript_sha256": "317d1222617c155d32f9c8b6dbabdb210bde1695a33e053cff4fbe8e953a8903",
+    "original_text": "CISO",
+    "raw_span_sha256": "d0bc3f7393ae4895d7b2979caff7511f8de9eb5eacae0d988149a2f3bb8ba51b",
+    "normalized_text": "The synthetic chemistry team discussed SESO stability.",
+    "normalized_transcript_sha256": "c812b052c216f35706a09817f7ff6ba18b92917ab5c8f0a4bd6f3c142a98ca29"
+  }
+}

@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 4
+LATEST_SCHEMA_VERSION = 5
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -358,6 +358,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 5 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v5(con)
+                    applied.append(5)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -385,6 +394,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 5 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v5(con)
+                    rolled_back.append(5)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 4 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -2630,6 +2648,410 @@ class ConversationKnowledgeStore:
             """
             UPDATE knowledge_store_state
             SET schema_version = 3, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v5(con: sqlite3.Connection) -> None:
+        """Add immutable terminology and transcript-correction generations."""
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_terminology_versions (
+                id TEXT PRIMARY KEY,
+                version TEXT NOT NULL UNIQUE,
+                predecessor_version_id TEXT
+                    REFERENCES knowledge_terminology_versions(id)
+                    ON DELETE RESTRICT,
+                status TEXT NOT NULL
+                    CHECK (status IN ('draft', 'reviewed', 'superseded')),
+                content_hash TEXT NOT NULL UNIQUE,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_terminology_entries (
+                id TEXT PRIMARY KEY,
+                terminology_version_id TEXT NOT NULL
+                    REFERENCES knowledge_terminology_versions(id)
+                    ON DELETE RESTRICT,
+                canonical_term TEXT NOT NULL,
+                expansion TEXT NOT NULL DEFAULT '',
+                definition TEXT NOT NULL DEFAULT '',
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                asr_confusions_json TEXT NOT NULL DEFAULT '[]',
+                pronunciation_hints_json TEXT NOT NULL DEFAULT '[]',
+                scope_type TEXT NOT NULL CHECK (scope_type IN (
+                    'conversation', 'project_matter', 'organization',
+                    'domain', 'global'
+                )),
+                scope_id TEXT NOT NULL,
+                source_observation_ids_json TEXT NOT NULL DEFAULT '[]',
+                valid_from TEXT NOT NULL DEFAULT '',
+                valid_to TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL CHECK (status IN (
+                    'draft', 'reviewed', 'rejected', 'superseded'
+                )),
+                content_hash TEXT NOT NULL UNIQUE,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                UNIQUE(terminology_version_id, id)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_terminology_scope
+            ON knowledge_terminology_entries(
+                terminology_version_id, scope_type, scope_id, status
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_raw_transcript_generations (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                source_artifact_sha256 TEXT NOT NULL,
+                transcript_sha256 TEXT NOT NULL,
+                diarization_sha256 TEXT NOT NULL,
+                transcript_text TEXT NOT NULL,
+                utterances_json TEXT NOT NULL,
+                captured_at TEXT NOT NULL DEFAULT '',
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(conversation_id, recording_id, source_artifact_sha256)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_correction_proposals (
+                id TEXT PRIMARY KEY,
+                raw_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_raw_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                raw_transcript_sha256 TEXT NOT NULL,
+                span_start INTEGER NOT NULL CHECK (span_start >= 0),
+                span_end INTEGER NOT NULL CHECK (span_end > span_start),
+                raw_span_sha256 TEXT NOT NULL,
+                original_text TEXT NOT NULL,
+                replacement_text TEXT NOT NULL,
+                correction_kind TEXT NOT NULL,
+                terminology_entry_id TEXT
+                    REFERENCES knowledge_terminology_entries(id)
+                    ON DELETE RESTRICT,
+                scope_type TEXT NOT NULL CHECK (scope_type IN (
+                    'conversation', 'project_matter', 'organization',
+                    'domain', 'global'
+                )),
+                scope_id TEXT NOT NULL,
+                evidence_ids_json TEXT NOT NULL,
+                confidence REAL,
+                review_state TEXT NOT NULL,
+                correction_pass TEXT NOT NULL CHECK (
+                    correction_pass IN ('pre_identity', 'post_identity')
+                ),
+                processing_version TEXT NOT NULL,
+                cascade_count INTEGER NOT NULL CHECK (cascade_count IN (0, 1)),
+                content_hash TEXT NOT NULL UNIQUE,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_correction_proposal_raw
+            ON knowledge_transcript_correction_proposals(
+                raw_generation_id, correction_pass, processing_version
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_correction_decisions (
+                id TEXT PRIMARY KEY,
+                proposal_id TEXT NOT NULL
+                    REFERENCES knowledge_transcript_correction_proposals(id)
+                    ON DELETE RESTRICT,
+                action TEXT NOT NULL CHECK (
+                    action IN ('accept', 'reject', 'defer', 'supersede')
+                ),
+                reviewer TEXT NOT NULL,
+                method TEXT NOT NULL,
+                decided_at TEXT NOT NULL,
+                supersedes_decision_id TEXT
+                    REFERENCES knowledge_transcript_correction_decisions(id)
+                    ON DELETE RESTRICT,
+                comment TEXT NOT NULL DEFAULT '',
+                idempotency_key TEXT NOT NULL UNIQUE,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_correction_decision_proposal
+            ON knowledge_transcript_correction_decisions(proposal_id, decided_at, id)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_normalized_transcript_generations (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                raw_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_raw_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                predecessor_generation_id TEXT
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                terminology_version_id TEXT
+                    REFERENCES knowledge_terminology_versions(id)
+                    ON DELETE RESTRICT,
+                accepted_correction_ids_json TEXT NOT NULL,
+                normalized_text TEXT NOT NULL,
+                normalized_transcript_sha256 TEXT NOT NULL,
+                raw_to_normalized_map_json TEXT NOT NULL,
+                index_version TEXT NOT NULL,
+                correction_pass_count INTEGER NOT NULL
+                    CHECK (correction_pass_count BETWEEN 0 AND 2),
+                identity_cascade_count INTEGER NOT NULL
+                    CHECK (identity_cascade_count IN (0, 1)),
+                status TEXT NOT NULL CHECK (
+                    status IN ('provisional', 'accepted', 'superseded')
+                ),
+                processing_version TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_normalized_transcript_scope
+            ON knowledge_normalized_transcript_generations(
+                conversation_id, recording_id, processing_version, created_at
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_current_normalized_transcripts (
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                normalized_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                input_watermark TEXT NOT NULL,
+                built_at TEXT NOT NULL,
+                PRIMARY KEY(conversation_id, recording_id)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_semantic_maps (
+                id TEXT PRIMARY KEY,
+                normalized_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                map_schema TEXT NOT NULL,
+                map_json TEXT NOT NULL,
+                transcript_only INTEGER NOT NULL CHECK (transcript_only = 1),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_correction_runs (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                processing_version TEXT NOT NULL,
+                correction_pass TEXT NOT NULL CHECK (
+                    correction_pass IN ('pre_identity', 'post_identity')
+                ),
+                raw_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_raw_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                input_generation_id TEXT,
+                output_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                material_identity_change INTEGER NOT NULL
+                    CHECK (material_identity_change IN (0, 1)),
+                outcome TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(
+                    conversation_id, recording_id, processing_version,
+                    correction_pass
+                )
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_identity_cascades (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                processing_version TEXT NOT NULL,
+                cascade_ordinal INTEGER NOT NULL CHECK (
+                    cascade_ordinal IN (1, 2)
+                ),
+                triggering_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                outcome TEXT NOT NULL CHECK (outcome IN (
+                    'identity_requeue_required',
+                    'manual_resolution_required'
+                )),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(
+                    conversation_id, recording_id, processing_version,
+                    cascade_ordinal
+                )
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE VIRTUAL TABLE knowledge_transcript_layers_fts USING fts5(
+                generation_id UNINDEXED,
+                conversation_id UNINDEXED,
+                recording_id UNINDEXED,
+                layer UNINDEXED,
+                text,
+                tokenize='unicode61'
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_transcript_reindex_receipts (
+                id TEXT PRIMARY KEY,
+                raw_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_raw_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                normalized_generation_id TEXT NOT NULL
+                    REFERENCES knowledge_normalized_transcript_generations(id)
+                    ON DELETE RESTRICT,
+                index_version TEXT NOT NULL,
+                raw_transcript_sha256 TEXT NOT NULL,
+                normalized_transcript_sha256 TEXT NOT NULL,
+                indexed_layer_count INTEGER NOT NULL CHECK (
+                    indexed_layer_count = 2
+                ),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        immutable_tables = (
+            "knowledge_terminology_versions",
+            "knowledge_terminology_entries",
+            "knowledge_raw_transcript_generations",
+            "knowledge_transcript_correction_proposals",
+            "knowledge_transcript_correction_decisions",
+            "knowledge_normalized_transcript_generations",
+            "knowledge_transcript_semantic_maps",
+            "knowledge_transcript_correction_runs",
+            "knowledge_transcript_identity_cascades",
+            "knowledge_transcript_reindex_receipts",
+        )
+        for table_name in immutable_tables:
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_update
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only transcript correction ledger');
+                END
+                """
+            )
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only transcript correction ledger');
+                END
+                """
+            )
+        con.execute(
+            """
+            INSERT INTO knowledge_schema_migrations (version, applied_at)
+            VALUES (5, ?)
+            """,
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 5, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v5(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        immutable_tables = (
+            "knowledge_terminology_versions",
+            "knowledge_terminology_entries",
+            "knowledge_raw_transcript_generations",
+            "knowledge_transcript_correction_proposals",
+            "knowledge_transcript_correction_decisions",
+            "knowledge_normalized_transcript_generations",
+            "knowledge_transcript_semantic_maps",
+            "knowledge_transcript_correction_runs",
+            "knowledge_transcript_identity_cascades",
+            "knowledge_transcript_reindex_receipts",
+        )
+        for table_name in immutable_tables:
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_update")
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_delete")
+        for table_name in (
+            "knowledge_transcript_layers_fts",
+            "knowledge_current_normalized_transcripts",
+            "knowledge_transcript_reindex_receipts",
+            "knowledge_transcript_identity_cascades",
+            "knowledge_transcript_correction_runs",
+            "knowledge_transcript_semantic_maps",
+            "knowledge_normalized_transcript_generations",
+            "knowledge_transcript_correction_decisions",
+            "knowledge_transcript_correction_proposals",
+            "knowledge_raw_transcript_generations",
+            "knowledge_terminology_entries",
+            "knowledge_terminology_versions",
+        ):
+            con.execute(f"DROP TABLE IF EXISTS {table_name}")
+        con.execute(
+            "DELETE FROM knowledge_schema_migrations WHERE version = 5"
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 4, updated_at = ?
             WHERE singleton = 1
             """,
             (now,),
