@@ -179,6 +179,15 @@ attendees, reviewed local contacts, and future sources may therefore retain
 different but compatible records for one canonical person without copying or
 collapsing their source-specific relationship context.
 
+Baseline ingest is reconciliation, not source mutation. Auto-deduplicate the
+same provider/account/type/record ID. Auto-link distinct source records to one
+provisional person only through a non-conflicting exact person-specific email
+or verified phone. Shared/role addresses never auto-link, and name,
+organization, role, address, or fuzzy similarity creates a reviewed merge
+proposal. Missing records in a later provider read are not tombstoned without
+source-specific evidence. Reviewed local preferred fields remain overlays and
+never overwrite provider observations.
+
 Display names, titles, email addresses, acoustic profile labels, and
 conversation-specific aliases are attributes or evidence. They must never
 become the durable cross-source person key. Historical aliases remain
@@ -229,6 +238,20 @@ project investigator, vendor representative, meeting host, or caller. The same
 person may hold several concurrent or historical roles, and one provider may
 expose only one of them.
 
+The ontology is hierarchical and versioned. Relationship families such as
+`FAMILY`, `PROFESSIONAL`, `MEDICAL`, `LEGAL`, `COMMERCIAL`, `EDUCATIONAL`,
+`PROJECT`, and `SOCIAL` organize leaf types such as `PARENT_OF`, `SPOUSE_OF`,
+`PHYSICIAN_FOR`, and `EMPLOYEE_OF`. Each type defines direction, inverse, and
+symmetry behavior and may carry a more specific detail such as father, mother,
+guardian, or department. Reviewer-proposed additions require near-duplicate
+checking, parent placement, and a new ontology version.
+
+Keep entity relationship edges distinct from contextual role assertions.
+People may hold many simultaneous roles and relationships. Conflicting
+assertions coexist with evidence, effective intervals, and conflict links
+until review. Organizations support hierarchical, multi-affiliation edges such
+as `PART_OF`, `SUBSIDIARY_OF`, and `DEPARTMENT_OF`.
+
 Store people, organizations, projects, matters, conversations, recordings,
 events, and source records as graph-addressable nodes. Store typed,
 directional relationships such as `WORKS_FOR`, `REPRESENTS`,
@@ -260,6 +283,19 @@ support counts, independent-interaction counts, first and last observed times,
 and review state.
 
 Repeated mention frequency is a ranking feature. It isn't identity proof.
+
+A `terminology_entry` records canonical spelling, expansion, definition,
+aliases, ASR-confusion forms, pronunciation hints, supporting conversations,
+validity, and scope. Scope precedence is conversation, project or matter,
+organization, domain, then global; equal-scope conflicts require review. An
+ASR confusion is not a synonym. For example, SoyLei `CISO` to `SESO` for
+semi-epoxidized soybean oil is chemistry-scoped and must not become a global
+replacement.
+
+A `transcript_correction_proposal` identifies an exact raw-ASR span,
+replacement, utterance/time range, context, evidence, confidence/version, and
+review state. Accepted proposals produce a versioned normalized transcript.
+Raw ASR and diarization remain immutable, searchable, and citable.
 
 ### Observation, claim, evaluation, and review decision
 
@@ -325,6 +361,24 @@ person split/merge reversal, source-audio invalidation, or withdrawn biometric
 authority invalidates dependent samples and queues a deterministic new profile
 version; it does not overwrite the prior profile.
 
+Unreviewed samples and embeddings are retained indefinitely for now in
+private, person-unbound storage until explicit deletion or policy change.
+Recurring-voice clustering may run automatically, but membership is soft and
+reversible and may preserve alternatives or no cluster. One person may have
+multiple profile families for distinct acoustic conditions. Confirming one
+cluster member may re-score and materially requeue others; it never assigns
+them or enrolls a named profile.
+
+Per-person and per-recording biometric exclusions invalidate dependent
+samples, embeddings, profiles, and benchmark material. Initial deletion is
+addressable by sample, cluster, person profile, recording, and person, with
+previewed downstream effects and a minimal non-biometric audit tombstone.
+Active storage is deleted immediately and future backups exclude the material;
+historical encrypted backups expire according to their established schedule.
+Routine biometric processing is local. Any external challenger is opt-in,
+bounded, pseudonymous, reviewed, and evaluation-only until measurable lift is
+accepted.
+
 ### Correction events and identity review queue
 
 A `correction_event` is an append-only merge, split, redirect, retraction,
@@ -348,6 +402,13 @@ reversal, and defer states. A deterministic projector builds current speaker
 assignments, people, roles, relationships, affinities, and eligible profile
 rebuild requests from those decisions. Stale review submissions must fail
 rather than overwrite a newer decision.
+
+Freeform reviewer comments are immutable semantic-correction observations.
+They may generate proposed structured corrections in a secondary queue, but
+only reviewed structured derivatives become learning labels. A queue item is
+complete when every speaker has an explicit disposition; unresolved is a
+valid completion state. Requeue requires a material evidence, correction,
+cluster, score, rubric, or model change.
 
 ## Evidence snapshots
 
@@ -547,19 +608,28 @@ outcomes, failures, proposed effects, and replay hashes. The supervisor, not a
 model, owns retries, idempotency, partial failure, leases, checkpoints, and
 effect application.
 
-The ordinary identity-learning sequence is:
+The ordinary identity-learning sequence is asynchronous after transcript
+artifacts stabilize:
 
-1. transcript and diarization normalization;
-2. calendar candidate generation and semantic association assessment;
-3. exact-first attendee, external-identity, contact, message, document, CRM,
+1. baseline contact/source-record reconciliation before historical work;
+2. immutable raw transcript/diarization ingest and transcript-only semantic map;
+3. scoped terminology normalization and pre-identity correction proposals;
+4. calendar candidate generation and semantic association assessment;
+5. exact-first attendee, external-identity, contact, message, document, CRM,
    prior-conversation, and bounded relationship retrieval;
-4. clue discovery and immutable evidence-bundle construction;
-5. acoustic sample qualification and governed-profile scoring;
-6. contextual and acoustic proposal generation with separate evidence;
-7. identity review queue projection;
-8. append-only review/correction decision and deterministic local projection;
-9. affected profile invalidation or reviewed profile-version proposal; and
-10. periodic calibration/evaluation and separately governed promotion.
+6. enriched provisional readout and immutable evidence-bundle construction;
+7. acoustic sample qualification, soft clustering, and governed-profile scoring;
+8. contextual and acoustic proposal generation with separate pillar scores;
+9. one bounded post-identity correction pass and material-change requeue;
+10. Identity Review and People projections;
+11. append-only review/correction decision and deterministic local projection;
+12. accepted readout plus affected profile invalidation or candidate version; and
+13. periodic calibration/evaluation and separately governed promotion.
+
+One correction-to-identity cascade may run per processing version. A second
+material cascade stops as `manual_resolution_required`. Unreviewed transcript
+corrections may generate retrieval candidates but cannot corroborate their own
+identity proposal.
 
 Reviewed decisions create calibration outcomes. They do not immediately train
 a model. Training, calibration, and source-disjoint evaluation partitions are
@@ -567,25 +637,50 @@ frozen explicitly; unreviewed predictions never become ground truth or feed
 their own training. A new rubric, model, or profile version is promoted only
 after measured acceptance, rollback proof, and an explicit release decision.
 
+The host stores 0-100 Evidence Strength independently for calendar
+association, person link, contextual speaker, acoustic speaker, and combined
+ranking. It is not a probability; scores may rise or fall, and original values
+remain immutable beside re-scores. Material contradictions cap combined
+strength. Empirical Calibrated Likelihood requires at least 30 reviewed,
+source-disjoint outcomes in the relevant band and exposes sample size,
+interval, and evaluation version.
+
+Evaluate reviewed outcomes weekly and propose a candidate version only after
+25 new reviewed speaker decisions or a material correction. Automatic named
+acceptance requires at least 100 varied source-disjoint outcomes and at least
+99% precision in the proposed band, safe abstention, and no systematic
+high-strength failure. Person merges and splits always remain reviewed.
+
 Historical and new conversations use the same schemas and idempotent stages.
 Historical backfill is oldest-forward, bounded, checkpointed, and resumable.
 Blind historical evaluation excludes later facts and corrections through its
 `as_of` policy; present-day operational reprocessing may use later accepted
 knowledge only when it is labeled as hindsight evidence.
 
-## Authenticated identity review surface
+Reserve provider/model budget for new conversations and keep a separate
+oldest-first historical queue. After 500 actionable items, continue cheap
+normalization, metadata, sample extraction, and clustering while throttling
+expensive enrichment. Retry one transient idempotent provider read, then
+continue with visible partial evidence. Provider recovery appends evidence and
+requeues only material changes.
 
-The identity-learning queue is a private authenticated application surface,
-not a public review page. Its API exposes tenant-scoped read models, bounded
-range-playback handles, optimistic-concurrency tokens, effect previews, and
-append-only decisions. It never exposes raw filesystem paths, profile
-payloads, embeddings, unrestricted audio URLs, or complete provider bodies.
+## Authelia-protected identity review surface
 
-An externally reachable deployment requires authorization, tenant-scoped
-sessions, CSRF protection, expiring media access, audit logging, rate limits,
-backup/restore, rollback, and privacy/retention/deletion validation. Local
-dogfood, authenticated preview, and live deployment are separate acceptance
-states. Anonymous access and public biometric review links are prohibited.
+The identity-learning queue is a private application surface behind the
+dashboard's existing Authelia gate, not a public review page. Initial launch
+adds no Google OAuth, local login, step-up authentication, or second security
+layer. Its API exposes bounded range-playback handles,
+optimistic-concurrency tokens, effect previews, and append-only decisions. It
+never exposes raw filesystem paths, profile payloads, embeddings, unrestricted
+audio URLs, or complete provider bodies.
+
+`Identity Review` is conversation-first and `People` is the authoritative
+people/role/relationship/profile editing view. Both show actual original
+recording filenames wherever recording evidence appears. Preserve the
+dashboard's existing request protections plus stale-write rejection, bounded
+media access, audit history, backup/restore, rollback, and
+privacy/retention/deletion validation. Anonymous access and public biometric
+review links are prohibited.
 
 ## Freshness and provider access
 
@@ -701,3 +796,5 @@ Validation must cover:
 - [ADR 0001: Use durable conversation identities](adr/0001-use-durable-conversation-identities.md)
 - [Plan 0025: App Intelligence speaker preprocessing](dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md)
 - [Plan 0029: Conversation knowledge storage and retrieval](dev/plans/0029-2026-07-26-conversation-knowledge-storage-retrieval.md)
+- [Plan 0072: Correction-first speaker, contact, and acoustic learning](dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md)
+- [Note 0058: Plan 0072 grilled architecture decisions](dev/notes/0058-2026-08-16-plan0072-grilled-architecture.md)

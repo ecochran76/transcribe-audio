@@ -255,15 +255,18 @@ Milestone Focus:
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
 - Planned milestone M4 is Plan 0072's correction-first identity-learning
-  product path. It extends the existing conversation knowledge authority with
-  versioned conversation associations, participant hypotheses, contact/source
-  gathering, speaker proposals, correction events, voice samples and profile
-  versions, plus one authenticated Identity review tab that always shows the
-  actual original recording filename. Historical and new processing, live
-  schema migration, biometric collection/enrollment, provider calls, local
-  identity effects, external publication, and deployment remain unstarted.
-  The recommended first implementation packet is the non-live A0 contract,
-  privacy/threat-model, schema, API, and redacted-fixture freeze.
+  product path. Note 0058 freezes the grilled decisions: baseline read-only
+  contact reconciliation; hierarchical multi-role relationships; scoped
+  terminology and non-destructive transcript correction; private indefinite
+  person-unbound sample retention with soft voice clustering; separately
+  visible evidence pillars and measured likelihood; and distinct Authelia-
+  protected Identity Review and People tabs that always show actual original
+  recording filenames. Launch is staged as no-effect shadow, reviewed local
+  learning, then policy-qualified automation. Historical and new processing,
+  live schema migration, biometric collection/enrollment, provider calls,
+  local identity effects, publication, and deployment remain unstarted. The
+  recommended first packet remains non-live A0 contract, privacy/threat-model,
+  schema, API, and redacted-fixture freeze.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -964,21 +967,25 @@ effects remain closed.
 
 Plan 0072 is the planned correction-first P09/P10 productization campaign in
 `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`.
+Its accepted detailed design authority is
+`docs/dev/notes/0058-2026-08-16-plan0072-grilled-architecture.md`.
 It replaces neither the conversation knowledge store nor the governed acoustic
 stores. It defines one append-only architecture for event association,
 suspected participants, source-scoped contact gathering, canonical people,
-temporal roles and relationships, speaker proposals and corrections, voice
-samples, profile versions, processing ledgers, and a rebuildable identity
-review queue. The dedicated authenticated dashboard tab must show the actual
-original recording filename, calendar alternatives and association strength,
-suspected attendees, independent contextual/acoustic evidence, playable
-speaker samples, and confirm/correct/split/merge/defer controls. Identification
-is explicitly not authentication. Unreviewed proposals cannot become accepted
-people, relationships, speaker assignments, or enrollment authority. This
-turn is architecture/planning only; no historical/new processing, provider
-retrieval, live migration, biometric collection, dashboard publication, or
-deployment has begun. The next recommended packet is non-live A0 contract and
-privacy/schema freeze.
+hierarchical temporal roles and relationships, scoped transcript corrections,
+speaker proposals, soft anonymous voice clusters, samples, profile families,
+score history, processing ledgers, and rebuildable review projections. The
+Authelia-protected Identity Review and People tabs must show actual original
+recording filenames, event alternatives, suspected attendees, independent
+contextual/acoustic evidence, playable samples, and reversible controls.
+Identification is explicitly not authentication. Unreviewed proposals cannot
+become accepted people, relationships, speaker assignments, or named-profile
+enrollment authority. Evidence Strength is not probability; empirical
+likelihood and future automatic acceptance have explicit source-disjoint
+denominators. This turn is architecture/planning only; no historical/new
+processing, provider retrieval, live migration, biometric collection,
+dashboard publication, or deployment has begun. The next recommended packet
+is non-live A0 contract and privacy/schema freeze.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

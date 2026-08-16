@@ -1,5 +1,75 @@
 # Runbook
 
+## Turn 390: Freeze Plan 0072 grilled architecture (2026-08-16)
+
+Summary: Consolidated the completed design interview into a durable Plan 0072
+decision authority and revised the campaign, evergreen architecture,
+vocabulary, and roadmap. This was documentation-only; no provider, private
+corpus, biometric, identity, contact, dashboard, service, or deployment action
+occurred.
+
+Authority:
+`docs/dev/notes/0058-2026-08-16-plan0072-grilled-architecture.md` and
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`.
+
+Evidence:
+
+- Note 0058 freezes baseline read-only contact ingestion and three-level
+  reconciliation, shared-address exclusions, immutable provider history, and
+  local-overlay/no-writeback semantics.
+- The normalized model now requires hierarchical versioned role/relationship
+  and organization ontologies, many concurrent assertions, preserved
+  conflicts, contextual roles, structured conversation purpose, and reviewed
+  ontology extension.
+- Private unreviewed samples and embeddings are retained indefinitely for now;
+  anonymous clustering is automatic but soft and reversible. Named profile
+  enrollment remains review-bound, exclusions/deletion invalidate dependent
+  material, and raw biometric processing stays local by default.
+- Numeric Evidence Strength may increase or decrease and remains distinct from
+  empirical Calibrated Likelihood. Likelihood requires 30 source-disjoint
+  outcomes per relevant band; candidate versions require 25 new reviewed
+  decisions or a material correction; automatic named acceptance requires at
+  least 100 varied source-disjoint outcomes and 99% precision in-band.
+- Transcript correction is non-destructive and terminology-scoped. Raw ASR is
+  preserved; accepted span corrections create normalized generations; SoyLei
+  `CISO` to `SESO` is an ASR confusion scoped to chemistry, not a global
+  replacement. One pre-identity and one post-identity correction pass are
+  bounded to a single correction/identity cascade per processing version.
+- The initial application uses the existing Authelia route without another
+  login or step-up layer. Separate Identity Review and People tabs show actual
+  original filenames and preserve stale-decision, source, tenant, and private
+  media boundaries.
+- Launch is explicitly staged: no-effect live shadow; reviewed local learning
+  after 25 historical conversations plus seven days of new work; then only a
+  policy-qualified automatic band. Above 500 actionable items, expensive
+  enrichment throttles while cheap preprocessing continues and new work keeps
+  reserved capacity.
+- Graphiti discovery was attempted but its MCP endpoint was unavailable. No
+  runtime repair was attempted because the user authorized planning only.
+  Repository authorities and prior evidence-bounded speaker memory were used;
+  no Graphiti write occurred. Delegation is `not_spawned`.
+- Progress classification is `hardening`: the accepted architecture is more
+  complete and restart-safe, but no product maturity or live acceptance state
+  changed.
+
+Validation:
+
+- Active planning audit returns `ok: true`, zero problems, recognizes Plan
+  0072 as `PLANNED`, and recognizes Turn 390.
+- `git diff --check` passes. The Plan 0072 links to the evergreen architecture,
+  ADR 0002, and Note 0058 resolve, and the evergreen Plan/Note links resolve.
+- CodeGraph is healthy with 347 indexed files, 10,124 nodes, and 34,337 edges.
+  This documentation-only slice required no product test or transcription
+  smoke. Final commit, push, clean-tree, and upstream-equality evidence is
+  recorded in the turn closeout.
+
+Next:
+
+- Open only Plan 0072 A0 on a future implementation turn. Freeze versioned
+  domain/privacy/threat/API/adapter/supervisor contracts, schemas, and redacted
+  fixtures before any baseline provider ingest, historical processing, or
+  biometric collection.
+
 ## Turn 389: Plan correction-first speaker/contact learning (2026-08-16)
 
 Summary: Created Plan 0072 as a planning-only P09/P10 architecture for

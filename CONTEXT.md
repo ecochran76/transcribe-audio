@@ -59,6 +59,12 @@ The numeric part of a confidence assessment, measuring support under a
 versioned evidence rubric rather than asserting a probability of correctness.
 _Avoid_: Probability, certainty
 
+**Calibrated Likelihood**:
+An empirical estimate of correctness for a score band, shown only with enough
+reviewed source-disjoint outcomes and accompanied by sample size, interval,
+and evaluation version.
+_Avoid_: Evidence strength, model confidence
+
 **Evidence Rubric**:
 The versioned, task-specific meaning of an evidence strength score. Calendar
 association, person linking, and speaker identity use separate rubrics while
@@ -332,6 +338,16 @@ lineage. A sample is not a person and is not automatically eligible to train a
 profile.
 _Avoid_: Voice profile, speaker identity
 
+**Anonymous Acoustic Subject**:
+A still-person-unbound recurring voice representation used to organize samples
+without asserting a canonical identity.
+_Avoid_: Person, confirmed speaker
+
+**Voice Cluster Membership**:
+A soft, reversible claim that a voice sample belongs to an anonymous acoustic
+subject, retaining alternatives, pairwise evidence, and review state.
+_Avoid_: Speaker assignment, profile enrollment
+
 **Voice Profile Version**:
 A derived biometric profile built from an exact allowlist of reviewed eligible
 voice samples under one model and recipe version, with evaluation, activation,
@@ -355,6 +371,55 @@ The basename recorded by the source recording before transcript enrichment,
 blob storage, artifact naming, or migration. It remains visible alongside the
 durable recording ID and hashes but is not itself an identity key.
 _Avoid_: Transcript filename, stored blob name, recording ID
+
+**Relationship Family**:
+A versioned parent category such as family, professional, medical, legal,
+commercial, educational, project, or social that organizes more specific
+relationship types.
+_Avoid_: Relationship assertion, role
+
+**Relationship Type**:
+A directional or symmetric ontology leaf such as parent-of, spouse-of,
+physician-for, or employee-of, with inverse rules and optional role detail.
+_Avoid_: Relationship family, freeform label
+
+**Contextual Role**:
+A time- and context-bound role a person holds in a conversation, event,
+organization, project, or matter, distinct from a durable entity relationship.
+_Avoid_: Person attribute, relationship type
+
+**Conversation Purpose Claim**:
+A reviewable primary or secondary explanation of why a conversation occurred,
+linked to projects, matters, organizations, evidence, alternatives, and score
+history.
+_Avoid_: Calendar event title, final summary
+
+**Transcript Correction Proposal**:
+A versioned span-level proposal that preserves raw ASR while identifying exact
+original and replacement text, utterance/time, scoped context, evidence, and
+review state.
+_Avoid_: Transcript overwrite, global replacement
+
+**Normalized Transcript Version**:
+A derived transcript generation that applies accepted corrections while
+retaining complete lineage to immutable raw ASR and diarization.
+_Avoid_: Raw transcript, silent edit
+
+**Terminology Entry**:
+A versioned, scope-aware record of canonical spelling, expansion, definition,
+aliases, pronunciation hints, and ASR confusions.
+_Avoid_: Search-and-replace rule, unscoped synonym
+
+**ASR Confusion**:
+A scoped record that an ASR system may emit one form when another term is
+intended. It is not a semantic synonym and is never globally applied by
+default.
+_Avoid_: Alias, synonym
+
+**Semantic Correction Comment**:
+An immutable freeform reviewer observation that may produce a separately
+reviewed structured correction but is not itself a learning label.
+_Avoid_: Accepted correction, model truth
 
 **Speaker Identification**:
 An evidence-bearing estimate of which person spoke in a conversation. It is

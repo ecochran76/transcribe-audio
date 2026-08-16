@@ -20,8 +20,9 @@ Design the correction-first product path that processes eligible historical
 and new conversations into reviewable conversation associations, participant
 hypotheses, speaker identity proposals, contact/source-record candidates,
 roles, relationships, voice samples, and versioned acoustic profiles. Present
-the result in a dedicated authenticated dashboard tab where the operator can
-confirm, correct, reject, split, merge, or defer each proposal.
+the result in dedicated Authelia-protected Identity Review and People tabs
+where the operator can confirm, correct, reject, split, merge, or defer each
+proposal.
 
 The queue must display the actual original recording filename, not an enriched
 artifact name; candidate calendar events and their independently scored
@@ -34,6 +35,13 @@ The architecture extends
 [`docs/conversation-knowledge-storage-and-retrieval.md`](../../conversation-knowledge-storage-and-retrieval.md)
 and [ADR 0002](../../adr/0002-use-a-user-scoped-conversation-knowledge-store.md).
 It does not create a second contact database or make Graphiti the authority.
+
+The accepted answers from the bounded design interview are frozen in
+[Note 0058](../notes/0058-2026-08-16-plan0072-grilled-architecture.md). That
+note is the detailed decision authority for reconciliation, ontology,
+retention, confidence, transcript correction, review behavior, and staged
+launch. If this campaign plan summarizes a decision more narrowly, Note 0058
+controls until a later explicit plan revision supersedes it.
 
 ## Vision outcomes and maturity movement
 
@@ -68,8 +76,9 @@ for later conversations without treating unreviewed predictions as truth.
   prove the lifecycle on a small reviewed population; they do not establish
   reliable general automatic identification.
 - The React console already has a Review Queue and speaker/contact workspace,
-  but P09 still lacks the complete share/auth boundary and a unified
-  identity-learning queue. Existing acoustic reviews are campaign-specific.
+  and the dashboard route is already gated to the operator through Authelia.
+  It still lacks unified Identity Review and People projections and workflows;
+  existing acoustic reviews are campaign-specific.
 - Plans 0064-0071 found useful acoustic candidates but inadequate contextual
   availability for the tested residual path. The new architecture must improve
   evidence gathering and review throughput without weakening abstention or
@@ -157,6 +166,21 @@ The supervisor must:
    not automatically accepted people, relationships, or speakers; and
 7. persist the immutable evidence bundle before any model inference.
 
+Before historical speaker processing, ingest a read-only baseline from every
+configured authorized contact directory. Preserve source records, auto-dedup
+only exact provider/account/type/record IDs, auto-link to one provisional
+person only through a non-conflicting exact person-specific email or verified
+phone, and route every fuzzy or conflicting reconciliation to review. Shared
+and role addresses never auto-link to people. Clean source records do not each
+require review, and reviewed local overrides never overwrite provider fields.
+
+Roles and relationships use a shared versioned hierarchy but remain distinct
+assertions: entity-to-entity relationship edges and contextual roles in a
+conversation, event, organization, project, matter, or time. People may hold
+many simultaneous roles and relationships; conflicting assertions coexist
+until reviewed. Organization hierarchy, inverse/directional edge rules, and
+reviewed ontology extensions are first-class rather than flattened strings.
+
 Calendar association strength, person-link strength, and speaker-identity
 strength remain separate. Scores are rubric values, not claimed probabilities.
 Provider absence or failure is unknown evidence, not contrary evidence.
@@ -177,16 +201,30 @@ sample allowlist, evaluate it against frozen genuine/impostor/open-set data,
 then promote or reject it. Retain the predecessor for rollback. Never train on
 unreviewed predictions or on the evaluation holdout.
 
+Unreviewed samples and embeddings remain private, person-unbound, and retained
+indefinitely for now until explicit deletion or a later policy revision.
+Anonymous recurring-voice clustering is automatic, but memberships remain
+soft and reversible. Confirming one member may re-score and materially requeue
+related samples; it never assigns the cluster in bulk. A person may have
+multiple acoustic profile families for different conditions.
+
 Raw audio, excerpts, embeddings, scores, and profile payloads remain private
 and encrypted or filesystem-protected at rest. API responses expose only
-authorized range-playback handles and bounded metadata. Retention, export,
-deletion, biometric consent/authority, and jurisdiction-specific policy must
-be decided before any live background collection begins.
+authorized range-playback handles and bounded metadata. Per-person and
+per-recording biometric exclusions plus deletion by sample, cluster, profile,
+recording, or person must invalidate dependent derivatives and preserve a
+minimal audit tombstone. Local processing is the default; only an opt-in,
+bounded pseudonymous external challenger benchmark may be designed before
+measurable lift justifies any broader cloud path.
 
-### 6. Identity-learning review tab
+### 6. Identity Review and People tabs
 
-Add one dedicated `Identity review` tab backed by an API read model rather
-than campaign-specific static pages. Each conversation row must show:
+Add dedicated `Identity Review` and `People` tabs backed by API read models
+rather than campaign-specific static pages. Identity Review is
+conversation-first, with cross-conversation acoustic-cluster context. People
+is the authoritative editing view for canonical/provisional people, source
+records, aliases, organizations, roles, relationships, clusters, profiles, and
+correction/merge/score history. Each conversation row must show:
 
 - actual original recording filename, capture time, processing state, and
   source-artifact lineage;
@@ -209,11 +247,16 @@ cover canonical people and still-separate provider records without merging by
 name. Batch actions may defer or confirm only exact homogeneous cases and must
 preview every effect.
 
-The tab is externally reachable only through an authenticated, authorized,
-private deployment with tenant-scoped sessions, CSRF protection, expiring
-media access, audit logging, rate limits, and no raw-path disclosure. Public
-share links and anonymous biometric review are prohibited. Local dogfood,
-authenticated preview, and production deployment are separate gates.
+Freeform comments are immutable input for richer semantic corrections. App
+Intelligence may propose structured derivatives into a separate correction
+queue, but only reviewed structured derivatives become learning labels.
+
+The tabs use the dashboard's existing Authelia-protected route as the sole
+initial authentication gate; this plan adds no Google OAuth, local login, or
+step-up authentication or second security layer. Preserve existing request
+protections, stale-write rejection, bounded media access, audit history, and
+no raw-path disclosure. Public share links and anonymous biometric review are
+prohibited.
 
 ### 7. Review, correction, and learning loop
 
@@ -232,6 +275,21 @@ or profile version. Promotion requires explicit measured thresholds, rollback,
 and a separately authorized release. Unreviewed model outputs never feed their
 own training or count as ground truth.
 
+Host-computed 0-100 Evidence Strength may increase or decrease and is not a
+probability. Preserve original scores and append re-scores with evidence,
+rubric, and model lineage. Show calendar, person-link, contextual, acoustic,
+and combined pillars separately; contradictions cap the combined result.
+Empirical Calibrated Likelihood appears only with at least 30 source-disjoint
+reviewed outcomes in the relevant band and must show sample size, interval,
+and evaluation version.
+
+Evaluate accumulated reviews weekly. A candidate rubric or model requires at
+least 25 new reviewed speaker decisions or a material correction. Automatic
+named acceptance remains disabled until at least 100 varied source-disjoint
+reviewed speaker outcomes demonstrate at least 99% precision in the proposed
+band, safe abstention, and no systematic high-strength failure. Person merges
+and splits always remain reviewed.
+
 ### 8. Historical and new-conversation operation
 
 Historical backfill and new-conversation processing use the same idempotent
@@ -245,6 +303,28 @@ be used but is labeled hindsight evidence. Historical evidence, original
 predictions, and original review decisions remain intact when a newer pipeline
 version re-evaluates the conversation.
 
+Processing begins asynchronously only after transcript artifacts stabilize;
+the watcher does not perform model/provider enrichment inline. Hard daily
+budgets reserve capacity for new conversations. Above 500 actionable queue
+items, cheap normalization, metadata, sample extraction, and clustering may
+continue while expensive enrichment throttles. One transient idempotent
+provider retry is allowed; subsequent partial failure remains visible and does
+not discard other evidence.
+
+Transcript correction is a first-class layer before identity review. Preserve
+raw ASR and diarization, store versioned span-level proposals, and use accepted
+normalized transcripts downstream. A scoped terminology registry handles
+canonical terms, definitions, aliases, pronunciations, and ASR confusions; for
+example, SoyLei `CISO` to `SESO` is a chemistry-scoped ASR confusion rather
+than a global replacement. Run at most one pre-identity and one post-identity
+correction pass; one material correction/identity cascade may requeue, after
+which the same processing version stops for manual resolution.
+
+Each conversation has a transcript-only semantic map, an enriched provisional
+draft, and an accepted reviewed readout. Historical evaluation retains both a
+contemporaneous as-of assessment and a separately labeled current assessment
+that may use accepted hindsight.
+
 ## Proposed execution graph
 
 Every packet below requires a later implementation turn. Finishing one packet
@@ -253,19 +333,20 @@ does not authorize the next packet's live effects.
 | Packet | Depends on | Bounded outcome | Write surface | Terminal gate |
 | --- | --- | --- | --- | --- |
 | A0 architecture freeze | this plan | Version the domain, correction, privacy/threat, API, adapter, and supervisor contracts | Docs, ADRs, schemas, redacted fixtures/tests | Architecture audit passes; unresolved privacy decisions block A1 |
-| A1 normalized identity ledger | A0 | Add append-only assertions, corrections, projections, merge/split/reversal, and schema migration on disposable/private copies | Product schema/modules/tests; no live migration | Migration/rollback/rebuild/reconciliation pass |
-| A2 evidence supervisor | A1 | Compose capability-scoped provider adapters, processing ledger, calendar association, contact gathering, and partial-failure behavior | Product modules/tests and private shadow artifacts | Exact replay, budget/isolation tests, zero provider writes |
-| A3 biometric custody | A1 | Add voice-sample inventory, eligibility, profile version/invalidation/rebuild, retention hooks, and governed storage | Product modules/tests and private derived artifacts | Source/sample/profile lineage, rollback, access and deletion tests pass |
-| A4 review API/read model | A1-A3 | Build identity queue projection and reviewed decision/effect-preview endpoints | Local API/schema/tests only | Idempotency, authorization, concurrency and stale-decision rejection pass |
-| A5 dashboard tab | A4 | Implement original-filename-bearing Identity review workflow | Frontend/API tests and authenticated local preview | Desktop/mobile/accessibility/audio/decision browser proof passes |
-| A6 bounded shadow | A2-A5 | Process a small oldest-forward historical batch and new arrivals without applying identity/profile conclusions | Private run/evidence/queue records | Coverage, failure and privacy receipts complete; no accepted effects |
-| A7 reviewed local projection | A6 | Apply reviewed decisions to local people, assignments, roles, relationships, and eligible profile rebuilds | User-scoped local store after backup/rehearsal gate | Exact apply/replay/rollback and deterministic rebuild pass |
-| A8 calibration and promotion | A7 | Measure learning value on frozen source-disjoint data and define any policy-qualified automatic band | Private evaluation and tracked aggregate decision | Accept/refine/withhold; no automatic promotion by test success |
-| A9 authenticated live launch | A4-A8 | Deploy scheduled historical/new processing and the private externally reachable tab | Installed services and authenticated deployment | Security/privacy/recovery/load/product acceptance all pass |
+| A1 identity/contact/ontology ledger | A0 | Add append-only identities, source records, roles, hierarchical relationships, corrections, projections, merge/split/reversal, and baseline directory reconciliation on disposable/private copies | Product schema/modules/tests; no live migration or provider write | Migration/rollback/rebuild/reconciliation and dedup pass |
+| A2 terminology and transcript correction | A1 | Add terminology registry, raw/normalized transcript generations, span corrections, semantic map, and bounded correction cascades | Product schema/modules/tests and redacted fixtures | Scope precedence, non-destructive replay, reindex, and cascade bounds pass |
+| A3 biometric custody and clustering | A1 | Add voice-sample inventory, soft anonymous clustering, exclusions, deletion, profile family/version/invalidation/rebuild, and governed storage | Product modules/tests and private derived artifacts | Source/sample/cluster/profile lineage, rollback, access and deletion tests pass |
+| A4 evidence supervisor and confidence | A1-A3 | Compose capability-scoped adapters, run ledger, calendar/purpose/participant hypotheses, pillar scores, calibration history, budgets, and partial failures | Product modules/tests and private shadow artifacts | Exact replay, score lineage, budget/isolation tests, zero provider writes |
+| A5 review APIs and views | A4 | Build queue/People projections and decision/effect-preview APIs, then implement original-filename-bearing Identity Review and People tabs | Local API/schema/frontend tests and Authelia-protected preview | Idempotency, existing-route regression, stale rejection, desktop/mobile/audio/decision proof pass |
+| A6 live shadow | A4-A5 | Process 25 oldest-forward historical conversations and seven days of new arrivals without applying identity/profile conclusions | Private run/evidence/queue records | Replayable queue, usability, failure/privacy receipts, and zero accepted effects |
+| A7 reviewed learning | A6 | Apply explicit reviews to local people, assignments, roles, relationships, transcript layers, and candidate profiles | User-scoped local store after backup/rehearsal gate | Exact apply/replay/rollback and deterministic rebuild pass |
+| A8 calibration and promotion | A7 | Measure learning value on frozen source-disjoint data and define any policy-qualified automatic band | Private evaluation and tracked aggregate decision | Threshold met or explicit refine/withhold; no automatic promotion by test success |
+| A9 policy-qualified automation | A8 | Enable only an accepted automatic band while retaining review fallback | Installed services and Authelia-protected deployment | Existing-route/privacy/recovery/load/product acceptance and 100-case/99%-precision gate pass |
 
-A1, A2, and A3 may be designed in parallel after A0, but schema integration is
-serialized through A1. A4 joins the data paths. A5 may proceed against redacted
-fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
+A1 is the schema critical path. A2 and A3 follow its identity and lineage
+contracts and may then proceed independently. A4 joins them; A5 may build
+against redacted fixtures before A4 finishes but must integrate before A6.
+A6-A9 are serialized launch stages.
 
 ## Bounds for future execution
 
@@ -274,11 +355,20 @@ fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
 - `max_broad_review_discovery_passes`: 1 for the whole campaign.
 - `max_historical_shadow_batch`: 25 conversations for the first A6 run.
 - `max_new_conversation_shadow_window`: 7 days for the first A6 run.
+- `expensive_enrichment_backlog_threshold`: 500 actionable conversations;
+  preserve new-work capacity and continue cheap preprocessing.
 - `max_provider_retries`: 1 retry only for transient, idempotent reads; no
   retry for authorization, tenant, schema, or privacy failures.
 - `max_model_reference_repairs`: 1 reference-only repair per model phase.
+- `max_transcript_identity_cascades`: 1 per processing version, followed by
+  `manual_resolution_required`.
 - `max_profile_rebuilds_per_correction`: 1 deterministic rebuild attempt,
   followed by fail-closed review if equality or evaluation fails.
+- `calibrated_likelihood_min_source_disjoint_outcomes`: 30 per relevant band.
+- `candidate_version_min_new_reviews`: 25, unless a material correction
+  requires evaluation sooner; evaluation cadence is weekly.
+- `automatic_acceptance_min_source_disjoint_outcomes`: 100 across varied
+  conditions, with at least 99% precision in the proposed band.
 - `max_hardening_checkpoints_without_outcome_progress`: 2.
 - `checkpoint_interval`: after every packet and before private corpus access,
   live-store migration, background scheduling, biometric activation,
@@ -292,12 +382,15 @@ fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
   identity verification.
 - No automatic person merge from a shared name, calendar attendance, role,
   organization, acoustic similarity, or model assertion.
+- No automatic person merge or split at any launch stage.
 - No automatic profile enrollment from predicted identities.
 - No provider contact mutation or write-back in this plan's launch target.
 - No public/anonymous dashboard, raw filesystem path, unrestricted audio URL,
   or Graphiti storage of private or unreviewed content.
 - No silent rewrite of transcripts, diarization, evaluations, decisions,
   source records, relationships, or historical artifacts.
+- No claim that Evidence Strength is a probability or that later scores only
+  increase; re-scores may rise or fall and retain their versioned history.
 - No self-training on unreviewed predictions and no evaluation-set leakage.
 - No implementation, live processing, provider retrieval, deployment, or
   runtime mutation in this planning turn.
@@ -307,11 +400,19 @@ fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
 - The architecture has one normalized person/source-record/role/relationship
   model and one append-only correction ledger; it does not fork the existing
   conversation knowledge authority.
+- Baseline contact ingest proves the three-level exact-dedup/exact-person-link/
+  review-proposal policy, preserves provider history, excludes shared-role
+  addresses from person auto-linking, and performs no provider write-back.
+- Roles, relationships, organizations, and ontology additions prove
+  hierarchical, temporal, multi-role, inverse/directional, conflict-preserving
+  behavior rather than flat last-write-wins fields.
 - Every queue item and downstream record retains conversation ID, recording ID,
   actual original recording filename, source artifact/media hashes,
   processing-run ID, model/rubric/profile versions, and evidence lineage.
-- Calendar association, person linking, and speaker identity are separately
-  scored under versioned rubrics with factors and alternatives.
+- Calendar association, person linking, contextual speaker, acoustic speaker,
+  and combined ranking are separately visible under versioned rubrics with
+  factors and alternatives. Empirical likelihood remains unavailable until
+  the 30-outcome source-disjoint calibration minimum is met.
 - Suspected calendar attendees become source observations and participant
   hypotheses without becoming proof of presence or speech.
 - All configured evidence adapters are host-owned, capability/tenant/time/budget
@@ -322,15 +423,26 @@ fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
   rebuild only affected projections, samples, and profiles.
 - Voice profile versions cite only reviewed eligible samples and have exact
   predecessor, evaluation, activation, rollback, retention, and deletion state.
-- The authenticated dashboard proves original-filename display, safe playback,
-  complete alternatives/evidence, stale-decision rejection, keyboard and
-  mobile usability, and no anonymous access.
+- Anonymous clustering is soft and reversible; cluster confirmation never
+  silently assigns identities. Biometric exclusions and every initial deletion
+  scope invalidate dependent material with previewed effects and an audit
+  tombstone.
+- Raw and normalized transcripts, scoped terminology, span corrections,
+  correction/readout generations, and the one-cascade limit replay without
+  destroying raw ASR or creating circular evidence.
+- The Authelia-protected dashboard proves original-filename display, safe
+  playback, complete alternatives/evidence, stale-decision rejection, keyboard
+  and mobile usability, Identity Review and People separation, and no
+  anonymous access or second login requirement.
 - The first shadow campaign reports pipeline yield, candidate recall,
   correctness, calibration, high-strength errors, abstention, review load,
   provider yield/failure, latency, duplicate control, and knowledge integrity.
 - No automatic acceptance or live background processing begins until the
-  relevant source-disjoint quality, privacy, security, backup/restore,
-  rollback, load, and user-workflow gates pass.
+  relevant source-disjoint quality, privacy, existing-route regression,
+  backup/restore, rollback, load, and user-workflow gates pass.
+- Stage 2 begins only after 25 historical conversations and seven days of new
+  shadow work are replayable and usable. Stage 3 requires the explicit
+  100-outcome, 99%-precision gate and safe abstention.
 
 ## Validation for future packets
 
@@ -343,9 +455,9 @@ fixtures while A2/A3 finish, then must integrate with A4. A6-A9 are serialized.
 - Audio/sample hash, range access, quality, eligibility, retention/deletion,
   profile versioning, invalidation, rebuild, evaluation-split, promotion, and
   rollback tests.
-- API authorization, CSRF, tenant isolation, optimistic concurrency,
-  idempotency, effect preview, audit, pagination, filtering, and stale queue
-  projection tests.
+- Existing Authelia-route/request-protection regression, optimistic
+  concurrency, idempotency, effect preview, audit, pagination, filtering, and
+  stale queue projection tests; no second authentication layer.
 - Redacted component tests plus authenticated desktop/mobile browser proof for
   queue states, original filenames, media playback, evidence, every decision
   control, undo/supersession, and inaccessible anonymous routes.
