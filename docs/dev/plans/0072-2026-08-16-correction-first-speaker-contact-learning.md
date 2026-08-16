@@ -67,10 +67,10 @@ for later conversations without treating unreviewed predictions as truth.
 - Durable conversation and recording IDs, append-only processing evaluations,
   review decisions, source artifacts, and current-evaluation pointers already
   exist. Sidecars remain processing authority during migration.
-- Schema version 6 now extends the A1 identity/contact and A2 transcript
-  ledgers with private voice-sample custody, soft anonymous clusters,
-  reviewed profile families and versions, rebuild receipts, exclusions, and
-  previewed deletion in the user-scoped SQLite store.
+- Schema version 7 now extends the A1-A3 identity, transcript, and biometric
+  ledgers with exact supervisor runs, stage history, source-scoped adapter
+  receipts, nonbinding calendar/purpose/participant hypotheses, visible
+  evidence-pillar scores, and source-disjoint calibration history.
 - Host-owned retrieval already supports exact-first identity lookup, bounded
   lexical/semantic/relationship search, tenant/account/capability/as-of
   filtering, evidence-independence groups, partial-provider failures, and
@@ -218,6 +218,40 @@ with 355 indexed files, 10,402 nodes, and 35,862 edges. No real voice, private
 corpus, historical conversation, live store, provider, external benchmark,
 named enrollment, dashboard, deployment, worker, or Graphiti write was
 accessed or changed.
+
+| Field | A4 control |
+| --- | --- |
+| Bounded outcome | Add a deterministic zero-effect supervisor with exact run/stage history, capability-scoped adapter receipts, calendar/purpose/participant hypotheses, evidence-pillar scores, calibration history, budgets, and partial-failure isolation. |
+| Write surface | Knowledge schema v7, supervisor module, tests, redacted fixtures, reference docs, and plan/roadmap/runbook state. |
+| Inputs | A0 supervisor/adapter contracts, A1-A3 ledgers, this plan, Note 0058, and synthetic fixture evidence. |
+| Validation | Migration/rollback, exact replay, source-scope and budget enforcement, transient retry bounds, partial-failure isolation, score lineage, contradiction/duplicate caps, calibration threshold, full-suite, planning, CodeGraph, and git checks. |
+| Terminal condition | A4 gates pass with zero provider calls/writes, private corpus reads, historical processing, accepted identity/profile effects, publication, deployment, or external effects. |
+
+A4 delivered knowledge schema v7 and
+[`identity_evidence_supervisor.py`](../../../identity_evidence_supervisor.py),
+with an [evidence-supervisor reference](../../correction-first-evidence-supervisor.md)
+and redacted fixtures under `docs/dev/fixtures/plan-0072-a4/`. The additive v7
+migration rolls back to v6 without changing A1-A3 history. Immutable tables
+record runs, sequential stage events, adapter exchanges, calendar candidates,
+purpose and participant hypotheses, pillar assessments, re-score chains,
+calibration outcomes, and calibration snapshots.
+
+Synthetic tests prove exact run and stage replay, original-filename and source-
+hash retention, tenant/account/profile/capability scope binding, cumulative
+record/character/call/latency budgets, one transient retry, visible partial
+failure without loss of successful observations, and zero provider writes.
+They also prove four separately visible Evidence Strength pillars, conservative
+caps for material contradiction or duplicated independence groups, immutable
+re-score lineage, nonbinding hypotheses, and withheld empirical likelihood
+until 30 source-disjoint reviewed outcomes exist in the relevant band.
+
+A4 validation passed 43 focused supervisor/store/profile/evidence/biometric
+tests, the 1,174-test full suite, Python compilation, the active planning
+audit, internal-link and fixture checks, `git diff --check`, and a fresh
+CodeGraph readback with 357 indexed files, 10,477 nodes, and 36,210 edges. No
+provider was called, no private corpus or conversation was read, and no
+historical, live-migration, accepted identity/profile, publication, deployment,
+worker, Graphiti, or external effect occurred.
 
 A1 validation passed 33 focused ledger/store/profile/evidence/private-
 rehearsal tests, the 1,139-test full suite, Python compilation, active and
@@ -609,9 +643,9 @@ A6-A9 are serialized launch stages.
 
 ## Packet closeout and next authority
 
-A0-A3 are closed at their non-live terminal gates. The next safe slice is A4:
-compose the capability-scoped evidence supervisor, run ledger, evidence-pillar
-scores, calibration history, budgets, and partial-failure isolation against
-synthetic and redacted evidence. A4 does not authorize historical processing,
-a live migration, provider access, accepted identity/profile effects,
-publication, or deployment.
+A0-A4 are closed at their non-live terminal gates. The next safe slice is A5:
+build local queue and People projections, decision/effect-preview APIs, and the
+original-filename-bearing Identity Review and People views against redacted
+fixtures. A5 may use an Authelia-protected local preview but does not authorize
+historical processing, live migration, provider access, accepted identity or
+profile effects, public publication, or deployment.

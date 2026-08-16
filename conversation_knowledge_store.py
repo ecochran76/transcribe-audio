@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 6
+LATEST_SCHEMA_VERSION = 7
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -376,6 +376,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 7 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v7(con)
+                    applied.append(7)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -403,6 +412,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 7 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v7(con)
+                    rolled_back.append(7)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 6 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -3348,6 +3366,276 @@ class ConversationKnowledgeStore:
             "VALUES (6, ?)",
             (now,),
         )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 6, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v7(con: sqlite3.Connection) -> None:
+        """Add the append-only evidence-supervisor and confidence history."""
+        now = _utc_now()
+        statements = (
+            """
+            CREATE TABLE knowledge_identity_supervisor_runs (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                original_recording_filename TEXT NOT NULL,
+                operation_mode TEXT NOT NULL CHECK (
+                    operation_mode IN ('contract_fixture', 'shadow')
+                ),
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_identity_supervisor_run_events (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                stage TEXT NOT NULL CHECK (stage IN (
+                    'bind_conversation', 'pre_identity_correction',
+                    'calendar_candidate_generation',
+                    'participant_and_evidence_collection',
+                    'speaker_and_relationship_proposals',
+                    'post_identity_correction', 'queue_projection', 'complete'
+                )),
+                state TEXT NOT NULL CHECK (
+                    state IN ('running', 'complete', 'failed')
+                ),
+                output_ids_json TEXT NOT NULL,
+                failures_json TEXT NOT NULL,
+                effect_counts_json TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                predecessor_event_id TEXT
+                    REFERENCES knowledge_identity_supervisor_run_events(id)
+                    ON DELETE RESTRICT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_identity_supervisor_adapter_exchanges (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                adapter_id TEXT NOT NULL,
+                capability TEXT NOT NULL,
+                attempt INTEGER NOT NULL CHECK (attempt IN (0, 1)),
+                prior_exchange_id TEXT
+                    REFERENCES knowledge_identity_supervisor_adapter_exchanges(id)
+                    ON DELETE RESTRICT,
+                request_json TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN ('complete', 'partial', 'unavailable')
+                ),
+                consumed_records INTEGER NOT NULL CHECK (consumed_records >= 0),
+                consumed_characters INTEGER NOT NULL CHECK (
+                    consumed_characters >= 0
+                ),
+                consumed_calls INTEGER NOT NULL CHECK (consumed_calls >= 0),
+                consumed_latency_ms INTEGER NOT NULL CHECK (
+                    consumed_latency_ms >= 0
+                ),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(run_id, adapter_id, capability, attempt)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_conversation_association_candidates (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_conversation_purpose_hypotheses (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_participant_hypotheses (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_evidence_assessment_batches (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_supervisor_runs(id)
+                    ON DELETE RESTRICT,
+                candidate_id TEXT NOT NULL,
+                predecessor_assessment_id TEXT
+                    REFERENCES knowledge_evidence_assessment_batches(id)
+                    ON DELETE RESTRICT,
+                rubric_version TEXT NOT NULL,
+                model_version TEXT NOT NULL,
+                combined_score REAL NOT NULL CHECK (
+                    combined_score >= 0 AND combined_score <= 100
+                ),
+                review_required INTEGER NOT NULL CHECK (
+                    review_required IN (0, 1)
+                ),
+                reason_codes_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_evidence_pillar_assessments (
+                id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL
+                    REFERENCES knowledge_evidence_assessment_batches(id)
+                    ON DELETE RESTRICT,
+                pillar TEXT NOT NULL CHECK (pillar IN (
+                    'calendar_association', 'person_link',
+                    'contextual_speaker', 'acoustic'
+                )),
+                score REAL NOT NULL CHECK (score >= 0 AND score <= 100),
+                positive_factors_json TEXT NOT NULL,
+                negative_factors_json TEXT NOT NULL,
+                evidence_ids_json TEXT NOT NULL,
+                independence_groups_json TEXT NOT NULL,
+                material_contradiction INTEGER NOT NULL CHECK (
+                    material_contradiction IN (0, 1)
+                ),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(batch_id, pillar)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_evidence_calibration_outcomes (
+                id TEXT PRIMARY KEY,
+                pillar TEXT NOT NULL,
+                score_band TEXT NOT NULL,
+                correct INTEGER NOT NULL CHECK (correct IN (0, 1)),
+                source_disjoint_id TEXT NOT NULL,
+                evaluation_version TEXT NOT NULL,
+                review_decision_id TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(
+                    evaluation_version, pillar, score_band,
+                    source_disjoint_id
+                )
+            )
+            """,
+            """
+            CREATE TABLE knowledge_evidence_calibration_snapshots (
+                id TEXT PRIMARY KEY,
+                pillar TEXT NOT NULL,
+                score_band TEXT NOT NULL,
+                evaluation_version TEXT NOT NULL,
+                input_watermark TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN ('insufficient_data', 'available')
+                ),
+                sample_size INTEGER NOT NULL CHECK (sample_size >= 0),
+                likelihood REAL,
+                interval_low REAL,
+                interval_high REAL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(
+                    evaluation_version, pillar, score_band, input_watermark
+                )
+            )
+            """,
+        )
+        for statement in statements:
+            con.execute(statement)
+        immutable_tables = (
+            "knowledge_identity_supervisor_runs",
+            "knowledge_identity_supervisor_run_events",
+            "knowledge_identity_supervisor_adapter_exchanges",
+            "knowledge_conversation_association_candidates",
+            "knowledge_conversation_purpose_hypotheses",
+            "knowledge_participant_hypotheses",
+            "knowledge_evidence_assessment_batches",
+            "knowledge_evidence_pillar_assessments",
+            "knowledge_evidence_calibration_outcomes",
+            "knowledge_evidence_calibration_snapshots",
+        )
+        for table_name in immutable_tables:
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_update
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only evidence supervisor');
+                END
+                """
+            )
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only evidence supervisor');
+                END
+                """
+            )
+        con.execute(
+            "INSERT INTO knowledge_schema_migrations (version, applied_at) "
+            "VALUES (7, ?)",
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 7, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v7(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        tables = (
+            "knowledge_evidence_calibration_snapshots",
+            "knowledge_evidence_calibration_outcomes",
+            "knowledge_evidence_pillar_assessments",
+            "knowledge_evidence_assessment_batches",
+            "knowledge_participant_hypotheses",
+            "knowledge_conversation_purpose_hypotheses",
+            "knowledge_conversation_association_candidates",
+            "knowledge_identity_supervisor_adapter_exchanges",
+            "knowledge_identity_supervisor_run_events",
+            "knowledge_identity_supervisor_runs",
+        )
+        for table_name in tables:
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_update")
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_delete")
+            con.execute(f"DROP TABLE IF EXISTS {table_name}")
+        con.execute("DELETE FROM knowledge_schema_migrations WHERE version = 7")
         con.execute(
             """
             UPDATE knowledge_store_state

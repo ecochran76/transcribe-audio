@@ -1005,9 +1005,14 @@ boundary. It produced no private, live, provider, biometric, publication, or
   deterministic rebuild proof, previewed exclusions and every initial deletion
   scope, transactional private-byte removal, and minimal tombstones. It
   produced no real-voice, private-corpus, live, provider, enrollment,
-  publication, deployment, or external effects. A4 is the next safe packet and
-  remains limited to a zero-provider-write evidence supervisor on synthetic
-  and redacted evidence.
+  publication, deployment, or external effects. A4 is closed on synthetic and
+  redacted inputs: knowledge schema v7 adds exact supervisor runs and stages,
+  source-scoped adapter receipts, cumulative budgets, bounded transient retry,
+  partial-failure isolation, nonbinding calendar/purpose/participant
+  hypotheses, separate evidence pillars, conservative duplicate/contradiction
+  caps, and source-disjoint calibration history. It made zero provider calls
+  or writes and produced no accepted effects. A5 is the next safe packet for
+  local review APIs and Authelia-protected fixture previews only.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

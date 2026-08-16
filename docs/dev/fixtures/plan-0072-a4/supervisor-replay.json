@@ -1,0 +1,103 @@
+{
+  "schema_version": "transcribe-audio.plan-0072-a4-supervisor-replay.v1",
+  "run": {
+    "schema_version": "transcribe-audio.processing-run.v1",
+    "run_id": "run-a4-fixture-1",
+    "conversation_id": "conversation-a4-fixture-1",
+    "recording_id": "recording-a4-fixture-1",
+    "original_recording_filename": "2026-08-16 Redacted Fixture Recording.m4a",
+    "source_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_media_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "operation_mode": "contract_fixture",
+    "policy_version": "supervisor-policy.synthetic.v1",
+    "as_of": "2026-08-16T22:30:00Z",
+    "capabilities": ["event_metadata_read"],
+    "source_scopes": [
+      {
+        "provider_kind": "synthetic",
+        "profile_id": "profile-a4-fixture",
+        "account_id": "account-a4-fixture",
+        "tenant_id": "tenant-a4-fixture",
+        "capabilities": ["event_metadata_read"]
+      }
+    ],
+    "budgets": {
+      "max_records": 2,
+      "max_characters": 100,
+      "max_calls": 1,
+      "max_latency_ms": 500
+    },
+    "model_versions": {"context": "context.synthetic.v1"},
+    "rubric_versions": {
+      "calendar_association": "calendar.synthetic.v1",
+      "person_link": "person.synthetic.v1",
+      "contextual_speaker": "context.synthetic.v1",
+      "acoustic": "acoustic.synthetic.v1",
+      "combined": "combined.synthetic.v1"
+    },
+    "profile_versions": [],
+    "stage": "bind_conversation",
+    "state": "running",
+    "transcript_correction_passes": 0,
+    "identity_cascade_count": 0,
+    "provider_retry_count": 0,
+    "input_ids": ["input-a4-fixture-1"],
+    "output_ids": [],
+    "failures": [],
+    "effect_counts": {
+      "accepted_identity": 0,
+      "profile_activation": 0,
+      "provider_write": 0
+    },
+    "created_at": "2026-08-16T22:30:00Z"
+  },
+  "purpose": {
+    "schema_version": "transcribe-audio.conversation-purpose-hypothesis.v1",
+    "hypothesis_id": "purpose-a4-fixture-1",
+    "conversation_id": "conversation-a4-fixture-1",
+    "label": "redacted fixture discussion",
+    "alternatives": ["unresolved"],
+    "evidence_ids": ["evidence-purpose-a4-fixture-1"],
+    "status": "hypothesis",
+    "created_at": "2026-08-16T22:31:00Z"
+  },
+  "pillars": [
+    {
+      "pillar": "calendar_association",
+      "score": 80,
+      "positive_factors": ["time_fit"],
+      "negative_factors": [],
+      "evidence_ids": ["evidence-calendar-a4-fixture-1"],
+      "independence_groups": ["calendar-source-a4-fixture-1"]
+    },
+    {
+      "pillar": "person_link",
+      "score": 70,
+      "positive_factors": ["verified_identifier"],
+      "negative_factors": [],
+      "evidence_ids": ["evidence-person-a4-fixture-1"],
+      "independence_groups": ["contact-source-a4-fixture-1"]
+    },
+    {
+      "pillar": "contextual_speaker",
+      "score": 90,
+      "positive_factors": ["self_introduction"],
+      "negative_factors": [],
+      "evidence_ids": ["evidence-context-a4-fixture-1"],
+      "independence_groups": ["transcript-source-a4-fixture-1"]
+    },
+    {
+      "pillar": "acoustic",
+      "score": 60,
+      "positive_factors": ["reviewed_profile_similarity"],
+      "negative_factors": [],
+      "evidence_ids": ["evidence-acoustic-a4-fixture-1"],
+      "independence_groups": ["acoustic-source-a4-fixture-1"]
+    }
+  ],
+  "expected": {
+    "combined_score": 75,
+    "review_required": false,
+    "provider_write_count": 0
+  }
+}

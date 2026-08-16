@@ -792,6 +792,7 @@ Validation must cover:
 
 ## Related documents
 
+- [Correction-first evidence supervisor](correction-first-evidence-supervisor.md)
 - [Correction-first biometric custody](correction-first-biometric-custody.md)
 - [Correction-first transcript learning](correction-first-transcript-learning.md)
 - [Correction-first identity ledger](correction-first-identity-ledger.md)

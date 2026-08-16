@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import stat
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import conversation_knowledge_store
 import identity_learning_ledger
 import transcript_store
+from biometric_custody_ledger import BiometricCustodyLedger
 from transcript_correction_ledger import TranscriptCorrectionLedger
 
 
@@ -56,9 +58,9 @@ def test_core_schema_migration_preserves_existing_store_and_sidecar_authority(
 
     assert before.schema_version == 0
     assert receipt.from_version == 0
-    assert receipt.to_version == 6
-    assert receipt.applied_versions == (1, 2, 3, 4, 5, 6)
-    assert after.schema_version == 6
+    assert receipt.to_version == 7
+    assert receipt.applied_versions == (1, 2, 3, 4, 5, 6, 7)
+    assert after.schema_version == 7
     assert after.authority_mode == "sidecar"
     assert after.dirty is False
     assert search_results[0]["title"] == "Migration compatibility conversation"
@@ -131,9 +133,9 @@ def test_migration_backup_and_rollback_preserve_legacy_store(
     assert Path(migration.backup_path).is_file()
     assert stat.S_IMODE(Path(migration.backup_path).parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(Path(migration.backup_path).stat().st_mode) == 0o600
-    assert rollback.from_version == 6
+    assert rollback.from_version == 7
     assert rollback.to_version == 0
-    assert rollback.rolled_back_versions == (6, 5, 4, 3, 2, 1)
+    assert rollback.rolled_back_versions == (7, 6, 5, 4, 3, 2, 1)
     assert rollback.backup_path
     assert store.schema_status().schema_version == 0
     assert transcript_store.search_store(
@@ -306,6 +308,56 @@ def test_v6_acoustic_custody_migration_preserves_v5_transcript_history(
     assert corrections.load_raw_generation(raw.raw_generation_id)[
         "transcript_text"
     ] == "Synthetic acoustic custody source."
+
+
+def test_v7_supervisor_migration_preserves_v6_biometric_custody(
+    tmp_path: Path,
+) -> None:
+    store = conversation_knowledge_store.ConversationKnowledgeStore(tmp_path)
+    store.migrate(target_version=6, backup=False)
+    private_root = tmp_path / "private-biometric"
+    private_root.mkdir(mode=0o700)
+    custody = BiometricCustodyLedger(tmp_path, private_root=private_root)
+    payload = b"synthetic-v7-migration-sample"
+    private_ref = custody.store_private_object(
+        object_id="sample-object-v7-migration",
+        payload=payload,
+    )
+    sample = custody.register_sample(
+        conversation_id="conversation-v7-migration",
+        recording_id="recording-v7-migration",
+        speaker_ref="SPEAKER_1",
+        start_ms=0,
+        end_ms=1000,
+        source_media_sha256="c" * 64,
+        sample_sha256=hashlib.sha256(payload).hexdigest(),
+        quality={"eligible": True, "reason_codes": []},
+        preparation_lineage={"recipe_version": "synthetic-v1"},
+        review_state="unreviewed",
+        private_object_id=private_ref.object_id,
+        private_object_sha256=private_ref.sha256,
+        created_at="2026-08-16T22:10:00Z",
+    )
+
+    migration = store.migrate(target_version=7, backup=False)
+
+    assert migration.applied_versions == (7,)
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        supervisor_table = con.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'knowledge_identity_supervisor_runs'
+            """
+        ).fetchone()
+    assert supervisor_table is not None
+
+    rollback = store.rollback(target_version=6, backup=False)
+
+    assert rollback.rolled_back_versions == (7,)
+    assert custody.load_sample(sample.sample_id)["sample_sha256"] == (
+        sample.sample_sha256
+    )
 
 
 def test_person_snapshot_preserves_cross_source_identity_context(

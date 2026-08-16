@@ -581,6 +581,7 @@ def test_private_custody_rejects_broad_permissions_and_path_traversal(
     store.migrate(backup=False)
     broad = tmp_path / "broad-private"
     broad.mkdir(mode=0o755)
+    broad.chmod(0o755)
     with pytest.raises(ValueError, match="group/world"):
         BiometricCustodyLedger(tmp_path, private_root=broad)
     broad.chmod(0o700)

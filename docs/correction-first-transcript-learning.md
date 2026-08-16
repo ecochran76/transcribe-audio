@@ -1,7 +1,8 @@
 # Correction-first transcript learning
 
 Plan 0072 A2 adds a non-live transcript correction layer in knowledge schema
-v5. Schema v6 retains this layer and adds A3 biometric custody. A2 preserves
+v5. Schema v7 retains this layer and adds A3 biometric custody plus the A4
+evidence supervisor. A2 preserves
 immutable raw ASR and diarization, records reviewed
 span-level corrections, creates versioned normalized transcripts, indexes raw
 and selected normalized text, and binds transcript-only semantic claims back
