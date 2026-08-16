@@ -911,7 +911,7 @@ then treated list-valued exposure fields as integer counts. Terminal
 evaluation opened, and live assignment, knowledge, Graphiti, provider-write,
 and external effects remained zero.
 
-Plan 0071 is the active corrected shadow successor in
+Plan 0071 is the closed corrected shadow successor in
 `docs/dev/plans/0071-2026-08-11-corrected-joined-residual-shadow-validation.md`.
 It inherits the unchanged 12-recording/39-slot counterfactual and the exact
 Plan 0070 terminal. Its D0 reads the frozen Plan 0065 policy hash from the
@@ -940,7 +940,16 @@ abstentions with zero residual acceptances. Human gold remained unread and all
 effect counts stayed zero. Authenticated private review session
 `6b97d7a8da32` now contains 18 direct-audio decisions, displays the original
 filename on every card, hides predictions, and disables incomplete export.
-D2 awaits all 18 literal decisions; D3 and fresh evaluation remain closed.
+D3 accepted all 18 literal decisions under exact review authority and froze
+human gold `8150c029...`, measurement `14bec969...`, and terminal
+`c4cd3679...`. Acoustic measured six correct, zero wrong, one unverifiable,
+and 11 abstained; context was unavailable for all 18 slots. Combined and
+residual-policy each had zero candidates, seven review outcomes, 11
+abstentions, and zero wrong identities. Because neither a correct pillar
+agreement nor a correct actual residual acceptance existed, Plan 0071 closes
+`residual_population_infeasible`. Fresh evaluation never opened; E0-E3 remain
+not run, and live assignment, knowledge, Graphiti, provider-write, and external
+effects remain closed.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

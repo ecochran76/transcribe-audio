@@ -1,5 +1,50 @@
 # Runbook
 
+## Turn 388: Close Plan 0071 at D3 residual population infeasible (2026-08-16)
+
+Summary: Accepted the exact 18-row literal D2 human-gold export, froze and
+replayed the one allowed D3 measurement, and closed Plan 0071
+`residual_population_infeasible`. Fresh source-disjoint evaluation did not
+open.
+
+Evidence:
+
+- Human gold content `8150c0293cc5b4fa...` and file `b8e462aad75a83cf...`
+  bind review authority `3aac595b1dce3ba6...`, prediction resolution
+  `bf1876e0610f668e...`, and exactly 18 ordered decisions: six
+  `canonical_person`, 10 `not_listed`, and two `unresolved`.
+- Measurement content `14bec96942aa5ed5...` and file `818cb2b7c14b7fdb...`
+  report acoustic 6 correct/0 wrong/1 unverifiable with 11 abstentions and
+  complete lineage for all seven acoustic candidates.
+- Context is unavailable on all 18 slots. Combined and residual-policy each
+  contain zero candidates, seven review outcomes, 11 abstentions, and zero
+  wrong identities. The prediction-bound residual acceptance count is zero.
+- Terminal content `c4cd3679e19c27ce...` fails exactly
+  `pillar_agreement_correct_acceptance_observed` and
+  `residual_correct_acceptance_observed`. It sets
+  `fresh_evaluation_allowed=false`, `next_packet=null`, and
+  `apply_authorized=false`; E0-E3 are not run.
+- Source commit `1e719aed6693da34...` and module hash `ddcd9ae7e90cb4be...`
+  were clean and upstream-even at execution. Exact replay succeeded; the run
+  directory is 0700 and all five artifacts are 0600.
+- The duplicate private staging submission was removed after replay. Every
+  biometric, external, Graphiti, identity, knowledge, provider, source/stored
+  transcript, speaker-assignment, and transcript-index effect count is zero.
+- Focused D3/regression validation passed 15 tests and the full suite passed
+  1,123 tests. Graphiti discovery was healthy but returned no current Plan
+  0071 authority, so repo and private artifacts remained authoritative. No
+  Graphiti write occurred. Delegation is `not_spawned`.
+
+Checkpoint: D3 review-to-terminal is `outcome_progress` because it completed
+literal gold measurement and resolved the bounded plan, although the target
+residual capability did not advance beyond Level 1.
+
+Next:
+
+- Do not run Plan 0071 E0-E3, retry D2 prediction, or weaken the residual rule.
+  Any future attempt to obtain a residual-capable population requires a new
+  bounded plan with new pre-gold structural authority.
+
 ## Turn 387: Publish Plan 0071 blinded filename-bearing D2 review (2026-08-11)
 
 Summary: Exhausted D2's two bounded prediction attempts without reading human

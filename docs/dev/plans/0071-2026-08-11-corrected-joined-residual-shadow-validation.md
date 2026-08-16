@@ -1,8 +1,10 @@
 # Plan 0071 | Corrected joined residual shadow validation
 
-State: OPEN
+State: CLOSED
 
-Active packet: D2 literal supplemental human-gold review
+Terminal packet: D3 literal supplemental measurement
+
+Terminal decision: `residual_population_infeasible`
 
 Checkpoint: Plan 0070 terminal content
 `35cf5ae92835962df1e6fe23062dd3578118a2ffb0d23e8519e53c22d58555f9`
@@ -78,17 +80,34 @@ and receipt content
 bind 18 direct-audio clips, six original recording filenames, six reviewed
 canonical-person options plus `not_listed` and `unresolved`, no visible model
 predictions, and zero preselected decisions. Export remains disabled until all
-18 literal decisions are complete. D3 and fresh evaluation remain closed.
+18 literal decisions are complete.
+
+D3 is complete and replays exactly from private 0700/0600 state. All 18
+literal decisions were accepted under the exact review authority: six
+`canonical_person`, 10 `not_listed`, and two `unresolved`. Human-gold content
+`8150c0293cc5b4fa554f02f8d981e64c6e9f95d871d43ec9d6751bc29eb9e377`,
+measurement content
+`14bec96942aa5ed5b2197d9078e0be19eb9ea448be0c541a7fec7e7ac58b5a4c`,
+and terminal content
+`c4cd3679e19c27ceddc71c6d2b0ccd49a0c23ba33596a05353c12f7f27fb9e55`
+are immutable. Acoustic produced six correct candidates, zero wrong, one
+unverifiable candidate on an unresolved row, and 11 abstentions. Context was
+unavailable for all 18 slots. Combined and residual-policy each produced zero
+candidates, seven review outcomes, 11 abstentions, and zero wrong identities.
+The required correct pillar agreement and correct actual residual acceptance
+were both absent. D3 therefore closes `residual_population_infeasible` with
+fresh evaluation disallowed, no E0 packet, no apply authority, and every
+mutation/effect count at zero.
 
 Plan 0065's corrected acoustic evidence has 10 correct and zero wrong
 candidates. Plan 0069's six filename-bearing context cases complete a
 12-recording/39-slot development reconstruction with five correct and one
 wrong context proposal. The join accepts five correct pillar agreements, zero
 wrong combined identities, and zero residual identities. The wrong context-only
-proposal remains unaccepted. The existing population cannot exercise the
-two-known-plus-one independently supported residual rule, so a structurally
-selected supplemental development cohort remains required before any fresh
-evaluation can open.
+proposal remains unaccepted. The supplemental population also could not
+exercise the two-known-plus-one independently supported residual rule because
+context evidence was unavailable across all 18 new slots. The bounded plan is
+therefore terminal; fresh evaluation never opened.
 
 ## Scope
 
