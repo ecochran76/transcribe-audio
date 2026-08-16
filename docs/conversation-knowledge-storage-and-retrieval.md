@@ -284,6 +284,71 @@ correction.
 
 Current state is a projection over immutable evaluations and decisions.
 
+### Conversation association and participant hypotheses
+
+A `conversation_association_candidate` links a recording or conversation to a
+possible calendar event without asserting that the event is correct. It stores
+the event's source identity, time fit, title/topic/entity/attendee factors,
+credible alternatives, contradicting evidence, the calendar-association
+rubric version, and an Evidence Strength Score. Calendar association is scored
+independently of person linking and speaker identity.
+
+A `participant_hypothesis` records that a person or unresolved source record
+may have participated. Calendar attendance, organizer status, or a CRM link
+may create a hypothesis, but none proves presence or speech. Suspected calendar
+participants may therefore enter the normalized source-record inventory while
+their conversation participation and speaker mappings remain reviewable
+claims.
+
+Every recording-backed queue or processing record retains the actual original
+recording filename separately from stored blob names, transcript artifact
+names, enriched display titles, and filesystem paths.
+
+### Voice samples and profile versions
+
+A `voice_sample` is an immutable reference to an exact source-audio interval.
+It records conversation, recording, utterance or diarized-speaker lineage;
+start/end times; source and derivative hashes; preparation recipe; quality and
+overlap findings; identity-review authority; biometric-use authority; and
+active, excluded, invalidated, retention, and deletion state.
+
+A `voice_profile_version` is derived from an exact allowlist of eligible,
+reviewed voice samples. It records the canonical person or still-unbound
+acoustic subject, model and recipe versions, predecessor and successor,
+training/calibration/evaluation split lineage, measurement results, activation
+interval, and rollback state. Profile payloads and embeddings remain in the
+private content-addressed layer rather than relational columns or Graphiti.
+
+Unreviewed identity proposals may be scored against governed active profiles,
+but they never enroll, extend, or retrain a profile. Speaker reassignment,
+person split/merge reversal, source-audio invalidation, or withdrawn biometric
+authority invalidates dependent samples and queues a deterministic new profile
+version; it does not overwrite the prior profile.
+
+### Correction events and identity review queue
+
+A `correction_event` is an append-only merge, split, redirect, retraction,
+speaker reassignment, source-record correction, relationship correction, or
+profile invalidation. It identifies the superseded record or decision, the
+replacement, reviewer and method, recorded and effective times, affected
+derivatives, and the projection/rebuild receipt. Corrections preserve both the
+original historical result and the current accepted view.
+
+An `identity_review_queue_item` is a rebuildable read model over current
+reviewable claims. It points to, but does not duplicate authority from, the
+conversation association, participant, person-link, speaker, relationship,
+and acoustic records. Its UI projection includes the actual original filename,
+calendar candidates and association strength, suspected attendees, source
+records, per-speaker samples, independent contextual/acoustic evidence,
+alternatives, warnings, prior decisions, and proposed downstream effects.
+
+Review decisions support confirmation, correction, rejection, not-listed,
+unresolved, mixed-speaker, split-label, same-person grouping, merge, split,
+reversal, and defer states. A deterministic projector builds current speaker
+assignments, people, roles, relationships, affinities, and eligible profile
+rebuild requests from those decisions. Stale review submissions must fail
+rather than overwrite a newer decision.
+
 ## Evidence snapshots
 
 An evidence snapshot is the exact bounded material made available to one
@@ -471,6 +536,56 @@ records the observation IDs and build watermark that produced it.
 Profiles may improve candidate generation and ranking. They don't become
 independent evidence merely because they summarize several source records, and
 they don't silently train or update an external model.
+
+## Processing supervisor and learning loop
+
+A host-owned supervisor composes deterministic stages and source-specific
+adapters. One `processing_run` binds the conversation and recording IDs,
+actual original filename, source and media hashes, `as_of` time, configured
+capabilities, budgets, provider and model versions, evidence bundle, stage
+outcomes, failures, proposed effects, and replay hashes. The supervisor, not a
+model, owns retries, idempotency, partial failure, leases, checkpoints, and
+effect application.
+
+The ordinary identity-learning sequence is:
+
+1. transcript and diarization normalization;
+2. calendar candidate generation and semantic association assessment;
+3. exact-first attendee, external-identity, contact, message, document, CRM,
+   prior-conversation, and bounded relationship retrieval;
+4. clue discovery and immutable evidence-bundle construction;
+5. acoustic sample qualification and governed-profile scoring;
+6. contextual and acoustic proposal generation with separate evidence;
+7. identity review queue projection;
+8. append-only review/correction decision and deterministic local projection;
+9. affected profile invalidation or reviewed profile-version proposal; and
+10. periodic calibration/evaluation and separately governed promotion.
+
+Reviewed decisions create calibration outcomes. They do not immediately train
+a model. Training, calibration, and source-disjoint evaluation partitions are
+frozen explicitly; unreviewed predictions never become ground truth or feed
+their own training. A new rubric, model, or profile version is promoted only
+after measured acceptance, rollback proof, and an explicit release decision.
+
+Historical and new conversations use the same schemas and idempotent stages.
+Historical backfill is oldest-forward, bounded, checkpointed, and resumable.
+Blind historical evaluation excludes later facts and corrections through its
+`as_of` policy; present-day operational reprocessing may use later accepted
+knowledge only when it is labeled as hindsight evidence.
+
+## Authenticated identity review surface
+
+The identity-learning queue is a private authenticated application surface,
+not a public review page. Its API exposes tenant-scoped read models, bounded
+range-playback handles, optimistic-concurrency tokens, effect previews, and
+append-only decisions. It never exposes raw filesystem paths, profile
+payloads, embeddings, unrestricted audio URLs, or complete provider bodies.
+
+An externally reachable deployment requires authorization, tenant-scoped
+sessions, CSRF protection, expiring media access, audit logging, rate limits,
+backup/restore, rollback, and privacy/retention/deletion validation. Local
+dogfood, authenticated preview, and live deployment are separate acceptance
+states. Anonymous access and public biometric review links are prohibited.
 
 ## Freshness and provider access
 

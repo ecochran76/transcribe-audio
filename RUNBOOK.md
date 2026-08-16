@@ -1,5 +1,64 @@
 # Runbook
 
+## Turn 389: Plan correction-first speaker/contact learning (2026-08-16)
+
+Summary: Created Plan 0072 as a planning-only P09/P10 architecture for
+automated historical/new conversation processing, source-scoped contact
+gathering, calendar association, speaker identification, acoustic learning,
+and one authenticated identity-review queue. No runtime or live-system action
+was authorized or performed.
+
+Authority:
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`.
+
+Evidence:
+
+- Plan 0072 is `PLANNED` and explicitly prohibits implementation, provider
+  calls, historical processing, background workers, live migration, identity
+  or contact mutation, biometric enrollment, dashboard publication, and
+  deployment in this turn.
+- The design extends the existing user-scoped conversation knowledge store and
+  governed acoustic stores rather than creating a second contact database.
+  Canonical people remain distinct from provider/account/tenant-scoped source
+  records; roles and relationships remain temporal, directional, and
+  evidence-backed.
+- Automated outputs are versioned conversation associations, participant
+  hypotheses, person links, speaker proposals, and relationship assertions.
+  Current assignments and profiles are deterministic projections over
+  append-only reviews and correction events; unreviewed predictions cannot
+  enroll voices or become accepted identity.
+- The planned Identity review tab requires the actual original recording
+  filename, event alternatives and association strength, suspected attendees,
+  independent contextual/acoustic evidence, direct speaker-sample playback,
+  and confirm/correct/reject/not-listed/unresolved/mixed/group/split/merge/
+  reverse/defer controls.
+- “Externally reachable” is constrained to authenticated, authorized, private
+  deployment. Anonymous/public biometric review and raw-path/profile exposure
+  are prohibited. Speaker identification is explicitly not authentication.
+- The evergreen architecture and `CONTEXT.md` now define conversation
+  association/participant hypotheses, voice sample/profile custody,
+  correction events, the review queue, the host-owned supervisor, the
+  calibration loop, and original-filename terminology.
+- Graphiti discovery was healthy and routed prior Plan 0025 host-prepared
+  evidence and contact/role/relationship sequencing. Current repo authorities,
+  source seams, and closed-plan evidence were verified directly. No Graphiti
+  write occurred. Delegation is `not_spawned`.
+- Active planning audit passes and recognizes Plan 0072 as `PLANNED`, correctly
+  named, P09-wired, and present in both ROADMAP and RUNBOOK. Relative authority
+  targets exist, `git diff --check` passes, and CodeGraph reports zero pending
+  changes or worktree mismatch; its optional full reindex recommendation does
+  not affect the current source-structure readback.
+- Progress classification is `hardening`: the architecture and bounded
+  execution graph are now explicit, but no product maturity or live acceptance
+  state changed.
+
+Next:
+
+- On a future implementation turn, open only Plan 0072 A0: freeze versioned
+  schemas, ADRs, privacy/threat model, API and adapter contracts, redacted
+  fixtures, and deterministic tests. Keep A0 non-live and do not start
+  historical processing or biometric collection.
+
 ## Turn 388: Close Plan 0071 at D3 residual population infeasible (2026-08-16)
 
 Summary: Accepted the exact 18-row literal D2 human-gold export, froze and

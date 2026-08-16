@@ -298,3 +298,66 @@ _Avoid_: Zero confidence, low-confidence match
 A speaker identity proposal state used when credible evidence supports
 incompatible identities or mappings that require human resolution.
 _Avoid_: Low confidence, unresolved proposal
+
+## Contact and correction lifecycle
+
+**Person Registry**:
+The normalized set of canonical people and their reviewed or provisional links
+to still-independent source records, aliases, roles, and relationships. It is
+a view of the conversation knowledge authority, not a second contact database.
+_Avoid_: Contact database, provider contact list
+
+**Provisional Person**:
+A durable internal person whose source records appear to represent one person
+but whose resolution remains reviewable. It may later be confirmed, merged,
+split, redirected, or retired without changing its historical identifiers.
+_Avoid_: Confirmed person, temporary contact
+
+**Participant Hypothesis**:
+A reviewable claim that a person or source record likely participated in a
+conversation. Calendar attendance or organizer status may support the claim
+but does not establish that the person attended or spoke.
+_Avoid_: Participant, calendar speaker
+
+**Current Speaker Assignment**:
+The rebuildable present view of which person, if any, is accepted for a
+diarized speaker, speaker group, or utterance set. It is projected from review
+decisions and correction history rather than overwritten directly.
+_Avoid_: Speaker identity proposal, diarized label
+
+**Voice Sample**:
+An immutable reference to an exact source-audio interval with recording,
+speaker or utterance, preparation, quality, identity-review, and biometric-use
+lineage. A sample is not a person and is not automatically eligible to train a
+profile.
+_Avoid_: Voice profile, speaker identity
+
+**Voice Profile Version**:
+A derived biometric profile built from an exact allowlist of reviewed eligible
+voice samples under one model and recipe version, with evaluation, activation,
+predecessor, rollback, retention, and deletion state.
+_Avoid_: Voice sample, permanent voiceprint
+
+**Correction Event**:
+An append-only, attributable change that supersedes a person link, speaker
+assignment, role, relationship, source record, or biometric derivative while
+preserving both the earlier record and the current accepted view.
+_Avoid_: Edit, overwrite, deletion
+
+**Identity Review Queue Item**:
+A rebuildable work item that gathers the current conversation-association,
+participant, person-link, speaker, relationship, and acoustic claims requiring
+human action. It points to the authoritative records rather than copying them.
+_Avoid_: Review decision, static review page
+
+**Original Recording Filename**:
+The basename recorded by the source recording before transcript enrichment,
+blob storage, artifact naming, or migration. It remains visible alongside the
+durable recording ID and hashes but is not itself an identity key.
+_Avoid_: Transcript filename, stored blob name, recording ID
+
+**Speaker Identification**:
+An evidence-bearing estimate of which person spoke in a conversation. It is
+not identity authentication and must not authorize access, transactions, or
+legal attestation.
+_Avoid_: Speaker authentication, voice authentication

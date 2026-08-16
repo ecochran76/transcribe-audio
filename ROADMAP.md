@@ -209,6 +209,7 @@ Plans:
 - `docs/dev/plans/0060-2026-08-08-complete-speaker-identity-shadow-join.md`
 - `docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`
 - `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`
+- `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`
 
 Milestone Focus:
 
@@ -253,6 +254,16 @@ Milestone Focus:
   mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
+- Planned milestone M4 is Plan 0072's correction-first identity-learning
+  product path. It extends the existing conversation knowledge authority with
+  versioned conversation associations, participant hypotheses, contact/source
+  gathering, speaker proposals, correction events, voice samples and profile
+  versions, plus one authenticated Identity review tab that always shows the
+  actual original recording filename. Historical and new processing, live
+  schema migration, biometric collection/enrollment, provider calls, local
+  identity effects, external publication, and deployment remain unstarted.
+  The recommended first implementation packet is the non-live A0 contract,
+  privacy/threat-model, schema, API, and redacted-fixture freeze.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -950,6 +961,24 @@ agreement nor a correct actual residual acceptance existed, Plan 0071 closes
 `residual_population_infeasible`. Fresh evaluation never opened; E0-E3 remain
 not run, and live assignment, knowledge, Graphiti, provider-write, and external
 effects remain closed.
+
+Plan 0072 is the planned correction-first P09/P10 productization campaign in
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`.
+It replaces neither the conversation knowledge store nor the governed acoustic
+stores. It defines one append-only architecture for event association,
+suspected participants, source-scoped contact gathering, canonical people,
+temporal roles and relationships, speaker proposals and corrections, voice
+samples, profile versions, processing ledgers, and a rebuildable identity
+review queue. The dedicated authenticated dashboard tab must show the actual
+original recording filename, calendar alternatives and association strength,
+suspected attendees, independent contextual/acoustic evidence, playable
+speaker samples, and confirm/correct/split/merge/defer controls. Identification
+is explicitly not authentication. Unreviewed proposals cannot become accepted
+people, relationships, speaker assignments, or enrollment authority. This
+turn is architecture/planning only; no historical/new processing, provider
+retrieval, live migration, biometric collection, dashboard publication, or
+deployment has begun. The next recommended packet is non-live A0 contract and
+privacy/schema freeze.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
