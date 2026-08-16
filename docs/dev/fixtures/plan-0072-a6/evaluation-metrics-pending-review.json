@@ -1,0 +1,33 @@
+{
+  "abstention": {
+    "denominator": 26,
+    "status": "measured",
+    "value": 4
+  },
+  "calibration": {
+    "reason": "Below the 30 source-disjoint reviewed-outcome minimum.",
+    "status": "unavailable"
+  },
+  "candidate_recall": {
+    "reason": "No reviewed shadow outcomes are present in this redacted fixture.",
+    "status": "unavailable"
+  },
+  "correctness": {
+    "reason": "No reviewed shadow outcomes are present in this redacted fixture.",
+    "status": "unavailable"
+  },
+  "high_strength_errors": {
+    "denominator": 0,
+    "status": "measured",
+    "value": 0
+  },
+  "review_load": {
+    "denominator": 26,
+    "status": "measured",
+    "value": 26
+  },
+  "workflow_usability": {
+    "reason": "Authenticated operator review is outside the redacted readiness fixture.",
+    "status": "unavailable"
+  }
+}

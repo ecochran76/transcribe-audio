@@ -1,5 +1,74 @@
 # Runbook
 
+## Turn 397: Prepare Plan 0072 A6 shadow execution harness (2026-08-16)
+
+Summary: Built the A6 Level 1 control plane and proved it only on redacted
+fixtures and disposable stores. No private campaign was activated. The A6
+Level 2 terminal gate remains open and still requires explicit authority for
+the 25 historical conversations and seven-day real-arrival window.
+
+Authority:
+`VISION.md`,
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-shadow-campaign.md`, Note 0058, and the closed A4/A5
+supervisor and review contracts.
+
+Evidence:
+
+- `identity_shadow_campaign.py` freezes a deterministic content-addressed
+  preview, sorts historical work oldest-forward by conversation time, caps the
+  first batch at 25, and separately uses artifact-stabilization time for an
+  exact half-open seven-day arrival window.
+- Activation requires the reviewed preview SHA-256 plus the exact A6 token and
+  writes only immutable 0600 evidence under a 0700 runtime root. Arrival
+  registrations are append-only, window-bound, and duplicate-safe.
+- Terminal case recording loads the persisted A4 supervisor run from the
+  schema-v8 store, requires its terminal state and zero effects, binds its
+  content/event hashes, permits one transient provider retry, and optionally
+  projects the validated item through the A5 review workflow.
+- Finalization refuses an incomplete observation window or any missing case
+  receipt. It aggregates pipeline yield, disposition, provider, latency,
+  duplicate, queue-load, and knowledge-integrity evidence while requiring
+  candidate recall, correctness, calibration, high-strength error,
+  abstention, review-load, and usability metrics to be measured or explicitly
+  unavailable. A pending-review window scorecard closes new case writes but
+  does not consume the immutable reviewed terminal slot; the later terminal
+  receipt cites the unchanged predecessor scorecard.
+- Replay verifies the activation manifest, every arrival registration, every
+  case receipt, and all frozen SHA-256 bindings. Identity acceptance, profile
+  activation, provider writes, and raw deletion remain exactly zero.
+- `scripts/plan0072_a6_shadow.py` exposes preview, activate,
+  register-arrival, record-case, finalize, and replay operations. The tracked
+  redacted preview deterministically produces campaign
+  `identity-shadow-062175592588b3529e27376b` with 25 historical cases and one
+  in-window arrival.
+- This slice read no private corpus or live transcript store, called no
+  provider, ran no real biometric or identity inference, applied no review or
+  profile conclusion, changed no service, published nothing, scheduled no
+  worker, and performed no Graphiti write or delegation.
+
+Validation:
+
+- Focused A4/A5/A6/store regression passes 29 tests.
+- `.venv/bin/python -m pytest -q` passes 1,187 tests in 101.03 seconds.
+- Python compilation, both fixture JSON parses, the redacted CLI preview,
+  active and goal-only planning audits, changed-document relative-link checks,
+  CodeGraph post-edit status, and `git diff --check` pass.
+- The active planning audit reports `ok: true`, zero problems, and Plan 0072
+  as `OPEN`; the goal-only audit is non-applicable and clean.
+- A transcription-provider/manual-audio smoke is not applicable because this
+  readiness slice changes no transcription backend, watcher, media decoding,
+  or DOCX/TXT output path.
+
+Next:
+
+- Stop at the explicit A6 private-shadow checkpoint. The next action is to
+  review a real candidate preview and, only with explicit authority, activate
+  the 25-oldest historical plus seven-day new-arrival campaign. Live migration,
+  provider access beyond separately approved read scopes, accepted identity or
+  profile effects, background scheduling, publication, and deployment remain
+  unauthorized.
+
 ## Turn 396: Close Plan 0072 A5 identity review APIs and views (2026-08-16)
 
 Summary: Closed the non-live A5 review packet on a disposable redacted store.

@@ -654,9 +654,24 @@ v2 recording, and the Identity Review to People transition. Focused validation
 passes 86 tests; the full-suite and packet audit evidence are recorded in
 RUNBOOK Turn 396.
 
-The next packet is A6, whose first action crosses the private historical/new
-conversation shadow gate. A5 completion does not authorize that access. A6
-requires an explicit checkpoint before reading or processing the 25
-oldest-forward historical conversations or seven days of new arrivals. Live
-migration, provider access, accepted identity/profile effects, public
-publication, deployment, and background scheduling remain unauthorized.
+The A6 Level 1 readiness slice is also built and tested without private data.
+`identity_shadow_campaign.py` freezes the oldest 25 eligible historical cases
+by conversation time, separates artifact-stabilization time for the half-open
+seven-day arrival window, creates content-addressed private activation and
+arrival ledgers, verifies terminal A4 supervisor runs from the schema-v8
+store, projects optional A5 queue items, and emits a hash-replayable aggregate
+scorecard. Every stage repeats exact zero identity/profile/provider/deletion
+effects. The redacted CLI and fixtures are documented in the
+[A6 shadow campaign guide](../../correction-first-shadow-campaign.md);
+RUNBOOK Turn 397 records validation.
+This proves the execution bounds and replay mechanics only. It does not meet
+the A6 Level 2 real-artifact, seven-day, or authenticated-usability terminal
+gate.
+
+The next action remains A6 private activation. Reading or processing the 25
+oldest-forward historical conversations or registering seven days of real new
+arrivals crosses the private historical/new-conversation shadow gate. A5
+completion and the redacted A6 readiness harness do not authorize that access.
+A6 requires an explicit checkpoint before those actions. Live migration,
+provider access, accepted identity/profile effects, public publication,
+deployment, and background scheduling remain unauthorized.

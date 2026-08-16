@@ -1017,8 +1017,15 @@ boundary. It produced no private, live, provider, biometric, publication, or
   or writes and produced no accepted effects. A5 is closed on a disposable
   redacted store: knowledge schema v8, queue/People projections, stale-safe and
   idempotent review APIs, exact zero-effect previews, and separate desktop/
-  mobile Identity Review and People views all passed. A6 private live shadow is
-  the next packet and remains behind its explicit checkpoint.
+  mobile Identity Review and People views all passed. The A6 Level 1 readiness
+  slice now adds deterministic oldest-forward selection, a distinct seven-day
+  artifact-stabilization window, immutable private activation/arrival/case
+  receipts, persisted A4 supervisor verification, optional A5 queue
+  projection, exact zero-effect enforcement, and a replayable aggregate
+  scorecard on redacted fixtures. A6 remains below Level 2: no private
+  historical or new-arrival artifact was read or processed, no authenticated
+  usability result exists, and private activation remains behind its explicit
+  checkpoint.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
