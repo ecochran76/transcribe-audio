@@ -1,0 +1,102 @@
+{
+  "schema_version": "transcribe-audio.identity-learning-threat-control-matrix.v1",
+  "unresolved_privacy_decisions": [],
+  "threats": [
+    {
+      "threat": "anonymous_or_public_identity_review",
+      "control": "authenticated_private_route",
+      "verification": "A5 existing-route and anonymous-denial tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "cross_account_or_cross_tenant_evidence",
+      "control": "tenant_account_capability_scope",
+      "verification": "A1 and A4 isolation tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "unbounded_provider_retrieval",
+      "control": "bounded_provider_reads",
+      "verification": "A4 request budget and partial-failure tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "confused_deputy_provider_mutation",
+      "control": "provider_write_prohibition",
+      "verification": "adapter result and shadow zero-effect receipts",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "filesystem_path_disclosure",
+      "control": "raw_path_non_disclosure",
+      "verification": "A0 portable-artifact validation and A5 response tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "unrestricted_audio_access",
+      "control": "bounded_media_handles",
+      "verification": "A5 authenticated range-playback tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "raw_biometric_material_escape",
+      "control": "biometric_private_storage",
+      "verification": "A3 access, reference, and inline-payload rejection tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "unreviewed_voice_enrollment",
+      "control": "review_before_enrollment",
+      "verification": "A3 reviewed sample allowlist tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "stale_or_replayed_review_mutation",
+      "control": "stale_write_rejection",
+      "verification": "A5 projection version and idempotency tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "history_erasure_by_correction",
+      "control": "append_only_supersession",
+      "verification": "A1 merge split reversal and rebuild tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "evaluation_leakage_across_conversations",
+      "control": "source_disjoint_evaluation",
+      "verification": "A8 frozen split tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "model_outputs_become_their_own_ground_truth",
+      "control": "self_training_prohibition",
+      "verification": "A8 label-origin and split-lineage tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "correction_identity_requeue_loop",
+      "control": "correction_cascade_limit",
+      "verification": "A2 one-cascade terminal-state tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "deleted_biometric_derivatives_remain_active",
+      "control": "deletion_invalidation_and_tombstone",
+      "verification": "A3 deletion scope and dependent invalidation tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "duplicate_sources_inflate_confidence",
+      "control": "evidence_independence_groups",
+      "verification": "A4 rubric and duplicate-control tests",
+      "disposition": "accepted_for_a0"
+    },
+    {
+      "threat": "later_knowledge_leaks_into_historical_quality",
+      "control": "hindsight_labeling",
+      "verification": "A4 as-of and current-assessment separation tests",
+      "disposition": "accepted_for_a0"
+    }
+  ]
+}

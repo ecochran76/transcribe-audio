@@ -1,11 +1,15 @@
 # Plan 0072 | Correction-first speaker, contact, and acoustic learning
 
-State: PLANNED
+State: OPEN
 
 Planning boundary: this artifact defines architecture and future bounded
 implementation packets only. It does not authorize historical processing,
 background workers, live-store migration, provider calls, contact or identity
 mutation, biometric enrollment, dashboard publication, or deployment.
+
+Execution authority: the user goal `execute plan 72` opens ordinary bounded
+implementation under repo policy. Packet-specific private, live, provider,
+publication, biometric, migration, and deployment gates remain in force.
 
 Lane: P09/P10
 
@@ -83,6 +87,32 @@ for later conversations without treating unreviewed predictions as truth.
   availability for the tested residual path. The new architecture must improve
   evidence gathering and review throughput without weakening abstention or
   relabeling those development results as validation.
+
+## Current execution packet
+
+Packet A0 is active. It freezes interfaces only and permits no live effects.
+
+| Field | A0 control |
+| --- | --- |
+| Bounded outcome | Freeze versioned domain, correction, privacy, threat, review, adapter, and supervisor contracts. |
+| Write surface | Contract module, ADR/reference docs, redacted fixtures, tests, plan/roadmap/runbook state. |
+| Inputs | This plan, Note 0058, VISION, ADR 0002, evergreen storage architecture, existing contract seams. |
+| Validation | Focused contract tests, full suite, planning audit, link checks, CodeGraph status, and git checks. |
+| Terminal condition | Contract versions and fixtures agree, no privacy decision remains unresolved, and A0 records zero live/provider/biometric effects. |
+
+A0 implementation currently includes:
+
+- `identity_learning_contracts.py`, which exposes one small catalog and
+  validation seam;
+- [ADR 0003](../../adr/0003-freeze-correction-first-identity-learning-contracts.md)
+  and the [contract reference](../../correction-first-identity-learning-contracts.md);
+- redacted contract, artifact, and threat-control fixtures under
+  `docs/dev/fixtures/plan-0072-a0/`; and
+- deterministic tests for original filenames, private-field rejection,
+  adapter scope and budgets, stale-safe review, zero-effect previews,
+  biometric custody, correction bounds, and supervisor limits.
+
+Full validation and governed closeout remain open. A1 has not started.
 
 ## Stable architecture decisions
 

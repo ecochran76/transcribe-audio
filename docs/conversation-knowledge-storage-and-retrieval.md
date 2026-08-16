@@ -792,6 +792,8 @@ Validation must cover:
 
 ## Related documents
 
+- [Correction-first identity-learning contracts](correction-first-identity-learning-contracts.md)
+- [ADR 0003: Freeze correction-first identity-learning contracts](adr/0003-freeze-correction-first-identity-learning-contracts.md)
 - [ADR 0002: Use a user-scoped conversation knowledge store](adr/0002-use-a-user-scoped-conversation-knowledge-store.md)
 - [ADR 0001: Use durable conversation identities](adr/0001-use-durable-conversation-identities.md)
 - [Plan 0025: App Intelligence speaker preprocessing](dev/plans/0025-2026-07-21-app-intelligence-speaker-preprocessing.md)

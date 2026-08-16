@@ -1,0 +1,88 @@
+{
+  "catalog_version": "transcribe-audio.identity-learning-contract-catalog.v1",
+  "contract_versions": {
+    "domain": "transcribe-audio.identity-learning-domain.v1",
+    "correction": "transcribe-audio.identity-learning-correction.v1",
+    "privacy": "transcribe-audio.identity-learning-privacy.v1",
+    "threat_model": "transcribe-audio.identity-learning-threat-model.v1",
+    "api": "transcribe-audio.identity-learning-api.v1",
+    "adapter": "transcribe-audio.identity-learning-adapter.v1",
+    "supervisor": "transcribe-audio.identity-learning-supervisor.v1"
+  },
+  "artifact_schemas": {
+    "source_observation": "transcribe-audio.source-observation.v1",
+    "person": "transcribe-audio.person.v1",
+    "external_identity": "transcribe-audio.external-identity.v1",
+    "source_record": "transcribe-audio.source-record.v1",
+    "person_alias": "transcribe-audio.person-alias.v1",
+    "role_assertion": "transcribe-audio.role-assertion.v1",
+    "relationship_assertion": "transcribe-audio.relationship-assertion.v1",
+    "conversation_association_candidate": "transcribe-audio.conversation-association-candidate.v1",
+    "participant_hypothesis": "transcribe-audio.participant-hypothesis.v1",
+    "speaker_identity_proposal": "transcribe-audio.speaker-identity-proposal.v1",
+    "speaker_review_decision": "transcribe-audio.speaker-review-decision.v1",
+    "voice_sample": "transcribe-audio.voice-sample.v1",
+    "voice_profile_version": "transcribe-audio.voice-profile-version.v1",
+    "correction_event": "transcribe-audio.correction-event.v1",
+    "transcript_correction_proposal": "transcribe-audio.transcript-correction-proposal.v1",
+    "normalized_transcript_generation": "transcribe-audio.normalized-transcript-generation.v1",
+    "terminology_entry": "transcribe-audio.terminology-entry.v1",
+    "processing_run": "transcribe-audio.processing-run.v1",
+    "identity_review_queue_item": "transcribe-audio.identity-review-queue-item.v1",
+    "provider_adapter_request": "transcribe-audio.provider-adapter-request.v1",
+    "provider_adapter_result": "transcribe-audio.provider-adapter-result.v1",
+    "identity_review_submission": "transcribe-audio.identity-review-submission.v1",
+    "effect_preview": "transcribe-audio.effect-preview.v1"
+  },
+  "effect_policy": {
+    "provider_writes": "prohibited",
+    "live_store_migration": "prohibited_in_a0",
+    "historical_processing": "prohibited_in_a0",
+    "biometric_collection": "prohibited_in_a0",
+    "dashboard_publication": "prohibited_in_a0"
+  },
+  "supervisor": {
+    "stages": [
+      "bind_conversation",
+      "pre_identity_correction",
+      "calendar_candidate_generation",
+      "participant_and_evidence_collection",
+      "speaker_and_relationship_proposals",
+      "post_identity_correction",
+      "queue_projection",
+      "complete"
+    ],
+    "limits": {
+      "max_provider_retries": 1,
+      "max_transcript_correction_passes": 2,
+      "max_transcript_identity_cascades": 1,
+      "max_model_reference_repairs_per_phase": 1,
+      "expensive_enrichment_backlog_threshold": 500
+    },
+    "operation_modes": [
+      "contract_fixture",
+      "shadow",
+      "reviewed_learning",
+      "policy_qualified_automation"
+    ],
+    "execution": "asynchronous_after_transcript_stabilization"
+  },
+  "threat_controls": [
+    "authenticated_private_route",
+    "tenant_account_capability_scope",
+    "bounded_provider_reads",
+    "provider_write_prohibition",
+    "raw_path_non_disclosure",
+    "bounded_media_handles",
+    "biometric_private_storage",
+    "review_before_enrollment",
+    "stale_write_rejection",
+    "append_only_supersession",
+    "source_disjoint_evaluation",
+    "self_training_prohibition",
+    "correction_cascade_limit",
+    "deletion_invalidation_and_tombstone",
+    "evidence_independence_groups",
+    "hindsight_labeling"
+  ]
+}

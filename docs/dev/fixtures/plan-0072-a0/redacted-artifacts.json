@@ -1,0 +1,201 @@
+{
+  "schema_version": "transcribe-audio.identity-learning-redacted-fixtures.v1",
+  "synthetic_test_only": true,
+  "artifacts": {
+    "identity_review_queue_item": {
+      "schema_version": "transcribe-audio.identity-review-queue-item.v1",
+      "queue_item_id": "queue-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "recording_id": "recording-redacted-1",
+      "original_recording_filename": "2026-01-07 Redacted Example Recording.m4a",
+      "source_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "processing_run_id": "run-redacted-1",
+      "model_versions": {"identity": "identity.synthetic.v1"},
+      "rubric_versions": {"calendar": "calendar.synthetic.v1"},
+      "profile_versions": [],
+      "calendar_candidates": [],
+      "participant_hypotheses": [],
+      "speakers": [],
+      "review_state": "unreviewed",
+      "decision_history": [],
+      "effect_preview_ref": "preview-redacted-1",
+      "projection_version": "queue-projection.synthetic.v1",
+      "created_at": "2026-08-16T19:00:00Z"
+    },
+    "provider_adapter_request": {
+      "schema_version": "transcribe-audio.provider-adapter-request.v1",
+      "request_id": "request-redacted-1",
+      "processing_run_id": "run-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "adapter_id": "calendar-adapter.synthetic.v1",
+      "capability": "event_metadata_read",
+      "source_scope": {
+        "provider_kind": "calendar",
+        "profile_id": "profile-redacted",
+        "account_id": "account-redacted",
+        "tenant_id": "tenant-redacted",
+        "capabilities": ["event_metadata_read"]
+      },
+      "as_of": "2026-01-07T16:00:00Z",
+      "query": {"window_start": "2026-01-07T15:00:00Z"},
+      "budgets": {
+        "max_records": 10,
+        "max_characters": 4000,
+        "max_calls": 1,
+        "max_latency_ms": 5000
+      },
+      "mode": "read_only",
+      "idempotency_key": "adapter-request-redacted-1",
+      "created_at": "2026-08-16T19:00:00Z"
+    },
+    "provider_adapter_result": {
+      "schema_version": "transcribe-audio.provider-adapter-result.v1",
+      "result_id": "result-redacted-1",
+      "request_id": "request-redacted-1",
+      "processing_run_id": "run-redacted-1",
+      "source_scope": {
+        "provider_kind": "calendar",
+        "profile_id": "profile-redacted",
+        "account_id": "account-redacted",
+        "tenant_id": "tenant-redacted",
+        "capabilities": ["event_metadata_read"]
+      },
+      "status": "partial",
+      "observations": [],
+      "warnings": ["synthetic_partial_failure"],
+      "failure": {"kind": "transient_timeout", "retryable": true},
+      "retrieved_at": "2026-08-16T19:00:01Z",
+      "provider_write_count": 0,
+      "consumed_budget": {"records": 0, "characters": 0, "calls": 1}
+    },
+    "identity_review_submission": {
+      "schema_version": "transcribe-audio.identity-review-submission.v1",
+      "submission_id": "submission-redacted-1",
+      "queue_item_id": "queue-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "proposal_id": "speaker-proposal-redacted-1",
+      "action": "choose_existing_person",
+      "expected_projection_version": "queue-projection.synthetic.v1",
+      "decision_payload": {"person_id": "person-redacted-1"},
+      "comment": "Synthetic fixture decision.",
+      "idempotency_key": "review-submission-redacted-1",
+      "reviewer": "operator-redacted",
+      "decided_at": "2026-08-16T19:10:00Z"
+    },
+    "effect_preview": {
+      "schema_version": "transcribe-audio.effect-preview.v1",
+      "preview_id": "preview-redacted-1",
+      "queue_item_id": "queue-redacted-1",
+      "submission_id": "submission-redacted-1",
+      "expected_projection_version": "queue-projection.synthetic.v1",
+      "effect_mode": "preview_only",
+      "proposed_effects": ["append_speaker_review_decision"],
+      "invalidations": [],
+      "profile_rebuilds": [],
+      "provider_write_count": 0,
+      "raw_deletion_count": 0,
+      "warnings": [],
+      "created_at": "2026-08-16T19:10:00Z"
+    },
+    "transcript_correction_proposal": {
+      "schema_version": "transcribe-audio.transcript-correction-proposal.v1",
+      "proposal_id": "correction-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "recording_id": "recording-redacted-1",
+      "raw_transcript_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "raw_span": {
+        "start": 14,
+        "end": 18,
+        "text_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "replacement_text": "TERM-REDACTED",
+      "correction_kind": "asr_confusion",
+      "terminology_entry_id": "term-redacted-1",
+      "scope": {"type": "domain", "id": "domain-redacted"},
+      "evidence_ids": ["observation-redacted-1"],
+      "review_state": "proposed",
+      "correction_pass": "pre_identity",
+      "processing_version": "identity-learning.synthetic.v1",
+      "cascade_count": 0,
+      "created_at": "2026-08-16T19:30:00Z"
+    },
+    "processing_run": {
+      "schema_version": "transcribe-audio.processing-run.v1",
+      "run_id": "run-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "recording_id": "recording-redacted-1",
+      "original_recording_filename": "2026-01-07 Redacted Example Recording.m4a",
+      "source_artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source_media_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "operation_mode": "contract_fixture",
+      "policy_version": "identity-learning.synthetic.v1",
+      "as_of": "2026-01-07T16:00:00Z",
+      "capabilities": [],
+      "budgets": {"provider_calls": 0, "model_calls": 0},
+      "model_versions": {},
+      "rubric_versions": {},
+      "profile_versions": [],
+      "stage": "bind_conversation",
+      "state": "complete",
+      "transcript_correction_passes": 0,
+      "identity_cascade_count": 0,
+      "provider_retry_count": 0,
+      "input_ids": ["fixture-input-redacted-1"],
+      "output_ids": ["fixture-output-redacted-1"],
+      "failures": [],
+      "effect_counts": {
+        "provider_writes": 0,
+        "accepted_identity": 0,
+        "profile_enrollment": 0,
+        "live_store_migration": 0
+      },
+      "created_at": "2026-08-16T19:30:00Z"
+    },
+    "voice_sample": {
+      "schema_version": "transcribe-audio.voice-sample.v1",
+      "sample_id": "sample-redacted-1",
+      "recording_id": "recording-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "speaker_ref": "speaker-A",
+      "start_ms": 1000,
+      "end_ms": 4500,
+      "source_media_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sample_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "quality": {"eligible": true, "reason_codes": []},
+      "preparation_lineage": {"recipe_version": "sample.synthetic.v1"},
+      "review_authority_id": "review-redacted-1",
+      "consent_authority": "operator-policy.synthetic.v1",
+      "person_id": "person-redacted-1",
+      "review_state": "reviewed",
+      "exclusion_state": "included",
+      "private_audio_ref": {
+        "object_id": "private-sample-redacted-1",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "created_at": "2026-08-16T19:20:00Z"
+    },
+    "voice_profile_version": {
+      "schema_version": "transcribe-audio.voice-profile-version.v1",
+      "profile_version_id": "profile-redacted-1-v1",
+      "person_id": "person-redacted-1",
+      "profile_family": "default",
+      "predecessor_profile_version_id": null,
+      "sample_allowlist": [
+        {
+          "sample_id": "sample-redacted-1",
+          "review_authority_id": "review-redacted-1",
+          "consent_authority": "operator-policy.synthetic.v1"
+        }
+      ],
+      "evaluation_id": "evaluation-redacted-1",
+      "status": "pending",
+      "active_interval": null,
+      "private_profile_ref": {
+        "object_id": "private-profile-redacted-1",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "created_at": "2026-08-16T19:20:00Z"
+    }
+  }
+}
