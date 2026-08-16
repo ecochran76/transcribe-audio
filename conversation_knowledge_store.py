@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 7
+LATEST_SCHEMA_VERSION = 8
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -385,6 +385,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 8 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v8(con)
+                    applied.append(8)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -412,6 +421,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 8 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v8(con)
+                    rolled_back.append(8)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 7 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -3607,6 +3625,136 @@ class ConversationKnowledgeStore:
             "VALUES (7, ?)",
             (now,),
         )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 7, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v8(con: sqlite3.Connection) -> None:
+        """Add the stale-safe identity-review queue and immutable decisions."""
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_review_queue (
+                queue_item_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                original_recording_filename TEXT NOT NULL,
+                review_state TEXT NOT NULL,
+                projection_version INTEGER NOT NULL CHECK (projection_version >= 1),
+                priority INTEGER NOT NULL DEFAULT 0,
+                impact_score REAL NOT NULL DEFAULT 0.0,
+                search_text TEXT NOT NULL DEFAULT '',
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_review_queue_order
+            ON knowledge_identity_review_queue(
+                review_state, priority DESC, impact_score DESC, created_at,
+                queue_item_id
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_review_submissions (
+                submission_id TEXT PRIMARY KEY,
+                queue_item_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_review_queue(queue_item_id)
+                    ON DELETE RESTRICT,
+                conversation_id TEXT NOT NULL,
+                proposal_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                expected_projection_version INTEGER NOT NULL,
+                result_projection_version INTEGER NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_review_submission_queue
+            ON knowledge_identity_review_submissions(queue_item_id, created_at)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_review_effect_previews (
+                preview_id TEXT PRIMARY KEY,
+                queue_item_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_review_queue(queue_item_id)
+                    ON DELETE RESTRICT,
+                submission_id TEXT NOT NULL UNIQUE
+                    REFERENCES knowledge_identity_review_submissions(submission_id)
+                    ON DELETE RESTRICT,
+                expected_projection_version INTEGER NOT NULL,
+                artifact_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        for table_name in (
+            "knowledge_identity_review_submissions",
+            "knowledge_identity_review_effect_previews",
+        ):
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_update
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity review');
+                END
+                """
+            )
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity review');
+                END
+                """
+            )
+        con.execute(
+            "INSERT INTO knowledge_schema_migrations (version, applied_at) VALUES (8, ?)",
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 8, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v8(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        for table_name in (
+            "knowledge_identity_review_effect_previews",
+            "knowledge_identity_review_submissions",
+        ):
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_update")
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_delete")
+            con.execute(f"DROP TABLE IF EXISTS {table_name}")
+        con.execute("DROP TABLE IF EXISTS knowledge_identity_review_queue")
+        con.execute("DELETE FROM knowledge_schema_migrations WHERE version = 8")
         con.execute(
             """
             UPDATE knowledge_store_state

@@ -30,6 +30,7 @@ import acoustic_shadow_evidence
 import codex_app_server_client
 import conversation_identity_policy
 import conversation_processing
+import identity_review_workflow
 import participant_identity
 import provenance_config
 import speaker_identity_preprocess
@@ -5539,6 +5540,47 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path == "/api/identity-review":
+                self.write_json(
+                    identity_review_workflow.IdentityReviewWorkflow(
+                        self.store_root
+                    ).list_queue(
+                        limit=parse_int(
+                            first(params, "limit"), 50, minimum=1, maximum=200
+                        ),
+                        offset=parse_int(
+                            first(params, "offset"), 0, minimum=0, maximum=100000
+                        ),
+                        state=first(params, "state"),
+                        query=first(params, "q") or first(params, "query"),
+                    )
+                )
+                return
+            if parsed.path.startswith("/api/identity-review/items/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4:
+                    self.write_json(
+                        identity_review_workflow.IdentityReviewWorkflow(
+                            self.store_root
+                        ).get_queue_item(parts[3])
+                    )
+                    return
+            if parsed.path == "/api/people":
+                self.write_json(
+                    identity_review_workflow.IdentityReviewWorkflow(
+                        self.store_root
+                    ).list_people(
+                        limit=parse_int(
+                            first(params, "limit"), 50, minimum=1, maximum=200
+                        ),
+                        offset=parse_int(
+                            first(params, "offset"), 0, minimum=0, maximum=100000
+                        ),
+                        query=first(params, "q") or first(params, "query"),
+                        status=first(params, "status"),
+                    )
+                )
+                return
             if parsed.path.startswith("/api/speaker-evaluation-campaigns/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 3:
@@ -5834,12 +5876,35 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
         except FileNotFoundError as exc:
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
+        except identity_review_workflow.StaleReviewSubmission as exc:
+            self.write_error(HTTPStatus.CONFLICT, str(exc))
         except ValueError as exc:
             self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/identity-review/items/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 5 and parts[4] in {"preview", "decisions"}:
+                    body = self.read_json_body()
+                    if str(body.get("queue_item_id") or "") != parts[3]:
+                        self.write_error(
+                            HTTPStatus.BAD_REQUEST,
+                            "Request queue_item_id does not match the route.",
+                        )
+                        return
+                    workflow = identity_review_workflow.IdentityReviewWorkflow(
+                        self.store_root
+                    )
+                    if parts[4] == "preview":
+                        self.write_json(workflow.preview_submission(body))
+                    else:
+                        self.write_json(
+                            workflow.record_submission(body),
+                            status=HTTPStatus.CREATED,
+                        )
+                    return
             if parsed.path == "/api/speaker-evaluation-campaigns/apply":
                 body = self.read_json_body()
                 self.write_json(
@@ -6749,6 +6814,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 self.write_error(HTTPStatus.NOT_FOUND, "Not found")
                 return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+        except identity_review_workflow.StaleReviewSubmission as exc:
+            self.write_error(HTTPStatus.CONFLICT, str(exc))
+        except identity_review_workflow.IdempotencyConflict as exc:
+            self.write_error(HTTPStatus.CONFLICT, str(exc))
         except (TranscriptStoreError, TranscriptionError, OSError, json.JSONDecodeError) as exc:
             self.write_error(HTTPStatus.BAD_REQUEST, str(exc))
         except ValueError as exc:

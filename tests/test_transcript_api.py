@@ -21,7 +21,59 @@ import acoustic_shadow_evidence
 import participant_identity
 import transcript_api
 import transcript_store
+from conversation_knowledge_store import ConversationKnowledgeStore
+from identity_review_workflow import IdentityReviewWorkflow
 from routing_artifacts import ProvenanceSource
+
+
+def _plan72_queue_item() -> dict:
+    return {
+        "schema_version": "transcribe-audio.identity-review-queue-item.v1",
+        "queue_item_id": "queue-api-1",
+        "conversation_id": "conversation-api-1",
+        "recording_id": "recording-api-1",
+        "original_recording_filename": "API fixture recording.m4a",
+        "source_artifact_sha256": "a" * 64,
+        "source_media_sha256": "b" * 64,
+        "processing_run_id": "run-api-1",
+        "model_versions": ["model-v1"],
+        "rubric_versions": ["rubric-v1"],
+        "profile_versions": [],
+        "calendar_candidates": [],
+        "participant_hypotheses": [],
+        "speakers": [
+            {
+                "speaker_ref": "SPEAKER_01",
+                "proposal_id": "proposal-api-1",
+                "best_guess": {"person_id": "person-api-1", "label": "Alex Example"},
+                "alternatives": [],
+                "evidence": [],
+                "audio": {"media_url": "/api/blobs/blob-api-1", "start_ms": 0, "end_ms": 4000},
+            }
+        ],
+        "review_state": "unreviewed",
+        "decision_history": [],
+        "effect_preview_ref": "",
+        "projection_version": "1",
+        "created_at": "2026-08-16T19:00:00Z",
+    }
+
+
+def _plan72_submission(*, expected_version: str = "1", idempotency_key: str = "api-decision-1") -> dict:
+    return {
+        "schema_version": "transcribe-audio.identity-review-submission.v1",
+        "submission_id": "submission-api-1",
+        "queue_item_id": "queue-api-1",
+        "conversation_id": "conversation-api-1",
+        "proposal_id": "proposal-api-1",
+        "action": "unresolved",
+        "expected_projection_version": expected_version,
+        "decision_payload": {"speaker_ref": "SPEAKER_01"},
+        "comment": "Keep unresolved.",
+        "idempotency_key": idempotency_key,
+        "reviewer": "operator",
+        "decided_at": "2026-08-16T19:05:00Z",
+    }
 
 
 class FakeAuraCallHandler(BaseHTTPRequestHandler):
@@ -3898,3 +3950,79 @@ def test_first_pass_summary_manifests_endpoint_lists_redacted_summaries(tmp_path
     assert item["materialized_count"] == 1
     assert item["materialization_error_count"] == 1
     assert "private transcript text" not in json.dumps(item)
+
+
+def test_identity_review_and_people_api_are_preview_only_and_stale_safe(
+    tmp_path: Path,
+) -> None:
+    store_root = tmp_path / "store"
+    ConversationKnowledgeStore(store_root).migrate(backup=False)
+    workflow = IdentityReviewWorkflow(store_root)
+    workflow.project_queue_item(_plan72_queue_item(), priority=85, impact_score=0.7)
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        state_root=tmp_path / "state",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        base_url = f"http://{host}:{port}"
+        queue = json.loads(
+            urlopen(f"{base_url}/api/identity-review?state=unreviewed&q=API&limit=10", timeout=5).read()
+        )
+        assert queue["items"][0]["original_recording_filename"] == "API fixture recording.m4a"
+
+        preview_request = Request(
+            f"{base_url}/api/identity-review/items/queue-api-1/preview",
+            data=json.dumps(_plan72_submission()).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        preview = json.loads(urlopen(preview_request, timeout=5).read())
+        assert preview["effect_mode"] == "preview_only"
+        assert preview["provider_write_count"] == 0
+
+        decision_request = Request(
+            f"{base_url}/api/identity-review/items/queue-api-1/decisions",
+            data=json.dumps(_plan72_submission()).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        decision_response = urlopen(decision_request, timeout=5)
+        decision = json.loads(decision_response.read())
+        assert decision_response.status == 201
+        assert decision["projection_version"] == "2"
+        assert decision["accepted_identity_effect_count"] == 0
+
+        stale_request = Request(
+            f"{base_url}/api/identity-review/items/queue-api-1/decisions",
+            data=json.dumps(
+                {
+                    **_plan72_submission(idempotency_key="api-decision-stale"),
+                    "submission_id": "submission-api-stale",
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urlopen(stale_request, timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 409
+            stale = json.loads(exc.read())
+        else:
+            raise AssertionError("Stale identity-review submission should be rejected.")
+        assert "expected projection version 1" in stale["error"]
+
+        people = json.loads(urlopen(f"{base_url}/api/people?limit=10", timeout=5).read())
+        assert people["schema_version"] == "transcribe-audio.people-projection.v1"
+        assert people["relationship_hop_limit"] == 2
+    finally:
+        server.shutdown()
+        server.server_close()

@@ -1,5 +1,75 @@
 # Runbook
 
+## Turn 396: Close Plan 0072 A5 identity review APIs and views (2026-08-16)
+
+Summary: Closed the non-live A5 review packet on a disposable redacted store.
+Knowledge schema v8 adds a rebuildable identity-review queue plus append-only
+submissions and exact effect previews. The React console now has separate
+original-filename-bearing Identity Review and People tabs.
+
+Authority:
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-identity-review.md`, Note 0058, the A0 review contracts,
+and the A4 supervisor contract.
+
+Evidence:
+
+- `ConversationKnowledgeStore` migrates v7 to v8 additively and rolls v8 back
+  to v7 without changing the A1 identity, A2 transcript, A3 biometric, or A4
+  supervisor histories.
+- `IdentityReviewWorkflow` projects original-filename-bearing queue items,
+  filters and paginates them, aggregates People source/role/relationship
+  projections, and publishes the maximum two-hop display boundary.
+- Exact effect preview validates the frozen A0 submission contract and reports
+  zero provider writes, raw deletions, accepted identity effects, and profile
+  effects. Decision recording is append-only, idempotent, optimistic-
+  concurrency protected, and advances only the rebuildable queue projection.
+- The API adds queue list/detail, People list, effect-preview, and decision
+  routes. Stale and conflicting idempotency submissions return HTTP 409.
+  Ordinary server startup does not migrate a store.
+- Identity Review displays the actual original `.m4a` filename, top calendar
+  alternatives plus no-match, participant hypotheses, every speaker proposal,
+  independent evidence, bounded source audio, all frozen decision actions,
+  immutable comments, exact preview, and recorded projection state.
+- People remains separate and shows explicit source, role, and relationship
+  tables with projection lineage. Accepted People edits remain gated.
+- Browser QA found and fixed one transition defect: People inherited the
+  Identity Review state filter. The repaired transition resets view-local
+  query/filter/selection state and loads the reviewed fixture person.
+- Desktop 1440x1000 and mobile 390x844 screenshots cover Identity Review,
+  People, exact preview, and recorded decision. Audio loaded through the blob
+  range route and advanced to 7.05 seconds. Browser errors and console output
+  were empty.
+- Anonymous requests to both the existing dashboard root and the new API path
+  receive HTTP 302 redirects to the existing Authelia login. No second
+  authentication layer was added and no deployment was performed.
+- A5 used no private corpus, historical/new conversation processing, provider
+  call/write, live migration, accepted identity/profile effect, biometric
+  enrollment, public publication, deployment, worker, external mutation,
+  delegation, or Graphiti write.
+
+Validation:
+
+- Focused store/workflow/API regression passes 86 tests.
+- `.venv/bin/python -m pytest -q` passes 1,179 tests in 113.44 seconds.
+- Frontend production build, Python compilation, fixture JSON parsing, changed-
+  document relative-link checks, active and goal-only planning audits, and
+  `git diff --check` pass. The active audit reports `ok: true`, zero problems,
+  and Plan 0072 as `OPEN`; the goal-only audit is non-applicable and clean.
+- CodeGraph reports 361 indexed files, 10,564 nodes, and 36,544 edges with no
+  pending-file or worktree-mismatch warning.
+- Redacted browser receipts are under
+  `docs/dev/fixtures/plan-0072-a5/browser-qa/`.
+- A transcription-provider smoke is not applicable because A5 changes no
+  transcription backend, watcher, media decoding, or DOCX/TXT output path.
+
+Next:
+
+- Stop at the A6 checkpoint. Processing the 25 oldest-forward historical
+  conversations and seven days of new arrivals crosses the private-shadow
+  gate and requires explicit authority. Preserve live-migration, provider,
+  accepted-effect, background-worker, publication, and deployment gates.
+
 ## Turn 395: Close Plan 0072 A4 evidence supervisor (2026-08-16)
 
 Summary: Closed the non-live A4 supervisor packet on redacted fixtures and

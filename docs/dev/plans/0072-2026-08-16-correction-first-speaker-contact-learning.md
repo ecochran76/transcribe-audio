@@ -38,6 +38,8 @@ effect a review decision would have.
 The architecture extends
 [`docs/conversation-knowledge-storage-and-retrieval.md`](../../conversation-knowledge-storage-and-retrieval.md)
 and [ADR 0002](../../adr/0002-use-a-user-scoped-conversation-knowledge-store.md).
+The implemented A5 review surface is documented in
+[`docs/correction-first-identity-review.md`](../../correction-first-identity-review.md).
 It does not create a second contact database or make Graphiti the authority.
 
 The accepted answers from the bounded design interview are frozen in
@@ -67,10 +69,9 @@ for later conversations without treating unreviewed predictions as truth.
 - Durable conversation and recording IDs, append-only processing evaluations,
   review decisions, source artifacts, and current-evaluation pointers already
   exist. Sidecars remain processing authority during migration.
-- Schema version 7 now extends the A1-A3 identity, transcript, and biometric
-  ledgers with exact supervisor runs, stage history, source-scoped adapter
-  receipts, nonbinding calendar/purpose/participant hypotheses, visible
-  evidence-pillar scores, and source-disjoint calibration history.
+- Schema version 8 extends the A1-A3 identity, transcript, and biometric
+  ledgers and A4 supervisor history with the replaceable identity-review queue
+  plus append-only review submissions and effect previews.
 - Host-owned retrieval already supports exact-first identity lookup, bounded
   lexical/semantic/relationship search, tenant/account/capability/as-of
   filtering, evidence-independence groups, partial-provider failures, and
@@ -79,10 +80,10 @@ for later conversations without treating unreviewed predictions as truth.
   bindings, governed voice references, and versioned profiles. Those records
   prove the lifecycle on a small reviewed population; they do not establish
   reliable general automatic identification.
-- The React console already has a Review Queue and speaker/contact workspace,
-  and the dashboard route is already gated to the operator through Authelia.
-  It still lacks unified Identity Review and People projections and workflows;
-  existing acoustic reviews are campaign-specific.
+- The React console now has separate Identity Review and People views over
+  local rebuildable projections. They preserve the dashboard's existing
+  Authelia route and add no second authentication layer; private/live queue
+  population remains gated to A6.
 - Plans 0064-0071 found useful acoustic candidates but inadequate contextual
   availability for the tested residual path. The new architecture must improve
   evidence gathering and review throughput without weakening abstention or
@@ -90,8 +91,9 @@ for later conversations without treating unreviewed predictions as truth.
 
 ## Current execution state
 
-Packets A0-A2 are closed. All were non-live and produced no provider,
-private-directory, biometric, publication, deployment, or external effects.
+Packets A0-A5 are closed. All were non-live and produced no provider,
+private-directory, accepted identity/profile, publication, deployment, or
+external effects.
 
 | Field | A0 control |
 | --- | --- |
@@ -643,9 +645,18 @@ A6-A9 are serialized launch stages.
 
 ## Packet closeout and next authority
 
-A0-A4 are closed at their non-live terminal gates. The next safe slice is A5:
-build local queue and People projections, decision/effect-preview APIs, and the
-original-filename-bearing Identity Review and People views against redacted
-fixtures. A5 may use an Authelia-protected local preview but does not authorize
-historical processing, live migration, provider access, accepted identity or
-profile effects, public publication, or deployment.
+A0-A5 are closed at their non-live terminal gates. A5 adds knowledge schema
+v8, rebuildable queue and People projections, stale-safe/idempotent decision
+and exact-effect-preview APIs, and original-filename-bearing Identity Review
+and People tabs. Redacted browser proof covers desktop/mobile layouts, bounded
+audio playback, every frozen decision action, zero-effect preview, projection
+v2 recording, and the Identity Review to People transition. Focused validation
+passes 86 tests; the full-suite and packet audit evidence are recorded in
+RUNBOOK Turn 396.
+
+The next packet is A6, whose first action crosses the private historical/new
+conversation shadow gate. A5 completion does not authorize that access. A6
+requires an explicit checkpoint before reading or processing the 25
+oldest-forward historical conversations or seven days of new arrivals. Live
+migration, provider access, accepted identity/profile effects, public
+publication, deployment, and background scheduling remain unauthorized.

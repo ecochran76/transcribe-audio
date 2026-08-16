@@ -1,0 +1,37 @@
+{
+  "aliases": [
+    "Alex E."
+  ],
+  "built_at": "2026-08-16T18:00:00Z",
+  "input_watermark": "fixture-watermark-a5",
+  "merged_into_person_id": "",
+  "person_id": "person-a5-1",
+  "primary_name": "Alex Example",
+  "relationships": [
+    {
+      "object_id": "person-a5-2",
+      "relationship_id": "relationship-a5-1",
+      "relationship_type": "works_with",
+      "status": "reviewed",
+      "subject_id": "person-a5-1"
+    }
+  ],
+  "roles": [
+    {
+      "organization_id": "organization-a5-1",
+      "role_id": "role-a5-1",
+      "role_type": "project_lead",
+      "status": "reviewed"
+    }
+  ],
+  "source_records": [
+    {
+      "label": "Alex Example",
+      "provider_kind": "fixture",
+      "record_type": "contact",
+      "resolution_status": "reviewed",
+      "source_record_id": "source-a5-1"
+    }
+  ],
+  "status": "reviewed"
+}

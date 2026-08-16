@@ -1,0 +1,88 @@
+{
+  "calendar_candidates": [
+    {
+      "association_strength": 0.83,
+      "attendees": [
+        "Alex Example",
+        "Morgan Example"
+      ],
+      "candidate_id": "event-a5-1",
+      "label": "Monday planning"
+    },
+    {
+      "association_strength": 0.51,
+      "attendees": [
+        "Alex Example"
+      ],
+      "candidate_id": "event-a5-2",
+      "label": "Project checkpoint"
+    }
+  ],
+  "conversation_id": "conversation-a5-fixture",
+  "created_at": "2026-08-16T18:00:00Z",
+  "decision_history": [],
+  "effect_preview_ref": "",
+  "model_versions": [
+    "identity-model-v1"
+  ],
+  "original_recording_filename": "Monday planning.m4a",
+  "participant_hypotheses": [
+    {
+      "hypothesis_id": "participant-a5-1",
+      "kind": "participant",
+      "label": "Alex Example"
+    },
+    {
+      "hypothesis_id": "mentioned-a5-1",
+      "kind": "mentioned_person",
+      "label": "Taylor Example"
+    }
+  ],
+  "processing_run_id": "run-a5-fixture",
+  "profile_versions": [],
+  "projection_version": "1",
+  "queue_item_id": "queue-a5-fixture",
+  "recording_id": "recording-a5-fixture",
+  "review_state": "unreviewed",
+  "rubric_versions": [
+    "identity-rubric-v1"
+  ],
+  "schema_version": "transcribe-audio.identity-review-queue-item.v1",
+  "source_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_media_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "speakers": [
+    {
+      "alternatives": [
+        {
+          "label": "Morgan Example",
+          "person_id": "person-a5-2",
+          "strength": 0.42
+        }
+      ],
+      "audio": {
+        "end_ms": 6900,
+        "media_url": "/api/blobs/fixture-media",
+        "start_ms": 1250
+      },
+      "best_guess": {
+        "label": "Alex Example",
+        "person_id": "person-a5-1",
+        "strength": 0.76
+      },
+      "evidence": [
+        {
+          "direction": "supporting",
+          "pillar": "calendar",
+          "summary": "Candidate-event attendee snapshot"
+        },
+        {
+          "direction": "contradicting",
+          "pillar": "acoustic",
+          "summary": "Insufficient reviewed acoustic coverage"
+        }
+      ],
+      "proposal_id": "proposal-a5-1",
+      "speaker_ref": "SPEAKER_01"
+    }
+  ]
+}

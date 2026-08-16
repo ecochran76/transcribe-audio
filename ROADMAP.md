@@ -266,9 +266,12 @@ Milestone Focus:
   live schema migration, biometric collection/enrollment, provider calls,
   local identity effects, publication, and deployment remain unstarted. A0 is
   closed at the non-live contract, privacy/threat-model, schema, review,
-  adapter, supervisor, and redacted-fixture freeze. A1 is next and begins with
-  the append-only identity/contact/ontology ledger on synthetic disposable
-  stores; live migration and provider access remain gated.
+  adapter, supervisor, and redacted-fixture freeze. A1-A5 are now closed on
+  synthetic/redacted stores: schema v8 adds the rebuildable review queue,
+  append-only submissions/effect previews, stale-safe APIs, and separate
+  original-filename-bearing Identity Review and People views. A6 is next but
+  requires an explicit private-shadow checkpoint before any historical or new
+  conversation access; live migration and provider access remain gated.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -1011,8 +1014,11 @@ boundary. It produced no private, live, provider, biometric, publication, or
   partial-failure isolation, nonbinding calendar/purpose/participant
   hypotheses, separate evidence pillars, conservative duplicate/contradiction
   caps, and source-disjoint calibration history. It made zero provider calls
-  or writes and produced no accepted effects. A5 is the next safe packet for
-  local review APIs and Authelia-protected fixture previews only.
+  or writes and produced no accepted effects. A5 is closed on a disposable
+  redacted store: knowledge schema v8, queue/People projections, stale-safe and
+  idempotent review APIs, exact zero-effect previews, and separate desktop/
+  mobile Identity Review and People views all passed. A6 private live shadow is
+  the next packet and remains behind its explicit checkpoint.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

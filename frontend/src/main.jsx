@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
+import { IdentityReviewView } from "./identity-review.jsx";
 
 const NAV_ITEMS = [
   { id: "Library", label: "Library", enabled: true },
   { id: "Review Queue", label: "Review Queue", enabled: true },
+  { id: "Identity Review", label: "Identity Review", enabled: true },
+  { id: "People", label: "People", enabled: true },
   { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Settings", label: "Settings", enabled: true }
 ];
 
-const PRIMARY_NAV_ITEMS = NAV_ITEMS.filter((item) => ["Library", "Review Queue"].includes(item.id));
+const PRIMARY_NAV_ITEMS = NAV_ITEMS.filter((item) => ["Library", "Review Queue", "Identity Review", "People"].includes(item.id));
 
 const LIBRARY_KIND_FILTERS = [
   { id: "all", label: "All artifacts" },
@@ -2176,6 +2179,7 @@ function App() {
         className={[
           "workspace",
           activeNav === "Library" ? "library-workspace" : "",
+          ["Identity Review", "People"].includes(activeNav) ? "identity-workspace" : "",
           isSettingsView ? "settings-workspace" : "",
           leftCollapsed ? "left-collapsed" : "",
           rightCollapsed ? "right-collapsed" : ""
@@ -2284,6 +2288,10 @@ function App() {
               <h1>
                 {activeNav === "Review Queue"
                   ? "Review queue"
+                  : activeNav === "Identity Review"
+                    ? "Identity review"
+                    : activeNav === "People"
+                      ? "People"
                   : activeNav === "Intelligence"
                     ? "Intelligence routing"
                     : activeNav === "Provenance"
@@ -2360,6 +2368,10 @@ function App() {
               onRecordHumanReview={recordHumanReviewDecision}
               onOpenQueueConversation={openQueueConversation}
             />
+          ) : activeNav === "Identity Review" ? (
+            <IdentityReviewView mode="identity" />
+          ) : activeNav === "People" ? (
+            <IdentityReviewView mode="people" />
           ) : activeNav === "Intelligence" ? (
             <IntelligencePanel
               config={intelligence.config}
