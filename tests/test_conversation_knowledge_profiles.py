@@ -305,7 +305,7 @@ def test_projection_rebuild_is_deterministic_and_preserves_ambiguity(
     }
 
 
-def test_v3_rollback_preserves_evidence_schema(tmp_path: Path) -> None:
+def test_profile_and_identity_rollback_preserves_evidence_schema(tmp_path: Path) -> None:
     projector = _projector(tmp_path)
     projector.append_reviewed_observations(CONVERSATION_ID)
     projector.rebuild()
@@ -313,7 +313,7 @@ def test_v3_rollback_preserves_evidence_schema(tmp_path: Path) -> None:
 
     receipt = store.rollback(target_version=2, backup=False)
 
-    assert receipt.rolled_back_versions == (3,)
+    assert receipt.rolled_back_versions == (4, 3)
     assert store.schema_status().schema_version == 2
     assert store.load_observations(CONVERSATION_ID)
     with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:

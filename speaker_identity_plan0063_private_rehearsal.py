@@ -909,7 +909,7 @@ def apply_reviewed_knowledge_transition(
 
     validate_reviewed_transition(transition)
     store = ConversationKnowledgeStore(store_root)
-    migration = store.migrate(backup=False)
+    migration = store.migrate(target_version=3, backup=False)
     if migration.from_version != 0 or migration.to_version != 3:
         _fail("The knowledge migration did not move from schema 0 to 3.")
     person_receipts = [

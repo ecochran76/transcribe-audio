@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import stat
 import sys
 from pathlib import Path
@@ -53,9 +54,9 @@ def test_core_schema_migration_preserves_existing_store_and_sidecar_authority(
 
     assert before.schema_version == 0
     assert receipt.from_version == 0
-    assert receipt.to_version == 3
-    assert receipt.applied_versions == (1, 2, 3)
-    assert after.schema_version == 3
+    assert receipt.to_version == 4
+    assert receipt.applied_versions == (1, 2, 3, 4)
+    assert after.schema_version == 4
     assert after.authority_mode == "sidecar"
     assert after.dirty is False
     assert search_results[0]["title"] == "Migration compatibility conversation"
@@ -128,11 +129,80 @@ def test_migration_backup_and_rollback_preserve_legacy_store(
     assert Path(migration.backup_path).is_file()
     assert stat.S_IMODE(Path(migration.backup_path).parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(Path(migration.backup_path).stat().st_mode) == 0o600
-    assert rollback.from_version == 3
+    assert rollback.from_version == 4
     assert rollback.to_version == 0
-    assert rollback.rolled_back_versions == (3, 2, 1)
+    assert rollback.rolled_back_versions == (4, 3, 2, 1)
     assert rollback.backup_path
     assert store.schema_status().schema_version == 0
+    assert transcript_store.search_store(
+        "searchable transcript",
+        root=tmp_path,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash-v1",
+    )
+
+
+def test_v4_identity_ledger_migration_is_additive_and_reversible(
+    tmp_path: Path,
+) -> None:
+    transcript_store.ingest_artifact(
+        _write_transcript(tmp_path / "identity-ledger.transcript.json"),
+        root=tmp_path,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash-v1",
+    )
+    store = conversation_knowledge_store.ConversationKnowledgeStore(tmp_path)
+    store.migrate(target_version=3, backup=False)
+    legacy_person = conversation_knowledge_store.PersonSnapshot(
+        person=conversation_knowledge_store.PersonRecord(
+            person_id="00000000-0000-4000-8000-000000000099",
+            status="reviewed",
+            primary_name="Existing Identity",
+        )
+    )
+    store.save_person_snapshot(legacy_person)
+
+    migration = store.migrate(target_version=4, backup=False)
+
+    assert migration.from_version == 3
+    assert migration.to_version == 4
+    assert migration.applied_versions == (4,)
+    assert store.schema_status().schema_version == 4
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        ledger_table = con.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'knowledge_identity_ledger_events'
+            """
+        ).fetchone()
+    assert ledger_table is not None
+    assert store.load_person_snapshot(legacy_person.person.person_id) == legacy_person
+    assert transcript_store.search_store(
+        "searchable transcript",
+        root=tmp_path,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash-v1",
+    )
+
+    rollback = store.rollback(target_version=3, backup=False)
+
+    assert rollback.from_version == 4
+    assert rollback.to_version == 3
+    assert rollback.rolled_back_versions == (4,)
+    assert store.schema_status().schema_version == 3
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        ledger_table = con.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'knowledge_identity_ledger_events'
+            """
+        ).fetchone()
+    assert ledger_table is None
+    assert store.load_person_snapshot(legacy_person.person.person_id) == legacy_person
     assert transcript_store.search_store(
         "searchable transcript",
         root=tmp_path,

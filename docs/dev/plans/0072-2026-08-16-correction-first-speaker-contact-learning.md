@@ -67,8 +67,9 @@ for later conversations without treating unreviewed predictions as truth.
 - Durable conversation and recording IDs, append-only processing evaluations,
   review decisions, source artifacts, and current-evaluation pointers already
   exist. Sidecars remain processing authority during migration.
-- Schema version 3 already models canonical people, external identities,
-  independently addressable source records, observations, claims,
+- Schema version 4 now adds the A1 immutable correction ledger and rebuildable
+  identity/contact projections to the existing canonical people, external
+  identities, independently addressable source records, observations, claims,
   relationships, evidence snapshots, and rebuildable person/affinity
   projections in the user-scoped SQLite store.
 - Host-owned retrieval already supports exact-first identity lookup, bounded
@@ -90,7 +91,8 @@ for later conversations without treating unreviewed predictions as truth.
 
 ## Current execution state
 
-Packet A0 is closed. It froze interfaces only and produced no live effects.
+Packets A0 and A1 are closed. Both were non-live and produced no provider,
+private-directory, biometric, publication, deployment, or external effects.
 
 | Field | A0 control |
 | --- | --- |
@@ -119,10 +121,42 @@ changes, and no worktree mismatch. Commit `d5bee6a` records the implementation.
 All A0 provider, historical, identity, biometric, migration, publication,
 deployment, and external effect counts are zero.
 
-A1 has not started. Its next safe unit is the append-only
-identity/contact/ontology ledger on synthetic disposable stores. Private
-baseline-directory data, live migration, and provider access remain separately
-gated.
+| Field | A1 control |
+| --- | --- |
+| Bounded outcome | Add the append-only identity/contact/ontology/correction ledger and rebuildable projections on synthetic disposable stores. |
+| Write surface | Knowledge schema v4, ledger module, tests, reference docs, plan/roadmap/runbook state. |
+| Inputs | A0 contracts, this plan, Note 0058, schema v3, and the verified contact/role sequencing note. |
+| Validation | Migration/rollback, deterministic rebuild, corrections, merge/split/reversal, exact dedup/linking, privacy, conflict, full-suite, planning, CodeGraph, and git checks. |
+| Terminal condition | All A1 behavioral gates pass with zero live migration, private-directory read, provider write, biometric, publication, deployment, or external effects. |
+
+A1 delivered knowledge schema v4 and
+[`identity_learning_ledger.py`](../../../identity_learning_ledger.py), with a
+focused [ledger reference](../../correction-first-identity-ledger.md). The v4
+migration adds immutable event and ontology tables plus replaceable people,
+source-record, hashed-external-identity, role, relationship, and reconciliation
+projections. It preserves v1-v3 records and rolls back additively to v3. The
+frozen Plan 0063 rehearsal remains explicitly pinned to its original v3
+authority.
+
+Synthetic disposable-store tests prove content-hashed idempotent append,
+hierarchical and inverse ontology terms, simultaneous roles, directional and
+conflicting relationships, source/role/relationship corrections, exact-scope
+deduplication, verified person-specific exact linking, shared-address
+exclusion, conflict-preserving proposals, deterministic rebuild, explicit
+merge/split, reversal, atomic replay failure, and v4 rollback. Raw email and
+phone values are rejected from source-record ledger events; persisted external
+identity values are hashes. Provider-write count remains zero.
+
+A1 did not read a private baseline directory, migrate a live store, call a
+provider, collect biometric material, publish a dashboard, deploy a service,
+or write Graphiti memory. A2 is the next safe packet: terminology and layered
+transcript correction on redacted/synthetic fixtures. A3 remains independently
+available after A1 but retains its separate biometric custody gates.
+
+A1 validation passed 33 focused ledger/store/profile/evidence/private-
+rehearsal tests, the 1,139-test full suite, Python compilation, active and
+goal-only planning audits, internal-link checks, `git diff --check`, and a
+fresh CodeGraph readback with 351 files, 10,236 nodes, and 34,943 edges.
 
 ## Stable architecture decisions
 
@@ -509,10 +543,10 @@ A6-A9 are serialized launch stages.
 
 ## Packet closeout and next authority
 
-A0 is closed at its non-live terminal gate. The next slice is A1 only: add the
-append-only identity, source-record, alias, role, relationship, ontology,
-correction, and projection ledger against synthetic disposable stores first.
-A1 must prove migration, rollback, deterministic rebuild, merge/split/reversal,
-exact-source deduplication, exact person-link rules, shared-address exclusion,
-and conflict-preserving reconciliation. It must not migrate a live store, read
-a provider, or write a provider without the exact later gate.
+A0 and A1 are closed at their non-live terminal gates. The next safe slice is
+A2 only: add the terminology registry, immutable raw and normalized transcript
+generations, scoped span corrections, semantic map, reindex lineage, and
+bounded correction cascades against redacted/synthetic fixtures. A2 does not
+authorize historical processing, a live migration, provider access, or
+publication. A3 may follow A1 independently only under its exact biometric
+custody and private-artifact gates.

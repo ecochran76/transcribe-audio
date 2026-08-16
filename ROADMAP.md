@@ -984,12 +984,18 @@ Identification is explicitly not authentication. Unreviewed proposals cannot
 become accepted people, relationships, speaker assignments, or named-profile
 enrollment authority. Evidence Strength is not probability; empirical
 likelihood and future automatic acceptance have explicit source-disjoint
-denominators. This turn is architecture/planning only; no historical/new
-processing, provider retrieval, live migration, biometric collection,
-dashboard publication, or deployment has begun. A0 is closed with versioned
-domain, correction, privacy, threat, review, adapter, and supervisor contracts,
-redacted fixtures, and deterministic tests. The next packet is A1's
-append-only ledger on synthetic disposable stores.
+denominators. No historical/new processing, provider retrieval, live
+migration, biometric collection, dashboard publication, or deployment has
+begun. A0 is closed with versioned domain, correction, privacy, threat, review,
+adapter, and supervisor contracts, redacted fixtures, and deterministic tests.
+A1 is also closed: knowledge schema v4 now provides immutable ontology and
+correction events, hashed external identities, rebuildable people, source,
+role, relationship, and reconciliation projections, merge/split/reversal,
+exact scoped deduplication, and fail-closed baseline reconciliation proved only
+on synthetic disposable stores. No live migration, private directory read,
+provider effect, biometric effect, or publication occurred. A2's terminology
+and layered transcript correction is the next safe packet; A3 retains its
+separate biometric custody gates.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

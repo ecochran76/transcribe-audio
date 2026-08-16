@@ -1,5 +1,64 @@
 # Runbook
 
+## Turn 392: Close Plan 0072 A1 identity/contact ledger (2026-08-16)
+
+Summary: Closed the non-live A1 schema-critical packet on synthetic disposable
+stores. Knowledge schema v4 adds an immutable correction/ontology ledger,
+hashed external identities, rebuildable identity/contact projections, exact
+baseline reconciliation, and reversible merge/split/correction behavior.
+
+Authority:
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-identity-ledger.md`, Note 0058, and the A0 contract
+catalog.
+
+Evidence:
+
+- `ConversationKnowledgeStore` migrates v3 to v4 additively and rolls v4 back
+  to v3 without changing legacy transcript or v1-v3 knowledge rows.
+- `identity_learning_ledger.py` appends content-hashed idempotent events and
+  deterministically rebuilds people, source-record, hashed-external-identity,
+  role, relationship, and reconciliation projections.
+- SQLite triggers reject update/delete against events and ontology versions or
+  terms. Source, role, and relationship corrections, merge, explicit-record
+  split, and reversal all append history.
+- Ontology terms support role/relationship hierarchy, directionality,
+  symmetric relationships, and inverse relationship terms. Multiple contextual
+  roles and conflict metadata coexist.
+- Baseline reconciliation deduplicates only the exact scoped source key. It
+  auto-links only one unambiguous verified person-specific email/phone match;
+  shared identifiers, missing identifiers, and conflicting exact matches remain
+  proposals. Provider-write count is zero.
+- Source-record ledger events reject raw email/phone values. External identity
+  projections store only lowercase SHA-256 value hashes.
+- Failed rebuild leaves the prior projection intact. Reversing the invalid
+  event restores replay without deleting ledger history.
+- Frozen Plan 0063 private rehearsal explicitly migrates to v3, preserving its
+  historical schema/count authority instead of silently adopting v4.
+- A1 used no provider, private baseline directory, biometric material, live
+  store, dashboard, deployment, external effect, delegation, or Graphiti write.
+
+Validation:
+
+- Focused ledger/store/profile/evidence/private-rehearsal validation passes 33
+  tests.
+- `.venv/bin/python -m pytest -q` passes 1,139 tests in 107.78 seconds.
+- Python compilation, active and goal-only planning audits, internal link
+  checks, and `git diff --check` pass. The active audit reports `ok: true`,
+  zero problems, and Plan 0072 as `OPEN`.
+- CodeGraph reports 351 indexed files, 10,236 nodes, and 34,943 edges with no
+  pending-file or worktree-mismatch warning.
+- A transcription smoke is not applicable because A1 changes no transcription,
+  watcher, media, DOCX/TXT output, or installed runtime path.
+
+Next:
+
+- Execute Plan 0072 A2 on redacted/synthetic fixtures: add the terminology
+  registry, immutable raw/normalized generations, scoped span corrections,
+  semantic map, reindex lineage, and bounded correction cascades. Do not open
+  historical processing, live migration, provider, publication, or deployment
+  effects.
+
 ## Turn 391: Close Plan 0072 A0 contract freeze (2026-08-16)
 
 Summary: Opened Plan 0072 under the standing user execution goal and closed

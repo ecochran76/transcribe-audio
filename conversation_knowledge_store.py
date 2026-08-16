@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 3
+LATEST_SCHEMA_VERSION = 4
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -349,6 +349,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 4 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v4(con)
+                    applied.append(4)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -376,6 +385,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 4 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v4(con)
+                    rolled_back.append(4)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 3 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -2298,6 +2316,320 @@ class ConversationKnowledgeStore:
             """
             UPDATE knowledge_store_state
             SET schema_version = 2, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v4(con: sqlite3.Connection) -> None:
+        """Add the immutable correction ledger and rebuildable projections."""
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_ontology_versions (
+                id TEXT PRIMARY KEY,
+                schema_name TEXT NOT NULL,
+                version TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(schema_name, version)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_ontology_terms (
+                ontology_version_id TEXT NOT NULL
+                    REFERENCES knowledge_identity_ontology_versions(id)
+                    ON DELETE RESTRICT,
+                term_kind TEXT NOT NULL
+                    CHECK (term_kind IN ('role', 'relationship')),
+                term_key TEXT NOT NULL,
+                parent_term_key TEXT NOT NULL DEFAULT '',
+                directionality TEXT NOT NULL DEFAULT 'directional'
+                    CHECK (directionality IN (
+                        'directional', 'symmetric', 'not_applicable'
+                    )),
+                inverse_term_key TEXT NOT NULL DEFAULT '',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                PRIMARY KEY(ontology_version_id, term_kind, term_key)
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_ledger_events (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL CHECK (event_type IN (
+                    'ontology_registered',
+                    'source_record_observed',
+                    'external_identity_observed',
+                    'person_created',
+                    'source_record_linked',
+                    'source_record_corrected',
+                    'alias_added',
+                    'role_asserted',
+                    'role_corrected',
+                    'relationship_asserted',
+                    'relationship_corrected',
+                    'reconciliation_proposed',
+                    'reconciliation_decided',
+                    'people_merged',
+                    'person_split',
+                    'event_reversed'
+                )),
+                event_schema TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                subject_type TEXT NOT NULL DEFAULT '',
+                subject_id TEXT NOT NULL DEFAULT '',
+                reverses_event_id TEXT
+                    REFERENCES knowledge_identity_ledger_events(id)
+                    ON DELETE RESTRICT,
+                payload_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_events_order
+            ON knowledge_identity_ledger_events(occurred_at, id)
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_events_subject
+            ON knowledge_identity_ledger_events(subject_type, subject_id)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_people_projection (
+                person_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                primary_name TEXT NOT NULL DEFAULT '',
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                merged_into_person_id TEXT NOT NULL DEFAULT '',
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_source_projection (
+                source_record_id TEXT PRIMARY KEY,
+                person_id TEXT NOT NULL DEFAULT '',
+                source_profile_id TEXT NOT NULL,
+                provider_kind TEXT NOT NULL,
+                account_id TEXT NOT NULL DEFAULT '',
+                tenant_id TEXT NOT NULL DEFAULT '',
+                record_type TEXT NOT NULL,
+                external_ref TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                source_event_at TEXT NOT NULL DEFAULT '',
+                observed_at TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                resolution_status TEXT NOT NULL,
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL,
+                UNIQUE(
+                    provider_kind, source_profile_id, account_id, tenant_id,
+                    record_type, external_ref
+                )
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_source_person
+            ON knowledge_identity_source_projection(person_id, resolution_status)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_external_projection (
+                external_identity_id TEXT PRIMARY KEY,
+                source_record_id TEXT NOT NULL,
+                person_id TEXT NOT NULL DEFAULT '',
+                provider_kind TEXT NOT NULL,
+                account_id TEXT NOT NULL DEFAULT '',
+                tenant_id TEXT NOT NULL DEFAULT '',
+                identity_type TEXT NOT NULL,
+                identity_value_hash TEXT NOT NULL,
+                person_specific INTEGER NOT NULL DEFAULT 0
+                    CHECK (person_specific IN (0, 1)),
+                verified INTEGER NOT NULL DEFAULT 0
+                    CHECK (verified IN (0, 1)),
+                shared_identifier INTEGER NOT NULL DEFAULT 0
+                    CHECK (shared_identifier IN (0, 1)),
+                observed_at TEXT NOT NULL,
+                valid_from TEXT NOT NULL DEFAULT '',
+                valid_to TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_external_match
+            ON knowledge_identity_external_projection(
+                identity_type, identity_value_hash, provider_kind,
+                account_id, tenant_id
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_role_projection (
+                role_id TEXT PRIMARY KEY,
+                person_id TEXT NOT NULL,
+                role_type TEXT NOT NULL,
+                organization_id TEXT NOT NULL DEFAULT '',
+                project_id TEXT NOT NULL DEFAULT '',
+                matter_id TEXT NOT NULL DEFAULT '',
+                conversation_id TEXT NOT NULL DEFAULT '',
+                starts_at TEXT NOT NULL DEFAULT '',
+                ends_at TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_role_person
+            ON knowledge_identity_role_projection(person_id, role_type)
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_relationship_projection (
+                relationship_id TEXT PRIMARY KEY,
+                relationship_type TEXT NOT NULL,
+                subject_type TEXT NOT NULL,
+                subject_id TEXT NOT NULL,
+                object_type TEXT NOT NULL,
+                object_id TEXT NOT NULL,
+                directionality TEXT NOT NULL,
+                inverse_relationship_id TEXT NOT NULL DEFAULT '',
+                starts_at TEXT NOT NULL DEFAULT '',
+                ends_at TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE INDEX idx_knowledge_identity_relationship_subject
+            ON knowledge_identity_relationship_projection(
+                subject_type, subject_id, relationship_type
+            )
+            """
+        )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_reconciliation_projection (
+                proposal_id TEXT PRIMARY KEY,
+                proposal_type TEXT NOT NULL,
+                source_record_ids_json TEXT NOT NULL,
+                candidate_person_ids_json TEXT NOT NULL DEFAULT '[]',
+                reason_codes_json TEXT NOT NULL,
+                confidence REAL,
+                decision_status TEXT NOT NULL,
+                decided_by TEXT NOT NULL DEFAULT '',
+                decided_at TEXT NOT NULL DEFAULT '',
+                input_watermark TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                built_at TEXT NOT NULL
+            )
+            """
+        )
+        for table_name in (
+            "knowledge_identity_ontology_versions",
+            "knowledge_identity_ontology_terms",
+            "knowledge_identity_ledger_events",
+        ):
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_update
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity ledger');
+                END
+                """
+            )
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity ledger');
+                END
+                """
+            )
+        con.execute(
+            """
+            INSERT INTO knowledge_schema_migrations (version, applied_at)
+            VALUES (4, ?)
+            """,
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 4, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v4(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        for table_name in (
+            "knowledge_identity_ontology_versions",
+            "knowledge_identity_ontology_terms",
+            "knowledge_identity_ledger_events",
+        ):
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_update")
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_delete")
+        for table_name in (
+            "knowledge_identity_reconciliation_projection",
+            "knowledge_identity_relationship_projection",
+            "knowledge_identity_role_projection",
+            "knowledge_identity_external_projection",
+            "knowledge_identity_source_projection",
+            "knowledge_identity_people_projection",
+            "knowledge_identity_ledger_events",
+            "knowledge_identity_ontology_terms",
+            "knowledge_identity_ontology_versions",
+        ):
+            con.execute(f"DROP TABLE IF EXISTS {table_name}")
+        con.execute(
+            "DELETE FROM knowledge_schema_migrations WHERE version = 4"
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 3, updated_at = ?
             WHERE singleton = 1
             """,
             (now,),
