@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import conversation_knowledge_store
 import identity_learning_ledger
 import transcript_store
+from transcript_correction_ledger import TranscriptCorrectionLedger
 
 
 def _write_transcript(path: Path) -> Path:
@@ -55,9 +56,9 @@ def test_core_schema_migration_preserves_existing_store_and_sidecar_authority(
 
     assert before.schema_version == 0
     assert receipt.from_version == 0
-    assert receipt.to_version == 5
-    assert receipt.applied_versions == (1, 2, 3, 4, 5)
-    assert after.schema_version == 5
+    assert receipt.to_version == 6
+    assert receipt.applied_versions == (1, 2, 3, 4, 5, 6)
+    assert after.schema_version == 6
     assert after.authority_mode == "sidecar"
     assert after.dirty is False
     assert search_results[0]["title"] == "Migration compatibility conversation"
@@ -130,9 +131,9 @@ def test_migration_backup_and_rollback_preserve_legacy_store(
     assert Path(migration.backup_path).is_file()
     assert stat.S_IMODE(Path(migration.backup_path).parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(Path(migration.backup_path).stat().st_mode) == 0o600
-    assert rollback.from_version == 5
+    assert rollback.from_version == 6
     assert rollback.to_version == 0
-    assert rollback.rolled_back_versions == (5, 4, 3, 2, 1)
+    assert rollback.rolled_back_versions == (6, 5, 4, 3, 2, 1)
     assert rollback.backup_path
     assert store.schema_status().schema_version == 0
     assert transcript_store.search_store(
@@ -260,6 +261,51 @@ def test_v5_transcript_correction_migration_preserves_v4_identity_history(
             """
         ).fetchone()
     assert correction_table is None
+
+
+def test_v6_acoustic_custody_migration_preserves_v5_transcript_history(
+    tmp_path: Path,
+) -> None:
+    store = conversation_knowledge_store.ConversationKnowledgeStore(tmp_path)
+    store.migrate(target_version=5, backup=False)
+    corrections = TranscriptCorrectionLedger(tmp_path)
+    raw = corrections.record_raw_transcript(
+        conversation_id="00000000-0000-4000-8000-000000000281",
+        recording_id="00000000-0000-4000-8000-000000000282",
+        source_artifact_sha256="a" * 64,
+        transcript_text="Synthetic acoustic custody source.",
+        utterances=(
+            {
+                "speaker": "SPEAKER_1",
+                "start_ms": 0,
+                "end_ms": 1000,
+                "text": "Synthetic acoustic custody source.",
+            },
+        ),
+        captured_at="2026-08-16T20:10:00Z",
+        created_at="2026-08-16T20:11:00Z",
+    )
+
+    migration = store.migrate(target_version=6, backup=False)
+
+    assert migration.from_version == 5
+    assert migration.to_version == 6
+    assert migration.applied_versions == (6,)
+    with sqlite3.connect(tmp_path / "transcripts.sqlite3") as con:
+        custody_table = con.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'knowledge_voice_samples'
+            """
+        ).fetchone()
+    assert custody_table is not None
+
+    rollback = store.rollback(target_version=5, backup=False)
+
+    assert rollback.rolled_back_versions == (6,)
+    assert corrections.load_raw_generation(raw.raw_generation_id)[
+        "transcript_text"
+    ] == "Synthetic acoustic custody source."
 
 
 def test_person_snapshot_preserves_cross_source_identity_context(

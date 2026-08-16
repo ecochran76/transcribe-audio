@@ -999,8 +999,15 @@ terminology and version-pinned hint bundles, immutable raw and normalized
 transcript generations, superseding span decisions, dual-layer search/reindex
 lineage, transcript-only semantic maps, and the two-pass/one-cascade manual-stop
 boundary. It produced no private, live, provider, biometric, publication, or
-deployment effects. A3 is the next safe packet and retains its separate
-biometric custody and private-artifact gates.
+  deployment effects. A3 is closed on synthetic temporary stores: knowledge
+  schema v6 adds private sample custody, soft reversible clusters, reviewed
+  profile families and versions, material-only cluster rescore receipts,
+  deterministic rebuild proof, previewed exclusions and every initial deletion
+  scope, transactional private-byte removal, and minimal tombstones. It
+  produced no real-voice, private-corpus, live, provider, enrollment,
+  publication, deployment, or external effects. A4 is the next safe packet and
+  remains limited to a zero-provider-write evidence supervisor on synthetic
+  and redacted evidence.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

@@ -1,7 +1,8 @@
 # Correction-first transcript learning
 
-Plan 0072 A2 adds a non-live transcript correction layer to knowledge schema
-v5. It preserves immutable raw ASR and diarization, records reviewed
+Plan 0072 A2 adds a non-live transcript correction layer in knowledge schema
+v5. Schema v6 retains this layer and adds A3 biometric custody. A2 preserves
+immutable raw ASR and diarization, records reviewed
 span-level corrections, creates versioned normalized transcripts, indexes raw
 and selected normalized text, and binds transcript-only semantic claims back
 to exact raw spans.
@@ -37,8 +38,8 @@ boundary:
 
 ## Knowledge schema v5
 
-`ConversationKnowledgeStore.migrate()` now advances ordinary stores through
-v5. The additive migration creates immutable terminology versions/entries,
+The A2 additive migration advances schema v4 to v5. It creates immutable
+terminology versions/entries,
 raw generations, correction proposals/decisions, normalized generations,
 semantic maps, correction-run and identity-cascade ledgers, and reindex
 receipts. It also creates a replaceable selected-normalized projection and an

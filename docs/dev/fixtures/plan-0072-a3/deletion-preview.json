@@ -1,0 +1,12 @@
+{
+  "schema_version": "transcribe-audio.plan-0072-a3-deletion-preview.v1",
+  "mode": "delete",
+  "target_type": "sample",
+  "target_selector": "fixture-unreviewed",
+  "expected": {
+    "backup_disposition": "exclude_from_future_backups",
+    "historical_backup_disposition": "expire_on_retention_schedule",
+    "sample_state": "deleted",
+    "retained_cluster_membership_state": "excluded"
+  }
+}

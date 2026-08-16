@@ -1,0 +1,32 @@
+{
+  "schema_version": "transcribe-audio.plan-0072-a3-custody-replay.v1",
+  "created_at": "2026-08-16T22:00:00Z",
+  "samples": [
+    {
+      "suffix": "fixture-reviewed",
+      "person_id": "person-redacted-fixture",
+      "membership_state": "confirmed",
+      "score": 0.94
+    },
+    {
+      "suffix": "fixture-unreviewed",
+      "person_id": "",
+      "membership_state": "candidate",
+      "score": 0.61
+    }
+  ],
+  "cluster": {
+    "cluster_id": "cluster-redacted-fixture",
+    "algorithm_version": "cluster-synthetic-v1",
+    "status": "reviewed"
+  },
+  "profile": {
+    "family_key": "quiet-room",
+    "conditions": {
+      "channel": "synthetic"
+    },
+    "evaluation_id": "evaluation-redacted-fixture",
+    "model_revision": "model-synthetic-v1",
+    "recipe_revision": "recipe-synthetic-v1"
+  }
+}

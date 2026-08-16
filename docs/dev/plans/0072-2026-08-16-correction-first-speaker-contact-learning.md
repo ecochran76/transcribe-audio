@@ -67,11 +67,10 @@ for later conversations without treating unreviewed predictions as truth.
 - Durable conversation and recording IDs, append-only processing evaluations,
   review decisions, source artifacts, and current-evaluation pointers already
   exist. Sidecars remain processing authority during migration.
-- Schema version 5 now extends the A1 immutable identity/contact ledger with
-  A2 terminology, immutable raw and normalized transcript generations,
-  reviewed span corrections, transcript-only semantic maps, dual-layer search,
-  reindex lineage, and bounded identity-cascade records in the user-scoped
-  SQLite store.
+- Schema version 6 now extends the A1 identity/contact and A2 transcript
+  ledgers with private voice-sample custody, soft anonymous clusters,
+  reviewed profile families and versions, rebuild receipts, exclusions, and
+  previewed deletion in the user-scoped SQLite store.
 - Host-owned retrieval already supports exact-first identity lookup, bounded
   lexical/semantic/relationship search, tenant/account/capability/as-of
   filtering, evidence-independence groups, partial-provider failures, and
@@ -184,6 +183,41 @@ provider hint, call or write a provider, collect biometric material, publish a
 dashboard, deploy a service, schedule a worker, or write Graphiti memory. A3
 is the next safe packet but retains its separate biometric custody and private
 artifact gates.
+
+| Field | A3 control |
+| --- | --- |
+| Bounded outcome | Add governed voice-sample custody, soft anonymous clustering, exclusions, previewed deletion, profile families/versions, invalidation, rollback, and deterministic rebuild on synthetic temporary stores. |
+| Write surface | Knowledge schema v6, custody ledger, synthetic private test objects, redacted fixtures, tests, reference docs, and plan/roadmap/runbook state. |
+| Inputs | A0 biometric contracts, A1 identity lineage, this plan, Note 0058, and generated non-voice byte strings. |
+| Validation | Migration/rollback, private access, sample/cluster/profile lineage, material rescore, deterministic rebuild, all deletion scopes, stale preview, full suite, planning, CodeGraph, and git checks. |
+| Terminal condition | A3 behavioral gates pass with zero real voice, private-corpus, historical, live-migration, provider, enrollment, publication, deployment, or external effects. |
+
+A3 delivered knowledge schema v6 and
+[`biometric_custody_ledger.py`](../../../biometric_custody_ledger.py), with a
+focused [biometric-custody reference](../../correction-first-biometric-custody.md)
+and redacted fixtures under `docs/dev/fixtures/plan-0072-a3/`. The additive v6
+migration rolls back to v5 without changing A1 identity or A2 transcript
+history. Immutable tables record samples, sample events, cluster versions,
+soft memberships, cluster events, material-rescore receipts, profile families
+and versions, profile events, rebuild receipts, and deletion tombstones.
+
+Synthetic temporary-store tests prove restrictive private-root and object
+permissions, source/range/hash/preparation lineage, person-unbound unreviewed
+samples, reviewed and consented profile allowlists, multiple profile families,
+pending activation, explicit supersession and rollback, exact and drifted
+rebuild receipts, reversible cluster membership, and material-only requeue
+after a confirmed anchor. They also prove previewed exclusion/deletion for
+sample, cluster, profile, recording, and person scopes; stale-preview refusal;
+transactional byte quarantine; backup dispositions; minimal tombstones; and
+idempotent replay.
+
+A3 validation passed 36 focused custody/store/profile/evidence tests, the
+1,166-test full suite, Python compilation, the active planning audit, internal
+link and fixture checks, `git diff --check`, and a fresh CodeGraph readback
+with 355 indexed files, 10,402 nodes, and 35,862 edges. No real voice, private
+corpus, historical conversation, live store, provider, external benchmark,
+named enrollment, dashboard, deployment, worker, or Graphiti write was
+accessed or changed.
 
 A1 validation passed 33 focused ledger/store/profile/evidence/private-
 rehearsal tests, the 1,139-test full suite, Python compilation, active and
@@ -575,10 +609,9 @@ A6-A9 are serialized launch stages.
 
 ## Packet closeout and next authority
 
-A0-A2 are closed at their non-live terminal gates. The next safe slice is A3
-only: add voice-sample inventory, soft anonymous clustering, exclusions,
-deletion, and governed profile-family/version/invalidation/rebuild behavior.
-A3 does not authorize historical processing, a live migration, named-profile
-enrollment from unreviewed evidence, provider access, publication, or
-deployment, and it retains its exact biometric-custody and private-artifact
-gates.
+A0-A3 are closed at their non-live terminal gates. The next safe slice is A4:
+compose the capability-scoped evidence supervisor, run ledger, evidence-pillar
+scores, calibration history, budgets, and partial-failure isolation against
+synthetic and redacted evidence. A4 does not authorize historical processing,
+a live migration, provider access, accepted identity/profile effects,
+publication, or deployment.

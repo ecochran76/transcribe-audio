@@ -792,6 +792,9 @@ Validation must cover:
 
 ## Related documents
 
+- [Correction-first biometric custody](correction-first-biometric-custody.md)
+- [Correction-first transcript learning](correction-first-transcript-learning.md)
+- [Correction-first identity ledger](correction-first-identity-ledger.md)
 - [Correction-first identity-learning contracts](correction-first-identity-learning-contracts.md)
 - [ADR 0003: Freeze correction-first identity-learning contracts](adr/0003-freeze-correction-first-identity-learning-contracts.md)
 - [ADR 0002: Use a user-scoped conversation knowledge store](adr/0002-use-a-user-scoped-conversation-knowledge-store.md)

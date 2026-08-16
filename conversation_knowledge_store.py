@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 5
+LATEST_SCHEMA_VERSION = 6
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -367,6 +367,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 6 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v6(con)
+                    applied.append(6)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -394,6 +403,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 6 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v6(con)
+                    rolled_back.append(6)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 5 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -1309,7 +1327,9 @@ class ConversationKnowledgeStore:
                 state.built_at,
             )
         ):
-            raise ValueError("Projection identity, version, and watermark are required.")
+            raise ValueError(
+                "Projection identity, version, and watermark are required."
+            )
         existing = self.load_projection_state(
             state.projection_name,
             state.scope_type,
@@ -3052,6 +3072,317 @@ class ConversationKnowledgeStore:
             """
             UPDATE knowledge_store_state
             SET schema_version = 4, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v6(con: sqlite3.Connection) -> None:
+        """Add governed acoustic sample, cluster, profile, and deletion custody."""
+        now = _utc_now()
+        statements = (
+            """
+            CREATE TABLE knowledge_voice_samples (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                recording_id TEXT NOT NULL,
+                speaker_ref TEXT NOT NULL,
+                start_ms INTEGER NOT NULL CHECK (start_ms >= 0),
+                end_ms INTEGER NOT NULL CHECK (end_ms > start_ms),
+                source_media_sha256 TEXT NOT NULL,
+                sample_sha256 TEXT NOT NULL UNIQUE,
+                quality_json TEXT NOT NULL,
+                preparation_lineage_json TEXT NOT NULL,
+                review_authority_id TEXT,
+                consent_authority TEXT,
+                person_id TEXT,
+                review_state TEXT NOT NULL CHECK (
+                    review_state IN ('unreviewed', 'reviewed', 'rejected')
+                ),
+                exclusion_state TEXT NOT NULL CHECK (
+                    exclusion_state IN ('included', 'excluded', 'deleted')
+                ),
+                private_object_id TEXT,
+                private_object_sha256 TEXT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_voice_sample_events (
+                id TEXT PRIMARY KEY,
+                sample_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_samples(id) ON DELETE RESTRICT,
+                event_type TEXT NOT NULL CHECK (event_type IN (
+                    'exclude', 'restore', 'bind_person', 'unbind_person',
+                    'delete'
+                )),
+                payload_json TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                authority_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                supersedes_event_id TEXT
+                    REFERENCES knowledge_voice_sample_events(id)
+                    ON DELETE RESTRICT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_anonymous_cluster_versions (
+                id TEXT PRIMARY KEY,
+                cluster_id TEXT NOT NULL,
+                predecessor_version_id TEXT
+                    REFERENCES knowledge_anonymous_cluster_versions(id)
+                    ON DELETE RESTRICT,
+                algorithm_version TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (
+                    status IN ('candidate', 'reviewed', 'superseded', 'deleted')
+                ),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_anonymous_cluster_memberships (
+                id TEXT PRIMARY KEY,
+                cluster_version_id TEXT NOT NULL
+                    REFERENCES knowledge_anonymous_cluster_versions(id)
+                    ON DELETE RESTRICT,
+                sample_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_samples(id) ON DELETE RESTRICT,
+                rank INTEGER NOT NULL CHECK (rank >= 1),
+                score REAL NOT NULL,
+                evidence_ids_json TEXT NOT NULL,
+                membership_state TEXT NOT NULL CHECK (
+                    membership_state IN (
+                        'candidate', 'confirmed', 'rejected', 'excluded'
+                    )
+                ),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(cluster_version_id, sample_id, rank)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_anonymous_cluster_events (
+                id TEXT PRIMARY KEY,
+                cluster_id TEXT NOT NULL,
+                action TEXT NOT NULL CHECK (
+                    action IN ('exclude', 'restore', 'delete')
+                ),
+                payload_json TEXT NOT NULL,
+                authority_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                supersedes_event_id TEXT
+                    REFERENCES knowledge_anonymous_cluster_events(id)
+                    ON DELETE RESTRICT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_cluster_rescore_receipts (
+                id TEXT PRIMARY KEY,
+                cluster_version_id TEXT NOT NULL
+                    REFERENCES knowledge_anonymous_cluster_versions(id)
+                    ON DELETE RESTRICT,
+                anchor_sample_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_samples(id) ON DELETE RESTRICT,
+                processing_version TEXT NOT NULL,
+                material_threshold REAL NOT NULL,
+                updates_json TEXT NOT NULL,
+                requeued_sample_ids_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(cluster_version_id, anchor_sample_id, processing_version)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_voice_profile_families (
+                id TEXT PRIMARY KEY,
+                person_id TEXT NOT NULL,
+                family_key TEXT NOT NULL,
+                conditions_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(person_id, family_key)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_voice_profile_versions (
+                id TEXT PRIMARY KEY,
+                profile_family_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_profile_families(id)
+                    ON DELETE RESTRICT,
+                person_id TEXT NOT NULL,
+                predecessor_profile_version_id TEXT
+                    REFERENCES knowledge_voice_profile_versions(id)
+                    ON DELETE RESTRICT,
+                sample_allowlist_json TEXT NOT NULL,
+                evaluation_id TEXT NOT NULL,
+                model_revision TEXT NOT NULL,
+                recipe_revision TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN (
+                    'pending', 'active', 'rejected', 'superseded',
+                    'invalidated', 'deleted'
+                )),
+                private_object_id TEXT,
+                private_object_sha256 TEXT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_voice_profile_events (
+                id TEXT PRIMARY KEY,
+                profile_version_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_profile_versions(id)
+                    ON DELETE RESTRICT,
+                action TEXT NOT NULL CHECK (action IN (
+                    'activate', 'reject', 'supersede', 'invalidate',
+                    'rollback', 'delete'
+                )),
+                reason_code TEXT NOT NULL,
+                authority_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                supersedes_event_id TEXT
+                    REFERENCES knowledge_voice_profile_events(id)
+                    ON DELETE RESTRICT,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_voice_profile_rebuild_receipts (
+                id TEXT PRIMARY KEY,
+                profile_version_id TEXT NOT NULL
+                    REFERENCES knowledge_voice_profile_versions(id)
+                    ON DELETE RESTRICT,
+                source_object_sha256 TEXT NOT NULL,
+                rebuilt_object_sha256 TEXT NOT NULL,
+                model_revision TEXT NOT NULL,
+                recipe_revision TEXT NOT NULL,
+                byte_equal INTEGER NOT NULL CHECK (byte_equal IN (0, 1)),
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                UNIQUE(profile_version_id, rebuilt_object_sha256)
+            )
+            """,
+            """
+            CREATE TABLE knowledge_biometric_deletion_tombstones (
+                id TEXT PRIMARY KEY,
+                target_type TEXT NOT NULL CHECK (target_type IN (
+                    'sample', 'cluster', 'profile', 'recording', 'person'
+                )),
+                target_id TEXT NOT NULL,
+                preview_hash TEXT NOT NULL,
+                deleted_object_hashes_json TEXT NOT NULL,
+                invalidated_ids_json TEXT NOT NULL,
+                backup_disposition TEXT NOT NULL,
+                historical_backup_disposition TEXT NOT NULL,
+                authority_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE knowledge_biometric_effect_receipts (
+                id TEXT PRIMARY KEY,
+                mode TEXT NOT NULL CHECK (mode IN ('exclude', 'delete')),
+                target_type TEXT NOT NULL CHECK (target_type IN (
+                    'sample', 'cluster', 'profile', 'recording', 'person'
+                )),
+                target_id TEXT NOT NULL,
+                preview_hash TEXT NOT NULL,
+                sample_event_ids_json TEXT NOT NULL,
+                profile_event_ids_json TEXT NOT NULL,
+                cluster_event_ids_json TEXT NOT NULL,
+                tombstone_id TEXT,
+                authority_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """,
+        )
+        for statement in statements:
+            con.execute(statement)
+        immutable_tables = (
+            "knowledge_voice_samples",
+            "knowledge_voice_sample_events",
+            "knowledge_anonymous_cluster_versions",
+            "knowledge_anonymous_cluster_memberships",
+            "knowledge_anonymous_cluster_events",
+            "knowledge_cluster_rescore_receipts",
+            "knowledge_voice_profile_families",
+            "knowledge_voice_profile_versions",
+            "knowledge_voice_profile_events",
+            "knowledge_voice_profile_rebuild_receipts",
+            "knowledge_biometric_deletion_tombstones",
+            "knowledge_biometric_effect_receipts",
+        )
+        for table_name in immutable_tables:
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_update
+                BEFORE UPDATE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only biometric custody ledger');
+                END
+                """
+            )
+            con.execute(
+                f"""
+                CREATE TRIGGER {table_name}_immutable_delete
+                BEFORE DELETE ON {table_name}
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only biometric custody ledger');
+                END
+                """
+            )
+        con.execute(
+            "INSERT INTO knowledge_schema_migrations (version, applied_at) "
+            "VALUES (6, ?)",
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 6, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v6(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        tables = (
+            "knowledge_biometric_effect_receipts",
+            "knowledge_biometric_deletion_tombstones",
+            "knowledge_voice_profile_events",
+            "knowledge_voice_profile_rebuild_receipts",
+            "knowledge_voice_profile_versions",
+            "knowledge_voice_profile_families",
+            "knowledge_anonymous_cluster_memberships",
+            "knowledge_anonymous_cluster_events",
+            "knowledge_cluster_rescore_receipts",
+            "knowledge_anonymous_cluster_versions",
+            "knowledge_voice_sample_events",
+            "knowledge_voice_samples",
+        )
+        for table_name in tables:
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_update")
+            con.execute(f"DROP TRIGGER IF EXISTS {table_name}_immutable_delete")
+            con.execute(f"DROP TABLE IF EXISTS {table_name}")
+        con.execute("DELETE FROM knowledge_schema_migrations WHERE version = 6")
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 5, updated_at = ?
             WHERE singleton = 1
             """,
             (now,),
