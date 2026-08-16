@@ -254,7 +254,7 @@ Milestone Focus:
   mutation authority. Plan 0059 authorizes no live
   schema migration, watcher enqueueing, assignment or relationship apply,
   provider write-back, profile learning, or automatic identity.
-- Planned milestone M4 is Plan 0072's correction-first identity-learning
+- Open milestone M4 is Plan 0072's correction-first identity-learning
   product path. Note 0058 freezes the grilled decisions: baseline read-only
   contact reconciliation; hierarchical multi-role relationships; scoped
   terminology and non-destructive transcript correction; private indefinite
@@ -264,9 +264,11 @@ Milestone Focus:
   recording filenames. Launch is staged as no-effect shadow, reviewed local
   learning, then policy-qualified automation. Historical and new processing,
   live schema migration, biometric collection/enrollment, provider calls,
-  local identity effects, publication, and deployment remain unstarted. The
-  recommended first packet remains non-live A0 contract, privacy/threat-model,
-  schema, API, and redacted-fixture freeze.
+  local identity effects, publication, and deployment remain unstarted. A0 is
+  closed at the non-live contract, privacy/threat-model, schema, review,
+  adapter, supervisor, and redacted-fixture freeze. A1 is next and begins with
+  the append-only identity/contact/ontology ledger on synthetic disposable
+  stores; live migration and provider access remain gated.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -965,7 +967,7 @@ agreement nor a correct actual residual acceptance existed, Plan 0071 closes
 not run, and live assignment, knowledge, Graphiti, provider-write, and external
 effects remain closed.
 
-Plan 0072 is the planned correction-first P09/P10 productization campaign in
+Plan 0072 is the open correction-first P09/P10 productization campaign in
 `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`.
 Its accepted detailed design authority is
 `docs/dev/notes/0058-2026-08-16-plan0072-grilled-architecture.md`.
@@ -984,8 +986,10 @@ enrollment authority. Evidence Strength is not probability; empirical
 likelihood and future automatic acceptance have explicit source-disjoint
 denominators. This turn is architecture/planning only; no historical/new
 processing, provider retrieval, live migration, biometric collection,
-dashboard publication, or deployment has begun. The next recommended packet
-is non-live A0 contract and privacy/schema freeze.
+dashboard publication, or deployment has begun. A0 is closed with versioned
+domain, correction, privacy, threat, review, adapter, and supervisor contracts,
+redacted fixtures, and deterministic tests. The next packet is A1's
+append-only ledger on synthetic disposable stores.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C

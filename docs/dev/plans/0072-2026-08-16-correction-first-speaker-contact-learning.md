@@ -88,9 +88,9 @@ for later conversations without treating unreviewed predictions as truth.
   evidence gathering and review throughput without weakening abstention or
   relabeling those development results as validation.
 
-## Current execution packet
+## Current execution state
 
-Packet A0 is active. It freezes interfaces only and permits no live effects.
+Packet A0 is closed. It froze interfaces only and produced no live effects.
 
 | Field | A0 control |
 | --- | --- |
@@ -100,7 +100,7 @@ Packet A0 is active. It freezes interfaces only and permits no live effects.
 | Validation | Focused contract tests, full suite, planning audit, link checks, CodeGraph status, and git checks. |
 | Terminal condition | Contract versions and fixtures agree, no privacy decision remains unresolved, and A0 records zero live/provider/biometric effects. |
 
-A0 implementation currently includes:
+A0 delivered:
 
 - `identity_learning_contracts.py`, which exposes one small catalog and
   validation seam;
@@ -112,7 +112,17 @@ A0 implementation currently includes:
   adapter scope and budgets, stale-safe review, zero-effect previews,
   biometric custody, correction bounds, and supervisor limits.
 
-Full validation and governed closeout remain open. A1 has not started.
+Validation passed: 9 focused contract tests, the 1,132-test full suite, the
+active planning audit, link-target checks, `git diff --check`, and a fresh
+CodeGraph readback with 349 files, 10,164 nodes, 34,499 edges, zero pending
+changes, and no worktree mismatch. Commit `d5bee6a` records the implementation.
+All A0 provider, historical, identity, biometric, migration, publication,
+deployment, and external effect counts are zero.
+
+A1 has not started. Its next safe unit is the append-only
+identity/contact/ontology ledger on synthetic disposable stores. Private
+baseline-directory data, live migration, and provider access remain separately
+gated.
 
 ## Stable architecture decisions
 
@@ -497,11 +507,12 @@ A6-A9 are serialized launch stages.
   `git diff --check`, clean commit, push, and upstream equality at each
   integrated packet.
 
-## Planning exit and next authority
+## Packet closeout and next authority
 
-This planning slice is complete when Plan 0072, the evergreen architecture,
-the canonical vocabulary, ROADMAP, and RUNBOOK agree and pass documentation
-validation. The recommended next slice is A0 only: version the schemas, ADRs,
-privacy/threat model, API contracts, redacted fixtures, and deterministic
-tests. A0 must remain non-live and must not start historical processing or
-collect biometric data.
+A0 is closed at its non-live terminal gate. The next slice is A1 only: add the
+append-only identity, source-record, alias, role, relationship, ontology,
+correction, and projection ledger against synthetic disposable stores first.
+A1 must prove migration, rollback, deterministic rebuild, merge/split/reversal,
+exact-source deduplication, exact person-link rules, shared-address exclusion,
+and conflict-preserving reconciliation. It must not migrate a live store, read
+a provider, or write a provider without the exact later gate.

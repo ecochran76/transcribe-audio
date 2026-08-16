@@ -1,5 +1,74 @@
 # Runbook
 
+## Turn 391: Close Plan 0072 A0 contract freeze (2026-08-16)
+
+Summary: Opened Plan 0072 under the standing user execution goal and closed
+its A0 non-live architecture packet. A0 now provides executable domain,
+correction, privacy, threat, review, adapter, and supervisor contracts plus an
+ADR, reference, redacted fixtures, and deterministic tests.
+
+Authority:
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-identity-learning-contracts.md`, ADR 0003, and commit
+`d5bee6a`.
+
+Evidence:
+
+- `identity_learning_contracts.py` freezes 23 versioned artifact families
+  behind `contract_catalog()`, `validate_artifact()`, and
+  `validate_adapter_exchange()`.
+- Provider requests require an exact provider/profile/account/tenant/
+  capability scope, `as_of`, positive budgets, read-only mode, and an
+  idempotency key. Results remain request/run/scope-bound, report consumed
+  budgets, preserve partial failures, and require zero provider writes.
+- Queue payloads require actual original recording filenames and complete
+  source/run/version lineage. Portable review payloads reject raw paths,
+  unrestricted media, provider bodies, full transcripts, and inline
+  biometric material.
+- Review submissions bind an expected projection version and idempotency key.
+  A0 effects are preview-only and require zero provider writes and raw
+  deletions.
+- Person-bound voice samples require reviewed identity and authority. Profile
+  versions cite exact reviewed sample allowlists and private hashed references;
+  inline biometric vectors are rejected.
+- Transcript corrections preserve raw hashes and scoped span lineage. The
+  supervisor freezes two correction passes, one correction/identity cascade,
+  one provider retry, one model-reference repair per phase, and asynchronous
+  post-stabilization processing.
+- Redacted fixtures bind the executable catalog, nine critical artifact
+  examples, and 16 threat controls. The threat matrix has zero unresolved A0
+  privacy decisions.
+- A0 used no provider, private corpus, biometric, identity, contact, live
+  store, dashboard, deployment, external, or Graphiti write. Delegation is
+  `not_spawned`.
+- Progress classification is `blocker_reduction`: A0 removed the architecture
+  ambiguity that blocked A1, but product maturity and live acceptance did not
+  advance.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_identity_learning_contracts.py`
+  passes 9 tests.
+- `.venv/bin/python -m pytest -q --tb=short` passes 1,132 tests in 114.67
+  seconds.
+- The active planning audit returns `ok: true`, zero problems, and recognizes
+  Plan 0072 as `OPEN`.
+- All new internal link targets exist and `git diff --check` passes.
+- CodeGraph refreshed to 349 files, 10,164 nodes, and 34,499 edges with zero
+  pending changes and no worktree mismatch. Its full-reindex recommendation is
+  unchanged and doesn't affect this source readback.
+- A transcription smoke was not run because A0 changes no transcription,
+  watcher, output, runtime, or live behavior.
+
+Next:
+
+- Execute Plan 0072 A1 on synthetic disposable stores first. Add the
+  append-only identity/contact/ontology/correction ledger and prove migration,
+  rollback, rebuild, merge/split/reversal, exact deduplication and linking,
+  shared-address exclusion, and conflict-preserving reconciliation. Do not
+  access private directories, migrate a live store, or call/write a provider
+  without the exact later gate.
+
 ## Turn 390: Freeze Plan 0072 grilled architecture (2026-08-16)
 
 Summary: Consolidated the completed design interview into a durable Plan 0072
