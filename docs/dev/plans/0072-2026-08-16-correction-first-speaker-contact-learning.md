@@ -2,10 +2,13 @@
 
 State: OPEN
 
-Planning boundary: this artifact defines architecture and future bounded
-implementation packets only. It does not authorize historical processing,
-background workers, live-store migration, provider calls, contact or identity
-mutation, biometric enrollment, dashboard publication, or deployment.
+Planning boundary: this artifact defines architecture and bounded execution
+packets. The 2026-08-16 A6 checkpoint separately authorizes private reads and
+processing for the frozen 25-conversation historical cohort and one seven-day
+arrival window, plus private A6 run/evidence/queue writes. It does not
+authorize background workers, live-store migration, provider calls, contact
+or identity mutation, biometric enrollment, dashboard publication, or
+deployment.
 
 Execution authority: the user goal `execute plan 72` opens ordinary bounded
 implementation under repo policy. Packet-specific private, live, provider,
@@ -82,8 +85,9 @@ for later conversations without treating unreviewed predictions as truth.
   reliable general automatic identification.
 - The React console now has separate Identity Review and People views over
   local rebuildable projections. They preserve the dashboard's existing
-  Authelia route and add no second authentication layer; private/live queue
-  population remains gated to A6.
+  Authelia route and add no second authentication layer. The authorized A6
+  campaign has populated its isolated private queue; accepted decisions and
+  the authenticated live-route proof remain gated.
 - Plans 0064-0071 found useful acoustic candidates but inadequate contextual
   availability for the tested residual path. The new architecture must improve
   evidence gathering and review throughput without weakening abstention or
@@ -91,9 +95,12 @@ for later conversations without treating unreviewed predictions as truth.
 
 ## Current execution state
 
-Packets A0-A5 are closed. All were non-live and produced no provider,
-private-directory, accepted identity/profile, publication, deployment, or
-external effects.
+Packets A0-A5 are closed. A6 is active under the explicit 2026-08-16
+checkpoint for private reads and processing of the 25 oldest eligible
+historical conversations plus one seven-day stabilized-arrival window. That
+checkpoint authorizes only private A6 run, evidence, and queue records.
+Provider access, live migration, accepted identity/profile effects, deletion,
+deployment, and background scheduling remain unauthorized.
 
 | Field | A0 control |
 | --- | --- |
@@ -668,10 +675,31 @@ This proves the execution bounds and replay mechanics only. It does not meet
 the A6 Level 2 real-artifact, seven-day, or authenticated-usability terminal
 gate.
 
-The next action remains A6 private activation. Reading or processing the 25
-oldest-forward historical conversations or registering seven days of real new
-arrivals crosses the private historical/new-conversation shadow gate. A5
-completion and the redacted A6 readiness harness do not authorize that access.
-A6 requires an explicit checkpoint before those actions. Live migration,
-provider access, accepted identity/profile effects, public publication,
-deployment, and background scheduling remain unauthorized.
+The explicit A6 checkpoint was granted and campaign
+`identity-shadow-36ce4c7eb1467aea97e071b4` was activated from a reviewed
+content-addressed preview. The live schema-v3 store remained read-only; a
+SQLite-consistent private snapshot was migrated to schema v8 for the campaign.
+All 25 historical cases reached terminal A4 state and projected 25 private A5
+queue records. The aggregate readback contains 108 speaker labels, 25 calendar
+candidates, and 55 participant hypotheses. Every case is intentionally
+`partial` because the provider baseline was unavailable under the closed
+provider-access gate: there were zero provider calls and retries, zero review
+submissions, and zero accepted identity, profile, provider-write, or deletion
+effects.
+
+Local loopback browser proof loaded all 25 real queue records on desktop and
+mobile, exposed calendar, participant, speaker, and bounded audio evidence,
+and returned HTTP 206 for an audio byte range with no browser errors or console
+entries. This proves local real-queue usability only; authenticated route
+usability remains unproven because deployment and authenticated live access
+were outside the checkpoint.
+
+The half-open new-arrival window is active from `2026-08-16T23:33:20Z` through
+`2026-08-23T23:33:20Z`. The first read-only observation, through
+`2026-08-16T23:46:21Z`, found zero new documents. A6 remains open until the
+full window is observed, every eligible arrival is recorded, and the terminal
+scorecard/replay gates pass. A7 remains blocked. This advances the Vision's
+correction-first speaker identification, conversation association, and
+reusable-knowledge outcomes from redacted Level 1 readiness into a bounded
+Level 2 private shadow, without claiming the terminal Level 2 evaluation or
+any Level 3 accepted-effect maturity.

@@ -1,5 +1,89 @@
 # Runbook
 
+## Turn 398: Activate Plan 0072 A6 private shadow window (2026-08-16)
+
+Summary: Activated the explicitly authorized private A6 campaign, processed
+the 25 oldest eligible historical conversations in an isolated schema-v8
+snapshot, projected the real private review queue, and opened the seven-day
+stabilized-arrival window. A6 is not terminal until the full window is
+observed and finalized.
+
+Authority:
+`VISION.md`,
+`docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`,
+`docs/correction-first-shadow-campaign.md`, Note 0058, and the user's explicit
+2026-08-16 A6 checkpoint. The checkpoint authorized private reads and
+processing for exactly 25 historical conversations and one seven-day arrival
+window, plus private A6 run/evidence/queue writes. Provider access, live
+migration, accepted identity/profile effects, deletion, deployment, and
+background scheduling remained closed.
+
+Evidence:
+
+- Campaign `identity-shadow-36ce4c7eb1467aea97e071b4` was activated from a
+  reviewed content-addressed preview containing exactly 25 selected and 267
+  deferred eligible historical conversations.
+- The live schema-v3 store remained read-only. A SQLite-consistent copy under
+  `~/.local/state/transcribe-audio/plan-0072/a6/` was backed up and migrated to
+  schema v8 for isolated execution; the pre-migration copy remains alongside
+  it.
+- All 25 historical cases reached terminal A4 supervisor state. They produced
+  200 stage events and 25 private A5 queue items covering 108 speaker labels,
+  25 calendar candidates, and 55 participant hypotheses.
+- Every case is `partial` because the provider baseline was unavailable under
+  the closed provider-access gate. The receipts record zero provider calls,
+  zero retries, zero provider characters, one suppressed duplicate evidence
+  item, and no skipped or failed cases.
+- Queue payload checks found zero raw transcript, transcript-text, source-path,
+  stored-path, provider-payload, or `/home/` leaks. Original recording
+  filenames, source-bound bounded audio URLs, candidates, hypotheses, and
+  unresolved proposals remain available for private review.
+- Local loopback browser QA loaded all 25 unreviewed records. The selected
+  case exposed calendar alternatives, participant hypotheses, three speaker
+  evidence controls, and bounded source audio. Desktop 1440x900 and mobile
+  390x844 readbacks had no horizontal overflow; an audio byte-range request
+  returned HTTP 206. Browser errors and console output were empty.
+- The named browser session and loopback API were closed. A fresh OS readback
+  found zero matching browser/server processes and no listener on the test
+  port.
+- The first live-store read-only arrival observation covered
+  `2026-08-16T23:33:20Z` through `2026-08-16T23:46:21Z` and found zero updated
+  documents, zero eligible arrivals, and zero registered arrival cases. No
+  background schedule was created.
+- The campaign state contains zero review submissions and zero accepted
+  identity, accepted profile, provider-write, raw-deletion, or other nonzero
+  effect events.
+
+Validation:
+
+- The private store reports 25 supervisor runs, 200 stage events, 25 adapter
+  exchanges, 25 queue items, 108 speaker rows, and zero review submissions or
+  nonzero-effect events.
+- All 25 immutable case receipts and the campaign files use private modes; the
+  browser and arrival receipts are mode 0600 and parse as valid JSON.
+- The historical processing receipt SHA-256 is
+  `cf996765e7612c4e0f01b34423b0c37e246a1bedeca4fe2c096f1a28c4c55187`.
+- The browser usability receipt SHA-256 is
+  `276b1b4a45bb6967babccd1fdd818d81989c6c2875a151eefa03852444239222`;
+  the first arrival observation receipt SHA-256 is
+  `e343c8b952186352ae85d60f35c2d9cf122179f1b4f9e712d63c89bc833d4827`.
+- `.venv/bin/python -m pytest -q tests/test_identity_shadow_campaign.py`
+  passes 8 tests; the full suite passes 1,187 tests in 116.00 seconds.
+- The active planning audit reports `ok: true`, zero problems, and Plan 0072
+  as `OPEN`; the goal-only audit is non-applicable and clean.
+- `git diff --check` passes. CodeGraph reports an up-to-date index with 364
+  files, 10,655 nodes, 36,950 edges, and zero pending changes; its existing
+  engine-upgrade advisory does not indicate index staleness.
+
+Next:
+
+- Continue bounded read-only arrival observations through the window end at
+  `2026-08-23T23:33:20Z`, register and process any eligible arrivals in the
+  private campaign, then finalize and replay the aggregate scorecard. Do not
+  schedule a background worker. Authenticated-route usability, provider
+  access, live migration, accepted effects, A7, deployment, and deletion stay
+  blocked unless separately authorized.
+
 ## Turn 397: Prepare Plan 0072 A6 shadow execution harness (2026-08-16)
 
 Summary: Built the A6 Level 1 control plane and proved it only on redacted

@@ -262,16 +262,23 @@ Milestone Focus:
   visible evidence pillars and measured likelihood; and distinct Authelia-
   protected Identity Review and People tabs that always show actual original
   recording filenames. Launch is staged as no-effect shadow, reviewed local
-  learning, then policy-qualified automation. Historical and new processing,
-  live schema migration, biometric collection/enrollment, provider calls,
-  local identity effects, publication, and deployment remain unstarted. A0 is
+  learning, then policy-qualified automation. The first bounded private A6
+  shadow is now active: 25 oldest eligible historical conversations were
+  processed in an isolated schema-v8 snapshot and the seven-day
+  stabilized-arrival window runs through `2026-08-23T23:33:20Z`. Live schema
+  migration, biometric collection/enrollment, provider calls, local identity
+  effects, publication, deployment, and background scheduling remain
+  unstarted. A0 is
   closed at the non-live contract, privacy/threat-model, schema, review,
   adapter, supervisor, and redacted-fixture freeze. A1-A5 are now closed on
   synthetic/redacted stores: schema v8 adds the rebuildable review queue,
   append-only submissions/effect previews, stale-safe APIs, and separate
-  original-filename-bearing Identity Review and People views. A6 is next but
-  requires an explicit private-shadow checkpoint before any historical or new
-  conversation access; live migration and provider access remain gated.
+  original-filename-bearing Identity Review and People views. The explicit A6
+  private-shadow checkpoint was granted for exactly this historical cohort and
+  arrival window. All 25 historical cases are terminal and privately queued
+  with zero provider calls or accepted effects; A6 remains open pending the
+  full arrival window, terminal scorecard, and replay. Live migration and
+  provider access remain gated.
 - Closed Plan 0025 adds the missing post-transcription reasoning stage:
   a ledger-backed Codex app-server clue-discovery pass produces host-validated
   retrieval terms, bounded GWS/Odollo provenance feeds a separate identity
@@ -987,8 +994,10 @@ Identification is explicitly not authentication. Unreviewed proposals cannot
 become accepted people, relationships, speaker assignments, or named-profile
 enrollment authority. Evidence Strength is not probability; empirical
 likelihood and future automatic acceptance have explicit source-disjoint
-denominators. No historical/new processing, provider retrieval, live
-migration, biometric collection, dashboard publication, or deployment has
+denominators. The first authorized private A6 historical cohort has completed
+in an isolated copied store; the seven-day arrival observation remains active.
+Provider retrieval, live migration, biometric collection, dashboard
+publication, deployment, and accepted identity/profile effects have not
 begun. A0 is closed with versioned domain, correction, privacy, threat, review,
 adapter, and supervisor contracts, redacted fixtures, and deterministic tests.
 A1 is also closed: knowledge schema v4 now provides immutable ontology and
@@ -1022,10 +1031,16 @@ boundary. It produced no private, live, provider, biometric, publication, or
   artifact-stabilization window, immutable private activation/arrival/case
   receipts, persisted A4 supervisor verification, optional A5 queue
   projection, exact zero-effect enforcement, and a replayable aggregate
-  scorecard on redacted fixtures. A6 remains below Level 2: no private
-  historical or new-arrival artifact was read or processed, no authenticated
-  usability result exists, and private activation remains behind its explicit
-  checkpoint.
+  scorecard on redacted fixtures. The explicit private checkpoint then
+  activated campaign `identity-shadow-36ce4c7eb1467aea97e071b4`. Its 25
+  historical cases reached terminal A4 state and projected 25 private queue
+  records with 108 speaker labels, 25 calendar candidates, and 55 participant
+  hypotheses. All cases remain partial because provider access stayed closed;
+  there were zero provider calls, review submissions, or accepted effects.
+  Real-queue loopback desktop/mobile and range-audio usability passed. A6
+  remains below its terminal Level 2 gate because the arrival window runs
+  through `2026-08-23T23:33:20Z`, authenticated-route usability is unproven,
+  and the terminal scorecard/replay have not run.
 
 Historical execution: P4A model/code/terms acquisition and P4B offline
 adapters plus synthetic private profile lifecycle closed before the initial P4C
