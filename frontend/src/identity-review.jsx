@@ -256,6 +256,24 @@ export function IdentityReviewView({ mode }) {
       </div>
 
       <div className="identity-master-detail">
+        {payload.items?.length ? (
+          <label className="identity-mobile-picker">
+            <span>{peopleMode ? "Person" : "Conversation"}</span>
+            <select
+              aria-label={peopleMode ? "Select person" : "Select identity review conversation"}
+              value={selected?.person_id || selected?.queue_item_id || ""}
+              onChange={(event) => setSelectedId(event.target.value)}
+            >
+              {payload.items.map((item) => {
+                const id = item.person_id || item.queue_item_id;
+                const itemLabel = peopleMode
+                  ? item.primary_name || "Unnamed person"
+                  : `${item.original_recording_filename} · ${item.speakers?.length || 0} speakers`;
+                return <option key={id} value={id}>{itemLabel}</option>;
+              })}
+            </select>
+          </label>
+        ) : <p className="identity-mobile-empty">No records match these filters.</p>}
         <div className="identity-list" aria-label={peopleMode ? "People list" : "Identity review queue"}>
           {(payload.items || []).map((item) => {
             const id = item.person_id || item.queue_item_id;
@@ -271,7 +289,7 @@ export function IdentityReviewView({ mode }) {
         </div>
 
         <div className="identity-detail">
-          {!selected ? <p className="muted">Select a record to inspect it.</p> : peopleMode ? (
+          {!selected ? (payload.items?.length ? <p className="muted">Select a record to inspect it.</p> : null) : peopleMode ? (
             <PeopleDetail person={selected} />
           ) : (
             <>
