@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Icon } from "./icons.jsx";
 
 const REVIEW_ACTIONS = [
   "confirm",
@@ -279,9 +280,11 @@ export function IdentityReviewView({ mode }) {
             const id = item.person_id || item.queue_item_id;
             return (
               <button className={id === (selected?.person_id || selected?.queue_item_id) ? "active" : ""} key={id} onClick={() => setSelectedId(id)} type="button">
-                <span className="identity-list-kicker">{peopleMode ? label(item.status) : `${label(item.review_state)} · priority ${item.priority ?? 0}`}</span>
-                <strong>{peopleMode ? item.primary_name || "Unnamed person" : item.original_recording_filename}</strong>
-                <small>{peopleMode ? `${item.source_records?.length || 0} sources · ${item.roles?.length || 0} roles` : `${item.speakers?.length || 0} speakers · ${item.calendar_candidates?.length || 0} calendar candidates`}</small>
+                <span className="identity-list-copy">
+                  <strong>{peopleMode ? item.primary_name || "Unnamed person" : item.original_recording_filename}</strong>
+                  <small>{peopleMode ? `${item.source_records?.length || 0} sources · ${item.roles?.length || 0} roles` : `${item.speakers?.length || 0} speakers · ${item.calendar_candidates?.length || 0} events`}</small>
+                </span>
+                <span className="identity-list-kicker">{peopleMode ? label(item.status) : `${label(item.review_state)}${(item.priority ?? 0) > 0 ? ` · P${item.priority}` : ""}`}</span>
               </button>
             );
           })}
@@ -343,8 +346,8 @@ export function IdentityReviewView({ mode }) {
                     <label className="identity-comment"><span>Immutable review comment</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="3" /></label>
                   </div>
                   <div className="identity-decision-actions">
-                    <button className="secondary-action" disabled={decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={previewDecision} type="button">Preview exact effect</button>
-                    <button className="primary-action" disabled={!preview || !pendingSubmission || decisionState.status === "loading"} onClick={recordDecision} type="button">Record decision</button>
+                    <button aria-label="Preview exact effect" className="icon-button secondary-action" disabled={decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={previewDecision} title="Preview exact effect" type="button"><Icon name="preview" /></button>
+                    <button aria-label="Record decision" className="icon-button primary-action" disabled={!preview || !pendingSubmission || decisionState.status === "loading"} onClick={recordDecision} title="Record decision" type="button"><Icon name="record" /></button>
                   </div>
                   {decisionState.message && <p className={`identity-decision-message ${decisionState.status}`} role="status">{decisionState.message}</p>}
                   {preview && <EffectPreview preview={preview} />}

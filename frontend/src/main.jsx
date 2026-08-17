@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import { IdentityReviewView } from "./identity-review.jsx";
+import { Icon } from "./icons.jsx";
 
 const NAV_ITEMS = [
-  { id: "Library", label: "Library", enabled: true },
-  { id: "Review Queue", label: "Review Queue", enabled: true },
-  { id: "Identity Review", label: "Identity Review", enabled: true },
-  { id: "People", label: "People", enabled: true },
+  { id: "Library", label: "Library", icon: "library", enabled: true },
+  { id: "Review Queue", label: "Review Queue", icon: "queue", enabled: true },
+  { id: "Identity Review", label: "Identity Review", icon: "identity", enabled: true },
+  { id: "People", label: "People", icon: "people", enabled: true },
   { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Settings", label: "Settings", enabled: true }
 ];
@@ -2134,13 +2135,16 @@ function App() {
         <nav className="nav-tabs" aria-label="Primary">
           {PRIMARY_NAV_ITEMS.map((item) => (
             <button
+              aria-label={item.label}
               className={activeNav === item.id ? "active" : ""}
               aria-current={activeNav === item.id ? "page" : undefined}
               key={item.id}
               onClick={() => openAppView(item.id)}
+              title={item.label}
               type="button"
             >
-              {item.label}
+              <Icon name={item.icon} />
+              <span className="visually-hidden">{item.label}</span>
             </button>
           ))}
         </nav>

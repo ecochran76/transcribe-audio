@@ -29,11 +29,38 @@
 
 .identity-workspace > .center-pane {
   min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  padding: 0.4rem 0.75rem 0.75rem;
+}
+
+.identity-workspace .view-heading {
+  margin-bottom: 0.5rem;
+}
+
+.identity-workspace .summary-strip {
+  gap: 0;
+}
+
+.identity-workspace .summary-strip span {
+  border-left: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.identity-workspace .summary-strip span:first-child {
+  border-left: 0;
 }
 
 .identity-surface {
   display: grid;
-  gap: 0.8rem;
+  gap: 0.5rem;
   min-height: 0;
 }
 
@@ -42,10 +69,8 @@
   grid-template-columns: minmax(15rem, 1fr) minmax(11rem, 0.45fr) minmax(13rem, auto);
   gap: 0.65rem;
   align-items: end;
-  padding: 0.65rem;
-  border-radius: 0.7rem;
-  background: rgba(244, 236, 216, 0.045);
-  box-shadow: 0 0 0 1px rgba(244, 236, 216, 0.08);
+  padding: 0 0 0.5rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.1);
 }
 
 .identity-toolbar label,
@@ -64,16 +89,16 @@
 .identity-decision-form select,
 .identity-decision-form textarea {
   width: 100%;
-  min-height: 2.55rem;
+  min-height: 2.25rem;
   border: 1px solid rgba(244, 236, 216, 0.14);
-  border-radius: 0.48rem;
+  border-radius: 0.2rem;
   background: rgba(10, 11, 8, 0.5);
   color: var(--ink);
-  padding: 0.55rem 0.65rem;
+  padding: 0.4rem 0.55rem;
 }
 
 .identity-decision-form textarea {
-  min-height: 4.8rem;
+  min-height: 3.75rem;
   resize: vertical;
 }
 
@@ -82,10 +107,10 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.55rem;
   align-items: center;
-  min-height: 2.55rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.48rem;
-  background: rgba(118, 223, 170, 0.08);
+  min-height: 2.25rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 2px solid var(--ok);
+  background: rgba(118, 223, 170, 0.04);
 }
 
 .identity-load-state strong {
@@ -99,6 +124,7 @@
 }
 
 .identity-load-state.preview {
+  border-left-color: var(--accent-2);
   background: rgba(255, 159, 90, 0.09);
 }
 
@@ -107,12 +133,7 @@
   grid-template-columns: minmax(17rem, 0.34fr) minmax(0, 0.66fr);
   min-height: 38rem;
   overflow: hidden;
-  border-radius: 0.75rem;
-  background: rgba(18, 19, 15, 0.58);
-  box-shadow:
-    0 0 0 1px rgba(244, 236, 216, 0.08),
-    0 1px 2px -1px rgba(0, 0, 0, 0.12),
-    0 2px 4px rgba(0, 0, 0, 0.08);
+  border-block: 1px solid rgba(244, 236, 216, 0.1);
 }
 
 .identity-mobile-picker {
@@ -126,22 +147,38 @@
 .identity-list {
   display: grid;
   align-content: start;
-  gap: 0.22rem;
-  padding: 0.45rem;
+  gap: 0;
+  padding: 0;
   border-right: 1px solid rgba(244, 236, 216, 0.08);
 }
 
 .identity-list button {
   display: grid;
-  gap: 0.25rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
   width: 100%;
-  min-height: 4.7rem;
+  min-height: 3rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.07);
+  border-radius: 0;
   background: transparent;
   color: var(--ink);
-  padding: 0.65rem;
+  padding: 0.4rem 0.55rem;
   text-align: left;
+}
+
+.identity-list-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.identity-list-copy strong,
+.identity-list-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .identity-list button:hover,
@@ -155,7 +192,7 @@
 
 .identity-list-kicker {
   color: var(--accent);
-  font-size: 0.67rem;
+  font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -172,8 +209,8 @@
 .identity-detail {
   display: grid;
   align-content: start;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
 }
 
 .identity-detail-heading,
@@ -192,16 +229,21 @@
   margin: 0;
 }
 
+.identity-detail-heading h2 {
+  font-size: 1.25rem;
+}
+
 .identity-detail-heading p {
   margin: 0.25rem 0 0;
 }
 
 .identity-state-pill {
   flex: 0 0 auto;
-  border-radius: 999px;
-  background: rgba(244, 236, 216, 0.08);
+  border: 1px solid rgba(244, 236, 216, 0.12);
+  border-radius: 0.2rem;
+  background: transparent;
   color: var(--muted);
-  padding: 0.32rem 0.55rem;
+  padding: 0.22rem 0.4rem;
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -223,7 +265,7 @@
 
 .identity-lineage div {
   min-width: 0;
-  padding: 0.65rem 0.7rem;
+  padding: 0.45rem 0.55rem;
 }
 
 .identity-lineage dt {
@@ -241,12 +283,14 @@
 
 .identity-section {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.4rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
 }
 
 .identity-candidate-list {
   display: grid;
-  gap: 0.35rem;
+  gap: 0;
 }
 
 .identity-candidate-list article,
@@ -254,13 +298,14 @@
 .effect-preview,
 .identity-decision-panel,
 .people-editing-boundary {
-  border-radius: 0.62rem;
-  background: rgba(244, 236, 216, 0.045);
-  box-shadow: 0 0 0 1px rgba(244, 236, 216, 0.08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .identity-candidate-list article {
-  padding: 0.65rem 0.75rem;
+  padding: 0.45rem 0.1rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.07);
 }
 
 .identity-candidate-list p {
@@ -276,7 +321,7 @@
 }
 
 .identity-tags span {
-  border-radius: 999px;
+  border-radius: 0.2rem;
   background: rgba(244, 236, 216, 0.07);
   padding: 0.38rem 0.58rem;
   font-size: 0.74rem;
@@ -284,8 +329,8 @@
 
 .speaker-evidence-row {
   display: grid;
-  gap: 0.65rem;
-  padding: 0.75rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.1rem;
 }
 
 .speaker-evidence-row header > div {
@@ -346,8 +391,9 @@
 
 .identity-decision-panel {
   display: grid;
-  gap: 0.7rem;
-  padding: 0.8rem;
+  gap: 0.5rem;
+  padding: 0.7rem 0 0;
+  border-top: 1px solid rgba(244, 236, 216, 0.1);
 }
 
 .identity-decision-form {
@@ -367,10 +413,14 @@
 }
 
 .identity-decision-actions button {
-  min-height: 2.65rem;
+  display: grid;
+  width: 2.375rem;
+  height: 2.375rem;
+  min-height: 0;
   border: 1px solid rgba(244, 236, 216, 0.16);
-  border-radius: 0.5rem;
-  padding: 0.55rem 0.78rem;
+  border-radius: 0.25rem;
+  padding: 0;
+  place-items: center;
 }
 
 .identity-decision-actions .primary-action {
@@ -407,7 +457,8 @@
 .effect-preview {
   display: grid;
   gap: 0.55rem;
-  padding: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-left: 2px solid var(--ok);
   background: rgba(118, 223, 170, 0.055);
 }
 
@@ -437,7 +488,8 @@
 
 .people-editing-boundary {
   margin: 0;
-  padding: 0.65rem 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 2px solid rgba(244, 236, 216, 0.16);
   font-size: 0.78rem;
 }
 
@@ -465,6 +517,16 @@
 }
 
 @media (max-width: 900px) {
+  .identity-workspace .view-heading {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .identity-workspace .summary-strip {
+    justify-content: flex-start;
+  }
+
   .identity-toolbar,
   .identity-master-detail,
   .identity-lineage,
@@ -492,7 +554,7 @@
     width: 100%;
     min-height: 44px;
     border: 1px solid rgba(244, 236, 216, 0.14);
-    border-radius: 0.48rem;
+    border-radius: 0.2rem;
     background: rgba(10, 11, 8, 0.5);
     color: var(--ink);
     padding: 0.55rem 0.65rem;
@@ -522,12 +584,12 @@
   }
 
   .identity-decision-actions {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
   }
 
   .identity-decision-actions button {
-    min-height: 44px;
+    width: 44px;
+    height: 44px;
   }
 
   .speaker-evidence-row li {
@@ -638,9 +700,38 @@ a:focus-visible {
   padding: 0.45rem 0.72rem;
 }
 
+.nav-tabs button {
+  display: grid;
+  width: 2.375rem;
+  height: 2.375rem;
+  border-color: transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  padding: 0;
+  place-items: center;
+}
+
 .nav-tabs button.active {
-  background: var(--ink);
-  color: #15160f;
+  border-color: rgba(215, 255, 115, 0.22);
+  background: rgba(215, 255, 115, 0.12);
+  color: var(--accent);
+}
+
+.ui-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.nav-tabs .visually-hidden,
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .nav-tabs button:disabled {
@@ -3626,8 +3717,7 @@ dd {
 
 .workflow-action-row a,
 .workflow-action-row button,
-.workflow-prep-card button,
-.identity-list button {
+.workflow-prep-card button {
   border: 1px solid rgba(244, 236, 216, 0.14);
   border-radius: 999px;
   background: rgba(244, 236, 216, 0.07);
@@ -3793,7 +3883,9 @@ dd {
   }
 
   .nav-tabs button {
-    min-height: 2.4rem;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
   }
 
   .brand {
