@@ -97,6 +97,7 @@ Read and follow:
 - `docs/dev/policies/0040-validation-and-handoff.md`
 - `docs/dev/policies/0041-subagent-runtime-governance.md`
 - `docs/dev/policies/0042-preview-artifact-review.md`
+- `docs/dev/policies/0043-active-lane-coordination.md`
 
 ## Graphiti Memory Discovery
 - Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.
