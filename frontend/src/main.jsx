@@ -7,7 +7,7 @@ import { Icon } from "./icons.jsx";
 const NAV_ITEMS = [
   { id: "Library", label: "Library", icon: "library", enabled: true },
   { id: "Review Queue", label: "Review Queue", icon: "queue", enabled: true },
-  { id: "People", label: "People", icon: "people", enabled: true },
+  { id: "People", label: "Contacts", icon: "people", enabled: true },
   { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Settings", label: "Settings", enabled: true }
 ];
@@ -2296,7 +2296,7 @@ function App() {
                 {activeNav === "Review Queue"
                   ? "Review queue"
                   : activeNav === "People"
-                      ? "People"
+                      ? "Contacts"
                   : activeNav === "Intelligence"
                     ? "Intelligence routing"
                     : activeNav === "Provenance"
@@ -2306,7 +2306,7 @@ function App() {
                         : "Transcript library"}
               </h1>
             </div>
-            {!isSettingsView && activeNav !== "Review Queue" && (
+            {!isSettingsView && !["Review Queue", "People"].includes(activeNav) && (
               <div className="summary-strip">
                 <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
                 <span>{library.total ?? visibleItems.length} artifacts</span>

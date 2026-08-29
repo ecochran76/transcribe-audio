@@ -102,6 +102,37 @@ checkpoint authorizes only private A6 run, evidence, and queue records.
 Provider access, live migration, accepted identity/profile effects, deletion,
 deployment, and background scheduling remain unauthorized.
 
+The 2026-08-29 operator feedback opens one bounded A6-R1 read-side Contacts
+refinement on the existing authenticated dashboard. It may deploy API and UI
+code that projects already-local canonical people, local contacts, and exact
+operator-reviewed speaker labels into one compact directory. Each authority
+class must remain visibly separate. This refinement performs no provider call
+or write, schema migration, contact/person merge, speaker-assignment apply,
+biometric effect, or accepted identity mutation.
+
+| Field | A6-R1 control |
+| --- | --- |
+| Bounded outcome | Replace the empty People pane with a compact Contacts directory that connects existing person/contact records to exact prior speaker-review evidence without claiming they are already reconciled. |
+| Vision movement | Advances outcomes 3, 7, and 8; contact/identity visibility moves from Level 1 built-but-empty UI to Level 2 usable read-side projection on live local evidence. It does not establish reviewed-learning effects or Level 3 contact management. |
+| Write surface | Existing `/api/people` read model, React Contacts view, focused tests, plan/roadmap/runbook records, and the already-authorized dashboard deployment. |
+| Inputs | Existing schema-v8 local store, current-person profiles, local `contacts` rows, A6 queue artifacts, and exact validated operator gold already used by the Review Queue. |
+| Validation | Focused API/workflow tests, frontend build, read-only live API counts, desktop/mobile Agent Browser proof, no decision/contact POST during QA, service/process readback, planning audit, and git checks. |
+| Terminal condition | Contacts is non-empty, source classes and unresolved links are explicit, prior speaker-review occurrences are inspectable, mobile remains usable, and all prohibited effect counts remain zero. |
+
+A6-R1 delivered on 2026-08-29:
+
+- `/api/people` now projects 6 canonical people, 2 unlinked local contacts,
+  and 35 exact operator-reviewed speaker names with 71 review appearances;
+- the compact Contacts view supports search, source-class filters, client-side
+  sorting, a dense master/detail layout, and a mobile contact picker;
+- five records with exact display-name overlap expose review-required related
+  records, but no merge or contact/person link was inferred or written; and
+- focused tests, the frontend build, live desktop/mobile Agent Browser proof,
+  GET-only network evidence, service/process readback, the active planning
+  audit, and git checks passed. This completes only the Level 2 read-side
+  refinement; Plan 0072 A6 and all Level 3 contact-management effects remain
+  open or gated as stated above.
+
 | Field | A0 control |
 | --- | --- |
 | Bounded outcome | Freeze versioned domain, correction, privacy, threat, review, adapter, and supervisor contracts. |

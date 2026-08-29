@@ -345,6 +345,137 @@ def _operator_gold_by_document(
     return {document_id: display for document_id, (_date, display) in candidates.items()}
 
 
+def _operator_review_people(
+    con: sqlite3.Connection, gold_root: Path
+) -> list[dict[str, Any]]:
+    """Project reviewed speaker labels as unlinked directory records."""
+
+    documents_exist = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'documents'"
+    ).fetchone()
+    if documents_exist is None:
+        return []
+    document_rows = con.execute(
+        """
+        SELECT id, generated_at, json_payload
+        FROM documents
+        WHERE kind = 'transcript'
+        ORDER BY COALESCE(NULLIF(generated_at, ''), updated_at) DESC, id
+        """
+    ).fetchall()
+    documents: dict[str, tuple[str, Mapping[str, Any], str]] = {}
+    for row in document_rows:
+        payload = _object(str(row["json_payload"]))
+        for key in (
+            str(payload.get("conversation_id") or ""),
+            str(payload.get("recording_id") or ""),
+        ):
+            if key and key not in documents:
+                documents[key] = (str(row["id"]), payload, str(row["generated_at"] or ""))
+
+    expected_speakers: dict[str, set[str]] = {}
+    display_by_document: dict[str, dict[str, str]] = {}
+    queue_rows = con.execute(
+        """
+        SELECT artifact_json
+        FROM knowledge_identity_review_queue
+        ORDER BY queue_item_id
+        """
+    ).fetchall()
+    for row in queue_rows:
+        item = _object(str(row["artifact_json"]))
+        document = documents.get(str(item.get("conversation_id") or "")) or documents.get(
+            str(item.get("recording_id") or "")
+        )
+        if document is None:
+            continue
+        document_id, payload, generated_at = document
+        expected_speakers[document_id] = {
+            str(speaker.get("speaker_ref") or "")
+            for speaker in item.get("speakers") or []
+            if isinstance(speaker, Mapping) and str(speaker.get("speaker_ref") or "")
+        }
+        display_by_document[document_id] = {
+            "recording_title": _display_title(item, payload),
+            "recording_filename": str(item.get("original_recording_filename") or ""),
+            "recorded_at": str(payload.get("recording_start") or generated_at),
+        }
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for document_id, review in _operator_gold_by_document(
+        gold_root, expected_speakers
+    ).items():
+        display = display_by_document.get(document_id) or {}
+        for outcome in review.get("speaker_outcomes") or []:
+            if not isinstance(outcome, Mapping) or outcome.get("outcome") != "person":
+                continue
+            source_identity_id = str(outcome.get("person_ground_truth_id") or "")
+            name = str(outcome.get("label") or source_identity_id)
+            if not source_identity_id or not name:
+                continue
+            record = grouped.setdefault(
+                source_identity_id,
+                {
+                    "person_id": f"review:{source_identity_id}",
+                    "source_identity_id": source_identity_id,
+                    "identity_kind": "reviewed_speaker",
+                    "status": "reviewed",
+                    "primary_name": name,
+                    "aliases": [],
+                    "merged_into_person_id": "",
+                    "source_records": [],
+                    "roles": [],
+                    "relationships": [],
+                    "review_occurrences": [],
+                    "possible_related_records": [],
+                    "input_watermark": "",
+                    "built_at": "",
+                },
+            )
+            occurrence = {
+                **display,
+                "speaker_ref": str(outcome.get("speaker_ref") or ""),
+                "reviewed_at": str(review.get("reviewed_at") or ""),
+                "campaign_id": str(review.get("campaign_id") or ""),
+                "gold_id": str(review.get("gold_id") or ""),
+            }
+            record["review_occurrences"].append(occurrence)
+            record["source_records"].append(
+                {
+                    "source_record_id": f"{occurrence['gold_id']}:{occurrence['speaker_ref']}",
+                    "provider_kind": "operator_review",
+                    "record_type": "speaker_identity",
+                    "label": f"{occurrence['recording_filename']} · Speaker {occurrence['speaker_ref']}",
+                    "external_ref": "",
+                    "resolution_status": "reviewed_label",
+                }
+            )
+            record["built_at"] = max(record["built_at"], occurrence["reviewed_at"])
+
+    people = []
+    for record in grouped.values():
+        occurrences = sorted(
+            record["review_occurrences"],
+            key=lambda value: (
+                str(value.get("recorded_at") or ""),
+                str(value.get("recording_filename") or ""),
+                str(value.get("speaker_ref") or ""),
+            ),
+            reverse=True,
+        )
+        record["review_occurrences"] = occurrences
+        record["speaker_review_count"] = len(occurrences)
+        record["recording_count"] = len(
+            {
+                (value.get("gold_id"), value.get("recording_filename"))
+                for value in occurrences
+            }
+        )
+        record["input_watermark"] = _hash(occurrences)
+        people.append(record)
+    return people
+
+
 class IdentityReviewWorkflow:
     """Project review work and record preview-only, stale-safe decisions."""
 
@@ -722,35 +853,21 @@ class IdentityReviewWorkflow:
         offset: int = 0,
         query: str = "",
         status: str = "",
+        kind: str = "",
     ) -> dict[str, Any]:
         if limit < 1 or limit > 200 or offset < 0:
             raise IdentityReviewWorkflowError("People pagination is outside its bounds.")
-        clauses: list[str] = []
-        values: list[Any] = []
-        if status:
-            clauses.append("status = ?")
-            values.append(status)
-        if query.strip():
-            clauses.append("LOWER(primary_name || ' ' || aliases_json) LIKE ?")
-            values.append(f"%{query.strip().lower()}%")
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        allowed_kinds = {"", "canonical_person", "local_contact", "reviewed_speaker"}
+        if kind not in allowed_kinds:
+            raise IdentityReviewWorkflowError("Unsupported Contacts record type.")
         with transcript_store.connect(self.root) as con:
-            total = int(
-                con.execute(
-                    f"SELECT COUNT(*) FROM knowledge_identity_people_projection {where}",
-                    tuple(values),
-                ).fetchone()[0]
-            )
             people = con.execute(
-                f"""
+                """
                 SELECT * FROM knowledge_identity_people_projection
-                {where}
                 ORDER BY LOWER(primary_name), person_id
-                LIMIT ? OFFSET ?
-                """,
-                (*values, limit, offset),
+                """
             ).fetchall()
-            items = []
+            items: list[dict[str, Any]] = []
             for person in people:
                 person_id = str(person["person_id"])
                 sources = con.execute(
@@ -773,10 +890,11 @@ class IdentityReviewWorkflow:
                 items.append(
                     {
                         "person_id": person_id,
+                        "identity_kind": "canonical_person",
                         "status": str(person["status"]),
                         "primary_name": str(person["primary_name"]),
                         "aliases": _array(str(person["aliases_json"])),
-                        "merged_into_person_id": str(person["merged_into_person_id"]),
+                        "merged_into_person_id": str(person["merged_into_person_id"] or ""),
                         "source_records": [dict(row) for row in sources],
                         "roles": [
                             {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
@@ -786,17 +904,216 @@ class IdentityReviewWorkflow:
                             {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
                             for row in relationships
                         ],
+                        "review_occurrences": [],
+                        "speaker_review_count": 0,
+                        "recording_count": 0,
+                        "possible_related_records": [],
                         "input_watermark": str(person["input_watermark"]),
                         "built_at": str(person["built_at"]),
                     }
                 )
+
+            existing_person_ids = {item["person_id"] for item in items}
+            profiles = con.execute(
+                """
+                SELECT * FROM knowledge_current_person_profiles
+                ORDER BY LOWER(primary_name), person_id
+                """
+            ).fetchall()
+            for profile in profiles:
+                person_id = str(profile["person_id"])
+                if person_id in existing_person_ids:
+                    continue
+                source_rows = con.execute(
+                    """
+                    SELECT * FROM knowledge_source_records
+                    WHERE person_id = ?
+                    ORDER BY provider_kind, label, id
+                    """,
+                    (person_id,),
+                ).fetchall()
+                sources = []
+                for source in source_rows:
+                    metadata = _object(str(source["metadata_json"]))
+                    sources.append(
+                        {
+                            "source_record_id": str(source["id"]),
+                            "source_profile_id": str(source["source_profile_id"]),
+                            "provider_kind": str(source["provider_kind"]),
+                            "record_type": str(
+                                metadata.get("record_type")
+                                or source["relationship_scope"]
+                                or "source_record"
+                            ),
+                            "external_ref": str(source["external_ref"]),
+                            "label": str(source["label"]),
+                            "resolution_status": str(profile["resolution_status"]),
+                        }
+                    )
+                roles = con.execute(
+                    "SELECT * FROM knowledge_identity_role_projection WHERE person_id = ? ORDER BY role_type, role_id",
+                    (person_id,),
+                ).fetchall()
+                relationships = con.execute(
+                    """
+                    SELECT * FROM knowledge_identity_relationship_projection
+                    WHERE (subject_type = 'person' AND subject_id = ?)
+                       OR (object_type = 'person' AND object_id = ?)
+                    ORDER BY relationship_type, relationship_id
+                    """,
+                    (person_id, person_id),
+                ).fetchall()
+                items.append(
+                    {
+                        "person_id": person_id,
+                        "identity_kind": "canonical_person",
+                        "status": str(profile["resolution_status"]),
+                        "primary_name": str(profile["primary_name"]),
+                        "aliases": _array(str(profile["aliases_json"])),
+                        "merged_into_person_id": "",
+                        "source_records": sources,
+                        "roles": [
+                            {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
+                            for row in roles
+                        ],
+                        "relationships": [
+                            {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
+                            for row in relationships
+                        ],
+                        "review_occurrences": [],
+                        "speaker_review_count": 0,
+                        "recording_count": 0,
+                        "possible_related_records": [],
+                        "input_watermark": str(profile["input_watermark"]),
+                        "built_at": str(profile["built_at"]),
+                    }
+                )
+
+            contacts_exist = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'contacts'"
+            ).fetchone()
+            if contacts_exist is not None:
+                contacts = con.execute(
+                    "SELECT * FROM contacts ORDER BY LOWER(label), id"
+                ).fetchall()
+                for contact in contacts:
+                    metadata = _object(str(contact["metadata_json"]))
+                    email = str(contact["email"] or "")
+                    external_ref = str(contact["external_ref"] or "")
+                    contact_id = str(contact["id"])
+                    items.append(
+                        {
+                            "person_id": f"contact:{contact_id}",
+                            "source_identity_id": contact_id,
+                            "identity_kind": "local_contact",
+                            "status": "provisional",
+                            "primary_name": str(contact["label"]),
+                            "aliases": [],
+                            "merged_into_person_id": "",
+                            "source_records": [
+                                {
+                                    "source_record_id": contact_id,
+                                    "provider_kind": str(metadata.get("source") or "local"),
+                                    "record_type": "local_contact",
+                                    "external_ref": email or external_ref,
+                                    "label": str(contact["label"]),
+                                    "resolution_status": "unlinked",
+                                }
+                            ],
+                            "contact_methods": (
+                                [{"kind": "email", "value": email}] if email else []
+                            ),
+                            "roles": [],
+                            "relationships": [],
+                            "review_occurrences": [],
+                            "speaker_review_count": 0,
+                            "recording_count": 0,
+                            "possible_related_records": [],
+                            "input_watermark": _hash(
+                                {
+                                    "id": contact_id,
+                                    "label": str(contact["label"]),
+                                    "email": email,
+                                    "external_ref": external_ref,
+                                    "updated_at": str(contact["updated_at"]),
+                                }
+                            ),
+                            "built_at": str(contact["updated_at"]),
+                        }
+                    )
+
+            items.extend(_operator_review_people(con, self.gold_root))
+
+        name_groups: dict[str, list[dict[str, Any]]] = {}
+        for item in items:
+            normalized_name = str(item.get("primary_name") or "").strip().casefold()
+            if normalized_name:
+                name_groups.setdefault(normalized_name, []).append(item)
+        for group in name_groups.values():
+            if len(group) < 2:
+                continue
+            for item in group:
+                item["possible_related_records"] = [
+                    {
+                        "person_id": other["person_id"],
+                        "identity_kind": other["identity_kind"],
+                        "primary_name": other["primary_name"],
+                        "status": other["status"],
+                        "reason_code": "exact_display_name_requires_review",
+                    }
+                    for other in group
+                    if other is not item
+                ]
+
+        counts = {
+            identity_kind: sum(
+                1 for item in items if item["identity_kind"] == identity_kind
+            )
+            for identity_kind in ("canonical_person", "local_contact", "reviewed_speaker")
+        }
+        query_text = query.strip().casefold()
+        filtered = [
+            item
+            for item in items
+            if (not status or item["status"] == status)
+            and (not kind or item["identity_kind"] == kind)
+            and (
+                not query_text
+                or query_text
+                in " ".join(
+                    [
+                        str(item.get("primary_name") or ""),
+                        *[str(value) for value in item.get("aliases") or []],
+                        _json(item.get("source_records") or []),
+                        _json(item.get("review_occurrences") or []),
+                    ]
+                ).casefold()
+            )
+        ]
+        kind_rank = {"canonical_person": 0, "local_contact": 1, "reviewed_speaker": 2}
+        filtered.sort(
+            key=lambda item: (
+                str(item.get("primary_name") or "").casefold(),
+                kind_rank.get(str(item.get("identity_kind") or ""), 9),
+                str(item.get("person_id") or ""),
+            )
+        )
+        total = len(filtered)
+        page = filtered[offset : offset + limit]
         return {
             "schema_version": "transcribe-audio.people-projection.v1",
-            "items": items,
+            "items": page,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "filters": {"query": query, "status": status},
-            "authoritative_editing_surface": "tables_and_explicit_forms",
+            "filters": {"query": query, "status": status, "kind": kind},
+            "counts": counts,
+            "projection_sources": [
+                "identity_ledger",
+                "current_person_profiles",
+                "local_contacts",
+                "operator_gold",
+            ],
+            "authoritative_editing_surface": "read_only_directory",
             "relationship_hop_limit": 2,
         }

@@ -284,6 +284,15 @@ def test_queue_read_reconciles_exact_operator_gold_without_mutating_proposal(
     ]
     assert item["speakers"][0]["best_guess"]["label"] == "Alex Example"
 
+    people = workflow.list_people(kind="reviewed_speaker")
+    assert people["total"] == 1
+    reviewed_person = people["items"][0]
+    assert reviewed_person["identity_kind"] == "reviewed_speaker"
+    assert reviewed_person["source_identity_id"] == "person-alex-example"
+    assert reviewed_person["speaker_review_count"] == 1
+    assert reviewed_person["recording_count"] == 1
+    assert reviewed_person["review_occurrences"][0]["recording_filename"] == "Monday planning.m4a"
+
 
 def test_preview_is_zero_effect_and_submit_is_idempotent_and_stale_safe(
     workflow: IdentityReviewWorkflow,
@@ -373,3 +382,90 @@ def test_people_projection_aggregates_sources_roles_and_relationships(
     assert person["source_records"][0]["provider_kind"] == "fixture"
     assert person["roles"][0]["role_type"] == "project_lead"
     assert person["relationships"][0]["relationship_type"] == "works_with"
+
+
+def test_people_projection_bridges_current_profiles_and_local_contacts_without_linking(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    with transcript_store.connect(workflow.root) as con:
+        transcript_store.init_db(con)
+        con.execute(
+            """
+            INSERT INTO knowledge_people (
+              id, status, primary_name, metadata_json, created_at, updated_at
+            ) VALUES (
+              'canonical-person-1', 'reviewed', 'Alex Example', '{}',
+              '2026-08-16T18:00:00Z', '2026-08-16T18:00:00Z'
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO knowledge_source_records (
+              id, person_id, source_profile_id, provider_kind, account_id,
+              tenant_id, external_ref, label, relationship_scope,
+              identifier_authority, observed_at, content_hash, metadata_json,
+              created_at, updated_at
+            ) VALUES (
+              'source-legacy-1', 'canonical-person-1', 'profile-1', 'human_review',
+              '', '', 'review-1', 'Alex Example', 'person', 'reviewed',
+              '2026-08-16T18:00:00Z', ?, '{}',
+              '2026-08-16T18:00:00Z', '2026-08-16T18:00:00Z'
+            )
+            """,
+            (SHA_A,),
+        )
+        con.execute(
+            """
+            INSERT INTO knowledge_current_person_profiles (
+              person_id, resolution_status, primary_name, aliases_json,
+              source_record_ids_json, observation_ids_json, input_watermark,
+              metadata_json, built_at
+            ) VALUES (
+              'canonical-person-1', 'reviewed', 'Alex Example', '["Alex E."]',
+              '["source-legacy-1"]', '[]', 'profile-watermark', '{}',
+              '2026-08-16T18:00:00Z'
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO contacts (
+              id, label, email, external_ref, metadata_json, created_at, updated_at
+            ) VALUES (
+              'contact-1', 'Alex Example', 'alex@example.test', '',
+              '{"source":"context_workbench_operator_input"}',
+              '2026-08-16T18:00:00Z', '2026-08-16T18:00:00Z'
+            )
+            """
+        )
+        con.commit()
+
+    payload = workflow.list_people(query="alex", limit=10)
+
+    assert payload["total"] == 2
+    assert payload["counts"] == {
+        "canonical_person": 1,
+        "local_contact": 1,
+        "reviewed_speaker": 0,
+    }
+    assert {item["identity_kind"] for item in payload["items"]} == {
+        "canonical_person",
+        "local_contact",
+    }
+    assert all(item["possible_related_records"] for item in payload["items"])
+    canonical = workflow.list_people(kind="canonical_person")["items"][0]
+    assert canonical["aliases"] == ["Alex E."]
+    assert canonical["source_records"][0]["provider_kind"] == "human_review"
+    contact = workflow.list_people(kind="local_contact")["items"][0]
+    assert contact["source_records"][0]["resolution_status"] == "unlinked"
+    assert contact["contact_methods"] == [
+        {"kind": "email", "value": "alex@example.test"}
+    ]
+
+
+def test_people_projection_rejects_unknown_record_kind(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    with pytest.raises(ValueError, match="Unsupported Contacts record type"):
+        workflow.list_people(kind="guessed_person")

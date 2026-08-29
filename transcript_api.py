@@ -5663,6 +5663,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         ),
                         query=first(params, "q") or first(params, "query"),
                         status=first(params, "status"),
+                        kind=first(params, "kind"),
                     )
                 )
                 return

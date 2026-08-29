@@ -1,5 +1,63 @@
 # Runbook
 
+## Turn 399: Deliver the read-only Contacts directory (2026-08-29)
+
+Summary: Replaced the empty People pane with a compact Contacts directory
+backed by current local identity evidence. The live operator dashboard now
+connects reviewed speaker names to their recording appearances without
+silently treating name equality as a person/contact match.
+
+Authority: `VISION.md`, Plan 0072 A6-R1, the user's 2026-08-29 request to begin
+the contacts-management layer, and the existing authenticated dashboard
+deployment. This slice authorized API/UI deployment only. Provider refresh,
+schema migration, merge/link writes, speaker-assignment apply, biometric
+effects, and accepted identity mutations remained closed.
+
+Evidence:
+
+- The live read-only `/api/people` projection contains 43 records: 6 canonical
+  people, 2 unlinked local contacts, and 35 exact operator-reviewed speaker
+  names covering 71 review appearances.
+- Five records expose possible-related hints from exact display-name overlap.
+  Those hints are explicitly marked review-required; no record was merged or
+  linked.
+- Contacts supports search, record-type filtering, Name A-Z / most-reviewed /
+  record-type sorting, a compact desktop master/detail layout, and a mobile
+  selected-contact picker. Reviewed-speaker detail shows human-friendly
+  recording title, original file, speaker label, and review date without a
+  duplicate technical source table.
+- Agent Browser proved 43 desktop rows, 35 review-name rows, 2 local-contact
+  rows, the two Michael Forrester search results, and the 24-review Eric
+  Cochran sort leader. Desktop 1440x1000 and mobile 390x844 have no page-level
+  horizontal overflow; mobile controls are 44px and evidence-table overflow
+  is locally contained.
+- Browser network evidence contains GET requests only, including successful
+  `/api/people` search/filter reads. The exact QA session was closed, and a
+  fresh OS readback found no `transcript-ui-audit` or
+  `transcribe-contacts-final` process residue.
+- Screenshots are retained under
+  `~/.local/state/transcribe-audio/contacts-refinement-20260829/`.
+
+Validation:
+
+- `PYTHONPATH=. .venv/bin/python -m pytest -q
+  tests/test_identity_review_workflow.py tests/test_transcript_api.py` passes
+  70 tests.
+- `.venv/bin/python -m py_compile identity_review_workflow.py
+  transcript_api.py tests/test_identity_review_workflow.py` passes.
+- `npm run build` passes with final assets `index-yAaSrPYU.js` and
+  `index-CU0jOP2O.css`.
+- The live service is active with zero restarts and serves the final assets;
+  the active planning audit reports `ok: true` with zero problems, and
+  `git diff --check` passes.
+- A fresh CodeGraph explore read the current implementation without a
+  staleness banner.
+
+Next: Add reviewed create/link/merge actions only as a separate Level 3 slice
+with append-only decisions, undo, stale-safe previews, and an explicit route
+from speaker correction to the canonical contact chooser. Do not infer links
+from names alone.
+
 ## Turn 398: Activate Plan 0072 A6 private shadow window (2026-08-16)
 
 Summary: Activated the explicitly authorized private A6 campaign, processed

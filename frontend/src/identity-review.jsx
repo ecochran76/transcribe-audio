@@ -79,17 +79,23 @@ const FALLBACK_PEOPLE = {
   items: [
     {
       person_id: "person-1",
+      identity_kind: "canonical_person",
       status: "reviewed",
       primary_name: "Alex Example",
       aliases: ["Alex E."],
       source_records: [{ source_record_id: "source-1", provider_kind: "fixture", record_type: "contact", label: "Alex Example", resolution_status: "reviewed" }],
       roles: [{ role_id: "role-1", role_type: "project_lead", organization_id: "org-1", status: "reviewed", evidence_ids: ["evidence-1"] }],
       relationships: [{ relationship_id: "relationship-1", relationship_type: "works_with", subject_id: "person-1", object_id: "person-2", status: "reviewed", evidence_ids: ["evidence-2"] }],
+      review_occurrences: [],
+      speaker_review_count: 0,
+      recording_count: 0,
+      possible_related_records: [],
       input_watermark: "fixture-watermark-1",
       built_at: "2026-08-16T18:00:00Z"
     }
   ],
-  total: 1
+  total: 1,
+  counts: { canonical_person: 1, local_contact: 0, reviewed_speaker: 0 }
 };
 
 async function fetchJson(url, options) {
@@ -569,25 +575,43 @@ function EffectPreview({ preview }) {
   );
 }
 
+function identityKindLabel(value) {
+  if (value === "canonical_person") return "Person";
+  if (value === "local_contact") return "Contact";
+  if (value === "reviewed_speaker") return "Review name";
+  return "Record";
+}
+
+function identitySummary(item) {
+  if (item.identity_kind === "reviewed_speaker") {
+    return `${item.speaker_review_count || 0} speaker reviews · ${item.recording_count || 0} recordings`;
+  }
+  if (item.identity_kind === "local_contact") {
+    return item.contact_methods?.[0]?.value || "Unlinked local contact";
+  }
+  return `${item.source_records?.length || 0} sources${item.roles?.length ? ` · ${item.roles.length} roles` : ""}`;
+}
+
 function PeopleView() {
   const [payload, setPayload] = useState(FALLBACK_PEOPLE);
   const [query, setQuery] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [sort, setSort] = useState("name");
   const [selectedId, setSelectedId] = useState("");
-  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading people…" });
+  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading contacts…" });
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       const params = new URLSearchParams({ limit: "100" });
       if (query.trim()) params.set("q", query.trim());
-      if (stateFilter) params.set("status", stateFilter);
+      if (kindFilter) params.set("kind", kindFilter);
       try {
         const next = await fetchJson(`/api/people?${params}`);
         if (cancelled) return;
         setPayload(next);
         setSelectedId((current) => next.items?.some((item) => item.person_id === current) ? current : next.items?.[0]?.person_id || "");
-        setLoadState({ status: "live", message: "Local projection loaded" });
+        setLoadState({ status: "live", message: "Local directory loaded" });
       } catch (error) {
         if (cancelled) return;
         setPayload(FALLBACK_PEOPLE);
@@ -599,40 +623,63 @@ function PeopleView() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, stateFilter]);
+  }, [query, kindFilter]);
 
-  const selected = payload.items?.find((item) => item.person_id === selectedId) || payload.items?.[0] || null;
+  const items = useMemo(() => {
+    const next = [...(payload.items || [])];
+    if (sort === "reviews") {
+      next.sort((left, right) => (right.speaker_review_count || 0) - (left.speaker_review_count || 0) || left.primary_name.localeCompare(right.primary_name));
+    } else if (sort === "type") {
+      next.sort((left, right) => identityKindLabel(left.identity_kind).localeCompare(identityKindLabel(right.identity_kind)) || left.primary_name.localeCompare(right.primary_name));
+    } else {
+      next.sort((left, right) => left.primary_name.localeCompare(right.primary_name));
+    }
+    return next;
+  }, [payload.items, sort]);
+  const selected = items.find((item) => item.person_id === selectedId) || items[0] || null;
+  const counts = payload.counts || {};
   return (
-    <section className="identity-surface" aria-label="People">
-      <div className="identity-toolbar">
-        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or alias" /></label>
-        <label><span>Person status</span><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">All</option><option value="reviewed">Reviewed</option><option value="provisional">Provisional</option><option value="merged">Merged</option></select></label>
+    <section className="identity-surface" aria-label="Contacts">
+      <div className="identity-toolbar contacts-toolbar">
+        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, email, recording, or source" /></label>
+        <label><span>Record type</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="">All records</option><option value="canonical_person">People ({counts.canonical_person || 0})</option><option value="local_contact">Local contacts ({counts.local_contact || 0})</option><option value="reviewed_speaker">Review names ({counts.reviewed_speaker || 0})</option></select></label>
+        <label><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="name">Name A–Z</option><option value="reviews">Most speaker reviews</option><option value="type">Record type</option></select></label>
         <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{payload.total || 0}</strong><span>{loadState.message}</span></div>
       </div>
       <div className="identity-master-detail">
-        <div className="identity-list" aria-label="People list">
-          {(payload.items || []).map((item) => (
+        <label className="identity-mobile-picker"><span>Selected contact</span><select value={selected?.person_id || ""} onChange={(event) => setSelectedId(event.target.value)}>{items.map((item) => <option key={item.person_id} value={item.person_id}>{item.primary_name} · {identityKindLabel(item.identity_kind)}</option>)}</select></label>
+        <div className="identity-list" aria-label="Contacts list">
+          {items.map((item) => (
             <button className={item.person_id === selected?.person_id ? "active" : ""} key={item.person_id} onClick={() => setSelectedId(item.person_id)} type="button">
-              <span className="identity-list-copy"><strong>{item.primary_name || "Unnamed person"}</strong><small>{item.source_records?.length || 0} sources · {item.roles?.length || 0} roles</small></span>
-              <span className="identity-list-kicker">{label(item.status)}</span>
+              <span className="identity-list-copy"><strong>{item.primary_name || "Unnamed record"}</strong><small>{identitySummary(item)}</small></span>
+              <span className={`identity-list-kicker ${item.identity_kind}`}>{identityKindLabel(item.identity_kind)}</span>
             </button>
           ))}
         </div>
-        <div className="identity-detail">{selected ? <PeopleDetail person={selected} /> : <p className="muted">No people match these filters.</p>}</div>
+        <div className="identity-detail">{selected ? <PeopleDetail person={selected} /> : <p className="muted contacts-empty">No contacts match these filters.</p>}</div>
       </div>
     </section>
   );
 }
 
 function PeopleDetail({ person }) {
+  const kind = identityKindLabel(person.identity_kind);
+  const boundary = person.identity_kind === "reviewed_speaker"
+    ? "Operator-reviewed speaker name. It is evidence for reconciliation, not yet a canonical contact link."
+    : person.identity_kind === "local_contact"
+      ? "Local contact record. It remains separate until an explicit reviewed link or merge."
+      : "Canonical conversation person assembled from reviewed local knowledge sources.";
   return (
     <>
-      <header className="identity-detail-heading"><div><p className="eyebrow">Person</p><h2>{person.primary_name || "Unnamed person"}</h2><p>{(person.aliases || []).join(" · ") || "No aliases"}</p></div><span className={`identity-state-pill ${person.status}`}>{label(person.status)}</span></header>
-      <p className="people-editing-boundary">Tables and explicit forms are the authoritative editing surface. Accepted People effects remain gated.</p>
-      <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />
-      <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={(person.roles || []).map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />
-      <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={(person.relationships || []).map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />
-      <dl className="identity-lineage"><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at || "Unavailable"}</dd></div><div><dt>Relationship display</dt><dd>Maximum two hops</dd></div></dl>
+      <header className="identity-detail-heading"><div><p className="eyebrow">{kind}</p><h2>{person.primary_name || "Unnamed record"}</h2>{!!person.aliases?.length && <p>{person.aliases.join(" · ")}</p>}</div><span className={`identity-state-pill ${person.status}`}>{label(person.status)}</span></header>
+      <p className="people-editing-boundary">{boundary}</p>
+      {!!person.possible_related_records?.length && <PeopleTable title="Possible related records" columns={["Type", "Name", "Why not linked"]} rows={person.possible_related_records.map((row) => [identityKindLabel(row.identity_kind), row.primary_name, "Exact display name only — review required"])} />}
+      {!!person.contact_methods?.length && <PeopleTable title="Contact methods" columns={["Type", "Value"]} rows={person.contact_methods.map((row) => [label(row.kind), row.value])} />}
+      {!!person.review_occurrences?.length && <PeopleTable title="Speaker review appearances" columns={["Recording", "File", "Speaker", "Reviewed"]} rows={person.review_occurrences.map((row) => [row.recording_title || "Untitled recording", row.recording_filename, row.speaker_ref, formatDate(row.reviewed_at)])} />}
+      {person.identity_kind !== "reviewed_speaker" && <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />}
+      {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
+      {!!person.relationships?.length && <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={person.relationships.map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />}
+      <details className="identity-provenance"><summary>Record provenance</summary><dl className="identity-lineage"><div><dt>Record ID</dt><dd><code>{person.source_identity_id || person.person_id}</code></dd></div><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at ? formatDate(person.built_at) : "Unavailable"}</dd></div></dl></details>
     </>
   );
 }
