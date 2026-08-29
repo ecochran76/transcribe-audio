@@ -2017,6 +2017,48 @@ def test_blob_route_supports_range_reads(tmp_path: Path) -> None:
         server.server_close()
 
 
+def test_blob_route_can_cache_browser_compatible_playback(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    store_root = tmp_path / "store"
+    result = transcript_store.ingest_artifact(
+        write_transcript_artifact(tmp_path),
+        root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+    )
+    blob_id = transcript_api.get_document(result.id, root=store_root)["blobs"][0]["id"]
+
+    def fake_run(arguments, **_kwargs):
+        Path(arguments[-1]).write_bytes(b"browser-compatible-audio")
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    monkeypatch.setattr(transcript_api.subprocess, "run", fake_run)
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0),
+        transcript_api.TranscriptApiHandler,
+        store_root=store_root,
+        embedding_provider="debug-hash",
+        embedding_model="debug-hash",
+        quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        response = urlopen(
+            f"http://{host}:{port}/api/blobs/{blob_id}?playback=mp3&end_ms=4000",
+            timeout=5,
+        )
+        assert response.status == 200
+        assert response.headers["Content-Type"] == "audio/mpeg"
+        assert response.read() == b"browser-compatible-audio"
+        assert (store_root / "playback-cache" / f"{blob_id}-4000.mp3").is_file()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_static_frontend_serves_index_and_assets(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     static_root = tmp_path / "static"

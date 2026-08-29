@@ -1,24 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 
-const REVIEW_ACTIONS = [
+const SPEAKER_ACTIONS = [
   "confirm",
   "choose_existing_person",
   "create_reviewed_provisional_person",
   "not_listed",
   "unresolved",
-  "reject_event",
-  "choose_event",
-  "no_matching_event",
   "mixed_speaker",
   "group_labels",
   "split_label",
-  "correct_source_record",
-  "correct_role",
-  "correct_relationship",
-  "merge_people",
-  "split_person",
-  "supersede",
   "defer"
 ];
 
@@ -29,40 +20,33 @@ const FALLBACK_QUEUE = {
       conversation_id: "fixture-conversation-1",
       recording_id: "fixture-recording-1",
       original_recording_filename: "Monday planning.m4a",
-      source_artifact_sha256: "a".repeat(64),
-      source_media_sha256: "b".repeat(64),
-      processing_run_id: "fixture-run-1",
-      model_versions: ["identity-model-v1"],
-      rubric_versions: ["identity-rubric-v1"],
-      profile_versions: [],
-      calendar_candidates: [
-        { candidate_id: "event-1", label: "Monday planning", association_strength: 0.83, attendees: ["Alex Example", "Morgan Example"] },
-        { candidate_id: "event-2", label: "Project checkpoint", association_strength: 0.51, attendees: ["Alex Example"] }
-      ],
-      participant_hypotheses: [
-        { hypothesis_id: "participant-1", label: "Alex Example", kind: "participant" },
-        { hypothesis_id: "mentioned-1", label: "Taylor Example", kind: "mentioned_person" }
-      ],
       speakers: [
         {
-          speaker_ref: "SPEAKER_01",
+          speaker_ref: "A",
           proposal_id: "proposal-1",
-          best_guess: { person_id: "person-1", label: "Alex Example", strength: 0.76 },
-          alternatives: [{ person_id: "person-2", label: "Morgan Example", strength: 0.42 }],
-          evidence: [
-            { pillar: "calendar", direction: "supporting", summary: "Candidate-event attendee snapshot" },
-            { pillar: "acoustic", direction: "contradicting", summary: "Insufficient reviewed acoustic coverage" }
-          ],
+          best_guess: { person_id: "", label: "Unresolved" },
+          alternatives: [],
           audio: { media_url: "", start_ms: 1250, end_ms: 6900 }
         }
       ],
       review_state: "unreviewed",
-      decision_history: [],
-      effect_preview_ref: "",
       projection_version: "1",
       created_at: "2026-08-16T18:00:00Z",
-      priority: 90,
-      impact_score: 0.8
+      display: {
+        title: "Monday planning",
+        recorded_at: "2026-08-16T18:00:00Z",
+        duration_ms: 1890000,
+        utterance_count: 42,
+        media_url: "",
+        diarization: [
+          {
+            speaker_ref: "A",
+            utterance_count: 20,
+            talk_time_ms: 850000,
+            sample_segments: [{ start_ms: 1250, end_ms: 6900, text: "Representative sample" }]
+          }
+        ]
+      }
     }
   ],
   total: 1
@@ -82,8 +66,7 @@ const FALLBACK_PEOPLE = {
       built_at: "2026-08-16T18:00:00Z"
     }
   ],
-  total: 1,
-  relationship_hop_limit: 2
+  total: 1
 };
 
 async function fetchJson(url, options) {
@@ -104,58 +87,75 @@ function compactHash(value) {
 
 function strength(value) {
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? `${Math.round(numeric * 100)}%` : "Unscored";
+  return Number.isFinite(numeric) ? `${Math.round(numeric * 100)}%` : "";
 }
 
 function operationId(prefix) {
   return `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 }
 
-/*
-  Low-fi layout:
-  [query + state] [status]
-  [priority queue, 34%] | [original filename + candidates + speakers/audio, 66%]
-                         [decision form -> exact effect preview -> record]
-*/
+function formatDate(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+function formatDuration(value) {
+  const totalSeconds = Math.max(0, Math.round(Number(value || 0) / 1000));
+  if (!totalSeconds) return "—";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatTime(value) {
+  const totalSeconds = Math.max(0, Math.round(Number(value || 0) / 1000));
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+function recordingTitle(item) {
+  return item.display?.title || item.original_recording_filename || "Untitled recording";
+}
+
+function recordingDate(item) {
+  const parsed = Date.parse(item.display?.recorded_at || item.created_at || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export function IdentityReviewView({ mode }) {
-  const peopleMode = mode === "people";
-  const [payload, setPayload] = useState(peopleMode ? FALLBACK_PEOPLE : FALLBACK_QUEUE);
+  return mode === "people" ? <PeopleView /> : <RecordingReviewQueue />;
+}
+
+function RecordingReviewQueue() {
+  const [payload, setPayload] = useState(FALLBACK_QUEUE);
   const [query, setQuery] = useState("");
-  const [stateFilter, setStateFilter] = useState(peopleMode ? "" : "unreviewed");
-  const [selectedId, setSelectedId] = useState("");
-  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading local projection…" });
-  const [action, setAction] = useState("confirm");
-  const [personId, setPersonId] = useState("");
-  const [comment, setComment] = useState("");
+  const [stateFilter, setStateFilter] = useState("unreviewed");
+  const [sortOrder, setSortOrder] = useState("newest");
+  const [expandedId, setExpandedId] = useState("");
+  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading recordings…" });
   const [preview, setPreview] = useState(null);
   const [pendingSubmission, setPendingSubmission] = useState(null);
   const [decisionState, setDecisionState] = useState({ status: "idle", message: "" });
-
-  useEffect(() => {
-    setQuery("");
-    setStateFilter(peopleMode ? "" : "unreviewed");
-    setSelectedId("");
-  }, [peopleMode]);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       const params = new URLSearchParams({ limit: "100" });
       if (query.trim()) params.set("q", query.trim());
-      if (stateFilter) params.set(peopleMode ? "status" : "state", stateFilter);
+      if (stateFilter) params.set("state", stateFilter);
       try {
-        const next = await fetchJson(`${peopleMode ? "/api/people" : "/api/identity-review"}?${params}`);
+        const next = await fetchJson(`/api/identity-review?${params}`);
         if (cancelled) return;
         setPayload(next);
-        setSelectedId((current) => next.items?.some((item) => (item.person_id || item.queue_item_id) === current)
-          ? current
-          : next.items?.[0]?.person_id || next.items?.[0]?.queue_item_id || "");
-        setLoadState({ status: "live", message: "Local projection loaded" });
+        setExpandedId((current) => next.items?.some((item) => item.queue_item_id === current) ? current : "");
+        setLoadState({ status: "live", message: "recordings ready" });
       } catch (error) {
         if (cancelled) return;
-        const fallback = peopleMode ? FALLBACK_PEOPLE : FALLBACK_QUEUE;
-        setPayload(fallback);
-        setSelectedId((current) => current || fallback.items[0]?.person_id || fallback.items[0]?.queue_item_id || "");
+        setPayload(FALLBACK_QUEUE);
         setLoadState({ status: "preview", message: `Redacted preview data: ${error.message}` });
       }
     }, query.trim() ? 180 : 0);
@@ -163,224 +163,284 @@ export function IdentityReviewView({ mode }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [peopleMode, query, stateFilter]);
+  }, [query, stateFilter]);
 
-  const selected = useMemo(
-    () => payload.items?.find((item) => (item.person_id || item.queue_item_id) === selectedId) || payload.items?.[0] || null,
-    [payload.items, selectedId]
-  );
-  const firstSpeaker = !peopleMode ? selected?.speakers?.[0] : null;
+  const items = useMemo(() => {
+    const next = [...(payload.items || [])];
+    next.sort((left, right) => {
+      if (sortOrder === "oldest") return recordingDate(left) - recordingDate(right);
+      if (sortOrder === "title") return recordingTitle(left).localeCompare(recordingTitle(right));
+      if (sortOrder === "speakers") {
+        return (right.speakers?.length || 0) - (left.speakers?.length || 0) || recordingDate(right) - recordingDate(left);
+      }
+      return recordingDate(right) - recordingDate(left);
+    });
+    return next;
+  }, [payload.items, sortOrder]);
 
   useEffect(() => {
     setPreview(null);
     setPendingSubmission(null);
     setDecisionState({ status: "idle", message: "" });
-    setPersonId(firstSpeaker?.best_guess?.person_id || "");
-  }, [selectedId, firstSpeaker?.proposal_id, peopleMode]);
+  }, [expandedId]);
 
-  async function previewDecision() {
-    if (!selected || !firstSpeaker) return;
-    const submissionId = operationId("submission");
+  function seekTo(startMs) {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, Number(startMs || 0) / 1000);
+    audioRef.current.play().catch(() => {});
+  }
+
+  async function previewDecision(item, speaker, draft) {
     const submission = {
       schema_version: "transcribe-audio.identity-review-submission.v1",
-      submission_id: submissionId,
-      queue_item_id: selected.queue_item_id,
-      conversation_id: selected.conversation_id,
-      proposal_id: firstSpeaker.proposal_id,
-      action,
-      expected_projection_version: selected.projection_version,
+      submission_id: operationId("submission"),
+      queue_item_id: item.queue_item_id,
+      conversation_id: item.conversation_id,
+      proposal_id: speaker.proposal_id,
+      action: draft.action,
+      expected_projection_version: item.projection_version,
       decision_payload: {
-        speaker_ref: firstSpeaker.speaker_ref,
-        ...(action === "choose_existing_person" ? { person_id: personId } : {})
+        speaker_ref: speaker.speaker_ref,
+        ...(draft.action === "choose_existing_person" ? { person_id: draft.personId } : {})
       },
-      comment,
+      comment: draft.comment,
       idempotency_key: operationId("identity-review"),
       reviewer: "operator",
       decided_at: new Date().toISOString()
     };
-    setDecisionState({ status: "loading", message: "Computing exact local effect preview…" });
+    setDecisionState({ status: "loading", message: "Preparing preview…" });
     try {
-      const next = await fetchJson(`/api/identity-review/items/${encodeURIComponent(selected.queue_item_id)}/preview`, {
+      const next = await fetchJson(`/api/identity-review/items/${encodeURIComponent(item.queue_item_id)}/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submission)
       });
       setPendingSubmission(submission);
       setPreview(next);
-      setDecisionState({ status: "previewed", message: "Preview ready. No identity, profile, provider, or deletion effect has run." });
+      setDecisionState({ status: "previewed", message: `Preview ready for Speaker ${speaker.speaker_ref}. Nothing has been saved.` });
     } catch (error) {
       setDecisionState({ status: "error", message: `Preview failed: ${error.message}` });
     }
   }
 
-  async function recordDecision() {
-    if (!pendingSubmission || !selected) return;
-    setDecisionState({ status: "loading", message: "Recording the local review decision…" });
+  async function recordDecision(item) {
+    if (!pendingSubmission) return;
+    setDecisionState({ status: "loading", message: "Saving correction…" });
     try {
-      const receipt = await fetchJson(`/api/identity-review/items/${encodeURIComponent(selected.queue_item_id)}/decisions`, {
+      const receipt = await fetchJson(`/api/identity-review/items/${encodeURIComponent(item.queue_item_id)}/decisions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pendingSubmission)
       });
-      const refreshed = await fetchJson(`/api/identity-review?limit=100`);
-      setPayload(refreshed);
+      const params = new URLSearchParams({ limit: "100" });
+      if (query.trim()) params.set("q", query.trim());
+      if (stateFilter) params.set("state", stateFilter);
+      setPayload(await fetchJson(`/api/identity-review?${params}`));
       setPreview(receipt.effect_preview);
       setPendingSubmission(null);
-      setDecisionState({ status: "recorded", message: `Decision recorded at projection v${receipt.projection_version}; accepted identity effects remain zero.` });
+      setDecisionState({ status: "recorded", message: "Correction saved to the local review history." });
     } catch (error) {
-      setDecisionState({ status: "error", message: `Decision rejected: ${error.message}` });
+      setDecisionState({ status: "error", message: `Correction rejected: ${error.message}` });
     }
   }
 
   return (
-    <section className="identity-surface" aria-label={peopleMode ? "People" : "Identity Review"}>
-      <div className="identity-toolbar">
+    <section className="recording-review" aria-label="Recording review queue">
+      <div className="recording-toolbar">
         <label>
           <span>Search</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={peopleMode ? "Name or alias" : "Filename, person, speaker, or event"} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title, filename, person, or event" />
         </label>
         <label>
-          <span>{peopleMode ? "Person status" : "Review state"}</span>
+          <span>Review state</span>
           <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
             <option value="">All</option>
-            {peopleMode ? (
-              <><option value="reviewed">Reviewed</option><option value="provisional">Provisional</option><option value="merged">Merged</option></>
-            ) : (
-              <><option value="unreviewed">Unreviewed</option><option value="unresolved">Unresolved</option><option value="reviewed">Reviewed</option></>
-            )}
+            <option value="unreviewed">Needs review</option>
+            <option value="unresolved">Unresolved</option>
+            <option value="reviewed">Reviewed</option>
           </select>
         </label>
-        <div className={`identity-load-state ${loadState.status}`} role="status">
-          <strong>{payload.total || 0}</strong>
-          <span>{loadState.message}</span>
-        </div>
+        <label>
+          <span>Sort</span>
+          <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title A–Z</option>
+            <option value="speakers">Most speakers</option>
+          </select>
+        </label>
       </div>
 
-      <div className="identity-master-detail">
-        {payload.items?.length ? (
-          <label className="identity-mobile-picker">
-            <span>{peopleMode ? "Person" : "Conversation"}</span>
-            <select
-              aria-label={peopleMode ? "Select person" : "Select identity review conversation"}
-              value={selected?.person_id || selected?.queue_item_id || ""}
-              onChange={(event) => setSelectedId(event.target.value)}
-            >
-              {payload.items.map((item) => {
-                const id = item.person_id || item.queue_item_id;
-                const itemLabel = peopleMode
-                  ? item.primary_name || "Unnamed person"
-                  : `${item.original_recording_filename} · ${item.speakers?.length || 0} speakers`;
-                return <option key={id} value={id}>{itemLabel}</option>;
-              })}
-            </select>
-          </label>
-        ) : <p className="identity-mobile-empty">No records match these filters.</p>}
-        <div className="identity-list" aria-label={peopleMode ? "People list" : "Identity review queue"}>
-          {(payload.items || []).map((item) => {
-            const id = item.person_id || item.queue_item_id;
-            return (
-              <button className={id === (selected?.person_id || selected?.queue_item_id) ? "active" : ""} key={id} onClick={() => setSelectedId(id)} type="button">
-                <span className="identity-list-copy">
-                  <strong>{peopleMode ? item.primary_name || "Unnamed person" : item.original_recording_filename}</strong>
-                  <small>{peopleMode ? `${item.source_records?.length || 0} sources · ${item.roles?.length || 0} roles` : `${item.speakers?.length || 0} speakers · ${item.calendar_candidates?.length || 0} events`}</small>
-                </span>
-                <span className="identity-list-kicker">{peopleMode ? label(item.status) : `${label(item.review_state)}${(item.priority ?? 0) > 0 ? ` · P${item.priority}` : ""}`}</span>
+      <div className="recording-queue-status" role="status">
+        <strong>{payload.total || 0} recordings</strong>
+        <span>{loadState.message}</span>
+      </div>
+      <div className="recording-list-head" aria-hidden="true">
+        <span>Recording</span><span>Date</span><span>Details</span><span>Status</span>
+      </div>
+      <div className="recording-list">
+        {items.map((item) => {
+          const expanded = expandedId === item.queue_item_id;
+          const display = item.display || {};
+          const unresolved = (item.speakers || []).filter((speaker) => !speaker.best_guess?.person_id).length;
+          const mediaUrl = display.media_url || item.speakers?.find((speaker) => speaker.audio?.media_url)?.audio?.media_url || "";
+          const playbackUrl = mediaUrl
+            ? `${mediaUrl}${mediaUrl.includes("?") ? "&" : "?"}playback=mp3&end_ms=${Math.max(1000, Number(display.duration_ms || 0))}`
+            : "";
+          return (
+            <article className={`recording-row${expanded ? " expanded" : ""}`} key={item.queue_item_id}>
+              <button aria-expanded={expanded} className="recording-summary" onClick={() => setExpandedId(expanded ? "" : item.queue_item_id)} type="button">
+                <Icon name={expanded ? "chevronDown" : "chevronRight"} size={17} />
+                <span className="recording-title"><strong>{recordingTitle(item)}</strong><small>{item.original_recording_filename}</small></span>
+                <time>{formatDate(display.recorded_at || item.created_at)}</time>
+                <span className="recording-meta">{formatDuration(display.duration_ms)} · {item.speakers?.length || 0} speakers · {display.utterance_count || 0} turns</span>
+                <span className={`recording-state ${item.review_state}`}>{unresolved ? `${unresolved} unresolved` : label(item.review_state)}</span>
               </button>
-            );
-          })}
-          {!payload.items?.length && <p className="muted">No records match these filters.</p>}
-        </div>
-
-        <div className="identity-detail">
-          {!selected ? (payload.items?.length ? <p className="muted">Select a record to inspect it.</p> : null) : peopleMode ? (
-            <PeopleDetail person={selected} />
-          ) : (
-            <>
-              <header className="identity-detail-heading">
-                <div>
-                  <p className="eyebrow">Original recording</p>
-                  <h2>{selected.original_recording_filename}</h2>
-                </div>
-                <span className={`identity-state-pill ${selected.review_state}`}>{label(selected.review_state)} · v{selected.projection_version}</span>
-              </header>
-              <dl className="identity-lineage">
-                <div><dt>Conversation</dt><dd>{selected.conversation_id}</dd></div>
-                <div><dt>Recording</dt><dd>{selected.recording_id}</dd></div>
-                <div><dt>Artifact SHA-256</dt><dd><code>{compactHash(selected.source_artifact_sha256)}</code></dd></div>
-                <div><dt>Media SHA-256</dt><dd><code>{compactHash(selected.source_media_sha256)}</code></dd></div>
-                <div><dt>Processing run</dt><dd>{selected.processing_run_id}</dd></div>
-                <div><dt>Versions</dt><dd>{[...(selected.model_versions || []), ...(selected.rubric_versions || []), ...(selected.profile_versions || [])].join(" · ") || "None"}</dd></div>
-              </dl>
-
-              <section className="identity-section">
-                <div className="identity-section-heading"><h3>Calendar alternatives</h3><span>Top three plus no match</span></div>
-                <div className="identity-candidate-list">
-                  {(selected.calendar_candidates || []).slice(0, 3).map((candidate) => (
-                    <article key={candidate.candidate_id}>
-                      <div><strong>{candidate.label || candidate.summary || candidate.candidate_id}</strong><span>{strength(candidate.association_strength)}</span></div>
-                      <p>{(candidate.attendees || []).join(" · ") || "No attendee snapshot"}</p>
-                    </article>
-                  ))}
-                  <article><div><strong>No matching event</strong><span>Explicit option</span></div><p>Use when none of the candidates fits the recording.</p></article>
-                </div>
-              </section>
-
-              <section className="identity-section">
-                <div className="identity-section-heading"><h3>Participant hypotheses</h3><span>Evidence, not identity truth</span></div>
-                <div className="identity-tags">
-                  {(selected.participant_hypotheses || []).map((participant) => <span key={participant.hypothesis_id}>{participant.label} · {label(participant.kind)}</span>)}
-                </div>
-              </section>
-
-              <section className="identity-section">
-                <div className="identity-section-heading"><h3>Speakers and evidence</h3><span>Every label needs a disposition</span></div>
-                {(selected.speakers || []).map((speaker) => <SpeakerReview key={speaker.speaker_ref} speaker={speaker} />)}
-              </section>
-
-              {firstSpeaker && (
-                <section className="identity-decision-panel">
-                  <div className="identity-section-heading"><h3>Decision and effect preview</h3><span>{firstSpeaker.speaker_ref}</span></div>
-                  <div className="identity-decision-form">
-                    <label><span>Decision</span><select value={action} onChange={(event) => { setAction(event.target.value); setPreview(null); setPendingSubmission(null); }}>{REVIEW_ACTIONS.map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
-                    {action === "choose_existing_person" && <label><span>Person ID</span><input value={personId} onChange={(event) => setPersonId(event.target.value)} required /></label>}
-                    <label className="identity-comment"><span>Immutable review comment</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="3" /></label>
+              {expanded && (
+                <div className="recording-expanded">
+                  <div className="recording-player">
+                    <div><strong>Recording</strong><span>Select any excerpt below to seek.</span></div>
+                    {playbackUrl
+                      ? <audio aria-label={`${recordingTitle(item)} audio`} controls preload="metadata" ref={audioRef} src={playbackUrl} />
+                      : <p className="muted">Audio is unavailable for this recording.</p>}
                   </div>
-                  <div className="identity-decision-actions">
-                    <button aria-label="Preview exact effect" className="icon-button secondary-action" disabled={decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={previewDecision} title="Preview exact effect" type="button"><Icon name="preview" /></button>
-                    <button aria-label="Record decision" className="icon-button primary-action" disabled={!preview || !pendingSubmission || decisionState.status === "loading"} onClick={recordDecision} title="Record decision" type="button"><Icon name="record" /></button>
+                  <div className="speaker-table-head" aria-hidden="true">
+                    <span>Speaker / preliminary ID</span><span>Diarization</span><span>Correction</span>
                   </div>
-                  {decisionState.message && <p className={`identity-decision-message ${decisionState.status}`} role="status">{decisionState.message}</p>}
-                  {preview && <EffectPreview preview={preview} />}
-                </section>
+                  {(item.speakers || []).map((speaker) => {
+                    const diarization = (display.diarization || []).find((value) => value.speaker_ref === speaker.speaker_ref) || {};
+                    const fallbackAudio = speaker.audio || {};
+                    const segments = diarization.sample_segments?.length
+                      ? diarization.sample_segments
+                      : [{ start_ms: fallbackAudio.start_ms, end_ms: fallbackAudio.end_ms, text: "Representative sample" }];
+                    const active = pendingSubmission?.proposal_id === speaker.proposal_id;
+                    return (
+                      <SpeakerCorrectionRow
+                        decisionState={active ? decisionState : { status: "idle", message: "" }}
+                        diarization={diarization}
+                        item={item}
+                        key={speaker.proposal_id}
+                        onPreview={previewDecision}
+                        onRecord={() => recordDecision(item)}
+                        onSeek={seekTo}
+                        pending={active}
+                        preview={active ? preview : null}
+                        segments={segments}
+                        speaker={speaker}
+                      />
+                    );
+                  })}
+                  <p className="mixed-speaker-note">A diarization label can contain more than one person. Use “Mixed speaker” or “Split label” when the excerpts disagree.</p>
+                </div>
               )}
-            </>
-          )}
-        </div>
+            </article>
+          );
+        })}
+        {!items.length && <p className="recording-empty">No recordings match these filters.</p>}
       </div>
     </section>
   );
 }
 
-function SpeakerReview({ speaker }) {
-  const audio = speaker.audio || {};
-  const source = audio.media_url ? `${audio.media_url}#t=${Math.max(0, Number(audio.start_ms || 0) / 1000)},${Math.max(0, Number(audio.end_ms || 0) / 1000)}` : "";
+function SpeakerCorrectionRow({ item, speaker, diarization, segments, onSeek, onPreview, onRecord, pending, preview, decisionState }) {
+  const [action, setAction] = useState(speaker.best_guess?.person_id ? "confirm" : "unresolved");
+  const [personId, setPersonId] = useState(speaker.best_guess?.person_id || "");
+  const [comment, setComment] = useState("");
+  const draft = { action, personId, comment };
   return (
-    <article className="speaker-evidence-row">
-      <header><div><strong>{speaker.speaker_ref}</strong><span>{speaker.best_guess?.label || "No named proposal"}</span></div><b>{strength(speaker.best_guess?.strength)}</b></header>
-      {source ? <audio aria-label={`${speaker.speaker_ref} source-bound sample`} controls preload="none" src={source} /> : <p className="muted">Source-bound audio is unavailable in redacted preview data.</p>}
-      <div className="identity-alternatives"><span>Alternatives</span>{(speaker.alternatives || []).map((candidate) => <small key={candidate.person_id || candidate.label}>{candidate.label} · {strength(candidate.strength)}</small>)}</div>
-      <ul>{(speaker.evidence || []).map((evidence, index) => <li key={`${evidence.pillar}-${index}`}><span className={evidence.direction}>{label(evidence.direction)}</span><strong>{label(evidence.pillar)}</strong>{evidence.summary}</li>)}</ul>
-    </article>
+    <section className="speaker-correction-row">
+      <div className="speaker-identity">
+        <strong>Speaker {speaker.speaker_ref}</strong>
+        <span>{speaker.best_guess?.label || "Unresolved"}{speaker.best_guess?.strength != null ? ` · ${strength(speaker.best_guess.strength)}` : ""}</span>
+        {!!speaker.alternatives?.length && <small>Also: {speaker.alternatives.slice(0, 2).map((candidate) => candidate.label).join(", ")}</small>}
+      </div>
+      <div className="speaker-diarization">
+        <span>{diarization.utterance_count || 0} turns · {formatDuration(diarization.talk_time_ms)}</span>
+        <div className="speaker-excerpts">
+          {segments.filter((segment) => segment.start_ms != null).map((segment, index) => (
+            <button aria-label={`Play Speaker ${speaker.speaker_ref} at ${formatTime(segment.start_ms)}`} key={`${speaker.proposal_id}-${segment.start_ms}-${index}`} onClick={() => onSeek(segment.start_ms)} title={segment.text || "Play excerpt"} type="button">
+              <Icon name="play" size={15} /><time>{formatTime(segment.start_ms)}</time><span>{segment.text || "Play excerpt"}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="speaker-correction">
+        <label><span>Correction</span><select value={action} onChange={(event) => setAction(event.target.value)}>{SPEAKER_ACTIONS.map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
+        {action === "choose_existing_person" && <label><span>Person ID</span><input required value={personId} onChange={(event) => setPersonId(event.target.value)} /></label>}
+        <label className="speaker-comment"><span>Note</span><input onChange={(event) => setComment(event.target.value)} placeholder="Optional review note" value={comment} /></label>
+        <div className="speaker-actions">
+          <button aria-label={`Preview correction for Speaker ${speaker.speaker_ref}`} disabled={decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={() => onPreview(item, speaker, draft)} title="Preview correction" type="button"><Icon name="preview" /></button>
+          <button aria-label={`Save correction for Speaker ${speaker.speaker_ref}`} className="save" disabled={!pending || !preview || decisionState.status === "loading"} onClick={onRecord} title="Save correction" type="button"><Icon name="record" /></button>
+        </div>
+        {decisionState.message && <p className={`speaker-decision-message ${decisionState.status}`} role="status">{decisionState.message}</p>}
+        {preview && <EffectPreview preview={preview} />}
+      </div>
+    </section>
   );
 }
 
 function EffectPreview({ preview }) {
   return (
     <div className="effect-preview" aria-label="Exact effect preview">
-      <header><strong>Preview only</strong><span>{preview.provider_write_count} provider writes · {preview.raw_deletion_count} raw deletions</span></header>
-      {(preview.proposed_effects || []).map((effect, index) => <div key={`${effect.effect_type}-${index}`}><strong>{label(effect.effect_type)}</strong><code>{JSON.stringify(effect, null, 2)}</code></div>)}
+      <header><strong>Preview only</strong><span>{preview.provider_write_count} provider writes · {preview.raw_deletion_count} deletions</span></header>
+      {(preview.proposed_effects || []).map((effect, index) => <p key={`${effect.effect_type}-${index}`}>{label(effect.effect_type)}</p>)}
       {(preview.warnings || []).map((warning) => <p key={warning}>{warning}</p>)}
     </div>
+  );
+}
+
+function PeopleView() {
+  const [payload, setPayload] = useState(FALLBACK_PEOPLE);
+  const [query, setQuery] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading people…" });
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const params = new URLSearchParams({ limit: "100" });
+      if (query.trim()) params.set("q", query.trim());
+      if (stateFilter) params.set("status", stateFilter);
+      try {
+        const next = await fetchJson(`/api/people?${params}`);
+        if (cancelled) return;
+        setPayload(next);
+        setSelectedId((current) => next.items?.some((item) => item.person_id === current) ? current : next.items?.[0]?.person_id || "");
+        setLoadState({ status: "live", message: "Local projection loaded" });
+      } catch (error) {
+        if (cancelled) return;
+        setPayload(FALLBACK_PEOPLE);
+        setSelectedId((current) => current || FALLBACK_PEOPLE.items[0]?.person_id || "");
+        setLoadState({ status: "preview", message: `Redacted preview data: ${error.message}` });
+      }
+    }, query.trim() ? 180 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, stateFilter]);
+
+  const selected = payload.items?.find((item) => item.person_id === selectedId) || payload.items?.[0] || null;
+  return (
+    <section className="identity-surface" aria-label="People">
+      <div className="identity-toolbar">
+        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or alias" /></label>
+        <label><span>Person status</span><select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}><option value="">All</option><option value="reviewed">Reviewed</option><option value="provisional">Provisional</option><option value="merged">Merged</option></select></label>
+        <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{payload.total || 0}</strong><span>{loadState.message}</span></div>
+      </div>
+      <div className="identity-master-detail">
+        <div className="identity-list" aria-label="People list">
+          {(payload.items || []).map((item) => (
+            <button className={item.person_id === selected?.person_id ? "active" : ""} key={item.person_id} onClick={() => setSelectedId(item.person_id)} type="button">
+              <span className="identity-list-copy"><strong>{item.primary_name || "Unnamed person"}</strong><small>{item.source_records?.length || 0} sources · {item.roles?.length || 0} roles</small></span>
+              <span className="identity-list-kicker">{label(item.status)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="identity-detail">{selected ? <PeopleDetail person={selected} /> : <p className="muted">No people match these filters.</p>}</div>
+      </div>
+    </section>
   );
 }
 
@@ -388,7 +448,7 @@ function PeopleDetail({ person }) {
   return (
     <>
       <header className="identity-detail-heading"><div><p className="eyebrow">Person</p><h2>{person.primary_name || "Unnamed person"}</h2><p>{(person.aliases || []).join(" · ") || "No aliases"}</p></div><span className={`identity-state-pill ${person.status}`}>{label(person.status)}</span></header>
-      <p className="people-editing-boundary">Tables and explicit forms are the authoritative editing surface. A5 shows the rebuildable local projection; accepted People effects remain gated.</p>
+      <p className="people-editing-boundary">Tables and explicit forms are the authoritative editing surface. Accepted People effects remain gated.</p>
       <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />
       <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={(person.roles || []).map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />
       <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={(person.relationships || []).map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />
@@ -399,6 +459,11 @@ function PeopleDetail({ person }) {
 
 function PeopleTable({ title, columns, rows }) {
   return (
-    <section className="identity-section people-table-section"><div className="identity-section-heading"><h3>{title}</h3><span>{rows.length}</span></div>{rows.length ? <div className="people-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${title}-${rowIndex}`}>{row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`}>{cell ?? "—"}</td>)}</tr>)}</tbody></table></div> : <p className="muted">No {title.toLowerCase()} in this projection.</p>}</section>
+    <section className="identity-section people-table-section">
+      <div className="identity-section-heading"><h3>{title}</h3><span>{rows.length}</span></div>
+      {rows.length
+        ? <div className="people-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${title}-${rowIndex}`}>{row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`}>{cell ?? "—"}</td>)}</tr>)}</tbody></table></div>
+        : <p className="muted">No {title.toLowerCase()} in this projection.</p>}
+    </section>
   );
 }

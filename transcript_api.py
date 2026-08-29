@@ -85,6 +85,7 @@ DEFAULT_BATCH_ENV_FILE = Path("~/.local/state/transcribe-audio/auracall-transcri
 DEFAULT_CODEX_BIN = "codex"
 MAX_READINESS_OUTPUT_CHARS = 2000
 MAX_APP_ARTIFACT_BYTES = 512 * 1024
+PLAYBACK_CACHE_LOCK = threading.Lock()
 APP_SMOKE_RUN_PREFIX = "smoke-replay-manifest"
 APP_BROWSER_SMOKE_DIRNAME = "browser-smokes"
 APP_SMOKE_JOB_DIRNAME = "smoke-jobs"
@@ -3534,6 +3535,81 @@ def get_blob(blob_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     }
 
 
+def get_browser_playback_blob(
+    blob_id: str,
+    *,
+    root: Optional[Path] = None,
+    end_ms: int = 0,
+) -> dict[str, Any]:
+    """Return a seekable, browser-compatible speech cache for one source blob."""
+
+    source = get_blob(blob_id, root=root)
+    if str(source["mime_type"]) in {"audio/mpeg", "audio/mp3"}:
+        return source
+    store_root = store_dir(root)
+    bounded_end_ms = max(1_000, min(int(end_ms or 86_400_000), 86_400_000))
+    cache_root = store_root / "playback-cache"
+    cache_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(cache_root, 0o700)
+    target = cache_root / f"{blob_id}-{bounded_end_ms}.mp3"
+    ffmpeg_bin = shutil.which("ffmpeg") or next(
+        (
+            str(candidate)
+            for candidate in (
+                Path("/home/linuxbrew/.linuxbrew/bin/ffmpeg"),
+                Path("/opt/homebrew/bin/ffmpeg"),
+                Path("/usr/bin/ffmpeg"),
+            )
+            if candidate.is_file()
+        ),
+        "",
+    )
+    if not ffmpeg_bin:
+        raise TranscriptStoreError("Browser playback conversion requires ffmpeg.")
+    with PLAYBACK_CACHE_LOCK:
+        if not target.is_file() or target.stat().st_size == 0:
+            temporary = cache_root / f".{blob_id}-{bounded_end_ms}-{uuid.uuid4().hex}.mp3"
+            result = subprocess.run(
+                [
+                    ffmpeg_bin,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source["path"]),
+                    "-t",
+                    f"{bounded_end_ms / 1000:.3f}",
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "24000",
+                    "-codec:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "48k",
+                    str(temporary),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
+            if result.returncode != 0 or not temporary.is_file() or temporary.stat().st_size == 0:
+                temporary.unlink(missing_ok=True)
+                raise TranscriptStoreError(
+                    f"Browser playback conversion failed for blob {blob_id}: {result.stderr[-500:]}"
+                )
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, target)
+    return {
+        **source,
+        "path": target,
+        "mime_type": "audio/mpeg",
+        "bytes": target.stat().st_size,
+    }
+
+
 def parse_int(value: str, default: int, *, minimum: int = 0, maximum: int = 500) -> int:
     try:
         parsed = int(value)
@@ -5864,7 +5940,17 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if parsed.path.startswith("/api/blobs/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 3:
-                    self.write_blob(parts[2], download=first(params, "download") in {"1", "true", "yes"})
+                    self.write_blob(
+                        parts[2],
+                        download=first(params, "download") in {"1", "true", "yes"},
+                        browser_playback=first(params, "playback") == "mp3",
+                        end_ms=parse_int(
+                            first(params, "end_ms"),
+                            0,
+                            minimum=0,
+                            maximum=86_400_000,
+                        ),
+                    )
                     return
             if parsed.path.startswith("/api/"):
                 self.write_error(HTTPStatus.NOT_FOUND, "Not found")
@@ -6884,8 +6970,19 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         return True
 
-    def write_blob(self, blob_id: str, *, download: bool = False) -> None:
-        blob = get_blob(blob_id, root=self.store_root)
+    def write_blob(
+        self,
+        blob_id: str,
+        *,
+        download: bool = False,
+        browser_playback: bool = False,
+        end_ms: int = 0,
+    ) -> None:
+        blob = (
+            get_browser_playback_blob(blob_id, root=self.store_root, end_ms=end_ms)
+            if browser_playback
+            else get_blob(blob_id, root=self.store_root)
+        )
         size = int(blob["bytes"])
         file_range = parse_range_header(self.headers.get("Range", ""), size)
         status = HTTPStatus.PARTIAL_CONTENT if file_range else HTTPStatus.OK

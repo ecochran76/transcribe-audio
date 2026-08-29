@@ -7,13 +7,12 @@ import { Icon } from "./icons.jsx";
 const NAV_ITEMS = [
   { id: "Library", label: "Library", icon: "library", enabled: true },
   { id: "Review Queue", label: "Review Queue", icon: "queue", enabled: true },
-  { id: "Identity Review", label: "Identity Review", icon: "identity", enabled: true },
   { id: "People", label: "People", icon: "people", enabled: true },
   { id: "Provenance", label: "Provenance", enabled: true },
   { id: "Settings", label: "Settings", enabled: true }
 ];
 
-const PRIMARY_NAV_ITEMS = NAV_ITEMS.filter((item) => ["Library", "Review Queue", "Identity Review", "People"].includes(item.id));
+const PRIMARY_NAV_ITEMS = NAV_ITEMS.filter((item) => ["Library", "Review Queue", "People"].includes(item.id));
 
 const LIBRARY_KIND_FILTERS = [
   { id: "all", label: "All artifacts" },
@@ -74,7 +73,11 @@ function readInitialUrlState() {
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get("view");
   const requestedSection = params.get("section");
-  const view = requestedView === "Intelligence" ? "Settings" : requestedView;
+  const view = requestedView === "Intelligence"
+    ? "Settings"
+    : requestedView === "Identity Review"
+      ? "Review Queue"
+      : requestedView;
   const kind = params.get("kind");
   const workflow = params.get("workflow");
   return {
@@ -2183,7 +2186,7 @@ function App() {
         className={[
           "workspace",
           activeNav === "Library" ? "library-workspace" : "",
-          ["Identity Review", "People"].includes(activeNav) ? "identity-workspace" : "",
+          ["Review Queue", "People"].includes(activeNav) ? "identity-workspace" : "",
           isSettingsView ? "settings-workspace" : "",
           leftCollapsed ? "left-collapsed" : "",
           rightCollapsed ? "right-collapsed" : ""
@@ -2292,9 +2295,7 @@ function App() {
               <h1>
                 {activeNav === "Review Queue"
                   ? "Review queue"
-                  : activeNav === "Identity Review"
-                    ? "Identity review"
-                    : activeNav === "People"
+                  : activeNav === "People"
                       ? "People"
                   : activeNav === "Intelligence"
                     ? "Intelligence routing"
@@ -2305,7 +2306,7 @@ function App() {
                         : "Transcript library"}
               </h1>
             </div>
-            {!isSettingsView && (
+            {!isSettingsView && activeNav !== "Review Queue" && (
               <div className="summary-strip">
                 <span>{conversations.total ?? visibleConversationRows.length} conversations</span>
                 <span>{library.total ?? visibleItems.length} artifacts</span>
@@ -2360,20 +2361,7 @@ function App() {
           ) : null}
 
           {activeNav === "Review Queue" ? (
-            <ReviewQueue
-              queue={reviewQueue}
-              reviewAction={reviewAction}
-              batchManifests={firstPassBatchManifests}
-              onPrepareFirstPass={prepareFirstPassBatch}
-              onSubmitFirstPass={submitFirstPassBatch}
-              onRefreshFirstPass={refreshFirstPassBatch}
-              onSelectFirstPassManifest={selectFirstPassBatchManifest}
-              humanReviewAction={humanReviewAction}
-              onRecordHumanReview={recordHumanReviewDecision}
-              onOpenQueueConversation={openQueueConversation}
-            />
-          ) : activeNav === "Identity Review" ? (
-            <IdentityReviewView mode="identity" />
+            <IdentityReviewView mode="review" />
           ) : activeNav === "People" ? (
             <IdentityReviewView mode="people" />
           ) : activeNav === "Intelligence" ? (

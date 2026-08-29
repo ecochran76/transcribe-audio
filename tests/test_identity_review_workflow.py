@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -127,6 +128,58 @@ def test_queue_projection_preserves_original_filename_and_filters(workflow: Iden
     assert page["items"][0]["source_artifact_sha256"] == SHA_A
     assert page["items"][0]["speakers"][0]["audio"]["start_ms"] == 1250
     assert "stored_path" not in str(page)
+
+
+def test_queue_read_enriches_recording_and_diarization_metadata(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    workflow.project_queue_item(queue_item(), priority=90, impact_score=0.8)
+    payload = {
+        "conversation_id": "conversation-1",
+        "recording_id": "recording-1",
+        "event": {"summary": "1042: Monday planning"},
+        "utterances": [
+            {"speaker": "SPEAKER_01", "start": 1250, "end": 6900, "text": "First sample."},
+            {"speaker": "SPEAKER_01", "start": 8000, "end": 11000, "text": "Second sample."},
+        ],
+    }
+    with transcript_store.connect(workflow.root) as con:
+        transcript_store.init_db(con)
+        con.execute(
+            """
+            INSERT INTO documents (
+              id, kind, title, source_path, stored_path, artifact_sha256,
+              generated_at, text_content, json_payload, metadata_json,
+              embedding_json, embedding_provider, embedding_model, created_at, updated_at
+            ) VALUES (?, 'transcript', 'AssemblyAI Transcript', '/source.json', '/stored.json', ?,
+              '2026-08-15T14:30:00Z', 'text', ?, ?, '[]', 'hash', 'hash-v1',
+              '2026-08-15T14:30:00Z', '2026-08-15T14:30:00Z')
+            """,
+            (
+                "document-1",
+                SHA_A,
+                json.dumps(payload),
+                json.dumps({"media_blob": {"playback_url": "/api/blobs/blob-1"}}),
+            ),
+        )
+        con.commit()
+
+    display = workflow.list_queue()["items"][0]["display"]
+
+    assert display["title"] == "Monday planning"
+    assert display["recorded_at"] == "2026-08-15T14:30:00Z"
+    assert display["duration_ms"] == 11000
+    assert display["utterance_count"] == 2
+    assert display["media_url"] == "/api/blobs/blob-1"
+    assert display["diarization"][0] == {
+        "speaker_ref": "SPEAKER_01",
+        "utterance_count": 2,
+        "talk_time_ms": 8650,
+        "sample_segments": [
+            {"start_ms": 1250, "end_ms": 6900, "text": "First sample."},
+            {"start_ms": 8000, "end_ms": 11000, "text": "Second sample."},
+        ],
+    }
 
 
 def test_preview_is_zero_effect_and_submit_is_idempotent_and_stale_safe(

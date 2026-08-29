@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import sqlite3
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -68,6 +70,116 @@ def _search_text(item: Mapping[str, Any]) -> str:
     ):
         values.append(_json(collection or []))
     return " ".join(values).lower()
+
+
+def _display_title(item: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
+    event = payload.get("event")
+    event_title = str(event.get("summary") or "").strip() if isinstance(event, Mapping) else ""
+    if not event_title:
+        candidates = item.get("calendar_candidates") or []
+        if candidates and isinstance(candidates[0], Mapping):
+            event_title = str(candidates[0].get("label") or candidates[0].get("summary") or "").strip()
+    if event_title:
+        return re.sub(r"^\s*\d+\s*:\s*", "", event_title).strip() or event_title
+    filename = str(item.get("original_recording_filename") or "Recording").strip()
+    return Path(filename).stem or "Recording"
+
+
+def _review_display_metadata(
+    con: sqlite3.Connection, item: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Derive human-facing queue metadata without mutating review artifacts."""
+
+    conversation_id = str(item.get("conversation_id") or "")
+    recording_id = str(item.get("recording_id") or "")
+    documents_exist = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'documents'"
+    ).fetchone()
+    row = None
+    if documents_exist is not None:
+        row = con.execute(
+            """
+            SELECT id, generated_at, json_payload, metadata_json
+            FROM documents
+            WHERE kind = 'transcript'
+              AND (
+                json_extract(json_payload, '$.conversation_id') = ?
+                OR json_extract(json_payload, '$.recording_id') = ?
+              )
+            ORDER BY
+              CASE WHEN json_extract(json_payload, '$.conversation_id') = ? THEN 0 ELSE 1 END,
+              COALESCE(NULLIF(generated_at, ''), updated_at) DESC
+            LIMIT 1
+            """,
+            (conversation_id, recording_id, conversation_id),
+        ).fetchone()
+    payload = _object(str(row["json_payload"])) if row is not None else {}
+    metadata = _object(str(row["metadata_json"])) if row is not None else {}
+    raw_utterances = payload.get("utterances") or []
+    utterances = [value for value in raw_utterances if isinstance(value, Mapping)]
+    duration_ms = max(
+        (int(value.get("end") or value.get("end_ms") or 0) for value in utterances),
+        default=max(
+            (
+                int((speaker.get("audio") or {}).get("end_ms") or 0)
+                for speaker in item.get("speakers") or []
+                if isinstance(speaker, Mapping) and isinstance(speaker.get("audio"), Mapping)
+            ),
+            default=0,
+        ),
+    )
+    media_blob = metadata.get("media_blob") if isinstance(metadata.get("media_blob"), Mapping) else {}
+    media_url = str(media_blob.get("playback_url") or "")
+    if not media_url:
+        media_url = next(
+            (
+                str((speaker.get("audio") or {}).get("media_url") or "")
+                for speaker in item.get("speakers") or []
+                if isinstance(speaker, Mapping) and isinstance(speaker.get("audio"), Mapping)
+            ),
+            "",
+        )
+    diarization = []
+    for raw_speaker in item.get("speakers") or []:
+        if not isinstance(raw_speaker, Mapping):
+            continue
+        speaker_ref = str(raw_speaker.get("speaker_ref") or "")
+        turns = [value for value in utterances if str(value.get("speaker") or "") == speaker_ref]
+        samples = []
+        for turn in turns[:3]:
+            samples.append(
+                {
+                    "start_ms": int(turn.get("start") or turn.get("start_ms") or 0),
+                    "end_ms": int(turn.get("end") or turn.get("end_ms") or 0),
+                    "text": str(turn.get("text") or "").strip(),
+                }
+            )
+        diarization.append(
+            {
+                "speaker_ref": speaker_ref,
+                "utterance_count": len(turns),
+                "talk_time_ms": sum(
+                    max(
+                        0,
+                        int(turn.get("end") or turn.get("end_ms") or 0)
+                        - int(turn.get("start") or turn.get("start_ms") or 0),
+                    )
+                    for turn in turns
+                ),
+                "sample_segments": samples,
+            }
+        )
+    event = payload.get("event") if isinstance(payload.get("event"), Mapping) else {}
+    return {
+        "source_document_id": str(row["id"]) if row is not None else "",
+        "title": _display_title(item, payload),
+        "event_title": str(event.get("summary") or ""),
+        "recorded_at": str(row["generated_at"] or "") if row is not None else str(item.get("created_at") or ""),
+        "duration_ms": duration_ms,
+        "utterance_count": len(utterances),
+        "media_url": media_url,
+        "diarization": diarization,
+    }
 
 
 class IdentityReviewWorkflow:
@@ -202,16 +314,19 @@ class IdentityReviewWorkflow:
                 """,
                 (*values, limit, offset),
             ).fetchall()
-        return {
-            "schema_version": "transcribe-audio.identity-review-queue.v1",
-            "items": [
+            items = [
                 {
                     **_object(str(row["artifact_json"])),
                     "priority": int(row["priority"]),
                     "impact_score": float(row["impact_score"]),
                 }
                 for row in rows
-            ],
+            ]
+            for item in items:
+                item["display"] = _review_display_metadata(con, item)
+        return {
+            "schema_version": "transcribe-audio.identity-review-queue.v1",
+            "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,

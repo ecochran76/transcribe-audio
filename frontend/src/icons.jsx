@@ -39,7 +39,10 @@ const ICON_PATHS = {
       <path d="M8 3.75v5h7v-5M8 20.25v-7h8v7" />
       <path d="m10 16.5 1.35 1.35L14.5 14.7" />
     </>
-  )
+  ),
+  chevronRight: <path d="m9 5 7 7-7 7" />,
+  chevronDown: <path d="m5 9 7 7 7-7" />,
+  play: <path d="m8 5 11 7-11 7Z" />
 };
 
 export function Icon({ name, size = 18 }) {
