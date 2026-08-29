@@ -78,7 +78,9 @@ def submission(*, item_id: str = "queue-1", version: str = "1", key: str = "deci
 def workflow(tmp_path: Path) -> IdentityReviewWorkflow:
     store = ConversationKnowledgeStore(tmp_path)
     store.migrate(backup=False)
-    return IdentityReviewWorkflow(tmp_path)
+    return IdentityReviewWorkflow(
+        tmp_path, gold_root=tmp_path / "speaker-evaluation-campaigns"
+    )
 
 
 def test_v8_migration_is_additive_and_rolls_back_to_v7(tmp_path: Path) -> None:
@@ -180,6 +182,107 @@ def test_queue_read_enriches_recording_and_diarization_metadata(
             {"start_ms": 8000, "end_ms": 11000, "text": "Second sample."},
         ],
     }
+
+
+def test_queue_read_reconciles_exact_operator_gold_without_mutating_proposal(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    workflow.project_queue_item(queue_item(), priority=90, impact_score=0.8)
+    payload = {
+        "conversation_id": "conversation-1",
+        "recording_id": "recording-1",
+        "utterances": [
+            {
+                "speaker": "SPEAKER_01",
+                "start": 1250,
+                "end": 6900,
+                "text": "Reviewed sample.",
+            }
+        ],
+    }
+    with transcript_store.connect(workflow.root) as con:
+        transcript_store.init_db(con)
+        con.execute(
+            """
+            INSERT INTO documents (
+              id, kind, title, source_path, stored_path, artifact_sha256,
+              generated_at, text_content, json_payload, metadata_json,
+              embedding_json, embedding_provider, embedding_model, created_at, updated_at
+            ) VALUES (?, 'transcript', 'AssemblyAI Transcript', '/source.json', '/stored.json', ?,
+              '2026-08-15T14:30:00Z', 'text', ?, '{}', '[]', 'hash', 'hash-v1',
+              '2026-08-15T14:30:00Z', '2026-08-15T14:30:00Z')
+            """,
+            ("document-1", SHA_A, json.dumps(payload)),
+        )
+        con.commit()
+
+    campaign_id = "campaign-0123456789abcdefabcd"
+    campaign_dir = workflow.gold_root / campaign_id
+    gold_path = campaign_dir / "gold" / "document-1" / "gold-1.json"
+    gold_path.parent.mkdir(parents=True)
+    gold_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "transcribe-audio.speaker-evaluation-gold.v1",
+                "campaign_id": campaign_id,
+                "gold_id": "gold-1",
+                "document_id": "document-1",
+                "disposition": "eligible_known",
+                "reviewed_at": "2026-08-16T18:05:00Z",
+                "reviewer": "Eric Cochran",
+                "review_method": "transcript_and_calendar",
+                "prediction_visibility": "excluded",
+                "people": [
+                    {
+                        "person_ground_truth_id": "person-alex-example",
+                        "name": "Alex Example",
+                        "email": "alex@example.test",
+                    }
+                ],
+                "speaker_outcomes": [
+                    {
+                        "speaker_label": "SPEAKER_01",
+                        "outcome": "person",
+                        "person_ground_truth_id": "person-alex-example",
+                    }
+                ],
+                "same_person_label_groups": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    index_path = campaign_dir / "gold" / "index.json"
+    index_path.write_text(
+        json.dumps(
+            {
+                "records": [
+                    {
+                        "gold_id": "gold-1",
+                        "document_id": "document-1",
+                        "reviewed_at": "2026-08-16T18:05:00Z",
+                        "path": str(gold_path),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    item = workflow.list_queue()["items"][0]
+    review = item["display"]["operator_review"]
+
+    assert review["status"] == "reviewed"
+    assert review["matched_speaker_count"] == 1
+    assert review["speaker_outcomes"] == [
+        {
+            "speaker_ref": "SPEAKER_01",
+            "outcome": "person",
+            "label": "Alex Example",
+            "person_ground_truth_id": "person-alex-example",
+            "mixed_components": [],
+        }
+    ]
+    assert item["speakers"][0]["best_guess"]["label"] == "Alex Example"
 
 
 def test_preview_is_zero_effect_and_submit_is_idempotent_and_stale_safe(

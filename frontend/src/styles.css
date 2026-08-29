@@ -3846,7 +3846,8 @@ dd {
 
 .recording-queue-status {
   display: flex;
-  gap: 0.45rem;
+  justify-content: space-between;
+  gap: 0.65rem;
   align-items: baseline;
   padding: 0.48rem 0.35rem;
   color: var(--muted);
@@ -3858,16 +3859,32 @@ dd {
   font-size: 0.82rem;
 }
 
-.recording-list-head,
-.recording-summary {
+.recording-queue-status button {
   display: grid;
-  grid-template-columns: 1.25rem minmax(16rem, 1.5fr) minmax(10rem, 0.55fr) minmax(13rem, 0.8fr) minmax(7.5rem, 0.38fr);
-  gap: 0.55rem;
-  align-items: center;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  flex: 0 0 auto;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  place-items: center;
+}
+
+.recording-queue-status button:hover,
+.recording-queue-status button:focus-visible {
+  border-color: rgba(215, 255, 115, 0.48);
+  color: var(--accent);
 }
 
 .recording-list-head {
-  padding: 0.42rem 0.55rem;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0 0.55rem;
   border-block: 1px solid rgba(244, 236, 216, 0.12);
   color: var(--muted);
   font-size: 0.66rem;
@@ -3876,8 +3893,81 @@ dd {
   text-transform: uppercase;
 }
 
-.recording-list-head span:first-child {
-  grid-column: 2;
+.recording-head-columns,
+.recording-summary-columns {
+  display: grid;
+  grid-template-columns: var(--recording-columns);
+  min-width: 0;
+}
+
+.recording-head-columns {
+  align-items: stretch;
+}
+
+.recording-head-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.recording-head-cell > button {
+  display: flex;
+  width: 100%;
+  min-height: 2.25rem;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0.35rem 0.38rem;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.recording-head-cell:last-child > button {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.recording-head-cell > button:hover,
+.recording-head-cell > button:focus-visible,
+.recording-head-cell.active > button {
+  background: rgba(215, 255, 115, 0.07);
+  color: var(--accent);
+}
+
+.recording-head-cell > button:focus-visible,
+.column-resizer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.column-resizer {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: -0.3rem;
+  bottom: 0;
+  width: 0.6rem;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.column-resizer::after {
+  position: absolute;
+  top: 0.4rem;
+  right: calc(50% - 0.5px);
+  bottom: 0.4rem;
+  width: 1px;
+  background: rgba(244, 236, 216, 0.18);
+  content: "";
+}
+
+.column-resizer:hover::after,
+.column-resizer:focus-visible::after {
+  width: 2px;
+  background: var(--accent);
 }
 
 .recording-list {
@@ -3891,6 +3981,10 @@ dd {
 }
 
 .recording-summary {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
   width: 100%;
   min-height: 3.45rem;
   border: 0;
@@ -3924,8 +4018,10 @@ dd {
 
 .recording-title strong,
 .recording-title small,
-.recording-summary time,
-.recording-meta,
+.recording-summary-columns > time,
+.recording-duration,
+.recording-speakers,
+.recording-turns,
 .recording-state {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3937,10 +4033,26 @@ dd {
 }
 
 .recording-title small,
-.recording-summary time,
-.recording-meta {
+.recording-summary-columns > time,
+.recording-duration,
+.recording-speakers,
+.recording-turns {
   color: var(--muted);
   font-size: 0.74rem;
+}
+
+.recording-summary-columns > time,
+.recording-duration,
+.recording-speakers,
+.recording-turns,
+.recording-state {
+  padding-inline: 0.38rem;
+}
+
+.recording-duration,
+.recording-speakers,
+.recording-turns {
+  font-variant-numeric: tabular-nums;
 }
 
 .recording-state {
@@ -3949,6 +4061,10 @@ dd {
   font-weight: 850;
   text-align: right;
   text-transform: uppercase;
+}
+
+.recording-state.reviewed {
+  color: var(--ok);
 }
 
 .recording-expanded {
@@ -4016,6 +4132,25 @@ dd {
 
 .speaker-identity strong {
   font-size: 0.86rem;
+}
+
+.speaker-identity .speaker-reviewed {
+  display: flex;
+  gap: 0.28rem;
+  align-items: flex-start;
+  color: var(--ok);
+  font-weight: 760;
+}
+
+.speaker-identity .speaker-reviewed.mixed,
+.speaker-identity .speaker-reviewed.unknown_to_reviewer,
+.speaker-identity .speaker-reviewed.insufficient_transcript {
+  color: var(--accent);
+}
+
+.speaker-reviewed .ui-icon {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
 }
 
 .speaker-excerpts {
@@ -4151,30 +4286,51 @@ dd {
     display: none;
   }
 
+  .recording-queue-status button {
+    display: none;
+  }
+
   .recording-summary {
-    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
     gap: 0.25rem 0.45rem;
     min-height: 4.35rem;
     padding-block: 0.55rem;
   }
 
-  .recording-title {
-    grid-column: 2;
+  .recording-summary-columns {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    gap: 0.15rem 0.5rem;
   }
 
-  .recording-summary time {
-    grid-column: 3;
-    grid-row: 1;
+  .recording-title {
+    grid-column: 1 / -1;
+  }
+
+  .recording-summary-columns > time {
+    grid-column: 4;
+    grid-row: 2;
     max-width: 8.5rem;
     text-align: right;
   }
 
-  .recording-meta {
-    grid-column: 2 / -1;
+  .recording-duration,
+  .recording-speakers,
+  .recording-turns,
+  .recording-summary-columns > time,
+  .recording-state {
+    padding-inline: 0;
+  }
+
+  .recording-speakers::after {
+    content: " speakers";
+  }
+
+  .recording-turns::after {
+    content: " turns";
   }
 
   .recording-state {
-    grid-column: 2 / -1;
+    grid-column: 1 / -1;
     text-align: left;
   }
 
@@ -4220,13 +4376,12 @@ dd {
     min-height: 44px;
   }
 
-  .recording-summary time {
+  .recording-summary-columns > time {
     display: none;
   }
 
-  .recording-title,
-  .recording-summary time {
-    grid-column: 2 / -1;
+  .recording-summary-columns {
+    grid-template-columns: auto auto minmax(0, 1fr);
   }
 
   .recording-player {

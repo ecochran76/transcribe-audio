@@ -5619,7 +5619,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/identity-review":
                 self.write_json(
                     identity_review_workflow.IdentityReviewWorkflow(
-                        self.store_root
+                        self.store_root,
+                        gold_root=(
+                            self.state_root / "speaker-evaluation-campaigns"
+                        ),
                     ).list_queue(
                         limit=parse_int(
                             first(params, "limit"), 50, minimum=1, maximum=200
@@ -5637,14 +5640,20 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 if len(parts) == 4:
                     self.write_json(
                         identity_review_workflow.IdentityReviewWorkflow(
-                            self.store_root
+                            self.store_root,
+                            gold_root=(
+                                self.state_root / "speaker-evaluation-campaigns"
+                            ),
                         ).get_queue_item(parts[3])
                     )
                     return
             if parsed.path == "/api/people":
                 self.write_json(
                     identity_review_workflow.IdentityReviewWorkflow(
-                        self.store_root
+                        self.store_root,
+                        gold_root=(
+                            self.state_root / "speaker-evaluation-campaigns"
+                        ),
                     ).list_people(
                         limit=parse_int(
                             first(params, "limit"), 50, minimum=1, maximum=200
@@ -5981,7 +5990,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         )
                         return
                     workflow = identity_review_workflow.IdentityReviewWorkflow(
-                        self.store_root
+                        self.store_root,
+                        gold_root=(
+                            self.state_root / "speaker-evaluation-campaigns"
+                        ),
                     )
                     if parts[4] == "preview":
                         self.write_json(workflow.preview_submission(body))

@@ -42,7 +42,37 @@ const ICON_PATHS = {
   ),
   chevronRight: <path d="m9 5 7 7-7 7" />,
   chevronDown: <path d="m5 9 7 7 7-7" />,
-  play: <path d="m8 5 11 7-11 7Z" />
+  play: <path d="m8 5 11 7-11 7Z" />,
+  sortNone: (
+    <>
+      <path d="m9 8 3-3 3 3M15 16l-3 3-3-3" />
+      <path d="M12 5v14" />
+    </>
+  ),
+  sortAscending: (
+    <>
+      <path d="m7 10 5-5 5 5" />
+      <path d="M12 5v14" />
+    </>
+  ),
+  sortDescending: (
+    <>
+      <path d="m7 14 5 5 5-5" />
+      <path d="M12 5V19" />
+    </>
+  ),
+  columnsReset: (
+    <>
+      <path d="M4 5h16v14H4zM9.25 5v14M14.75 5v14" />
+      <path d="m6.5 9-2 2 2 2M17.5 9l2 2-2 2" />
+    </>
+  ),
+  reviewed: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.25 12.25 2.4 2.4 5.25-5.3" />
+    </>
+  )
 };
 
 export function Icon({ name, size = 18 }) {

@@ -12,6 +12,29 @@ const SPEAKER_ACTIONS = [
   "split_label",
   "defer"
 ];
+const SPEAKER_ACTION_LABELS = {
+  confirm: "Confirm automated ID",
+  choose_existing_person: "Choose existing person",
+  create_reviewed_provisional_person: "Create provisional person",
+  not_listed: "Person not listed",
+  unresolved: "Mark unresolved",
+  mixed_speaker: "Mixed speaker",
+  group_labels: "Group labels",
+  split_label: "Split label",
+  defer: "Defer"
+};
+
+const REVIEW_COLUMNS = [
+  { key: "title", label: "Recording", defaultDirection: "asc" },
+  { key: "date", label: "Date", defaultDirection: "desc" },
+  { key: "duration", label: "Duration", defaultDirection: "desc" },
+  { key: "speakers", label: "Speakers", defaultDirection: "desc" },
+  { key: "turns", label: "Turns", defaultDirection: "desc" },
+  { key: "status", label: "Status", defaultDirection: "desc" }
+];
+const DEFAULT_REVIEW_COLUMN_WIDTHS = [42, 16, 9, 9, 8, 16];
+const MIN_REVIEW_COLUMN_WIDTHS = [24, 10, 7, 7, 6, 10];
+const REVIEW_COLUMN_STORAGE_KEY = "transcribe-review-column-widths-v1";
 
 const FALLBACK_QUEUE = {
   items: [
@@ -125,6 +148,57 @@ function recordingDate(item) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function operatorReview(item) {
+  return item.display?.operator_review || null;
+}
+
+function reviewedOutcome(item, speakerRef) {
+  return operatorReview(item)?.speaker_outcomes?.find((outcome) => outcome.speaker_ref === speakerRef) || null;
+}
+
+function reviewCounts(item) {
+  const review = operatorReview(item);
+  const outcomes = review?.speaker_outcomes || [];
+  return {
+    reviewed: outcomes.length,
+    matched: outcomes.filter((outcome) => outcome.outcome === "person").length,
+    mixed: outcomes.filter((outcome) => outcome.outcome === "mixed").length,
+    unknown: outcomes.filter((outcome) => outcome.outcome === "unknown_to_reviewer").length,
+    insufficient: outcomes.filter((outcome) => outcome.outcome === "insufficient_transcript").length
+  };
+}
+
+function reviewStatus(item) {
+  const review = operatorReview(item);
+  if (review?.disposition === "duplicate_member") return "Prior · duplicate";
+  if (review) {
+    const counts = reviewCounts(item);
+    const details = [
+      counts.matched ? `${counts.matched} matched` : "",
+      counts.mixed ? `${counts.mixed} mixed` : "",
+      counts.unknown ? `${counts.unknown} unknown` : "",
+      counts.insufficient ? `${counts.insufficient} insufficient` : ""
+    ].filter(Boolean);
+    return `Prior · ${details.join(" · ") || "complete"}`;
+  }
+  const unresolved = (item.speakers || []).filter((speaker) => !speaker.best_guess?.person_id).length;
+  return unresolved ? `${unresolved} unresolved` : label(item.review_state);
+}
+
+function loadReviewColumnWidths() {
+  try {
+    const value = JSON.parse(globalThis.localStorage?.getItem(REVIEW_COLUMN_STORAGE_KEY) || "null");
+    if (
+      Array.isArray(value)
+      && value.length === DEFAULT_REVIEW_COLUMN_WIDTHS.length
+      && value.every((width, index) => Number.isFinite(width) && width >= MIN_REVIEW_COLUMN_WIDTHS[index])
+    ) return value;
+  } catch {
+    // Fall through to the stable default when storage is unavailable or stale.
+  }
+  return DEFAULT_REVIEW_COLUMN_WIDTHS;
+}
+
 export function IdentityReviewView({ mode }) {
   return mode === "people" ? <PeopleView /> : <RecordingReviewQueue />;
 }
@@ -132,14 +206,16 @@ export function IdentityReviewView({ mode }) {
 function RecordingReviewQueue() {
   const [payload, setPayload] = useState(FALLBACK_QUEUE);
   const [query, setQuery] = useState("");
-  const [stateFilter, setStateFilter] = useState("unreviewed");
-  const [sortOrder, setSortOrder] = useState("newest");
+  const [stateFilter, setStateFilter] = useState("");
+  const [sort, setSort] = useState({ key: "date", direction: "desc" });
+  const [columnWidths, setColumnWidths] = useState(loadReviewColumnWidths);
   const [expandedId, setExpandedId] = useState("");
   const [loadState, setLoadState] = useState({ status: "loading", message: "Loading recordings…" });
   const [preview, setPreview] = useState(null);
   const [pendingSubmission, setPendingSubmission] = useState(null);
   const [decisionState, setDecisionState] = useState({ status: "idle", message: "" });
   const audioRef = useRef(null);
+  const headerColumnsRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,15 +244,28 @@ function RecordingReviewQueue() {
   const items = useMemo(() => {
     const next = [...(payload.items || [])];
     next.sort((left, right) => {
-      if (sortOrder === "oldest") return recordingDate(left) - recordingDate(right);
-      if (sortOrder === "title") return recordingTitle(left).localeCompare(recordingTitle(right));
-      if (sortOrder === "speakers") {
-        return (right.speakers?.length || 0) - (left.speakers?.length || 0) || recordingDate(right) - recordingDate(left);
-      }
-      return recordingDate(right) - recordingDate(left);
+      const direction = sort.direction === "asc" ? 1 : -1;
+      let comparison = 0;
+      if (sort.key === "title") comparison = recordingTitle(left).localeCompare(recordingTitle(right));
+      if (sort.key === "date") comparison = recordingDate(left) - recordingDate(right);
+      if (sort.key === "duration") comparison = Number(left.display?.duration_ms || 0) - Number(right.display?.duration_ms || 0);
+      if (sort.key === "speakers") comparison = (left.speakers?.length || 0) - (right.speakers?.length || 0);
+      if (sort.key === "turns") comparison = Number(left.display?.utterance_count || 0) - Number(right.display?.utterance_count || 0);
+      if (sort.key === "status") comparison = reviewCounts(left).matched - reviewCounts(right).matched;
+      return comparison * direction || recordingDate(right) - recordingDate(left) || recordingTitle(left).localeCompare(recordingTitle(right));
     });
     return next;
-  }, [payload.items, sortOrder]);
+  }, [payload.items, sort]);
+
+  const columnTemplate = columnWidths.map((width) => `${width}fr`).join(" ");
+
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(REVIEW_COLUMN_STORAGE_KEY, JSON.stringify(columnWidths));
+    } catch {
+      // Resizing remains available for the current session if storage is blocked.
+    }
+  }, [columnWidths]);
 
   useEffect(() => {
     setPreview(null);
@@ -188,6 +277,51 @@ function RecordingReviewQueue() {
     if (!audioRef.current) return;
     audioRef.current.currentTime = Math.max(0, Number(startMs || 0) / 1000);
     audioRef.current.play().catch(() => {});
+  }
+
+  function sortBy(key) {
+    const column = REVIEW_COLUMNS.find((value) => value.key === key);
+    setSort((current) => current.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: column?.defaultDirection || "asc" });
+  }
+
+  function resizeColumns(index, startWidths, deltaPercent) {
+    const pairTotal = startWidths[index] + startWidths[index + 1];
+    const left = Math.min(
+      pairTotal - MIN_REVIEW_COLUMN_WIDTHS[index + 1],
+      Math.max(MIN_REVIEW_COLUMN_WIDTHS[index], startWidths[index] + deltaPercent)
+    );
+    const next = [...startWidths];
+    next[index] = left;
+    next[index + 1] = pairTotal - left;
+    setColumnWidths(next);
+  }
+
+  function beginColumnResize(event, index) {
+    event.preventDefault();
+    event.stopPropagation();
+    const width = headerColumnsRef.current?.getBoundingClientRect().width || 1;
+    const startX = event.clientX;
+    const startWidths = [...columnWidths];
+    const move = (nextEvent) => resizeColumns(index, startWidths, ((nextEvent.clientX - startX) / width) * 100);
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  function resizeColumnWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    resizeColumns(index, columnWidths, event.key === 'ArrowLeft' ? -1.5 : 1.5);
+  }
+
+  function resetColumnWidths() {
+    setColumnWidths([...DEFAULT_REVIEW_COLUMN_WIDTHS]);
   }
 
   async function previewDecision(item, speaker, draft) {
@@ -252,37 +386,77 @@ function RecordingReviewQueue() {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title, filename, person, or event" />
         </label>
         <label>
-          <span>Review state</span>
+          <span>Current queue</span>
           <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
-            <option value="">All</option>
-            <option value="unreviewed">Needs review</option>
-            <option value="unresolved">Unresolved</option>
-            <option value="reviewed">Reviewed</option>
+            <option value="">All recordings</option>
+            <option value="unreviewed">Needs current review</option>
+            <option value="unresolved">Current unresolved</option>
+            <option value="reviewed">Current review saved</option>
           </select>
         </label>
         <label>
           <span>Sort</span>
-          <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="title">Title A–Z</option>
-            <option value="speakers">Most speakers</option>
+          <select
+            value={`${sort.key}:${sort.direction}`}
+            onChange={(event) => {
+              const [key, direction] = event.target.value.split(":");
+              setSort({ key, direction });
+            }}
+          >
+            <option value="date:desc">Newest first</option>
+            <option value="date:asc">Oldest first</option>
+            <option value="title:asc">Title A–Z</option>
+            <option value="title:desc">Title Z–A</option>
+            <option value="duration:desc">Longest first</option>
+            <option value="duration:asc">Shortest first</option>
+            <option value="speakers:desc">Most speakers</option>
+            <option value="turns:desc">Most turns</option>
+            <option value="status:desc">Most matched</option>
           </select>
         </label>
       </div>
 
       <div className="recording-queue-status" role="status">
-        <strong>{payload.total || 0} recordings</strong>
-        <span>{loadState.message}</span>
+        <span><strong>{payload.total || 0} recordings</strong> · {loadState.message}</span>
+        <button aria-label="Reset recording column widths" onClick={resetColumnWidths} title="Reset column widths" type="button"><Icon name="columnsReset" size={16} /></button>
       </div>
-      <div className="recording-list-head" aria-hidden="true">
-        <span>Recording</span><span>Date</span><span>Details</span><span>Status</span>
+      <div className="recording-list-head" role="row">
+        <span aria-hidden="true" className="recording-head-gutter" />
+        <div className="recording-head-columns" ref={headerColumnsRef} style={{ "--recording-columns": columnTemplate }}>
+          {REVIEW_COLUMNS.map((column, index) => {
+            const active = sort.key === column.key;
+            return (
+              <div aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} className={`recording-head-cell${active ? " active" : ""}`} key={column.key} role="columnheader">
+                <button aria-label={`Sort by ${column.label}`} onClick={() => sortBy(column.key)} type="button">
+                  <span>{column.label}</span>
+                  <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={14} />
+                </button>
+                {index < REVIEW_COLUMNS.length - 1 && (
+                  <span
+                    aria-label={`Resize ${column.label} column`}
+                    aria-orientation="vertical"
+                    aria-valuemax={Math.round(columnWidths[index] + columnWidths[index + 1] - MIN_REVIEW_COLUMN_WIDTHS[index + 1])}
+                    aria-valuemin={MIN_REVIEW_COLUMN_WIDTHS[index]}
+                    aria-valuenow={Math.round(columnWidths[index])}
+                    aria-valuetext={`${Math.round(columnWidths[index])}% relative width`}
+                    className="column-resizer"
+                    onDoubleClick={resetColumnWidths}
+                    onKeyDown={(event) => resizeColumnWithKeyboard(event, index)}
+                    onPointerDown={(event) => beginColumnResize(event, index)}
+                    role="separator"
+                    tabIndex={0}
+                    title={`Drag to resize ${column.label}; double-click to reset`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       <div className="recording-list">
         {items.map((item) => {
           const expanded = expandedId === item.queue_item_id;
           const display = item.display || {};
-          const unresolved = (item.speakers || []).filter((speaker) => !speaker.best_guess?.person_id).length;
           const mediaUrl = display.media_url || item.speakers?.find((speaker) => speaker.audio?.media_url)?.audio?.media_url || "";
           const playbackUrl = mediaUrl
             ? `${mediaUrl}${mediaUrl.includes("?") ? "&" : "?"}playback=mp3&end_ms=${Math.max(1000, Number(display.duration_ms || 0))}`
@@ -291,10 +465,14 @@ function RecordingReviewQueue() {
             <article className={`recording-row${expanded ? " expanded" : ""}`} key={item.queue_item_id}>
               <button aria-expanded={expanded} className="recording-summary" onClick={() => setExpandedId(expanded ? "" : item.queue_item_id)} type="button">
                 <Icon name={expanded ? "chevronDown" : "chevronRight"} size={17} />
-                <span className="recording-title"><strong>{recordingTitle(item)}</strong><small>{item.original_recording_filename}</small></span>
-                <time>{formatDate(display.recorded_at || item.created_at)}</time>
-                <span className="recording-meta">{formatDuration(display.duration_ms)} · {item.speakers?.length || 0} speakers · {display.utterance_count || 0} turns</span>
-                <span className={`recording-state ${item.review_state}`}>{unresolved ? `${unresolved} unresolved` : label(item.review_state)}</span>
+                <span className="recording-summary-columns" style={{ "--recording-columns": columnTemplate }}>
+                  <span className="recording-title"><strong>{recordingTitle(item)}</strong><small>{item.original_recording_filename}</small></span>
+                  <time>{formatDate(display.recorded_at || item.created_at)}</time>
+                  <span className="recording-duration">{formatDuration(display.duration_ms)}</span>
+                  <span className="recording-speakers">{item.speakers?.length || 0}</span>
+                  <span className="recording-turns">{display.utterance_count || 0}</span>
+                  <span className={`recording-state${operatorReview(item) ? " reviewed" : ` ${item.review_state}`}`} title={reviewStatus(item)}>{reviewStatus(item)}</span>
+                </span>
               </button>
               {expanded && (
                 <div className="recording-expanded">
@@ -305,7 +483,7 @@ function RecordingReviewQueue() {
                       : <p className="muted">Audio is unavailable for this recording.</p>}
                   </div>
                   <div className="speaker-table-head" aria-hidden="true">
-                    <span>Speaker / preliminary ID</span><span>Diarization</span><span>Correction</span>
+                    <span>Speaker / automated + reviewed ID</span><span>Diarization</span><span>Correction</span>
                   </div>
                   {(item.speakers || []).map((speaker) => {
                     const diarization = (display.diarization || []).find((value) => value.speaker_ref === speaker.speaker_ref) || {};
@@ -325,6 +503,7 @@ function RecordingReviewQueue() {
                         onSeek={seekTo}
                         pending={active}
                         preview={active ? preview : null}
+                        reviewed={reviewedOutcome(item, speaker.speaker_ref)}
                         segments={segments}
                         speaker={speaker}
                       />
@@ -342,8 +521,8 @@ function RecordingReviewQueue() {
   );
 }
 
-function SpeakerCorrectionRow({ item, speaker, diarization, segments, onSeek, onPreview, onRecord, pending, preview, decisionState }) {
-  const [action, setAction] = useState(speaker.best_guess?.person_id ? "confirm" : "unresolved");
+function SpeakerCorrectionRow({ item, speaker, reviewed, diarization, segments, onSeek, onPreview, onRecord, pending, preview, decisionState }) {
+  const [action, setAction] = useState("");
   const [personId, setPersonId] = useState(speaker.best_guess?.person_id || "");
   const [comment, setComment] = useState("");
   const draft = { action, personId, comment };
@@ -351,7 +530,8 @@ function SpeakerCorrectionRow({ item, speaker, diarization, segments, onSeek, on
     <section className="speaker-correction-row">
       <div className="speaker-identity">
         <strong>Speaker {speaker.speaker_ref}</strong>
-        <span>{speaker.best_guess?.label || "Unresolved"}{speaker.best_guess?.strength != null ? ` · ${strength(speaker.best_guess.strength)}` : ""}</span>
+        <span>Automated: {speaker.best_guess?.label || "Unresolved"}{speaker.best_guess?.strength != null ? ` · ${strength(speaker.best_guess.strength)}` : ""}</span>
+        {reviewed && <span className={`speaker-reviewed ${reviewed.outcome}`}><Icon name="reviewed" size={14} />Prior review: {reviewed.label}</span>}
         {!!speaker.alternatives?.length && <small>Also: {speaker.alternatives.slice(0, 2).map((candidate) => candidate.label).join(", ")}</small>}
       </div>
       <div className="speaker-diarization">
@@ -365,11 +545,11 @@ function SpeakerCorrectionRow({ item, speaker, diarization, segments, onSeek, on
         </div>
       </div>
       <div className="speaker-correction">
-        <label><span>Correction</span><select value={action} onChange={(event) => setAction(event.target.value)}>{SPEAKER_ACTIONS.map((value) => <option key={value} value={value}>{label(value)}</option>)}</select></label>
+        <label><span>Correction</span><select value={action} onChange={(event) => setAction(event.target.value)}><option value="">No correction selected</option>{SPEAKER_ACTIONS.map((value) => <option key={value} value={value}>{SPEAKER_ACTION_LABELS[value]}</option>)}</select></label>
         {action === "choose_existing_person" && <label><span>Person ID</span><input required value={personId} onChange={(event) => setPersonId(event.target.value)} /></label>}
         <label className="speaker-comment"><span>Note</span><input onChange={(event) => setComment(event.target.value)} placeholder="Optional review note" value={comment} /></label>
         <div className="speaker-actions">
-          <button aria-label={`Preview correction for Speaker ${speaker.speaker_ref}`} disabled={decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={() => onPreview(item, speaker, draft)} title="Preview correction" type="button"><Icon name="preview" /></button>
+          <button aria-label={`Preview correction for Speaker ${speaker.speaker_ref}`} disabled={!action || decisionState.status === "loading" || (action === "choose_existing_person" && !personId.trim())} onClick={() => onPreview(item, speaker, draft)} title="Preview correction" type="button"><Icon name="preview" /></button>
           <button aria-label={`Save correction for Speaker ${speaker.speaker_ref}`} className="save" disabled={!pending || !preview || decisionState.status === "loading"} onClick={onRecord} title="Save correction" type="button"><Icon name="record" /></button>
         </div>
         {decisionState.message && <p className={`speaker-decision-message ${decisionState.status}`} role="status">{decisionState.message}</p>}

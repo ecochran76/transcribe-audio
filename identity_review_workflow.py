@@ -14,6 +14,10 @@ from conversation_knowledge_store import ConversationKnowledgeStore
 from identity_learning_contracts import ARTIFACT_SCHEMAS, validate_artifact
 
 
+OPERATOR_GOLD_SCHEMA = "transcribe-audio.speaker-evaluation-gold.v1"
+LEGACY_OPERATOR_REVIEW_METHODS = {"transcript_and_calendar"}
+
+
 class IdentityReviewWorkflowError(ValueError):
     """Raised when a review projection or decision cannot remain exact."""
 
@@ -182,11 +186,176 @@ def _review_display_metadata(
     }
 
 
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _reviewed_component_label(
+    component: Mapping[str, Any], people: Mapping[str, Mapping[str, Any]]
+) -> str:
+    person_id = str(component.get("person_ground_truth_id") or "")
+    if person_id:
+        person = people.get(person_id) or {}
+        return str(person.get("name") or person_id)
+    return str(component.get("label") or component.get("type") or "Mixed audio")
+
+
+def _operator_gold_display(
+    gold: Mapping[str, Any], *, expected_speakers: set[str]
+) -> dict[str, Any] | None:
+    people = {
+        str(person.get("person_ground_truth_id") or ""): person
+        for person in gold.get("people") or []
+        if isinstance(person, Mapping)
+        and str(person.get("person_ground_truth_id") or "")
+    }
+    raw_outcomes = gold.get("speaker_outcomes") or []
+    if not isinstance(raw_outcomes, list):
+        return None
+    outcome_labels = {
+        str(outcome.get("speaker_label") or "")
+        for outcome in raw_outcomes
+        if isinstance(outcome, Mapping)
+    }
+    disposition = str(gold.get("disposition") or "")
+    if disposition == "eligible_known" and outcome_labels != expected_speakers:
+        return None
+    if disposition != "eligible_known" and raw_outcomes:
+        return None
+
+    outcomes = []
+    matched_count = 0
+    for raw_outcome in raw_outcomes:
+        if not isinstance(raw_outcome, Mapping):
+            return None
+        speaker_ref = str(raw_outcome.get("speaker_label") or "")
+        outcome = str(raw_outcome.get("outcome") or "")
+        person_id = str(raw_outcome.get("person_ground_truth_id") or "")
+        person = people.get(person_id) or {}
+        components = [
+            {
+                "type": str(component.get("type") or ""),
+                "label": _reviewed_component_label(component, people),
+                "person_ground_truth_id": str(
+                    component.get("person_ground_truth_id") or ""
+                ),
+            }
+            for component in raw_outcome.get("mixed_components") or []
+            if isinstance(component, Mapping)
+        ]
+        if outcome == "person":
+            if not person_id or not person:
+                return None
+            matched_count += 1
+            outcome_label = str(person.get("name") or person_id)
+        elif outcome == "mixed":
+            outcome_label = "Mixed: " + " + ".join(
+                component["label"] for component in components
+            ) if components else "Mixed speaker label"
+        elif outcome == "unknown_to_reviewer":
+            outcome_label = "Unknown to reviewer"
+        elif outcome == "insufficient_transcript":
+            outcome_label = "Insufficient transcript"
+        else:
+            return None
+        outcomes.append(
+            {
+                "speaker_ref": speaker_ref,
+                "outcome": outcome,
+                "label": outcome_label,
+                "person_ground_truth_id": person_id,
+                "mixed_components": components,
+            }
+        )
+
+    return {
+        "status": "reviewed",
+        "source": "operator_gold",
+        "campaign_id": str(gold.get("campaign_id") or ""),
+        "gold_id": str(gold.get("gold_id") or ""),
+        "reviewed_at": str(gold.get("reviewed_at") or ""),
+        "reviewer": str(gold.get("reviewer") or ""),
+        "review_method": str(gold.get("review_method") or ""),
+        "disposition": disposition,
+        "matched_speaker_count": matched_count,
+        "reviewed_speaker_count": len(outcomes),
+        "speaker_count": len(expected_speakers),
+        "speaker_outcomes": outcomes,
+    }
+
+
+def _operator_gold_by_document(
+    gold_root: Path,
+    expected_speakers: Mapping[str, set[str]],
+) -> dict[str, dict[str, Any]]:
+    """Read latest exact operator gold for queue documents without mutating it."""
+
+    if not expected_speakers or not gold_root.is_dir():
+        return {}
+    candidates: dict[str, tuple[str, dict[str, Any]]] = {}
+    for index_path in sorted(gold_root.glob("campaign-*/gold/index.json")):
+        campaign_dir = index_path.parent.parent
+        index = _read_json_object(index_path)
+        records = index.get("records")
+        if not isinstance(records, list):
+            continue
+        latest: dict[str, Mapping[str, Any]] = {}
+        for raw_record in records:
+            if not isinstance(raw_record, Mapping):
+                continue
+            document_id = str(raw_record.get("document_id") or "")
+            if document_id in expected_speakers:
+                latest[document_id] = raw_record
+        for document_id, record in latest.items():
+            raw_path = Path(str(record.get("path") or "")).expanduser()
+            try:
+                gold_path = raw_path.resolve(strict=True)
+                gold_path.relative_to((campaign_dir / "gold").resolve(strict=True))
+            except (OSError, ValueError):
+                continue
+            gold = _read_json_object(gold_path)
+            review_method = str(gold.get("review_method") or "")
+            operator_confirmed = review_method.startswith("operator_") or (
+                review_method in LEGACY_OPERATOR_REVIEW_METHODS
+                and bool(str(gold.get("reviewer") or "").strip())
+            )
+            if (
+                gold.get("schema_version") != OPERATOR_GOLD_SCHEMA
+                or gold.get("prediction_visibility") != "excluded"
+                or not operator_confirmed
+                or str(gold.get("campaign_id") or "") != campaign_dir.name
+                or str(gold.get("document_id") or "") != document_id
+                or str(gold.get("gold_id") or "")
+                != str(record.get("gold_id") or "")
+                or str(gold.get("reviewer") or "").strip() == ""
+            ):
+                continue
+            display = _operator_gold_display(
+                gold, expected_speakers=expected_speakers[document_id]
+            )
+            if display is None:
+                continue
+            reviewed_at = str(gold.get("reviewed_at") or "")
+            if document_id not in candidates or reviewed_at > candidates[document_id][0]:
+                candidates[document_id] = (reviewed_at, display)
+    return {document_id: display for document_id, (_date, display) in candidates.items()}
+
+
 class IdentityReviewWorkflow:
     """Project review work and record preview-only, stale-safe decisions."""
 
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(
+        self, root: Path | None = None, *, gold_root: Path | None = None
+    ) -> None:
         self.root = transcript_store.store_dir(root)
+        self.gold_root = (
+            gold_root
+            or Path("~/.local/state/transcribe-audio/speaker-evaluation-campaigns")
+        ).expanduser()
         status = ConversationKnowledgeStore(self.root).schema_status()
         if status.schema_version != 8 or status.dirty:
             raise IdentityReviewWorkflowError(
@@ -324,6 +493,26 @@ class IdentityReviewWorkflow:
             ]
             for item in items:
                 item["display"] = _review_display_metadata(con, item)
+            expected_speakers = {
+                str(item["display"].get("source_document_id") or ""): {
+                    str(speaker.get("speaker_ref") or "")
+                    for speaker in item.get("speakers") or []
+                    if isinstance(speaker, Mapping)
+                    and str(speaker.get("speaker_ref") or "")
+                }
+                for item in items
+                if str(item["display"].get("source_document_id") or "")
+            }
+            operator_gold = _operator_gold_by_document(
+                self.gold_root, expected_speakers
+            )
+            for item in items:
+                document_id = str(
+                    item["display"].get("source_document_id") or ""
+                )
+                item["display"]["operator_review"] = operator_gold.get(
+                    document_id
+                )
         return {
             "schema_version": "transcribe-audio.identity-review-queue.v1",
             "items": items,
