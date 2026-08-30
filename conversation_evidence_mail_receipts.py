@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Protocol
@@ -17,6 +16,10 @@ from conversation_evidence_adapters import (
 from conversation_identity_retrieval import (
     ProviderRetrievalRequest,
     ProviderRetrievalResult,
+)
+from mail_evidence_normalization import (
+    classify_account_direction,
+    normalize_mail_address,
 )
 from mail_relationship_contracts import validate_mail_artifact
 
@@ -40,7 +43,6 @@ MAIL_RECEIPTS_METADATA_FIELDS = (
     "corpus_id",
     "query_address",
 )
-_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 @dataclass(frozen=True)
@@ -396,17 +398,12 @@ class MailReceiptsEvidenceAdapter:
                     "observed_at": str(payload["sent_at"] or "").strip(),
                 }
             )
-        account = self.config.account_address
-        sender_is_account = senders == [account]
-        recipient_has_account = account in set(recipients + copied)
-        if sender_is_account and recipient_has_account:
-            direction = "internal"
-        elif sender_is_account:
-            direction = "outbound"
-        elif recipient_has_account:
-            direction = "inbound"
-        else:
-            direction = "external"
+        direction = classify_account_direction(
+            from_addresses=senders,
+            to_addresses=recipients,
+            cc_addresses=copied,
+            account_address=self.config.account_address,
+        )
         message_ref_hash = self._hash(message_ref)
         thread_ref_hash = self._hash(thread_ref)
         return BoundedProviderRecord(
@@ -559,7 +556,10 @@ class MailReceiptsEvidenceAdapter:
 
     @staticmethod
     def _normalized_address(value: str) -> bool:
-        return bool(_EMAIL_RE.fullmatch(value))
+        try:
+            return normalize_mail_address(value) == value
+        except ValueError:
+            return False
 
     @staticmethod
     def _hash(value: str) -> str:

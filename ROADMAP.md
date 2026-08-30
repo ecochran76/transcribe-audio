@@ -211,8 +211,10 @@ versioned portable-artifact contracts, closed JSON Schemas, exact thresholds
 and reason codes, and seven synthetic/redacted scenario fixtures. P1 is closed
 with an injected operator-lite adapter that enforces exact-address queries,
 scope echo, bounded cursor pagination, one transient retry, deterministic
-receipts, and privacy-safe partial failures. P2 is active for deterministic
-normalization, deduplication, independence grouping, and watermarks. The plan will extend the
+receipts, and privacy-safe partial failures. P2 is closed with validated pure
+normalization, cross-source deduplication, temporal exclusion, independence
+grouping, conflict preservation, stable ordering, and replay-equal watermarks.
+P3 is active for review-only mail relationship and role discovery. The plan will extend the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

@@ -1,5 +1,49 @@
 # Runbook
 
+## Turn 406: Close Plan 0073 P2 deterministic normalization (2026-08-30)
+
+Summary: Completed pure mail observation normalization and independence
+grouping, then moved Plan 0073 to review-only discovery integration in P3.
+
+Authority: Plan 0073 P2 under the user goal `execute plan 73`. This packet used
+only synthetic snapshot records, source code, and tests. It made no Mail
+Receipts corpus read, provider call, runtime data write, schema migration,
+deployment, accepted graph decision, or Graphiti write.
+
+Evidence:
+
+- `mail_evidence_normalization.py` owns pure exact-address normalization,
+  configured-account direction, cutoff classification, interaction-key
+  derivation, portable observation conversion, independence grouping, and
+  input-watermark calculation.
+- Every observation and group is validated against the P0 contracts and bound
+  to the exact query receipt result hashes and source scope.
+- Cross-source copies of one logical interaction share one group; independent
+  thread identity remains separate. Post-`as_of` records are retained only as
+  excluded hindsight observations.
+- Structured signature observations remain source-attributable and
+  contradictory values are not collapsed.
+- Identical replay and reversed input produce byte-equal projection objects,
+  stable ordering, stable IDs, and the same watermark.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_mail_evidence_normalization.py
+  tests/test_conversation_evidence_mail_receipts.py
+  tests/test_mail_relationship_contracts.py
+  tests/test_conversation_evidence_adapters.py
+  tests/test_conversation_evidence_gws.py
+  tests/test_conversation_evidence_odollo.py` passes 69 tests.
+- `.venv/bin/python -m py_compile mail_evidence_normalization.py
+  conversation_evidence_mail_receipts.py` and `git diff --check` pass.
+
+Progress classification: `outcome_progress`. P2's deterministic projection
+terminal is complete. P3 is ready; P5 remains gated on exact private selectors,
+budgets, cohort, and preview.
+
+Next: Extend `discover_relationship_roles` with mail-derived, proposed-only
+hypotheses and prove the complete frozen scenario fixture replay.
+
 ## Turn 405: Close Plan 0073 P1 operator-lite adapter (2026-08-30)
 
 Summary: Completed the non-private P1 Mail Receipts adapter and moved Plan

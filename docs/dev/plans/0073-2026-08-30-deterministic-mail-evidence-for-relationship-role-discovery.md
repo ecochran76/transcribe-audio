@@ -73,16 +73,16 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN`. P0-P1 are closed and P2 is active on the critical path. P0-P4 may use source
+Plan 0073 is `OPEN`. P0-P2 are closed and P3 is active on the critical path. P0-P4 may use source
 code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
 stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
 Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
 numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 
-| Field | Active P2 control |
+| Field | Active P3 control |
 | --- | --- |
 | Authority | User goal `execute plan 73`; ordinary local implementation only |
-| Bounded outcome | Normalize, deduplicate, and group bounded mail metadata with deterministic IDs, ordering, temporal classification, and watermarks |
+| Bounded outcome | Extend the existing discovery projection with review-only mail transmission, correspondence, coparticipation, role, and affiliation hypotheses |
 | Write surface | Repo source, tests, `docs/dev/fixtures/plan-0073-p0/`, Plan 0073, ROADMAP, RUNBOOK, and focused commits |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
 | Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
@@ -122,6 +122,22 @@ P1 delivered on 2026-08-30:
   at zero; and
 - 66 focused and adjacent adapter tests plus compilation and diff checks pass.
   Tests use only injected mocks and `.test` data; no corpus/provider read ran.
+
+P2 delivered on 2026-08-30:
+
+- `mail_evidence_normalization.py` exposes pure address, account-direction,
+  temporal, independence-key, observation, grouping, and watermark behavior;
+- normalized observations and independence groups validate against the P0
+  portable contracts, bind exactly to their query receipt and source scope,
+  and reject message text or mismatched result hashes;
+- provider-stable logical-message keys control duplicate grouping, with a
+  documented conservative thread/time/participant fallback for sources that
+  lack a message reference;
+- duplicate source copies count once per independence group, post-cutoff mail
+  remains excluded hindsight, and contradictory structured signatures remain
+  separate source observations; and
+- replay and reversed input produce identical IDs, ordering, groups, and input
+  watermark across 69 focused and adjacent passing tests.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
