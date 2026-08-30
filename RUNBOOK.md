@@ -1,5 +1,57 @@
 # Runbook
 
+## Turn 401: Discover shadow relationship and role hypotheses (2026-08-29)
+
+Summary: Added deterministic relationship-and-role discovery to the live
+Contacts workspace so graph evidence can support later speaker deduction and
+conversation contextualization without becoming accepted identity truth.
+
+Authority: `VISION.md`, Plan 0072 A6-R3, Notes 0052 and 0058, and the user's
+2026-08-29 request to work on relationship and role discovery. This slice
+authorized bounded read-only provider refresh, local enrichment metadata,
+deterministic shadow projection, dashboard deployment, and visual QA. It did
+not authorize accepted graph events, ontology mutation, provider writes,
+person merges, speaker assignment, or Graphiti writes.
+
+Evidence:
+
+- Exact-email GWS observations now retain provider-declared title,
+  organization, department, and current-state fields as source observations.
+- The live projection covers 186 attendee contacts and exposes graph leads for
+  103: 3 contextual-role hypotheses, 59 affiliation hypotheses, and 279
+  symmetric recurring co-invitation hypotheses with at least two shared
+  recording-associated invitations.
+- Stable content-derived IDs, source references, temporal bounds, occurrence
+  counts, an input watermark, and explicit `why_not_accepted` explanations
+  make the projection replayable and review-ready.
+- `/api/people?limit=500` still returns 228 records: 6 canonical people, 187
+  local contacts, and 35 reviewed speaker names. Accepted role and relationship
+  projections remain empty.
+- Contacts shows graph-lead counts in compact list metadata and renders role
+  and relationship hypotheses as dense `Needs review` tables. Agent Browser
+  loaded and visually captured the 1440x900 live Contacts master/detail
+  workspace, then selected a graph-bearing row. An unrelated retained browser
+  lifecycle inconsistency blocked additional brokered screenshots; the
+  isolated QA runtime was closed without modifying that retained lane.
+- The final provider-backed replay classified all 186 contact rows unchanged.
+  Provider writes, accepted effects, person merges, and speaker-assignment
+  applies all remained zero.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_transcript_api.py
+  tests/test_calendar_contact_ingest.py tests/test_relationship_role_discovery.py
+  tests/test_identity_review_workflow.py` passes 79 tests.
+- `.venv/bin/python -m py_compile calendar_contact_ingest.py
+  relationship_role_discovery.py identity_review_workflow.py` passes.
+- `npm --prefix frontend run build` passes with production assets
+  `index-8mt8cY9u.js` and `index-CU0jOP2O.css`.
+- The live service is active on port 18876 and `/api/health` returns `ok`.
+
+Next: Add an append-only review action for accepting, correcting, or rejecting
+individual graph hypotheses. Only accepted graph facts should enter later
+speaker-deduction or conversation-context evidence packets.
+
 ## Turn 400: Ingest calendar-attendee contacts across the corpus (2026-08-29)
 
 Summary: Populated the live Contacts directory from exact calendar-attendee

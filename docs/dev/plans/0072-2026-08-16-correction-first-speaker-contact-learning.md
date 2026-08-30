@@ -175,6 +175,46 @@ A6-R2 delivered on 2026-08-29:
   bounded Level 2 manual/shadow ingestion slice only; recurring automation and
   identity resolution remain gated.
 
+The 2026-08-29 operator request opens one bounded A6-R3 relationship-and-role
+discovery slice. It may refresh the already-authorized exact-email contact
+observations through bounded read-only provider calls, derive replayable graph
+hypotheses from provider-declared roles/affiliations and calendar co-invitation,
+and expose those hypotheses in the authenticated Contacts view. Discovery must
+remain distinct from reviewed graph facts.
+
+| Field | A6-R3 control |
+| --- | --- |
+| Bounded outcome | Give each eligible contact a compact, evidence-bearing view of proposed contextual roles, organization affiliations, and recurring calendar co-invitation relationships that can later support speaker deduction and conversation contextualization. |
+| Vision movement | Advances outcomes 3, 4, 6, 7, and 8. Relationship/role discovery moves from Level 0/1 empty projections and design contracts to Level 2 deterministic shadow hypotheses over the real corpus. It does not establish reviewed graph authority or Level 3 automatic acceptance. |
+| Write surface | Calendar-contact enrichment metadata, a deterministic read-only discovery projection, the `/api/people` read model, React Contacts detail, focused tests, and plan/roadmap/runbook records. No knowledge-schema migration is included. |
+| Inputs | Current local attendee contacts and calendar appearances; exact-email GWS/Odollo source observations; provider-declared organization/title fields; existing accepted ontology and evidence boundaries. |
+| Semantic boundary | A title is a contextual role hypothesis, provider-declared organization membership is an affiliation hypothesis, and repeated calendar co-invitation is a symmetric interaction observation. None proves employment, personal relationship, meeting presence, speech, person identity, or speaker identity. |
+| Validation | Deterministic IDs and replay, temporal bounds, symmetric-pair deduplication, source/evidence provenance, shared-address exclusion, focused tests, frontend build, corpus accounting, live API/browser proof, service/process readback, planning audit, and zero provider writes/person merges/speaker applies/accepted relationship effects. |
+| Terminal condition | Contacts exposes non-empty role and relationship hypotheses with human-friendly counterpart/evidence detail; identical inputs replay identically; every hypothesis states why it is not yet accepted; and prohibited-effect counters remain zero. |
+
+A6-R3 explicitly excludes canonical-person creation or merge, speaker assignment,
+accepted role/relationship ledger events, ontology mutation, biometric/profile
+effects, Graphiti writes, provider writes, background scheduling, and automatic
+acceptance. Review/apply controls for graph hypotheses are a later bounded slice.
+
+A6-R3 delivered on 2026-08-29:
+
+- the refreshed local contact projection retains provider-declared title,
+  organization, department, current-state, exact-email source, and observation
+  provenance without changing an external provider;
+- deterministic discovery over 186 attendee contacts exposes 3 contextual-role,
+  59 affiliation, and 279 recurring co-invitation hypotheses across 103 contacts,
+  with a two-invitation minimum and stable symmetric relationship IDs;
+- `/api/people` and the compact Contacts detail expose human-readable graph leads
+  as `Needs review`, while accepted `roles` and `relationships` remain empty;
+- replay retains the same input watermark and candidate IDs, and all accepted
+  effect, provider-write, person-merge, and speaker-assignment counters remain
+  zero; and
+- 79 focused backend tests, Python compilation, the frontend production build,
+  live service/API readback, and an Agent Browser desktop Contacts review pass.
+  This completes only Level 2 shadow discovery; reviewed graph decisions and
+  speaker/context consumers remain later slices.
+
 | Field | A0 control |
 | --- | --- |
 | Bounded outcome | Freeze versioned domain, correction, privacy, threat, review, adapter, and supervisor contracts. |

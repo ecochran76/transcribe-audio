@@ -384,6 +384,62 @@ def test_people_projection_aggregates_sources_roles_and_relationships(
     assert person["relationships"][0]["relationship_type"] == "works_with"
 
 
+def test_people_projection_exposes_shadow_graph_hypotheses_without_accepting_them(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    metadata = {
+        "contact_class": "person_candidate",
+        "calendar_attendee": {"appearances": []},
+        "enrichment": {
+            "source_records": [
+                {
+                    "provider": "gws",
+                    "profile": "fixture",
+                    "record_type": "gws_contact",
+                    "source_record_id": "people/alex",
+                    "label": "Alex Example",
+                    "organizations": ["Example Labs"],
+                    "roles": [
+                        {
+                            "title": "Research Director",
+                            "organization": "Example Labs",
+                            "department": "Research",
+                            "current": True,
+                        }
+                    ],
+                    "match_basis": "exact_email",
+                }
+            ]
+        },
+    }
+    with transcript_store.connect(workflow.root) as con:
+        transcript_store.init_db(con)
+        con.execute(
+            """
+            INSERT INTO contacts (
+              id, label, email, external_ref, metadata_json, created_at, updated_at
+            ) VALUES (
+              'contact-alex', 'Alex Example', 'alex@example.test', '', ?,
+              '2026-08-29T00:00:00Z', '2026-08-29T00:00:00Z'
+            )
+            """,
+            (json.dumps(metadata),),
+        )
+        con.commit()
+
+    payload = workflow.list_people(kind="local_contact", limit=10)
+
+    assert payload["graph_discovery"]["authority_mode"] == "shadow_hypotheses_only"
+    assert payload["graph_discovery"]["role_hypothesis_count"] == 1
+    assert payload["graph_discovery"]["affiliation_hypothesis_count"] == 1
+    assert payload["graph_discovery"]["accepted_effect_count"] == 0
+    contact = payload["items"][0]
+    assert contact["role_hypotheses"][0]["display_value"] == "Research Director"
+    assert contact["relationship_hypotheses"][0]["relationship_type"] == "AFFILIATED_WITH"
+    assert contact["roles"] == []
+    assert contact["relationships"] == []
+
+
 def test_people_projection_bridges_current_profiles_and_local_contacts_without_linking(
     workflow: IdentityReviewWorkflow,
 ) -> None:

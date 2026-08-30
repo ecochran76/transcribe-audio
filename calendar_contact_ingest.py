@@ -25,7 +25,7 @@ from participant_identity import extract_calendar_attendees, normalize_email, no
 
 
 SCHEMA_VERSION = "transcribe-audio.calendar-attendee-contact-ingest.v1"
-CONTACT_METADATA_SCHEMA = "transcribe-audio.calendar-attendee-contact.v1"
+CONTACT_METADATA_SCHEMA = "transcribe-audio.calendar-attendee-contact.v2"
 APPLY_TOKEN = "INGEST_CALENDAR_ATTENDEE_CONTACTS"
 UNDO_TOKEN = "UNDO_CALENDAR_ATTENDEE_CONTACTS"
 DEFAULT_STATE_ROOT = Path("~/.local/state/transcribe-audio").expanduser()
@@ -118,6 +118,33 @@ def _person_organizations(person: dict[str, Any]) -> list[str]:
         item.get("name") or item.get("title")
         for item in values
         if isinstance(item, dict)
+    )
+
+
+def _person_roles(person: dict[str, Any]) -> list[dict[str, Any]]:
+    values = person.get("organizations") if isinstance(person.get("organizations"), list) else []
+    roles: list[dict[str, Any]] = []
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        title = normalize_string(item.get("title"))
+        if not title:
+            continue
+        role = {
+            "title": title,
+            "organization": normalize_string(item.get("name")),
+            "department": normalize_string(item.get("department")),
+            "current": item.get("current") is True,
+        }
+        if role not in roles:
+            roles.append(role)
+    return sorted(
+        roles,
+        key=lambda value: (
+            value["title"].casefold(),
+            value["organization"].casefold(),
+            value["department"].casefold(),
+        ),
     )
 
 
@@ -302,6 +329,7 @@ def collect_gws_matches(
                         "source_record_id": normalize_string(person.get("resourceName")),
                         "label": _person_name(person),
                         "organizations": _person_organizations(person),
+                        "roles": _person_roles(person),
                         "phones": _person_phones(person),
                         "match_basis": "exact_email",
                     }
@@ -381,6 +409,7 @@ def collect_odollo_matches(
                     "source_record_id": normalize_string(row.get("id")),
                     "label": normalize_string(row.get("name")),
                     "organizations": _strings([m2o_label(row.get("parent_id"))]),
+                    "roles": [],
                     "phones": [],
                     "match_basis": "exact_email",
                 },
@@ -451,6 +480,21 @@ def _contact_metadata(candidate: dict[str, Any], matches: list[dict[str, Any]]) 
         for match in matches
         for phone in (match.get("phones") if isinstance(match.get("phones"), list) else [])
     )
+    roles = sorted(
+        {
+            _json(role): role
+            for match in matches
+            for role in (
+                match.get("roles") if isinstance(match.get("roles"), list) else []
+            )
+            if isinstance(role, dict) and normalize_string(role.get("title"))
+        }.values(),
+        key=lambda value: (
+            normalize_string(value.get("title")).casefold(),
+            normalize_string(value.get("organization")).casefold(),
+            normalize_string(value.get("department")).casefold(),
+        ),
+    )
     corpus_payload = {
         "email": email,
         "names": names,
@@ -478,6 +522,7 @@ def _contact_metadata(candidate: dict[str, Any], matches: list[dict[str, Any]]) 
             "exact_match_count": len(matches),
             "source_records": sorted(matches, key=lambda value: (value["provider"], value["profile"], value["source_record_id"])),
             "organizations": organizations,
+            "roles": roles,
             "phones": phones,
         },
     }

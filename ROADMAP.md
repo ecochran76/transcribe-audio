@@ -197,6 +197,15 @@ provenance. The target is Level 2 manual/shadow ingestion: shared or ambiguous
 addresses stay review-required, and provider writes, person merges, speaker
 assignments, background scheduling, and Level 3 automation remain gated.
 
+Plan 0072 A6-R3 is delivered as bounded relationship-and-role discovery. The
+Contacts read model now derives deterministic Level 2 shadow hypotheses for
+provider-declared contextual roles, provider-declared organization
+affiliations, and recurring calendar co-invitation. The live corpus currently
+surfaces 3 role, 59 affiliation, and 279 recurring co-invitation hypotheses
+across 103 contacts. Every lead is review-required; accepted graph events,
+ontology changes, provider writes, person merges, speaker assignment, and
+automatic identity conclusions remain gated.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`

@@ -810,6 +810,15 @@ Speaker deanonymization uses deterministic evidence before LLM reasoning. Calend
 
 The `gws` adapter uses read-only People API surfaces exposed by `gws people`: grouped contacts, Other Contacts, and optional directory people when `directory` is added to `surfaces`. The Odollo adapter uses read-only `res.partner` contact lookups against configured tenant profiles. Identity bundles expose compact candidate labels, emails, source types, profile labels, evidence, warnings, and operator decisions; raw contact exports, credentials, and tenant config stay in user-scoped runtime paths.
 
+The Contacts workspace also derives deterministic shadow graph leads from that
+local evidence. Provider-declared titles become contextual role hypotheses,
+provider-declared organizations become affiliation hypotheses, and contacts
+co-invited to at least two recording-associated calendar events receive a
+symmetric recurring co-invitation hypothesis. These compact rows are marked
+`Needs review`; they can inform later speaker deduction and conversation
+contextualization, but they do not assert employment, attendance, speech,
+person identity, speaker identity, or an accepted relationship.
+
 Plan 0025 adds the post-transcription speaker-clue preprocessing foundation in `speaker_identity_preprocess.py`. It builds a bounded `transcribe-audio.speaker-clue-packet.v1` with separate utterance clues for each anonymous speaker, orders exact calendar-attendee email matches first, and gathers configured read-only Calendar, Drive, Gmail, Google People, Odollo contact, `crm.lead`, and log-note provenance. Gmail collection uses message metadata plus a bounded API snippet only; it does not fetch or retain full message bodies. Odollo leads can become review candidates, while log notes remain cited evidence. The packet renders a JSON-only App Intelligence prompt for the `speaker_disambiguation` task, and `transcribe-audio.speaker-identity-readout.v1` validation rejects speaker, contact, utterance, or source references that were not prepared by the host. Every result remains human-review-only and the later full-conversation contextual pass is explicitly outside this stage.
 
 The built-in `codex_supervisor` profile and `speaker_disambiguation` task now default to `codex-app-server` with `gpt-5.6-sol`, matching the current workstation Codex runtime. User-scoped intelligence profile overrides still take precedence.

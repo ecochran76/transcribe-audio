@@ -60,6 +60,14 @@ def test_collect_and_apply_calendar_contacts_is_exact_and_idempotent(tmp_path: P
                     "source_record_id": "people/alex",
                     "label": "Alex Example",
                     "organizations": ["Example Labs"],
+                    "roles": [
+                        {
+                            "title": "Research Director",
+                            "organization": "Example Labs",
+                            "department": "Research",
+                            "current": True,
+                        }
+                    ],
                     "phones": ["+1 555 0100"],
                     "match_basis": "exact_email",
                 }
@@ -97,6 +105,7 @@ def test_collect_and_apply_calendar_contacts_is_exact_and_idempotent(tmp_path: P
     metadata = json.loads(row["metadata_json"])
     assert metadata["calendar_attendee"]["recording_count"] == 2
     assert metadata["enrichment"]["organizations"] == ["Example Labs"]
+    assert metadata["enrichment"]["roles"][0]["title"] == "Research Director"
     assert metadata["identity_boundary"] == "exact_email_source_join_not_person_or_speaker_proof"
 
     replay = calendar_contact_ingest.build_ingest_plan(
@@ -196,7 +205,14 @@ def test_gws_bulk_collection_joins_only_exact_email() -> None:
                     "resourceName": "people/alex",
                     "names": [{"displayName": "Alex Example"}],
                     "emailAddresses": [{"value": "alex@example.test"}],
-                    "organizations": [{"name": "Example Labs"}],
+                    "organizations": [
+                        {
+                            "name": "Example Labs",
+                            "title": "Research Director",
+                            "department": "Research",
+                            "current": True,
+                        }
+                    ],
                 },
                 {
                     "resourceName": "people/not-alex",
@@ -214,6 +230,14 @@ def test_gws_bulk_collection_joins_only_exact_email() -> None:
 
     assert list(result.matches) == ["alex@example.test"]
     assert result.matches["alex@example.test"][0]["source_record_id"] == "people/alex"
+    assert result.matches["alex@example.test"][0]["roles"] == [
+        {
+            "title": "Research Director",
+            "organization": "Example Labs",
+            "department": "Research",
+            "current": True,
+        }
+    ]
     assert result.read_calls == 1
     assert result.read_records == 2
     assert len(calls) == 1

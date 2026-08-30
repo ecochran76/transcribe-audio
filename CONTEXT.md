@@ -388,6 +388,30 @@ A time- and context-bound role a person holds in a conversation, event,
 organization, project, or matter, distinct from a durable entity relationship.
 _Avoid_: Person attribute, relationship type
 
+**Role Hypothesis**:
+A reviewable proposal that a source record or person held a contextual role,
+retaining the declaring source, context, and effective time without making the
+role a current fact.
+_Avoid_: Job title field, accepted role
+
+**Relationship Hypothesis**:
+A reviewable typed edge derived from attributable observations and kept
+separate from accepted relationship history until policy or a reviewer gives
+it authority.
+_Avoid_: Relationship, graph fact
+
+**Calendar Co-invitation**:
+A symmetric observation that two attendee source records appeared on the same
+calendar event associated with recordings. It does not prove presence,
+interaction, identity, or a personal or professional relationship.
+_Avoid_: Co-attendance, meeting relationship
+
+**Affiliation Hypothesis**:
+A reviewable directional proposal connecting a source record or person to an
+organization from provider-declared membership evidence, without asserting
+employment or current status.
+_Avoid_: Employee relationship, organization fact
+
 **Conversation Purpose Claim**:
 A reviewable primary or secondary explanation of why a conversation occurred,
 linked to projects, matters, organizations, evidence, alternatives, and score

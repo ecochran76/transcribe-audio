@@ -12,6 +12,7 @@ from typing import Any, Mapping
 import transcript_store
 from conversation_knowledge_store import ConversationKnowledgeStore
 from identity_learning_contracts import ARTIFACT_SCHEMAS, validate_artifact
+from relationship_role_discovery import discover_relationship_roles
 
 
 OPERATOR_GOLD_SCHEMA = "transcribe-audio.speaker-evaluation-gold.v1"
@@ -860,6 +861,8 @@ class IdentityReviewWorkflow:
         allowed_kinds = {"", "canonical_person", "local_contact", "reviewed_speaker"}
         if kind not in allowed_kinds:
             raise IdentityReviewWorkflowError("Unsupported Contacts record type.")
+        graph_discovery = discover_relationship_roles(self.root)
+        graph_by_contact = graph_discovery["by_contact_id"]
         with transcript_store.connect(self.root) as con:
             people = con.execute(
                 """
@@ -904,6 +907,8 @@ class IdentityReviewWorkflow:
                             {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
                             for row in relationships
                         ],
+                        "role_hypotheses": [],
+                        "relationship_hypotheses": [],
                         "review_occurrences": [],
                         "speaker_review_count": 0,
                         "recording_count": 0,
@@ -980,6 +985,8 @@ class IdentityReviewWorkflow:
                             {**dict(row), "evidence_ids": _array(str(row["evidence_ids_json"]))}
                             for row in relationships
                         ],
+                        "role_hypotheses": [],
+                        "relationship_hypotheses": [],
                         "review_occurrences": [],
                         "speaker_review_count": 0,
                         "recording_count": 0,
@@ -1054,6 +1061,10 @@ class IdentityReviewWorkflow:
                         for value in calendar.get("appearances") or []
                         if isinstance(value, dict)
                     ]
+                    graph_candidates = graph_by_contact.get(
+                        contact_id,
+                        {"role_hypotheses": [], "relationship_hypotheses": []},
+                    )
                     items.append(
                         {
                             "person_id": f"contact:{contact_id}",
@@ -1081,6 +1092,10 @@ class IdentityReviewWorkflow:
                             "calendar_occurrences": appearances,
                             "roles": [],
                             "relationships": [],
+                            "role_hypotheses": graph_candidates["role_hypotheses"],
+                            "relationship_hypotheses": graph_candidates[
+                                "relationship_hypotheses"
+                            ],
                             "review_occurrences": [],
                             "speaker_review_count": 0,
                             "recording_count": int(calendar.get("recording_count") or 0),
@@ -1143,6 +1158,8 @@ class IdentityReviewWorkflow:
                         *[str(value) for value in item.get("aliases") or []],
                         _json(item.get("source_records") or []),
                         _json(item.get("review_occurrences") or []),
+                        _json(item.get("role_hypotheses") or []),
+                        _json(item.get("relationship_hypotheses") or []),
                     ]
                 ).casefold()
             )
@@ -1171,8 +1188,14 @@ class IdentityReviewWorkflow:
                 "local_contacts",
                 "calendar_attendees",
                 "configured_exact_email_sources",
+                "shadow_role_relationship_discovery",
                 "operator_gold",
             ],
             "authoritative_editing_surface": "read_only_directory",
             "relationship_hop_limit": 2,
+            "graph_discovery": {
+                key: value
+                for key, value in graph_discovery.items()
+                if key != "by_contact_id"
+            },
         }

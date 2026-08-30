@@ -593,7 +593,10 @@ function identitySummary(item) {
   }
   if (item.identity_kind === "local_contact") {
     const email = item.contact_methods?.find((method) => method.kind === "email")?.value || "Unlinked local contact";
-    return item.recording_count ? `${email} · ${counted(item.recording_count, "recording")}` : email;
+    const graphCount = (item.role_hypotheses?.length || 0) + (item.relationship_hypotheses?.length || 0);
+    const recording = item.recording_count ? ` · ${counted(item.recording_count, "recording")}` : "";
+    const graph = graphCount ? ` · ${counted(graphCount, "graph lead")}` : "";
+    return `${email}${recording}${graph}`;
   }
   return `${item.source_records?.length || 0} sources${item.roles?.length ? ` · ${item.roles.length} roles` : ""}`;
 }
@@ -689,6 +692,9 @@ function PeopleDetail({ person }) {
       {person.identity_kind !== "reviewed_speaker" && <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />}
       {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
       {!!person.relationships?.length && <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={person.relationships.map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />}
+      {!!person.role_hypotheses?.length && <PeopleTable title="Role hypotheses" columns={["Proposed role", "Organization", "Basis", "Status"]} rows={person.role_hypotheses.map((row) => [row.display_value, row.organization || "—", row.basis, "Needs review"])} />}
+      {!!person.relationship_hypotheses?.length && <PeopleTable title="Relationship hypotheses" columns={["Proposed relationship", "Related record", "Evidence", "Status"]} rows={person.relationship_hypotheses.map((row) => [label(row.relationship_type), row.counterpart_label, row.hypothesis_kind === "calendar_co_invitation" ? counted(row.observation_count, "shared invitation") : row.basis, "Needs review"])} />}
+      {(person.role_hypotheses?.length || person.relationship_hypotheses?.length) ? <p className="people-editing-boundary">These graph leads can support speaker deduction and conversation context. They remain unaccepted until a later explicit review action records a decision.</p> : null}
       <details className="identity-provenance"><summary>Record provenance</summary><dl className="identity-lineage"><div><dt>Record ID</dt><dd><code>{person.source_identity_id || person.person_id}</code></dd></div><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at ? formatDate(person.built_at) : "Unavailable"}</dd></div></dl></details>
     </>
   );
