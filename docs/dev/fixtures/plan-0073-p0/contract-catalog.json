@@ -1,0 +1,46 @@
+{
+  "schema_version": "transcribe-audio.mail-relationship-contract.v1",
+  "artifact_schemas": {
+    "mail_query_receipt": "transcribe-audio.mail-query-receipt.v1",
+    "mail_observation": "transcribe-audio.mail-observation.v1",
+    "mail_independence_group": "transcribe-audio.mail-independence-group.v1",
+    "mail_relationship_hypothesis": "transcribe-audio.mail-relationship-hypothesis.v1"
+  },
+  "thresholds": {
+    "min_correspondence_threads": 2,
+    "min_coparticipant_threads": 2,
+    "max_records": 250,
+    "max_characters": 1,
+    "max_calls": 4,
+    "max_latency_ms": 30000,
+    "max_lookback_days": 365,
+    "max_retries": 1,
+    "max_pilot_conversations": 25,
+    "max_page_size": 100,
+    "max_pages": 10
+  },
+  "reason_codes": [
+    "excluded_shared_address",
+    "excluded_role_address",
+    "excluded_mailing_list",
+    "excluded_automated_sender",
+    "excluded_unresolved_contact",
+    "temporal_after_as_of",
+    "provider_response_invalid",
+    "duplicate_interaction",
+    "budget_exhausted",
+    "partial_source_failure",
+    "namespace_scope_mismatch",
+    "unsupported_capability",
+    "opaque_reference_unavailable"
+  ],
+  "effects": {
+    "accepted_relationships": 0,
+    "accepted_roles": 0,
+    "provider_writes": 0,
+    "person_merges": 0,
+    "speaker_assignments": 0,
+    "biometric_effects": 0,
+    "graphiti_writes": 0
+  }
+}

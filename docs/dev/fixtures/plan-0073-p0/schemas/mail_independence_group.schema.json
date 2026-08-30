@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transcribe-audio.mail-independence-group.v1",
+  "title": "Deterministic Mail Independence Group",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "group_id", "interaction_key_version",
+    "independent_thread_key", "member_observation_ids", "duplicate_count",
+    "source_count", "reason_code", "content_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "transcribe-audio.mail-independence-group.v1"},
+    "group_id": {"type": "string", "minLength": 1},
+    "interaction_key_version": {"const": "mail-interaction-key.v1"},
+    "independent_thread_key": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "member_observation_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "duplicate_count": {"type": "integer", "minimum": 0},
+    "source_count": {"type": "integer", "minimum": 1},
+    "reason_code": {"type": ["string", "null"]},
+    "content_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

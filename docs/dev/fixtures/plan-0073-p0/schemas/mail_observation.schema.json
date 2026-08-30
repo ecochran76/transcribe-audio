@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transcribe-audio.mail-observation.v1",
+  "title": "Deterministic Mail Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "observation_id", "query_receipt_id", "source_scope",
+    "capability", "source_ref", "source_event_at", "retrieved_at", "as_of",
+    "temporal_class", "participants", "account_direction",
+    "contact_ids_by_address", "signature_observations",
+    "independence_group_id", "redaction", "truncation",
+    "excluded_reason_code"
+  ],
+  "properties": {
+    "schema_version": {"const": "transcribe-audio.mail-observation.v1"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "query_receipt_id": {"type": "string", "minLength": 1},
+    "source_scope": {"type": "object"},
+    "capability": {"const": "mail_metadata_read"},
+    "source_ref": {"type": "object"},
+    "source_event_at": {"type": "string", "format": "date-time"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "as_of": {"type": "string", "format": "date-time"},
+    "temporal_class": {"enum": ["contemporaneous", "hindsight"]},
+    "participants": {"type": "object"},
+    "account_direction": {"enum": ["inbound", "outbound", "internal", "external", "unknown"]},
+    "contact_ids_by_address": {"type": "object"},
+    "signature_observations": {"type": "array"},
+    "independence_group_id": {"type": "string", "minLength": 1},
+    "redaction": {"type": "object"},
+    "truncation": {"type": "object"},
+    "excluded_reason_code": {"type": ["string", "null"]}
+  }
+}

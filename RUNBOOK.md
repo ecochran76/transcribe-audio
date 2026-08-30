@@ -1,5 +1,47 @@
 # Runbook
 
+## Turn 404: Close Plan 0073 P0 contract freeze (2026-08-30)
+
+Summary: Completed the non-private P0 contract freeze and moved Plan 0073 to
+P1 adapter implementation.
+
+Authority: Plan 0073 P0 under the user goal `execute plan 73`. This packet used
+only source code, tests, and synthetic/redacted fixtures. It made no Mail
+Receipts corpus read, provider call, runtime data write, schema migration,
+deployment, accepted graph decision, or Graphiti write.
+
+Evidence:
+
+- `mail_relationship_contracts.py` freezes four versioned artifact schemas,
+  two-thread recurrence thresholds, numerical retrieval ceilings, 13 reason
+  codes, and seven zero-effect counters behind one validation interface.
+- The validator enforces operator-lite Mail Receipts scope, exact normalized
+  email query keys, bounded lookback/budgets, complete opaque source and
+  temporal provenance, body/attachment/reply-field rejection, duplicate-group
+  accounting, proposed-only hypotheses, and exact zero effects.
+- `docs/dev/fixtures/plan-0073-p0/` contains a catalog, four closed top-level
+  JSON Schemas, one valid artifact of each type, and seven `.test`-domain
+  scenarios for one-way, bidirectional, coparticipant, duplicate, role-conflict,
+  shared-address, and hindsight behavior.
+- TDD evidence preserved the initial missing-module failure and subsequent
+  public-interface failures before the applicable implementations passed.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_mail_relationship_contracts.py
+  tests/test_identity_learning_contracts.py
+  tests/test_conversation_evidence_adapters.py` passes 41 tests.
+- `.venv/bin/python -m py_compile mail_relationship_contracts.py` passes.
+- CodeGraph is current with 373 indexed files, 10,932 nodes, and 38,050 edges.
+
+Progress classification: `outcome_progress`. P0's terminal contract and fixture
+evidence is complete. P1 is ready; P5 remains gated on exact private selectors,
+budgets, cohort, and preview.
+
+Next: Implement `MailReceiptsEvidenceAdapter` through an injected operator-lite
+reader, beginning with service-profile and scope failure behavior, then bounded
+exact-email page normalization and immutable query receipts.
+
 ## Turn 403: Activate Plan 0073 deterministic mail evidence (2026-08-30)
 
 Summary: Opened Plan 0073 under the user goal `execute plan 73` and activated

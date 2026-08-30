@@ -1,0 +1,238 @@
+{
+  "fixture_version": "transcribe-audio.plan-0073-p0-discovery-scenarios.v1",
+  "synthetic_test_only": true,
+  "account_address": "account@example.test",
+  "as_of": "2026-01-07T16:00:00Z",
+  "contacts": {
+    "alex@example.test": {
+      "contact_id": "contact-redacted-alex",
+      "label": "Alex Example",
+      "contact_class": "person_candidate"
+    },
+    "blair@example.test": {
+      "contact_id": "contact-redacted-blair",
+      "label": "Blair Example",
+      "contact_class": "person_candidate"
+    },
+    "team@example.test": {
+      "contact_id": "contact-redacted-team",
+      "label": "Example Team",
+      "contact_class": "shared_or_role_address"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "one_way_transmission",
+      "records": [
+        {
+          "evidence_id": "evidence-one-way-1",
+          "record_ref": "record-one-way-1",
+          "logical_message_ref": "logical-one-way-1",
+          "thread_ref": "thread-one-way-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-02T10:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": ["sent_mail"],
+        "independent_thread_count": 1,
+        "excluded_reason_codes": []
+      }
+    },
+    {
+      "case_id": "bidirectional_correspondence",
+      "records": [
+        {
+          "evidence_id": "evidence-bidirectional-1",
+          "record_ref": "record-bidirectional-1",
+          "logical_message_ref": "logical-bidirectional-1",
+          "thread_ref": "thread-bidirectional-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2025-12-15T10:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        },
+        {
+          "evidence_id": "evidence-bidirectional-2",
+          "record_ref": "record-bidirectional-2",
+          "logical_message_ref": "logical-bidirectional-2",
+          "thread_ref": "thread-bidirectional-2",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-03T10:00:00Z",
+          "from": ["account@example.test"],
+          "to": ["alex@example.test"],
+          "cc": [],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": ["sent_mail", "correspondence"],
+        "independent_thread_count": 2,
+        "excluded_reason_codes": []
+      }
+    },
+    {
+      "case_id": "recurring_thread_coparticipation",
+      "records": [
+        {
+          "evidence_id": "evidence-coparticipant-1",
+          "record_ref": "record-coparticipant-1",
+          "logical_message_ref": "logical-coparticipant-1",
+          "thread_ref": "thread-coparticipant-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2025-12-20T11:00:00Z",
+          "from": ["account@example.test"],
+          "to": ["alex@example.test", "blair@example.test"],
+          "cc": [],
+          "signature": null
+        },
+        {
+          "evidence_id": "evidence-coparticipant-2",
+          "record_ref": "record-coparticipant-2",
+          "logical_message_ref": "logical-coparticipant-2",
+          "thread_ref": "thread-coparticipant-2",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-04T11:00:00Z",
+          "from": ["account@example.test"],
+          "to": ["alex@example.test"],
+          "cc": ["blair@example.test"],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": ["thread_coparticipation"],
+        "independent_thread_count": 2,
+        "excluded_reason_codes": []
+      }
+    },
+    {
+      "case_id": "cross_source_duplicate",
+      "records": [
+        {
+          "evidence_id": "evidence-duplicate-a",
+          "record_ref": "record-duplicate-a",
+          "logical_message_ref": "logical-duplicate-1",
+          "thread_ref": "thread-duplicate-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-05T09:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        },
+        {
+          "evidence_id": "evidence-duplicate-b",
+          "record_ref": "record-duplicate-b",
+          "logical_message_ref": "logical-duplicate-1",
+          "thread_ref": "thread-duplicate-1",
+          "source_key": "mail-receipts-source-redacted-b",
+          "sent_at": "2026-01-05T09:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "independence_group_count": 1,
+        "duplicate_count": 1,
+        "independent_thread_count": 1,
+        "excluded_reason_codes": ["duplicate_interaction"]
+      }
+    },
+    {
+      "case_id": "conflicting_structured_roles",
+      "records": [
+        {
+          "evidence_id": "evidence-role-1",
+          "record_ref": "record-role-1",
+          "logical_message_ref": "logical-role-1",
+          "thread_ref": "thread-role-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2025-12-01T09:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": {
+            "address": "alex@example.test",
+            "title": "Program Director",
+            "organization": "Example Organization",
+            "department": "Programs"
+          }
+        },
+        {
+          "evidence_id": "evidence-role-2",
+          "record_ref": "record-role-2",
+          "logical_message_ref": "logical-role-2",
+          "thread_ref": "thread-role-2",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-06T09:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": {
+            "address": "alex@example.test",
+            "title": "Acting Director",
+            "organization": "Example Organization",
+            "department": "Operations"
+          }
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": ["contextual_role", "affiliation"],
+        "role_values": ["Acting Director", "Program Director"],
+        "conflict_count": 2,
+        "excluded_reason_codes": []
+      }
+    },
+    {
+      "case_id": "shared_address_exclusion",
+      "records": [
+        {
+          "evidence_id": "evidence-shared-1",
+          "record_ref": "record-shared-1",
+          "logical_message_ref": "logical-shared-1",
+          "thread_ref": "thread-shared-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-06T10:00:00Z",
+          "from": ["team@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": [],
+        "excluded_reason_codes": ["excluded_shared_address"]
+      }
+    },
+    {
+      "case_id": "post_as_of_exclusion",
+      "records": [
+        {
+          "evidence_id": "evidence-hindsight-1",
+          "record_ref": "record-hindsight-1",
+          "logical_message_ref": "logical-hindsight-1",
+          "thread_ref": "thread-hindsight-1",
+          "source_key": "mail-receipts-source-redacted-a",
+          "sent_at": "2026-01-08T10:00:00Z",
+          "from": ["alex@example.test"],
+          "to": ["account@example.test"],
+          "cc": [],
+          "signature": null
+        }
+      ],
+      "expected": {
+        "hypothesis_kinds": [],
+        "temporal_class": "hindsight",
+        "excluded_reason_codes": ["temporal_after_as_of"]
+      }
+    }
+  ]
+}

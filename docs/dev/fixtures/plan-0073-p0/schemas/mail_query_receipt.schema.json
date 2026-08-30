@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transcribe-audio.mail-query-receipt.v1",
+  "title": "Deterministic Mail Query Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "request_hash", "source_scope",
+    "capability", "query_mode", "exact_addresses", "as_of",
+    "lookback_start", "budgets", "status", "counts", "warnings",
+    "failures", "result_hashes", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "transcribe-audio.mail-query-receipt.v1"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "request_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source_scope": {"type": "object"},
+    "capability": {"const": "mail_metadata_read"},
+    "query_mode": {"const": "exact_email_only"},
+    "exact_addresses": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "format": "email"}},
+    "as_of": {"type": "string", "format": "date-time"},
+    "lookback_start": {"type": "string", "format": "date-time"},
+    "budgets": {"type": "object"},
+    "status": {"enum": ["complete", "partial", "unavailable"]},
+    "counts": {"type": "object"},
+    "warnings": {"type": "array"},
+    "failures": {"type": "array"},
+    "result_hashes": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

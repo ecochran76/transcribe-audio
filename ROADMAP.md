@@ -206,9 +206,10 @@ across 103 contacts. Every lead is review-required; accepted graph events,
 ontology changes, provider writes, person merges, speaker assignment, and
 automatic identity conclusions remain gated.
 
-Plan 0073 is the open deterministic-mail successor. P0 is active to freeze the
-versioned contracts, deterministic thresholds, reason codes, and redacted
-fixtures before adapter implementation. The plan will extend the
+Plan 0073 is the open deterministic-mail successor. P0 is closed with four
+versioned portable-artifact contracts, closed JSON Schemas, exact thresholds
+and reason codes, and seven synthetic/redacted scenario fixtures. P1 is active
+to implement the injected operator-lite adapter against those contracts. The plan will extend the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

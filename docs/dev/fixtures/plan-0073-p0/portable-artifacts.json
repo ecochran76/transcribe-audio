@@ -1,0 +1,142 @@
+{
+  "fixture_version": "transcribe-audio.plan-0073-p0-portable-artifacts.v1",
+  "synthetic_test_only": true,
+  "artifacts": {
+    "mail_query_receipt": {
+      "schema_version": "transcribe-audio.mail-query-receipt.v1",
+      "receipt_id": "mail-query-redacted-1",
+      "request_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_scope": {
+        "provider_kind": "mail_receipts",
+        "profile_id": "operator-lite",
+        "account_id": "account-redacted",
+        "tenant_id": "tenant-redacted",
+        "namespace": "namespace-redacted",
+        "corpus_id": "corpus-redacted",
+        "capabilities": ["mail_metadata_read"]
+      },
+      "capability": "mail_metadata_read",
+      "query_mode": "exact_email_only",
+      "exact_addresses": ["alex@example.test"],
+      "as_of": "2026-01-07T16:00:00Z",
+      "lookback_start": "2025-01-07T16:00:00Z",
+      "budgets": {
+        "max_records": 25,
+        "max_characters": 1,
+        "max_calls": 2,
+        "max_latency_ms": 5000,
+        "max_pages": 2
+      },
+      "status": "complete",
+      "counts": {
+        "selected": 1,
+        "excluded": 0,
+        "truncated": 0,
+        "provider_writes": 0
+      },
+      "warnings": [],
+      "failures": [],
+      "result_hashes": [
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "created_at": "2026-01-07T16:01:00Z"
+    },
+    "mail_observation": {
+      "schema_version": "transcribe-audio.mail-observation.v1",
+      "observation_id": "mail-observation-redacted-1",
+      "query_receipt_id": "mail-query-redacted-1",
+      "source_scope": {
+        "provider_kind": "mail_receipts",
+        "profile_id": "operator-lite",
+        "account_id": "account-redacted",
+        "tenant_id": "tenant-redacted",
+        "namespace": "namespace-redacted",
+        "corpus_id": "corpus-redacted",
+        "capabilities": ["mail_metadata_read"]
+      },
+      "capability": "mail_metadata_read",
+      "source_ref": {
+        "evidence_id": "evidence-redacted-1",
+        "record_ref": "record-redacted-1",
+        "message_ref_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "thread_ref_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "source_event_at": "2026-01-06T12:00:00Z",
+      "retrieved_at": "2026-01-07T16:01:00Z",
+      "as_of": "2026-01-07T16:00:00Z",
+      "temporal_class": "contemporaneous",
+      "participants": {
+        "from": ["alex@example.test"],
+        "to": ["account@example.test"],
+        "cc": []
+      },
+      "account_direction": "inbound",
+      "contact_ids_by_address": {
+        "alex@example.test": "contact-redacted-alex"
+      },
+      "signature_observations": [
+        {
+          "address": "alex@example.test",
+          "title": "Program Director",
+          "organization": "Example Organization",
+          "department": "Programs",
+          "observed_at": "2026-01-06T12:00:00Z"
+        }
+      ],
+      "independence_group_id": "mail-interaction-redacted-1",
+      "redaction": {"body_retained": false},
+      "truncation": {"snippet_characters": 0},
+      "excluded_reason_code": null
+    },
+    "mail_independence_group": {
+      "schema_version": "transcribe-audio.mail-independence-group.v1",
+      "group_id": "mail-interaction-redacted-1",
+      "interaction_key_version": "mail-interaction-key.v1",
+      "independent_thread_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "member_observation_ids": [
+        "mail-observation-redacted-1",
+        "mail-observation-redacted-copy-1"
+      ],
+      "duplicate_count": 1,
+      "source_count": 2,
+      "reason_code": "duplicate_interaction",
+      "content_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "mail_relationship_hypothesis": {
+      "schema_version": "transcribe-audio.mail-relationship-hypothesis.v1",
+      "hypothesis_id": "mail-hypothesis-redacted-1",
+      "hypothesis_kind": "correspondence",
+      "relationship_type": "CORRESPONDED_WITH",
+      "directionality": "symmetric",
+      "subject_contact_id": "contact-redacted-alex",
+      "counterpart_type": "contact_candidate",
+      "counterpart_id": "contact-redacted-account",
+      "counterpart_label": "Account Contact",
+      "evidence_observation_ids": [
+        "mail-observation-redacted-1",
+        "mail-observation-redacted-2"
+      ],
+      "evidence_independence_group_ids": [
+        "mail-interaction-redacted-1",
+        "mail-interaction-redacted-2"
+      ],
+      "observation_count": 2,
+      "independent_thread_count": 2,
+      "first_observed_at": "2025-12-15T12:00:00Z",
+      "last_observed_at": "2026-01-06T12:00:00Z",
+      "status": "proposed",
+      "basis": "Two independent synthetic threads contain mail in both directions.",
+      "why_not_accepted": "Correspondence does not establish a named personal or professional relationship.",
+      "conflicts": [],
+      "effect_counts": {
+        "accepted_relationships": 0,
+        "accepted_roles": 0,
+        "provider_writes": 0,
+        "person_merges": 0,
+        "speaker_assignments": 0,
+        "biometric_effects": 0,
+        "graphiti_writes": 0
+      }
+    }
+  }
+}

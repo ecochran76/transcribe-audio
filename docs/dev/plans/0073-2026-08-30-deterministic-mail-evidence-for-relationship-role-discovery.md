@@ -73,7 +73,7 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN`. P0 is active on the critical path. P0-P4 may use source
+Plan 0073 is `OPEN`. P0 is closed and P1 is active on the critical path. P0-P4 may use source
 code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
 stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
 Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
@@ -88,6 +88,23 @@ numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 | Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
 | Checkpoint cadence | Every packet boundary and before any private/read, runtime, deployment, or accepted-effect gate |
 | Terminal evidence | Frozen fixtures validate, public-interface tests prove rejection and deterministic replay, planning audit passes, CodeGraph is current, and git state is explicit |
+
+P0 delivered on 2026-08-30:
+
+- `mail_relationship_contracts.py` exposes one deep public validation seam for
+  the four versioned portable artifacts and freezes recurrence thresholds,
+  bounded retrieval ceilings, reason codes, and zero-effect counters;
+- `docs/dev/fixtures/plan-0073-p0/` contains a matching catalog, closed
+  top-level JSON Schemas, portable synthetic artifacts, and seven scenario
+  fixtures covering the complete P0 behavior set with reserved `.test` data;
+- raw message/attachment/reply fields are rejected recursively, query receipts
+  require exact normalized email keys and bounded operator-lite scope, and
+  observations require complete source/temporal/independence provenance;
+- historical post-`as_of` observations must be labeled hindsight and excluded,
+  duplicate groups account exactly for their members, and hypotheses cannot
+  carry accepted effects; and
+- 41 focused and adjacent contract/adapter tests plus Python compilation pass.
+  No Mail Receipts corpus or provider was queried.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
