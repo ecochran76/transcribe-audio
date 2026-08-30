@@ -73,16 +73,16 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN`. P0-P2 are closed and P3 is active on the critical path. P0-P4 may use source
+Plan 0073 is `OPEN`. P0-P3 are closed and P4 is active on the critical path. P0-P4 may use source
 code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
 stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
 Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
 numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 
-| Field | Active P3 control |
+| Field | Active P4 control |
 | --- | --- |
 | Authority | User goal `execute plan 73`; ordinary local implementation only |
-| Bounded outcome | Extend the existing discovery projection with review-only mail transmission, correspondence, coparticipation, role, and affiliation hypotheses |
+| Bounded outcome | Expose compact, sortable, expandable, privacy-safe mail relationship and role evidence in Contacts and validate desktop/mobile behavior |
 | Write surface | Repo source, tests, `docs/dev/fixtures/plan-0073-p0/`, Plan 0073, ROADMAP, RUNBOOK, and focused commits |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
 | Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
@@ -138,6 +138,24 @@ P2 delivered on 2026-08-30:
   separate source observations; and
 - replay and reversed input produce identical IDs, ordering, groups, and input
   watermark across 69 focused and adjacent passing tests.
+
+P3 delivered on 2026-08-30:
+
+- `mail_relationship_discovery.py` derives only the frozen deterministic
+  `SENT_MAIL_TO`, `CORRESPONDED_WITH`,
+  `MAIL_THREAD_COPARTICIPANT_WITH`, `HAS_CONTEXTUAL_ROLE`, and
+  `AFFILIATED_WITH` proposal families;
+- exact contact/address joins fail closed, shared/role/list/automated and
+  unresolved identities are excluded, post-cutoff observations remain
+  excluded, and duplicate messages do not inflate independent-thread counts;
+- every proposal carries source observation/group IDs, directionality,
+  independent-thread count, first/last time, conflicts, a human-readable basis,
+  `why_not_accepted`, and the exact seven zero-effect counters;
+- `discover_relationship_roles` accepts only an injected normalized mail
+  projection and merges privacy-safe review views into Contacts without adding
+  a live/provider read path or accepted graph projection; and
+- all seven frozen P0 scenarios replay through P1-P3 with reordered-input
+  equality, while 79 focused Contacts/API/discovery regressions pass.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.

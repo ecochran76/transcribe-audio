@@ -214,7 +214,11 @@ scope echo, bounded cursor pagination, one transient retry, deterministic
 receipts, and privacy-safe partial failures. P2 is closed with validated pure
 normalization, cross-source deduplication, temporal exclusion, independence
 grouping, conflict preservation, stable ordering, and replay-equal watermarks.
-P3 is active for review-only mail relationship and role discovery. The plan will extend the
+P3 is closed with deterministic proposed-only mail transmission,
+correspondence, recurring coparticipation, contextual-role, and affiliation
+hypotheses, exact exclusions, conflict visibility, and zero accepted effects.
+P4 is active for compact sortable/expandable Contacts evidence and bounded API
+summaries. The plan will extend the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

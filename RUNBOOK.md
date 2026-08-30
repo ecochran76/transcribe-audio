@@ -1,5 +1,52 @@
 # Runbook
 
+## Turn 407: Close Plan 0073 P3 shadow discovery (2026-08-30)
+
+Summary: Completed deterministic, review-only mail relationship and role
+discovery and moved Plan 0073 to the compact Contacts/API surface in P4.
+
+Authority: Plan 0073 P3 under the user goal `execute plan 73`. This packet used
+only synthetic portable observations, disposable contact stores, and injected
+normalized projections. It made no Mail Receipts corpus read, provider call,
+runtime data write, schema migration, deployment, accepted graph decision, or
+Graphiti write.
+
+Evidence:
+
+- `mail_relationship_discovery.py` derives the five frozen deterministic mail
+  proposal families without inferring colleague, client, vendor, friend,
+  manager, employee, family, speaker identity, or accepted graph truth.
+- Exact address/contact joins, shared/role/list/automated exclusions,
+  historical cutoff, cross-source deduplication, recurring independent-thread
+  thresholds, and structured role conflicts are explicit and auditable.
+- Every portable hypothesis includes evidence observation/group IDs, counts,
+  time range, directionality, conflicts, basis, `why_not_accepted`, and all
+  accepted/provider/person/speaker/biometric/Graphiti effects fixed at zero.
+- `discover_relationship_roles` accepts a normalized mail projection only by
+  explicit injection. Its ordinary live call path remains provider-free and
+  unchanged; injected mail views are associated with both relevant Contacts
+  without persisting or accepting them.
+- The seven frozen P0 scenarios replay end to end through P1, P2, and P3 and
+  remain equal when normalized observations/groups are reversed.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_plan0073_fixture_replay.py
+  tests/test_mail_relationship_discovery.py
+  tests/test_relationship_role_discovery_mail_integration.py
+  tests/test_relationship_role_discovery.py tests/test_identity_review_workflow.py
+  tests/test_transcript_api.py` passes 79 tests.
+- `.venv/bin/python -m py_compile mail_relationship_discovery.py
+  relationship_role_discovery.py` and `git diff --check` pass.
+
+Progress classification: `outcome_progress`. P3's complete redacted fixture
+replay terminal is complete. P4 is ready; P5 remains gated on exact private
+selectors, budgets, cohort, and preview.
+
+Next: Add bounded `/api/people` mail summaries and a dense sortable,
+expandable Contacts review table, then validate desktop/mobile behavior with
+Agent Browser using fixture-only data.
+
 ## Turn 406: Close Plan 0073 P2 deterministic normalization (2026-08-30)
 
 Summary: Completed pure mail observation normalization and independence

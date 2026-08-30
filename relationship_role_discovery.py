@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 import transcript_store
+from mail_evidence_normalization import NormalizedMailEvidence
+from mail_relationship_discovery import (
+    MailRelationshipDiscovery,
+    discover_mail_relationship_hypotheses,
+)
 
 
 SCHEMA_VERSION = "transcribe-audio.relationship-role-discovery.v1"
@@ -53,6 +58,8 @@ def discover_relationship_roles(
     root: Optional[Path] = None,
     *,
     minimum_recurring_invitations: int = MIN_RECURRING_INVITATIONS,
+    mail_evidence: NormalizedMailEvidence | None = None,
+    mail_account_address: str = "",
 ) -> dict[str, Any]:
     """Build review-only hypotheses from exact local contact observations."""
     if minimum_recurring_invitations < 2:
@@ -80,6 +87,7 @@ def discover_relationship_roles(
         contacts[contact_id] = {
             "contact_id": contact_id,
             "label": _text(row.get("label")) or "Unnamed contact",
+            "email": _text(row.get("email")).casefold(),
             "contact_class": _text(metadata.get("contact_class")) or "person_candidate",
             "updated_at": _text(row.get("updated_at")),
             "appearances": [
@@ -238,6 +246,66 @@ def discover_relationship_roles(
         }
         by_contact_id[left_id]["relationship_hypotheses"].append(left)
         by_contact_id[right_id]["relationship_hypotheses"].append(right)
+
+    mail_discovery: MailRelationshipDiscovery | None = None
+    if mail_evidence is not None:
+        if not _text(mail_account_address):
+            raise ValueError("Mail discovery requires an explicit account address.")
+        mail_discovery = discover_mail_relationship_hypotheses(
+            mail_evidence.observations,
+            mail_evidence.independence_groups,
+            contacts=contacts,
+            account_address=mail_account_address,
+            input_watermark=mail_evidence.input_watermark,
+        )
+        for hypothesis in mail_discovery.hypotheses:
+            subject_id = hypothesis["subject_contact_id"]
+            if subject_id not in by_contact_id:
+                raise ValueError("Mail hypothesis subject is outside Contacts.")
+            if hypothesis["hypothesis_kind"] == "contextual_role":
+                by_contact_id[subject_id]["role_hypotheses"].append(
+                    {
+                        **hypothesis,
+                        "display_value": hypothesis["counterpart_label"],
+                        "organization": "",
+                        "department": "",
+                        "effective_time": (
+                            f"{hypothesis['first_observed_at']} to "
+                            f"{hypothesis['last_observed_at']}"
+                        ),
+                        "evidence_source": "mail_metadata",
+                    }
+                )
+                continue
+            by_contact_id[subject_id]["relationship_hypotheses"].append(
+                {
+                    **hypothesis,
+                    "mail_direction": (
+                        "sent"
+                        if hypothesis["hypothesis_kind"] == "sent_mail"
+                        else "symmetric"
+                    ),
+                    "evidence_source": "mail_metadata",
+                }
+            )
+            counterpart_id = hypothesis["counterpart_id"]
+            if (
+                hypothesis["counterpart_type"] == "contact_candidate"
+                and counterpart_id in by_contact_id
+            ):
+                by_contact_id[counterpart_id]["relationship_hypotheses"].append(
+                    {
+                        **hypothesis,
+                        "counterpart_id": subject_id,
+                        "counterpart_label": contacts[subject_id]["label"],
+                        "mail_direction": (
+                            "received"
+                            if hypothesis["hypothesis_kind"] == "sent_mail"
+                            else "symmetric"
+                        ),
+                        "evidence_source": "mail_metadata",
+                    }
+                )
     for candidates in by_contact_id.values():
         candidates["role_hypotheses"].sort(
             key=lambda item: (item["display_value"].casefold(), item["organization"].casefold())
@@ -258,7 +326,12 @@ def discover_relationship_roles(
     return {
         "schema_version": SCHEMA_VERSION,
         "authority_mode": "shadow_hypotheses_only",
-        "input_watermark": _hash(input_rows),
+        "input_watermark": _hash(
+            {
+                "contacts": input_rows,
+                "mail": mail_evidence.input_watermark if mail_evidence else "",
+            }
+        ),
         "built_at": max((_text(row.get("updated_at")) for row in rows), default=""),
         "minimum_recurring_invitations": minimum_recurring_invitations,
         "contact_count": len(contacts),
@@ -267,6 +340,32 @@ def discover_relationship_roles(
         "role_hypothesis_count": len(role_groups),
         "affiliation_hypothesis_count": len(affiliation_groups),
         "calendar_co_invitation_hypothesis_count": len(pair_candidates),
+        "mail_hypothesis_count": (
+            len(mail_discovery.hypotheses) if mail_discovery else 0
+        ),
+        "mail_hypothesis_counts": (
+            {
+                kind: sum(
+                    1
+                    for item in mail_discovery.hypotheses
+                    if item["hypothesis_kind"] == kind
+                )
+                for kind in sorted(
+                    {item["hypothesis_kind"] for item in mail_discovery.hypotheses}
+                )
+            }
+            if mail_discovery
+            else {}
+        ),
+        "mail_excluded_reason_counts": (
+            mail_discovery.excluded_reason_counts if mail_discovery else {}
+        ),
+        "mail_input_watermark": (
+            mail_discovery.input_watermark if mail_discovery else ""
+        ),
+        "mail_hypotheses": (
+            list(mail_discovery.hypotheses) if mail_discovery else []
+        ),
         "accepted_effect_count": 0,
         "provider_write_count": 0,
         "person_merge_count": 0,
