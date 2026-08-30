@@ -81,9 +81,9 @@ numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 
 | Field | Active P5 checkpoint control |
 | --- | --- |
-| Authority | No private P5 read authority; the completed user goal authority covered ordinary local implementation only |
-| Bounded outcome | Stop and prepare the exact private pilot preview only after the user names or approves its selectors, budgets, as-of rule, and cohort |
-| Write surface | No additional surface is authorized until the P5 preview gate is opened |
+| Authority | The active user goal covers ordinary repo implementation and zero-read preview preparation; no private P5 read authority exists |
+| Bounded outcome | Bind the exact private pilot selectors, budgets, as-of rule, and cohort into one immutable preview, then stop for its literal approval |
+| Write surface | Repo source, tests, redacted fixtures, Plan 0073, ROADMAP, and RUNBOOK; no private runtime write before approval |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
 | Attempts and review | P5 allows one preview, one apply after exact approval, and only one transient idempotent read retry |
 | Checkpoint cadence | Before the first private/read effect and again before any apply, runtime, deployment, or accepted-effect gate |
@@ -173,6 +173,31 @@ P4 delivered on 2026-08-30:
   viewport-wrapped evidence detail; and
 - the production frontend build and the 79 focused Contacts/API/discovery
   regressions pass. No deployment or private Mail Receipts read ran.
+
+P5 preview preparation on 2026-08-30:
+
+- `plan0073_private_pilot.py` exposes a pure, zero-read preview builder, an
+  exact approval validator, and a deterministic queue-to-contact cohort join;
+- the reserved `.test` request is marked `redacted_fixture_only`, emits no
+  approval phrase, and cannot validate as authority for a private read;
+- the preview contract requires one operator-lite Mail Receipts scope, exact
+  namespace/corpus/account/tenant selectors, metadata-only exact-email queries,
+  per-conversation `as_of`, at most 25 conversations and 64 exact-address
+  queries, 25 records/4 calls/10 pages per query, one total transient retry,
+  and all accepted/provider/person/speaker/biometric/Graphiti effects at zero;
+- the current local identity-review queue deterministically resolves all 25
+  queued conversations to 57 non-shared exact contact-email queries, spanning
+  `2019-07-01T19:07:06Z` through `2024-06-25T19:59:45.103000Z`, with cohort
+  SHA-256 `8879f37973b0bfe119fd31fab75b803615cf572e725220f2d92a195a2b319ddd`;
+- installed registration metadata proves namespace `default`, profile and auth
+  role `operator-lite`, required authentication, and the user-scoped local
+  backend socket; however, account, tenant, and corpus selectors remain
+  unresolved because the MCP registry transport returned `Transport closed`
+  twice and the equivalent read-only CLI registry diagnostic did not complete;
+- the stalled diagnostic process group was terminated exactly without
+  restarting or mutating the shared Mail Receipts service; and
+- 100 focused Plan 0073/Contacts/API tests pass. No exact private preview,
+  approval, Mail Receipts evidence read, or private runtime write has occurred.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.

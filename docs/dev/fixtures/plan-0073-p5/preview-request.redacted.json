@@ -1,0 +1,49 @@
+{
+  "schema_version": "transcribe-audio.plan0073-p5-preview-request.v1",
+  "source_scope": {
+    "service_profile": "operator-lite",
+    "source_profile_id": "mail-receipts-redacted",
+    "provider_kind": "mail_receipts",
+    "account_id": "account-redacted",
+    "tenant_id": "tenant-redacted",
+    "account_address": "operator@example.test",
+    "namespace": "namespace-redacted",
+    "corpus_id": "corpus-redacted",
+    "capabilities": [
+      "mail_metadata_read"
+    ],
+    "required_tools": [
+      "search_mail"
+    ],
+    "mailbox_mutation": false,
+    "corpus_operation_execution": false
+  },
+  "retrieval": {
+    "query_mode": "exact_email_only",
+    "include_body": false,
+    "include_subject": false,
+    "include_attachments": false,
+    "hindsight_policy": "exclude_after_conversation_as_of"
+  },
+  "budgets": {
+    "max_conversations": 25,
+    "max_exact_address_queries": 64,
+    "max_records_per_query": 25,
+    "max_characters_per_query": 1,
+    "max_calls_per_query": 4,
+    "max_pages_per_query": 10,
+    "max_latency_ms_per_query": 30000,
+    "max_lookback_days": 365,
+    "max_retries_per_pilot": 1
+  },
+  "cohort": [
+    {
+      "queue_item_id": "queue-redacted-1",
+      "conversation_id": "conversation-redacted-1",
+      "as_of": "2026-01-07T16:00:00Z",
+      "exact_addresses": [
+        "alex@example.test"
+      ]
+    }
+  ]
+}

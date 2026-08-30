@@ -1,5 +1,78 @@
 # Runbook
 
+## Turn 409: Prepare Plan 0073 P5 zero-read authorization (2026-08-30)
+
+Summary: Implemented the immutable P5 preview/approval seam, froze the current
+local cohort aggregate, and stopped before Mail Receipts evidence access because
+the exact corpus scope could not be read through the operator-lite registry.
+
+Authority: The active user goal `execute plan 73` covers ordinary repository
+implementation and zero-read preview preparation. Plan 0073 separately requires
+literal approval of an exact private preview before the first owned-corpus read.
+This packet did not query mail evidence, call a mailbox/provider, write private
+runtime state, execute a corpus operation, deploy, accept graph hypotheses,
+merge people, affect speakers/profiles, or write Graphiti.
+
+Evidence:
+
+- `plan0073_private_pilot.py` is a deep, pure preview module with three public
+  behaviors: deterministic queue/contact cohort construction, immutable preview
+  construction, and exact approval validation.
+- The preview rejects missing/placeholder selectors, non-operator-lite scope,
+  mailbox-capable profiles, body/subject/attachment retrieval, non-exact email,
+  budget widening, duplicate IDs, more than 25 conversations, more than 8
+  addresses per conversation, and more than 64 exact-address queries.
+- Each address becomes its own accountable query plan with 25 records, one
+  metadata character sentinel, four calls, ten pages, 30 seconds, 365-day
+  lookback, and one pilot-wide transient retry as frozen ceilings. The preview
+  action vector performs no read or write and carries all seven effect counters
+  at zero.
+- `docs/dev/fixtures/plan-0073-p5/preview-request.redacted.json` demonstrates
+  the complete request shape using only reserved `.test` data. Its preview is
+  explicitly fixture-only, emits no approval phrase, and cannot authorize a
+  private read.
+- Current local API readback contains exactly 25 unreviewed identity-queue
+  conversations. Exact document/contact joins resolve every conversation to
+  at least one non-shared person-candidate email: 57 queries total, maximum 8
+  for one conversation, cohort SHA-256
+  `8879f37973b0bfe119fd31fab75b803615cf572e725220f2d92a195a2b319ddd`,
+  and exact `as_of` range `2019-07-01T19:07:06Z` through
+  `2024-06-25T19:59:45.103000Z`.
+- Installed MCP registration metadata fixes stdio profile/auth role
+  `operator-lite`, namespace `default`, authenticated user-scoped-local access,
+  and the shared backend socket. No secret values were printed.
+- Both operator-lite registry calls failed immediately with `Transport closed`.
+  The same read-only CLI registry diagnostic remained active without output;
+  its exact process group was terminated. The backend service remained active
+  and its socket present; no service restart or bypass read was attempted.
+- Graphiti was healthy but returned no current Plan 0073/P5 recall; repository
+  files and current local/API evidence remained authoritative.
+
+Validation:
+
+- RED: the first public preview test failed because the module was absent; the
+  exact-approval test failed because its validator was absent; the invalid-email
+  test exposed an untyped `ValueError`. Each progressed independently to GREEN.
+- `.venv/bin/python -m pytest -q tests/test_plan0073_private_pilot.py
+  tests/test_plan0073_fixture_replay.py
+  tests/test_conversation_evidence_mail_receipts.py
+  tests/test_mail_evidence_normalization.py tests/test_mail_relationship_discovery.py
+  tests/test_relationship_role_discovery_mail_integration.py
+  tests/test_relationship_role_discovery.py tests/test_identity_review_workflow.py
+  tests/test_transcript_api.py` passes 100 tests.
+- Python compilation passes for the new module and tests.
+
+Progress classification: `blocker_reduction`. The preview/approval and exact
+cohort seams are ready. P5 remains `awaiting-gate` because account, tenant, and
+corpus selectors are not yet available from the installed operator-lite
+registry, so no exact preview hash exists for the user to approve.
+
+Next: Restore or refresh the existing operator-lite MCP transport without
+widening profile or namespace, read only registry/service-profile metadata,
+bind the exact account/tenant/corpus selectors into the 25-conversation,
+57-query preview, publish that private packet for review, and stop for the
+literal approval phrase.
+
 ## Turn 408: Close Plan 0073 P4 compact Contacts review (2026-08-30)
 
 Summary: Completed the bounded Contacts/API review surface and stopped Plan
