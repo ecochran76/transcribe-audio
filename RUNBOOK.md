@@ -1,5 +1,57 @@
 # Runbook
 
+## Turn 402: Plan deterministic mail evidence for graph discovery (2026-08-30)
+
+Summary: Created Plan 0073 as the bounded successor to Plan 0072 A6-R3. The
+plan uses deterministic, exact-first mail observations to improve relationship
+and contextual-role review without treating correspondence as accepted graph
+truth or speaker identity.
+
+Authority: `VISION.md`, Plans 0025, 0029, and 0072, Note 0052, the conversation
+knowledge storage/retrieval contract, the Mail Receipts public workbench
+contract, and the user's request for an implementation plan. The new plan is
+`docs/dev/plans/0073-2026-08-30-deterministic-mail-evidence-for-relationship-role-discovery.md`.
+This was a planning-only turn; it did not inspect private mail or owned Mail
+Receipts evidence, call a provider, change runtime state, migrate a schema,
+deploy code, or write accepted graph facts.
+
+Evidence:
+
+- CodeGraph confirmed that the current GWS evidence adapter already enforces
+  explicit capabilities, query terms, record/character/page budgets, tenant
+  scope, normalized `as_of`, raw-body rejection, and partial-failure receipts.
+- CodeGraph confirmed that `relationship_role_discovery.py` already provides
+  stable content-derived hypothesis IDs, an input watermark, exact-email role
+  observations, shared-address exclusion, recurring symmetric pair dedup, and
+  explicit zero-effect counters.
+- Graphiti discovery recovered the earlier host-first, exact-email, bounded
+  mail-evidence decisions from Plan 0025; current repository sources were used
+  as authority before freezing the new plan.
+- The Mail Receipts workbench contract makes its user-scoped operator-lite
+  service the first owned-evidence seam and forbids silently switching to a
+  mailbox-operator profile, provider, or filesystem path when a capability is
+  absent.
+- Plan 0073 defines six implementation packets: contract/fixture freeze,
+  read-only adapter capability, normalization/independence grouping, shadow
+  discovery, compact Contacts review, and one separately authorized private
+  pilot followed by utility measurement.
+- The plan prohibits full message bodies in the initial projection, preserves
+  cross-provider independence, enforces historical `as_of`, and keeps accepted
+  graph, speaker, contact/person, biometric, provider-write, and Graphiti
+  effects at zero.
+
+Validation:
+
+- The active-only planning audit reports `ok: true`, zero problems, and Plan
+  0073 as correctly named, `PLANNED`, current-state complete, and wired into
+  both ROADMAP and RUNBOOK.
+- `git diff --check` passes. CodeGraph is healthy with 371 indexed files,
+  10,891 nodes, and 37,885 edges; no source code changed in this planning slice.
+
+Next: Open Plan 0073 P0 only. Freeze schemas, reason codes, deterministic
+thresholds, and synthetic/redacted fixtures; do not query private mail before
+P0-P4 pass and the user approves an exact bounded P5 preview.
+
 ## Turn 401: Discover shadow relationship and role hypotheses (2026-08-29)
 
 Summary: Added deterministic relationship-and-role discovery to the live

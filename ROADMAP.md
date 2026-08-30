@@ -206,6 +206,16 @@ across 103 contacts. Every lead is review-required; accepted graph events,
 ontology changes, provider writes, person merges, speaker assignment, and
 automatic identity conclusions remain gated.
 
+Plan 0073 is the planned deterministic-mail successor. It will extend the
+existing bounded evidence adapters and Plan 0072 shadow graph projection with
+exact-email, directional, thread-aware observations from the installed
+user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2
+review-only discovery: no owned-corpus or private mailbox query is authorized
+by the planning artifact, message bodies stay out of the initial contract,
+duplicate source copies count once, historical queries obey `as_of`, and
+accepted graph facts, speaker effects, provider writes, and Graphiti projection
+remain separately gated.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -234,6 +244,7 @@ Plans:
 - `docs/dev/plans/0061-2026-08-08-plan-0060-human-gold-comparison.md`
 - `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`
 - `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`
+- `docs/dev/plans/0073-2026-08-30-deterministic-mail-evidence-for-relationship-role-discovery.md`
 
 Milestone Focus:
 
