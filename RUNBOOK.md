@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 403: Activate Plan 0073 deterministic mail evidence (2026-08-30)
+
+Summary: Opened Plan 0073 under the user goal `execute plan 73` and activated
+P0 as the first non-private implementation packet.
+
+Authority: `VISION.md`, Plan 0073, the accepted user execution goal, and the
+repo's planning/runtime/privacy policies. Ordinary bounded source, test,
+redacted-fixture, disposable-store, and local-build work is active. Private
+Mail Receipts evidence reads, mailbox/provider access, live backfill, schema
+migration, deployment, accepted graph decisions, person merge, speaker/profile
+effects, and Graphiti writes remain action-specific gates.
+
+Current evidence:
+
+- The branch was clean at `d486542` and 12 commits ahead of its remote before
+  activation.
+- Policy selection remains `already-aligned` with a healthy planning contract.
+- Graphiti discovery was healthy in `transcribe_audio_main` and returned 10
+  facts, 6 nodes, and 6 episodes; Plan 0025's exact-first evidence decision was
+  advisory and current Plan 0073/repository sources remain authoritative.
+- CodeGraph confirms the existing deep seams: bounded provider records and
+  normalization, injected evidence adapters, deterministic relationship-role
+  discovery, `/api/people`, and the compact Contacts view.
+- The installed Mail Receipts declaration exposes the expected operator-lite
+  read surfaces, including exact mail search, selected-result context, people
+  resolution, neighborhoods, and relationship paths. No corpus tool was
+  called during activation.
+
+Execution control:
+
+- State transition: `planned -> active`.
+- Acceptance state: no Plan 0073 acceptance criterion is complete yet.
+- Progress classification: `outcome_progress`; the executable contract and
+  non-private critical path are now open.
+- Material blocker: P5 private pilot remains gated on an exact selector,
+  budget, cohort, and query-plan preview.
+- Next action: complete P0 with schemas, reason codes, thresholds, redacted
+  fixtures, and failing-then-passing public-interface tests.
+
 ## Turn 402: Plan deterministic mail evidence for graph discovery (2026-08-30)
 
 Summary: Created Plan 0073 as the bounded successor to Plan 0072 A6-R3. The

@@ -1,11 +1,13 @@
 # Plan 0073 | Deterministic mail evidence for relationship and role discovery
 
-State: PLANNED
+State: OPEN
 
-Planning boundary: this turn authorizes planning artifacts only. It does not
-authorize private mailbox reads, provider calls, live backfill, schema
-migration, service deployment, accepted graph writes, speaker assignment,
-contact/person merge, or Graphiti publication.
+Execution authority: the user goal `execute plan 73` authorizes ordinary
+bounded implementation, tests, redacted fixtures, local builds, and dashboard
+code under this plan. Its explicit action gates remain in force: it does not
+authorize owned private Mail Receipts evidence reads, mailbox/provider calls,
+live backfill, schema migration, deployment, accepted graph writes, speaker
+assignment, contact/person merge, or Graphiti publication.
 
 Lane: P09/P10
 
@@ -70,6 +72,22 @@ conversation context, provenance, knowledge projection, and retrieval. It does
 not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
+
+Plan 0073 is `OPEN`. P0 is active on the critical path. P0-P4 may use source
+code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
+stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
+Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
+numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
+
+| Field | Active P0 control |
+| --- | --- |
+| Authority | User goal `execute plan 73`; ordinary local implementation only |
+| Bounded outcome | Freeze and validate the versioned mail query, observation, independence-group, and hypothesis contracts plus deterministic thresholds and redacted fixtures |
+| Write surface | Repo source, tests, `docs/dev/fixtures/plan-0073-p0/`, Plan 0073, ROADMAP, RUNBOOK, and focused commits |
+| Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
+| Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
+| Checkpoint cadence | Every packet boundary and before any private/read, runtime, deployment, or accepted-effect gate |
+| Terminal evidence | Frozen fixtures validate, public-interface tests prove rejection and deterministic replay, planning audit passes, CodeGraph is current, and git state is explicit |
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
