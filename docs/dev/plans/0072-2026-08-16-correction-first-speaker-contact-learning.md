@@ -133,6 +133,48 @@ A6-R1 delivered on 2026-08-29:
   refinement; Plan 0072 A6 and all Level 3 contact-management effects remain
   open or gated as stated above.
 
+The 2026-08-29 operator request also opens one bounded A6-R2 attendee-contact
+ingestion slice. It may read calendar-attendee evidence from the complete
+current transcript corpus, perform read-only exact-email lookups against
+already-configured GWS and Odollo contact sources, and write replayable local
+contact projections plus private run receipts. It may also extend the existing
+Contacts read model and authenticated dashboard to show those projections.
+
+| Field | A6-R2 control |
+| --- | --- |
+| Bounded outcome | Account for every unique calendar-attendee email in the current corpus as an inserted, enriched, unchanged, conflicted, or explicitly excluded local contact candidate, with compact recording provenance in Contacts. |
+| Vision movement | Advances outcomes 3, 7, and 8. Calendar-attendee contact gathering moves from Level 0/1 ad hoc evidence to Level 2 manual/shadow ingestion on the real corpus. It does not establish automatic recurring ingestion or Level 3 identity resolution. |
+| Write surface | Existing local `contacts` rows, a private user-scoped ingest receipt, the `/api/people` read model, React Contacts view, focused tests, and plan/roadmap/runbook records. |
+| Inputs | Exact normalized attendee emails and names from current transcript calendar metadata; configured GWS Contacts/Other Contacts and Odollo profiles through read-only calls only. |
+| Identity boundary | Exact email is a source-observation join key, not proof that a contact is a canonical person or a diarized speaker. Shared/role addresses, duplicate existing rows, conflicting names, and non-exact matches remain review-required. No name-only/fuzzy link is applied. |
+| Validation | Corpus accounting equality, exact-match provenance, idempotent replay, before/after receipt evidence, focused tests, frontend build, live API counts, Agent Browser desktop/mobile proof, service/process readback, and zero provider writes/person merges/speaker applies. |
+| Terminal condition | Every unique attendee email is accounted for, Contacts exposes human-friendly occurrence evidence, a second identical run is a no-op, and all prohibited-effect counters remain zero. |
+
+A6-R2 explicitly excludes provider writes, canonical-person creation or merge,
+speaker assignment, biometric/profile effects, fuzzy identity reconciliation,
+background scheduling, and automatic acceptance. Those remain separately
+gated even when an attendee email exactly matches a configured contact source.
+
+A6-R2 delivered on 2026-08-29:
+
+- all 186 unique attendee emails across 1,063 calendar appearances are now
+  represented in local Contacts; 185 contacts were inserted and one existing
+  contact was enriched without changing its operator-entered label or external
+  reference;
+- 159 attendee emails received one or more configured exact-email matches from
+  9,337 GWS/Odollo rows read in 12 bounded provider calls, with zero provider
+  writes, person merges, or speaker-assignment effects;
+- every applied mutation has a private before/after receipt and guarded undo;
+  a final provider-backed replay classified all 186 contacts as unchanged;
+- `/api/people?limit=500` returns all 228 directory records, including all 186
+  attendee contacts and all 1,063 appearances, and the compact Contacts detail
+  exposes contact methods, organizations, recording files, dates, calendar
+  events, and exact-email source observations; and
+- 76 focused backend tests, the frontend production build, live service/API
+  readback, and desktop/mobile Agent Browser review pass. This completes the
+  bounded Level 2 manual/shadow ingestion slice only; recurring automation and
+  identity resolution remain gated.
+
 | Field | A0 control |
 | --- | --- |
 | Bounded outcome | Freeze versioned domain, correction, privacy, threat, review, adapter, and supervisor contracts. |

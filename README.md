@@ -166,6 +166,20 @@ python provenance_config.py preview-update --update-file update.json
 python provenance_config.py apply-update --update-file update.json --approval-token APPLY_PROVENANCE_CONFIG_UPDATE
 ```
 
+Calendar-attendee contacts can be previewed across the stored transcript corpus
+and enriched through configured read-only GWS/Odollo sources. Exact email is a
+source join only; it never creates a canonical person or speaker link. Apply is
+explicit and writes a private, reversal-capable receipt under
+`~/.local/state/transcribe-audio/contact-ingest/`:
+
+```bash
+python calendar_contact_ingest.py
+python calendar_contact_ingest.py --apply \
+  --approval-token INGEST_CALENDAR_ATTENDEE_CONTACTS
+python calendar_contact_ingest.py --undo-receipt /path/to/receipt.json \
+  --approval-token UNDO_CALENDAR_ATTENDEE_CONTACTS
+```
+
 With this config in place, direct simple CLI mode picks up configured shared calendars and iCal feeds without watcher-only flags:
 
 ```bash

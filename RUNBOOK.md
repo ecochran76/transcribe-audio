@@ -1,5 +1,55 @@
 # Runbook
 
+## Turn 400: Ingest calendar-attendee contacts across the corpus (2026-08-29)
+
+Summary: Populated the live Contacts directory from exact calendar-attendee
+emails across the stored recording corpus, enriched those candidates through
+configured read-only sources, and exposed compact recording/source provenance
+without inferring person or speaker identity.
+
+Authority: `VISION.md`, Plan 0072 A6-R2, and the user's 2026-08-29 request to
+ingest and enrich contacts suggested by calendar-attendee emails throughout the
+recording corpus. This slice authorized corpus reads, bounded read-only
+provider calls, local contact projection writes, private receipts, dashboard
+deployment, and visual QA. It did not authorize provider writes, person merges,
+speaker assignment, biometrics, or background scheduling.
+
+Evidence:
+
+- The corpus contains 186 unique attendee emails across 1,063 appearances.
+  The first apply inserted 185 local contacts and enriched one existing contact
+  while preserving its manual label and external reference.
+- Twelve bounded GWS/Odollo read calls inspected 9,337 contact records and
+  found exact-email source matches for 159 attendee emails. Provider writes,
+  person merges, and speaker-assignment applies all remained zero.
+- Private before/after receipts are stored under
+  `~/.local/state/transcribe-audio/contact-ingest/`. A case-insensitive
+  deterministic-order correction affected four records in a second receipt;
+  the final full provider-backed replay reports all 186 records unchanged.
+- The live `/api/people?limit=500` projection returns 228 records: 6 canonical
+  people, 187 local contacts, and 35 reviewed speaker names. It returns all 186
+  attendee contacts, all 1,063 calendar appearances, and 283 configured-source
+  observations.
+- Desktop 1440x900 and mobile 390x844 Agent Browser checks show a compact
+  master/detail directory, native search/filter/sort controls, mobile contact
+  picker, contact methods, recording-file/date/event rows, and exact-email
+  source provenance. The exact QA tab was closed without closing its retained
+  browser.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q tests/test_calendar_contact_ingest.py
+  tests/test_identity_review_workflow.py tests/test_transcript_api.py` passes
+  76 tests.
+- `npm --prefix frontend run build` passes.
+- A provider-backed replay reports `unchanged: 186`, and the live service is
+  active on port 18876 with a fresh process and complete 500-row API bound.
+- The slice remains Level 2 manual/shadow ingestion. Exact email is retained as
+  a source-observation join, not person or speaker proof.
+
+Next: Add reviewed contact/person reconciliation and speaker correction links
+only as a separate decision-ledger slice with preview, stale-safety, and undo.
+
 ## Turn 399: Deliver the read-only Contacts directory (2026-08-29)
 
 Summary: Replaced the empty People pane with a compact Contacts directory

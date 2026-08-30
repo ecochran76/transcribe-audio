@@ -469,3 +469,61 @@ def test_people_projection_rejects_unknown_record_kind(
 ) -> None:
     with pytest.raises(ValueError, match="Unsupported Contacts record type"):
         workflow.list_people(kind="guessed_person")
+
+
+def test_people_projection_exposes_calendar_contact_evidence(
+    workflow: IdentityReviewWorkflow,
+) -> None:
+    metadata = {
+        "source": "calendar_attendee",
+        "resolution_status": "review_required",
+        "contact_class": "shared_or_role_address",
+        "identity_boundary": "exact_email_source_join_not_person_or_speaker_proof",
+        "calendar_attendee": {
+            "aliases": ["Support"],
+            "occurrence_count": 2,
+            "recording_count": 1,
+            "appearances": [
+                {
+                    "document_id": "doc-1",
+                    "recording_title": "Support call",
+                    "recording_filename": "support-call.m4a",
+                    "recorded_at": "2026-08-20T14:30:00Z",
+                }
+            ],
+        },
+        "enrichment": {
+            "phones": ["+1 555 0100"],
+            "organizations": ["Example Labs"],
+            "source_records": [
+                {
+                    "provider": "gws",
+                    "profile": "default",
+                    "record_type": "gws_contact",
+                    "source_record_id": "people/support",
+                    "label": "Support",
+                }
+            ],
+        },
+    }
+    with transcript_store.connect(workflow.root) as con:
+        transcript_store.init_db(con)
+        con.execute(
+            """
+            INSERT INTO contacts (id, label, email, external_ref, metadata_json, created_at, updated_at)
+            VALUES ('contact-calendar', 'Support', 'support@example.test', '', ?,
+                    '2026-08-20T14:30:00Z', '2026-08-20T14:30:00Z')
+            """,
+            (json.dumps(metadata),),
+        )
+        con.commit()
+
+    contact = workflow.list_people(kind="local_contact", limit=500)["items"][0]
+    assert contact["status"] == "review_required"
+    assert contact["contact_class"] == "shared_or_role_address"
+    assert contact["recording_count"] == 1
+    assert contact["attendee_occurrence_count"] == 2
+    assert contact["calendar_occurrences"][0]["recording_filename"] == "support-call.m4a"
+    assert {method["kind"] for method in contact["contact_methods"]} == {"email", "phone"}
+    assert contact["organizations"] == ["Example Labs"]
+    assert contact["source_records"][1]["resolution_status"] == "exact_email_observation"

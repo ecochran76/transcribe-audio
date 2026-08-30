@@ -5656,7 +5656,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         ),
                     ).list_people(
                         limit=parse_int(
-                            first(params, "limit"), 50, minimum=1, maximum=200
+                            first(params, "limit"), 50, minimum=1, maximum=500
                         ),
                         offset=parse_int(
                             first(params, "offset"), 0, minimum=0, maximum=100000

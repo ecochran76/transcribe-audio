@@ -189,6 +189,14 @@ speaker-review labels while keeping those record classes separate and
 read-only. Provider refresh, contact/person reconciliation, speaker-assignment
 apply, and other reviewed-learning effects remain outside this slice.
 
+Plan 0072 A6-R2 is delivered as a bounded contact-ingestion refinement. It gathers
+exact calendar-attendee emails across the current recording corpus, enriches
+them through read-only exact-email queries to configured GWS and Odollo
+sources, and writes replayable local contact candidates with recording
+provenance. The target is Level 2 manual/shadow ingestion: shared or ambiguous
+addresses stay review-required, and provider writes, person merges, speaker
+assignments, background scheduling, and Level 3 automation remain gated.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`

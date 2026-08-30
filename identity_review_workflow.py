@@ -855,7 +855,7 @@ class IdentityReviewWorkflow:
         status: str = "",
         kind: str = "",
     ) -> dict[str, Any]:
-        if limit < 1 or limit > 200 or offset < 0:
+        if limit < 1 or limit > 500 or offset < 0:
             raise IdentityReviewWorkflowError("People pagination is outside its bounds.")
         allowed_kinds = {"", "canonical_person", "local_contact", "reviewed_speaker"}
         if kind not in allowed_kinds:
@@ -1001,33 +1001,90 @@ class IdentityReviewWorkflow:
                     email = str(contact["email"] or "")
                     external_ref = str(contact["external_ref"] or "")
                     contact_id = str(contact["id"])
+                    calendar = (
+                        metadata.get("calendar_attendee")
+                        if isinstance(metadata.get("calendar_attendee"), dict)
+                        else {}
+                    )
+                    enrichment = (
+                        metadata.get("enrichment")
+                        if isinstance(metadata.get("enrichment"), dict)
+                        else {}
+                    )
+                    contact_status = str(metadata.get("resolution_status") or "provisional")
+                    source_resolution_status = contact_status if calendar else "unlinked"
+                    source_records = [
+                        {
+                            "source_record_id": contact_id,
+                            "provider_kind": str(metadata.get("source") or "local"),
+                            "record_type": "calendar_attendee_contact"
+                            if calendar
+                            else "local_contact",
+                            "external_ref": email or external_ref,
+                            "label": str(contact["label"]),
+                            "resolution_status": source_resolution_status,
+                        }
+                    ]
+                    for source in enrichment.get("source_records") or []:
+                        if not isinstance(source, dict):
+                            continue
+                        source_records.append(
+                            {
+                                "source_record_id": str(
+                                    source.get("source_record_id")
+                                    or _hash(source)
+                                ),
+                                "provider_kind": str(source.get("provider") or "configured_source"),
+                                "record_type": str(source.get("record_type") or "contact"),
+                                "external_ref": email,
+                                "label": str(source.get("label") or contact["label"]),
+                                "resolution_status": "exact_email_observation",
+                            }
+                        )
+                    contact_methods = []
+                    if email:
+                        contact_methods.append({"kind": "email", "value": email})
+                    contact_methods.extend(
+                        {"kind": "phone", "value": str(phone)}
+                        for phone in enrichment.get("phones") or []
+                        if str(phone).strip()
+                    )
+                    appearances = [
+                        dict(value)
+                        for value in calendar.get("appearances") or []
+                        if isinstance(value, dict)
+                    ]
                     items.append(
                         {
                             "person_id": f"contact:{contact_id}",
                             "source_identity_id": contact_id,
                             "identity_kind": "local_contact",
-                            "status": "provisional",
+                            "status": contact_status,
                             "primary_name": str(contact["label"]),
-                            "aliases": [],
-                            "merged_into_person_id": "",
-                            "source_records": [
-                                {
-                                    "source_record_id": contact_id,
-                                    "provider_kind": str(metadata.get("source") or "local"),
-                                    "record_type": "local_contact",
-                                    "external_ref": email or external_ref,
-                                    "label": str(contact["label"]),
-                                    "resolution_status": "unlinked",
-                                }
+                            "aliases": [
+                                str(value)
+                                for value in calendar.get("aliases") or []
+                                if str(value).strip()
+                                and str(value).strip().casefold()
+                                != str(contact["label"]).strip().casefold()
                             ],
-                            "contact_methods": (
-                                [{"kind": "email", "value": email}] if email else []
-                            ),
+                            "merged_into_person_id": "",
+                            "source_records": source_records,
+                            "contact_methods": contact_methods,
+                            "contact_class": str(metadata.get("contact_class") or "local_contact"),
+                            "identity_boundary": str(metadata.get("identity_boundary") or ""),
+                            "organizations": [
+                                str(value)
+                                for value in enrichment.get("organizations") or []
+                                if str(value).strip()
+                            ],
+                            "calendar_occurrences": appearances,
                             "roles": [],
                             "relationships": [],
                             "review_occurrences": [],
                             "speaker_review_count": 0,
-                            "recording_count": 0,
+                            "recording_count": int(calendar.get("recording_count") or 0),
+                            "attendee_occurrence_count": int(calendar.get("occurrence_count") or 0),
                             "possible_related_records": [],
                             "input_watermark": _hash(
                                 {
@@ -1035,7 +1092,7 @@ class IdentityReviewWorkflow:
                                     "label": str(contact["label"]),
                                     "email": email,
                                     "external_ref": external_ref,
-                                    "updated_at": str(contact["updated_at"]),
+                                    "metadata": metadata,
                                 }
                             ),
                             "built_at": str(contact["updated_at"]),
@@ -1112,6 +1169,8 @@ class IdentityReviewWorkflow:
                 "identity_ledger",
                 "current_person_profiles",
                 "local_contacts",
+                "calendar_attendees",
+                "configured_exact_email_sources",
                 "operator_gold",
             ],
             "authoritative_editing_surface": "read_only_directory",

@@ -582,12 +582,18 @@ function identityKindLabel(value) {
   return "Record";
 }
 
+function counted(value, singular, plural = `${singular}s`) {
+  const count = Number(value) || 0;
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function identitySummary(item) {
   if (item.identity_kind === "reviewed_speaker") {
-    return `${item.speaker_review_count || 0} speaker reviews · ${item.recording_count || 0} recordings`;
+    return `${counted(item.speaker_review_count, "speaker review")} · ${counted(item.recording_count, "recording")}`;
   }
   if (item.identity_kind === "local_contact") {
-    return item.contact_methods?.[0]?.value || "Unlinked local contact";
+    const email = item.contact_methods?.find((method) => method.kind === "email")?.value || "Unlinked local contact";
+    return item.recording_count ? `${email} · ${counted(item.recording_count, "recording")}` : email;
   }
   return `${item.source_records?.length || 0} sources${item.roles?.length ? ` · ${item.roles.length} roles` : ""}`;
 }
@@ -603,7 +609,7 @@ function PeopleView() {
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({ limit: "500" });
       if (query.trim()) params.set("q", query.trim());
       if (kindFilter) params.set("kind", kindFilter);
       try {
@@ -667,7 +673,9 @@ function PeopleDetail({ person }) {
   const boundary = person.identity_kind === "reviewed_speaker"
     ? "Operator-reviewed speaker name. It is evidence for reconciliation, not yet a canonical contact link."
     : person.identity_kind === "local_contact"
-      ? "Local contact record. It remains separate until an explicit reviewed link or merge."
+      ? person.contact_class === "shared_or_role_address"
+        ? "Shared or role address observed in calendar attendees. It is review-required and is not a person or speaker identity."
+        : "Calendar-attendee contact candidate. Exact email joins source observations, but it remains separate until an explicit reviewed person or speaker link."
       : "Canonical conversation person assembled from reviewed local knowledge sources.";
   return (
     <>
@@ -675,6 +683,8 @@ function PeopleDetail({ person }) {
       <p className="people-editing-boundary">{boundary}</p>
       {!!person.possible_related_records?.length && <PeopleTable title="Possible related records" columns={["Type", "Name", "Why not linked"]} rows={person.possible_related_records.map((row) => [identityKindLabel(row.identity_kind), row.primary_name, "Exact display name only — review required"])} />}
       {!!person.contact_methods?.length && <PeopleTable title="Contact methods" columns={["Type", "Value"]} rows={person.contact_methods.map((row) => [label(row.kind), row.value])} />}
+      {!!person.organizations?.length && <PeopleTable title="Organizations" columns={["Organization", "Basis"]} rows={person.organizations.map((organization) => [organization, "Exact-email source observation"])} />}
+      {!!person.calendar_occurrences?.length && <PeopleTable title="Calendar appearances" columns={["Recording file", "Date", "Calendar event"]} rows={person.calendar_occurrences.map((row) => [row.recording_filename || row.recording_title || "Untitled recording", formatDate(row.recorded_at), row.event_summary || row.calendar_summary || "—"])} />}
       {!!person.review_occurrences?.length && <PeopleTable title="Speaker review appearances" columns={["Recording", "File", "Speaker", "Reviewed"]} rows={person.review_occurrences.map((row) => [row.recording_title || "Untitled recording", row.recording_filename, row.speaker_ref, formatDate(row.reviewed_at)])} />}
       {person.identity_kind !== "reviewed_speaker" && <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />}
       {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
