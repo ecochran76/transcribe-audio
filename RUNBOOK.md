@@ -1,5 +1,60 @@
 # Runbook
 
+## Turn 408: Close Plan 0073 P4 compact Contacts review (2026-08-30)
+
+Summary: Completed the bounded Contacts/API review surface and stopped Plan
+0073 at the separately authorized private P5 checkpoint.
+
+Authority: Plan 0073 P4 under the user goal `execute plan 73`. This packet used
+the existing local API read model plus a redacted `.test` fallback fixture and
+the isolated Agent Browser development runtime. It made no Mail Receipts corpus
+read, mailbox/provider call, runtime corpus write, schema migration, deployment,
+accepted graph decision, person merge, speaker/profile effect, or Graphiti
+write.
+
+Evidence:
+
+- `/api/people` already projects bounded per-contact hypothesis detail and a
+  redacted aggregate graph summary; P4 adds no new provider or raw-body path.
+- Contacts now renders role and relationship hypotheses as dense rows with
+  last-observed descending as the default, SVG sort state, accessible sortable
+  headers, pointer and keyboard column resizing, human-friendly labels, and a
+  compact SVG review status.
+- Row expansion reveals only basis, why the proposal is unaccepted, direction,
+  time range, observation and independent-thread counts, and conflicts.
+- The redacted fallback contains one contextual-role and one correspondence
+  example using reserved `.test` data, opaque IDs, and no message body or
+  provider identifier.
+- Desktop Agent Browser review at 1440 by 900 proved sorting changed row order,
+  keyboard resizing changed adjacent widths from 25/23 to 26.5/21.5 in the
+  pre-refinement check, and inline expansion remained compact. The final pass
+  widened Status, humanized proposal labels, and kept all rows legible.
+- Mobile Agent Browser review at 390 by 844 proved the selected-contact picker,
+  horizontally scrollable dense tables, and viewport-wrapped one-column
+  expansion detail remain usable without large cards or controls.
+
+Validation:
+
+- `npm --prefix frontend run build` passes with 30 modules transformed.
+- `.venv/bin/python -m pytest -q tests/test_plan0073_fixture_replay.py
+  tests/test_mail_relationship_discovery.py
+  tests/test_relationship_role_discovery_mail_integration.py
+  tests/test_relationship_role_discovery.py tests/test_identity_review_workflow.py
+  tests/test_transcript_api.py` passes 79 tests.
+- The active-only planning audit returns `ok: true` with zero problems;
+  `git diff --check` passes; CodeGraph is current at 381 files, 11,096 nodes,
+  and 38,518 edges.
+- The isolated `plan0073-p4` browser lane was closed after its request route
+  was removed; the local Vite preview process was stopped.
+
+Progress classification: `outcome_progress`. P4's desktop/mobile terminal is
+complete. P5 remains `awaiting-gate`; its exact namespace, corpus,
+tenant/account selectors, as-of rule, budgets, and at-most-25-item cohort are
+not authorized.
+
+Next: Present the exact P5 private pilot preview for explicit approval before
+the first Mail Receipts read. Do not infer P6 authority from that approval.
+
 ## Turn 407: Close Plan 0073 P3 shadow discovery (2026-08-30)
 
 Summary: Completed deterministic, review-only mail relationship and role

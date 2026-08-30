@@ -537,6 +537,146 @@
   text-transform: uppercase;
 }
 
+.hypothesis-table-section {
+  padding: 0;
+  border: 0;
+  border-top: 1px solid rgba(244, 236, 216, 0.1);
+  border-radius: 0;
+  background: transparent;
+}
+
+.hypothesis-table-section .identity-section-heading {
+  min-height: 2rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.hypothesis-table-section table {
+  table-layout: fixed;
+  font-size: 0.74rem;
+}
+
+.hypothesis-table-section th,
+.hypothesis-table-section td {
+  position: relative;
+  padding: 0.34rem 0.42rem;
+  vertical-align: middle;
+}
+
+.hypothesis-table-section td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hypothesis-sort,
+.hypothesis-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.hypothesis-sort {
+  width: 100%;
+  min-height: 1.4rem;
+  justify-content: space-between;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.hypothesis-expand {
+  max-width: 100%;
+  min-height: 1.55rem;
+  cursor: pointer;
+}
+
+.hypothesis-expand strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hypothesis-resizer {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: -0.3rem;
+  width: 0.6rem;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.hypothesis-resizer::after {
+  position: absolute;
+  top: 24%;
+  bottom: 24%;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: rgba(244, 236, 216, 0.18);
+  content: "";
+}
+
+.hypothesis-resizer:focus-visible::after,
+.hypothesis-resizer:hover::after {
+  width: 2px;
+  background: var(--accent);
+}
+
+.hypothesis-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+.hypothesis-row.expanded td {
+  background: rgba(244, 236, 216, 0.035);
+}
+
+.hypothesis-evidence-row td {
+  padding: 0;
+  white-space: normal;
+}
+
+.hypothesis-evidence-row dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem 0.85rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem 0.65rem 1.85rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.1);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.hypothesis-evidence-row dl div {
+  min-width: 0;
+}
+
+.hypothesis-evidence-row dt {
+  margin-bottom: 0.12rem;
+  color: var(--muted);
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.hypothesis-evidence-row dd {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .identity-provenance {
   padding-top: 0.6rem;
   border-top: 1px solid rgba(244, 236, 216, 0.08);
@@ -600,6 +740,19 @@
 
   .people-table-section table {
     min-width: 34rem;
+  }
+
+  .hypothesis-table-section table {
+    min-width: 46rem;
+  }
+
+  .hypothesis-evidence-row dl {
+    box-sizing: border-box;
+    grid-template-columns: 1fr;
+    position: sticky;
+    left: 0;
+    width: min(calc(100vw - 6rem), 34rem);
+    padding-left: 1rem;
   }
 
   .people-table-section th {

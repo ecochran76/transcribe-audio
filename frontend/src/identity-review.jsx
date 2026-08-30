@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 
 const SPEAKER_ACTIONS = [
@@ -78,24 +78,68 @@ const FALLBACK_QUEUE = {
 const FALLBACK_PEOPLE = {
   items: [
     {
-      person_id: "person-1",
-      identity_kind: "canonical_person",
-      status: "reviewed",
+      person_id: "contact:contact-redacted-alex",
+      source_identity_id: "contact-redacted-alex",
+      identity_kind: "local_contact",
+      status: "provisional",
       primary_name: "Alex Example",
-      aliases: ["Alex E."],
-      source_records: [{ source_record_id: "source-1", provider_kind: "fixture", record_type: "contact", label: "Alex Example", resolution_status: "reviewed" }],
-      roles: [{ role_id: "role-1", role_type: "project_lead", organization_id: "org-1", status: "reviewed", evidence_ids: ["evidence-1"] }],
-      relationships: [{ relationship_id: "relationship-1", relationship_type: "works_with", subject_id: "person-1", object_id: "person-2", status: "reviewed", evidence_ids: ["evidence-2"] }],
+      aliases: [],
+      contact_class: "person_candidate",
+      contact_methods: [{ kind: "email", value: "alex@example.test" }],
+      source_records: [{ source_record_id: "contact-redacted-alex", provider_kind: "fixture", record_type: "calendar_attendee_contact", label: "Alex Example", resolution_status: "provisional" }],
+      roles: [],
+      relationships: [],
+      role_hypotheses: [{
+        hypothesis_id: "mail-hypothesis-role-redacted-1",
+        hypothesis_kind: "contextual_role",
+        relationship_type: "HAS_CONTEXTUAL_ROLE",
+        display_value: "Program Director",
+        counterpart_label: "Program Director",
+        organization: "Example Organization",
+        department: "Programs",
+        basis: "A structured mail signature declares this title.",
+        why_not_accepted: "A signature title may be stale or contextual and has not been reviewed.",
+        evidence_source: "mail_metadata",
+        observation_count: 2,
+        independent_thread_count: 2,
+        first_observed_at: "2025-12-15T12:00:00Z",
+        last_observed_at: "2026-01-06T12:00:00Z",
+        directionality: "directional",
+        conflicts: [{ reason: "conflicting_structured_role", title: "Acting Director", observed_at: "2026-01-06T12:00:00Z" }],
+        evidence_observation_ids: ["mail-observation-redacted-1", "mail-observation-redacted-2"],
+        evidence_independence_group_ids: ["mail-interaction-redacted-1", "mail-interaction-redacted-2"],
+        status: "proposed"
+      }],
+      relationship_hypotheses: [{
+        hypothesis_id: "mail-hypothesis-relationship-redacted-1",
+        hypothesis_kind: "correspondence",
+        relationship_type: "CORRESPONDED_WITH",
+        counterpart_label: "Account Contact",
+        basis: "Mail occurred in both directions across 2 independent threads.",
+        why_not_accepted: "Correspondence does not establish a named personal or professional relationship.",
+        evidence_source: "mail_metadata",
+        observation_count: 2,
+        independent_thread_count: 2,
+        first_observed_at: "2025-12-15T12:00:00Z",
+        last_observed_at: "2026-01-06T12:00:00Z",
+        directionality: "symmetric",
+        mail_direction: "symmetric",
+        conflicts: [],
+        evidence_observation_ids: ["mail-observation-redacted-1", "mail-observation-redacted-2"],
+        evidence_independence_group_ids: ["mail-interaction-redacted-1", "mail-interaction-redacted-2"],
+        status: "proposed"
+      }],
       review_occurrences: [],
       speaker_review_count: 0,
-      recording_count: 0,
+      recording_count: 2,
       possible_related_records: [],
       input_watermark: "fixture-watermark-1",
       built_at: "2026-08-16T18:00:00Z"
     }
   ],
   total: 1,
-  counts: { canonical_person: 1, local_contact: 0, reviewed_speaker: 0 }
+  counts: { canonical_person: 0, local_contact: 1, reviewed_speaker: 0 },
+  graph_discovery: { mail_hypothesis_count: 2, accepted_effect_count: 0, provider_write_count: 0 }
 };
 
 async function fetchJson(url, options) {
@@ -107,6 +151,23 @@ async function fetchJson(url, options) {
 
 function label(value) {
   return String(value || "").replaceAll("_", " ");
+}
+
+const HYPOTHESIS_LABELS = {
+  affiliated_with: "Affiliated with",
+  calendar_co_invitation: "Calendar co-invitation",
+  calendar_co_invited_with: "Calendar co-invited with",
+  corresponded_with: "Corresponded with",
+  has_contextual_role: "Contextual role",
+  mail_thread_coparticipant_with: "Shared mail thread",
+  sent_mail_to: "Sent mail to"
+};
+
+function hypothesisLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (HYPOTHESIS_LABELS[key]) return HYPOTHESIS_LABELS[key];
+  const text = label(key).trim();
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : "—";
 }
 
 function compactHash(value) {
@@ -692,8 +753,8 @@ function PeopleDetail({ person }) {
       {person.identity_kind !== "reviewed_speaker" && <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />}
       {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
       {!!person.relationships?.length && <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={person.relationships.map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />}
-      {!!person.role_hypotheses?.length && <PeopleTable title="Role hypotheses" columns={["Proposed role", "Organization", "Basis", "Status"]} rows={person.role_hypotheses.map((row) => [row.display_value, row.organization || "—", row.basis, "Needs review"])} />}
-      {!!person.relationship_hypotheses?.length && <PeopleTable title="Relationship hypotheses" columns={["Proposed relationship", "Related record", "Evidence", "Status"]} rows={person.relationship_hypotheses.map((row) => [label(row.relationship_type), row.counterpart_label, row.hypothesis_kind === "calendar_co_invitation" ? counted(row.observation_count, "shared invitation") : row.basis, "Needs review"])} />}
+      {!!person.role_hypotheses?.length && <HypothesisTable title="Role hypotheses" rows={person.role_hypotheses} role />}
+      {!!person.relationship_hypotheses?.length && <HypothesisTable title="Relationship hypotheses" rows={person.relationship_hypotheses} />}
       {(person.role_hypotheses?.length || person.relationship_hypotheses?.length) ? <p className="people-editing-boundary">These graph leads can support speaker deduction and conversation context. They remain unaccepted until a later explicit review action records a decision.</p> : null}
       <details className="identity-provenance"><summary>Record provenance</summary><dl className="identity-lineage"><div><dt>Record ID</dt><dd><code>{person.source_identity_id || person.person_id}</code></dd></div><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at ? formatDate(person.built_at) : "Unavailable"}</dd></div></dl></details>
     </>
@@ -707,6 +768,118 @@ function PeopleTable({ title, columns, rows }) {
       {rows.length
         ? <div className="people-table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${title}-${rowIndex}`}>{row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`}>{cell ?? "—"}</td>)}</tr>)}</tbody></table></div>
         : <p className="muted">No {title.toLowerCase()} in this projection.</p>}
+    </section>
+  );
+}
+
+const HYPOTHESIS_COLUMNS = [
+  { key: "proposal", label: "Proposal" },
+  { key: "counterpart", label: "Related" },
+  { key: "source", label: "Source" },
+  { key: "threads", label: "Threads" },
+  { key: "last", label: "Last observed" },
+  { key: "status", label: "Status" }
+];
+const DEFAULT_HYPOTHESIS_WIDTHS = [24, 20, 13, 10, 20, 13];
+const MIN_HYPOTHESIS_WIDTHS = [14, 14, 9, 8, 12, 10];
+
+function hypothesisValue(row, key, role) {
+  if (key === "proposal") return role ? row.display_value || row.counterpart_label : hypothesisLabel(row.relationship_type);
+  if (key === "counterpart") return role ? row.organization || row.department || "—" : row.counterpart_label || "—";
+  if (key === "source") return row.evidence_source === "mail_metadata" ? "Mail metadata" : hypothesisLabel(row.hypothesis_kind);
+  if (key === "threads") return Number(row.independent_thread_count || row.observation_count || 0);
+  if (key === "last") return Date.parse(row.last_observed_at || "") || 0;
+  if (key === "status") return row.status || "proposed";
+  return "";
+}
+
+function HypothesisTable({ title, rows, role = false }) {
+  const [sort, setSort] = useState({ key: "last", direction: "desc" });
+  const [expandedId, setExpandedId] = useState("");
+  const [widths, setWidths] = useState(DEFAULT_HYPOTHESIS_WIDTHS);
+  const tableRef = useRef(null);
+  const ordered = useMemo(() => [...rows].sort((left, right) => {
+    const leftValue = hypothesisValue(left, sort.key, role);
+    const rightValue = hypothesisValue(right, sort.key, role);
+    const comparison = typeof leftValue === "number"
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue));
+    return comparison * (sort.direction === "asc" ? 1 : -1)
+      || String(left.hypothesis_id).localeCompare(String(right.hypothesis_id));
+  }), [rows, role, sort]);
+
+  function sortBy(key) {
+    setSort((current) => current.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: key === "last" || key === "threads" ? "desc" : "asc" });
+  }
+
+  function resize(index, startWidths, deltaPercent) {
+    const pairTotal = startWidths[index] + startWidths[index + 1];
+    const left = Math.min(pairTotal - MIN_HYPOTHESIS_WIDTHS[index + 1], Math.max(MIN_HYPOTHESIS_WIDTHS[index], startWidths[index] + deltaPercent));
+    const next = [...startWidths];
+    next[index] = left;
+    next[index + 1] = pairTotal - left;
+    setWidths(next);
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    event.stopPropagation();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const startX = event.clientX;
+    const startWidths = [...widths];
+    const move = (nextEvent) => resize(index, startWidths, ((nextEvent.clientX - startX) / tableWidth) * 100);
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  function resizeWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    resize(index, widths, event.key === "ArrowLeft" ? -1.5 : 1.5);
+  }
+
+  return (
+    <section className="identity-section people-table-section hypothesis-table-section">
+      <div className="identity-section-heading"><h3>{title}</h3><span>{rows.length}</span></div>
+      <div className="people-table-wrap">
+        <table ref={tableRef}>
+          <colgroup>{widths.map((width, index) => <col key={`${title}-width-${index}`} style={{ width: `${width}%` }} />)}</colgroup>
+          <thead><tr>{HYPOTHESIS_COLUMNS.map((column, index) => {
+            const active = sort.key === column.key;
+            return <th aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} key={column.key}>
+              <button className="hypothesis-sort" aria-label={`Sort ${title} by ${column.label}`} onClick={() => sortBy(column.key)} type="button"><span>{column.label}</span><Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={13} /></button>
+              {index < HYPOTHESIS_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="hypothesis-resizer" onDoubleClick={() => setWidths([...DEFAULT_HYPOTHESIS_WIDTHS])} onKeyDown={(event) => resizeWithKeyboard(event, index)} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+            </th>;
+          })}</tr></thead>
+          <tbody>{ordered.map((row) => {
+            const expanded = expandedId === row.hypothesis_id;
+            return <Fragment key={row.hypothesis_id}>
+              <tr className={expanded ? "hypothesis-row expanded" : "hypothesis-row"}>
+                <td><button className="hypothesis-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${role ? row.display_value || row.counterpart_label : hypothesisLabel(row.relationship_type)} evidence`} onClick={() => setExpandedId(expanded ? "" : row.hypothesis_id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><strong>{role ? row.display_value || row.counterpart_label : hypothesisLabel(row.relationship_type)}</strong></button></td>
+                <td>{role ? row.organization || row.department || "—" : row.counterpart_label || "—"}</td>
+                <td>{row.evidence_source === "mail_metadata" ? "Mail metadata" : hypothesisLabel(row.hypothesis_kind)}</td>
+                <td>{row.independent_thread_count || row.observation_count || 0}</td>
+                <td>{row.last_observed_at ? formatDate(row.last_observed_at) : "—"}</td>
+                <td><span className="hypothesis-status"><Icon name="preview" size={13} />Needs review</span></td>
+              </tr>
+              {expanded && <tr className="hypothesis-evidence-row"><td colSpan={HYPOTHESIS_COLUMNS.length}><dl>
+                <div><dt>Basis</dt><dd>{row.basis || "—"}</dd></div>
+                <div><dt>Why unaccepted</dt><dd>{row.why_not_accepted || "Review is required."}</dd></div>
+                <div><dt>Direction</dt><dd>{label(row.mail_direction || row.directionality)}</dd></div>
+                <div><dt>Time range</dt><dd>{row.first_observed_at ? `${formatDate(row.first_observed_at)} – ${formatDate(row.last_observed_at)}` : "—"}</dd></div>
+                <div><dt>Evidence</dt><dd>{counted(row.observation_count, "observation")} · {counted(row.independent_thread_count, "independent thread")}</dd></div>
+                <div><dt>Conflicts</dt><dd>{row.conflicts?.length ? row.conflicts.map((conflict) => conflict.title || conflict.reason).join(" · ") : "None recorded"}</dd></div>
+              </dl></td></tr>}
+            </Fragment>;
+          })}</tbody>
+        </table>
+      </div>
     </section>
   );
 }

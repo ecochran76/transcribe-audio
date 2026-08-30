@@ -217,8 +217,13 @@ grouping, conflict preservation, stable ordering, and replay-equal watermarks.
 P3 is closed with deterministic proposed-only mail transmission,
 correspondence, recurring coparticipation, contextual-role, and affiliation
 hypotheses, exact exclusions, conflict visibility, and zero accepted effects.
-P4 is active for compact sortable/expandable Contacts evidence and bounded API
-summaries. The plan will extend the
+P4 is closed with bounded `/api/people` summaries and a dense Contacts review
+table whose hypotheses default to reverse-time order, expose visible SVG sort
+controls, support pointer/keyboard column resizing, and expand inline into
+privacy-safe evidence detail on desktop and mobile. P5 is now `awaiting-gate`:
+no private Mail Receipts read may occur until the exact namespace, corpus,
+tenant/account selectors, as-of window, budgets, and no-more-than-25-item
+cohort are previewed and explicitly approved. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

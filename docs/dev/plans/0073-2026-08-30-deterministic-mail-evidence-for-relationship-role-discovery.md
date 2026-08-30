@@ -73,21 +73,21 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN`. P0-P3 are closed and P4 is active on the critical path. P0-P4 may use source
-code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
-stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
+Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
+source code, synthetic/redacted fixtures, mocked operator-lite transports,
+disposable stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
 Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
 numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 
-| Field | Active P4 control |
+| Field | Active P5 checkpoint control |
 | --- | --- |
-| Authority | User goal `execute plan 73`; ordinary local implementation only |
-| Bounded outcome | Expose compact, sortable, expandable, privacy-safe mail relationship and role evidence in Contacts and validate desktop/mobile behavior |
-| Write surface | Repo source, tests, `docs/dev/fixtures/plan-0073-p0/`, Plan 0073, ROADMAP, RUNBOOK, and focused commits |
+| Authority | No private P5 read authority; the completed user goal authority covered ordinary local implementation only |
+| Bounded outcome | Stop and prepare the exact private pilot preview only after the user names or approves its selectors, budgets, as-of rule, and cohort |
+| Write surface | No additional surface is authorized until the P5 preview gate is opened |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
-| Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
-| Checkpoint cadence | Every packet boundary and before any private/read, runtime, deployment, or accepted-effect gate |
-| Terminal evidence | Frozen fixtures validate, public-interface tests prove rejection and deterministic replay, planning audit passes, CodeGraph is current, and git state is explicit |
+| Attempts and review | P5 allows one preview, one apply after exact approval, and only one transient idempotent read retry |
+| Checkpoint cadence | Before the first private/read effect and again before any apply, runtime, deployment, or accepted-effect gate |
+| Terminal evidence | P0-P4 tests and browser acceptance are green; P5 requires aggregate private accounting, offline replay equality, zero-effect readback, and explicit git/runtime state |
 
 P0 delivered on 2026-08-30:
 
@@ -156,6 +156,23 @@ P3 delivered on 2026-08-30:
   a live/provider read path or accepted graph projection; and
 - all seven frozen P0 scenarios replay through P1-P3 with reordered-input
   equality, while 79 focused Contacts/API/discovery regressions pass.
+
+P4 delivered on 2026-08-30:
+
+- `/api/people` carries the existing bounded per-contact role and relationship
+  hypothesis detail plus aggregate graph-discovery counts without adding a
+  provider read, accepted effect, or message-body surface;
+- Contacts renders role and relationship hypotheses as dense table rows with
+  reverse-time default order, visibly sortable SVG headers, pointer/keyboard
+  column resizing, human-friendly labels, and compact SVG status controls;
+- expanding one row reveals only its bounded basis, unaccepted reason,
+  direction, time range, observation/thread counts, and conflicts; raw message
+  content and provider identifiers remain absent;
+- Agent Browser fixture review passed at 1440 by 900 and 390 by 844, including
+  sorting, keyboard resizing, inline expansion, horizontal mobile tables, and
+  viewport-wrapped evidence detail; and
+- the production frontend build and the 79 focused Contacts/API/discovery
+  regressions pass. No deployment or private Mail Receipts read ran.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
@@ -482,8 +499,9 @@ systems require no rollback because the adapter is read-only. Any future
 accepted-decision ledger is outside this plan and requires its own reversal and
 rebuild contract.
 
-## First recommended execution slice
+## Next authorized execution slice
 
-Open P0 only. Freeze the schemas, reason codes, exact deterministic thresholds,
-and synthetic/redacted fixtures. Do not call a provider or inspect private mail
-until P0-P4 pass and the user approves the exact P5 preview.
+Stop at P5. Before any private Mail Receipts read, present the exact namespace,
+corpus, tenant/account selectors, as-of window, numerical budgets, and cohort of
+no more than 25 already-queued conversations for explicit user approval. P6 is
+not authorized by a P5 preview or pilot.
