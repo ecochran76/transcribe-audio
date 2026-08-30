@@ -1,5 +1,92 @@
 # Runbook
 
+## Turn 410: Prepare Plan 0073 P5 execution and isolate selector fault (2026-08-30)
+
+Summary: Implemented the approval-bound P5 apply/replay seam against injected
+operator-lite transport and proved the current 25-conversation, 57-query shape
+with synthetic metadata. The exact private pilot remains gated because every
+storage-backed Mail Receipts metadata call times out.
+
+Authority: The active user goal `execute plan 73` covers repository work,
+synthetic/disposable validation, and recovery of the existing read-only
+operator-lite transport. It still does not authorize the first owned-corpus
+evidence query; that requires the literal approval bound to the exact private
+preview. No mail evidence, message body, mailbox/provider call, corpus action,
+accepted graph decision, person merge, speaker/profile effect, deployment, or
+Graphiti write occurred.
+
+Evidence:
+
+- `plan0073_private_pilot_execution.py` validates the immutable preview and
+  exact approval before reader or runtime effects, preflights execution time,
+  contacts, source scope, and operator-lite capability, and refuses fixture or
+  drifted authority.
+- The host builds the discovery contact map from exact local-contact emails,
+  adds one deterministic non-accepted mail-account node when needed, and
+  reconstructs `contact_ids_by_address` itself; provider-supplied local IDs are
+  ignored.
+- One approved apply accounts for every exact query independently, preserves
+  per-conversation `as_of`, passes the approved 30-second timeout into each
+  reader call, enforces four calls per query and one transient retry across the
+  entire pilot, and never switches to mailbox/provider access.
+- `MailReceiptsEvidenceAdapter` now enforces the frozen 365-day lower bound
+  instead of merely describing it in the query receipt; older records are
+  excluded and counted before normalization.
+- Identical messages returned by multiple exact-address queries are collapsed
+  before independence and hypothesis counts. Each conversation is discovered
+  separately so later cohort cutoffs cannot leak backward.
+- Private authority, contacts, query receipts, normalized inputs, hypotheses,
+  and aggregate validation are immutable under a 0700 runtime tree with 0600
+  files. A repeated apply performs provider-free replay instead of another
+  corpus read; an incomplete run fails closed.
+- Offline replay reads only normalized private inputs, rebuilds all proposed
+  hypotheses, verifies artifact hashes and aggregate counts, and requires all
+  accepted/provider/person/speaker/biometric/Graphiti effects to remain zero.
+- Synthetic execution proves the current production shape of 25 conversations
+  and 57 exact queries, including one-query accounting, cross-query duplicate
+  control, partial failure, pilot-wide retry, private modes, and offline replay.
+- Current local API replay builds 187 unique email contacts; all 25 distinct
+  cohort addresses behind the 57 queries resolve, with zero missing joins.
+- The installed Mail Receipts executable is version `0.1.14`. Its backend had
+  loaded on August 26 while the executable changed August 30. Restarting only
+  `mail-receipts-mcp-backend.service` refreshed the uncoupled backend; a fresh
+  census shows all four mailbox schedulers and both workers active. Registry
+  and corpus-operations metadata still exceeded both 10-second and one bounded
+  120-second read ceilings.
+- Fresh stdio initialization, tool listing, and the static Mail Live descriptor
+  succeed, isolating the failure to storage-backed calls. The configured
+  authenticated HTTP child endpoint has no listener; policy forbids starting a
+  new listener merely to bypass the failed workbench path.
+- After the bounded diagnostic, the backend was refreshed once more and a new
+  operator-lite stdio session returned the static descriptor successfully; no
+  further storage-backed call was left in flight.
+- Graphiti is healthy but has no current Plan 0073/P5 recall; the plan, current
+  runtime readback, and this runbook remain authoritative.
+
+Validation:
+
+- TDD receipts progressed through missing module, unimplemented approved
+  apply, one-query-only rejection, missing offline replay, excess retry, and
+  pre-read safety failures before their respective GREEN states.
+- `.venv/bin/python -m pytest -q
+  tests/test_plan0073_private_pilot_execution.py` passes 11 tests, including
+  the 25-conversation/57-query synthetic execution and provider-free replay.
+- The focused P0-P5/Contacts/API regression selection passes 112 tests; Python
+  compilation, `git diff --check`, and the active-only
+  planning audit also pass.
+- No private runtime artifact was created; all execution tests use pytest
+  temporary directories and reserved `.invalid` addresses.
+
+Progress classification: `blocker_reduction`. The P5 execution code no longer
+depends on post-approval improvisation. Exact account, tenant, corpus, and
+source-profile selectors still cannot be retrieved through either permitted
+public workbench surface, so an approvable private preview cannot yet exist.
+
+Next: Repair the installed Mail Receipts storage-backed metadata path outside
+this repo or provide the exact operator-lite selectors. Then bind the already
+frozen 25-conversation/57-query cohort, present the immutable preview, stop for
+its literal approval, execute once, and run offline replay before P6.
+
 ## Turn 409: Prepare Plan 0073 P5 zero-read authorization (2026-08-30)
 
 Summary: Implemented the immutable P5 preview/approval seam, froze the current

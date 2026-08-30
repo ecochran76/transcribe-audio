@@ -66,6 +66,7 @@ class MailReceiptsReader(Protocol):
         cursor: str,
         page_size: int,
         include_body: bool,
+        timeout_ms: int,
     ) -> MailReceiptsPage: ...
 
 
@@ -92,6 +93,7 @@ class MailReceiptsAdapterConfig:
     namespace: str
     corpus_id: str
     account_address: str
+    max_latency_ms: int = 30_000
 
 
 @dataclass(frozen=True)
@@ -126,6 +128,10 @@ class MailReceiptsEvidenceAdapter:
             raise ValueError(
                 "Mail Receipts adapter requires explicit namespace, corpus_id, "
                 "and normalized account_address."
+            )
+        if config.max_latency_ms < 1 or config.max_latency_ms > 30_000:
+            raise ValueError(
+                "Mail Receipts max latency must be between 1 and 30000 ms."
             )
         profile = reader.service_profile()
         capabilities = profile.get("capabilities")
@@ -173,6 +179,17 @@ class MailReceiptsEvidenceAdapter:
             raise ValueError(
                 "Mail Receipts metadata retrieval does not permit message text."
             )
+        try:
+            parsed_as_of = datetime.fromisoformat(
+                request.as_of.replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "Mail Receipts as_of must be an ISO 8601 timestamp."
+            ) from exc
+        if parsed_as_of.tzinfo is None or parsed_as_of.utcoffset() is None:
+            raise ValueError("Mail Receipts as_of must include a timezone.")
+        lookback_start = parsed_as_of.astimezone(timezone.utc) - timedelta(days=365)
 
         snapshots = []
         failures: list[dict[str, str]] = []
@@ -180,6 +197,7 @@ class MailReceiptsEvidenceAdapter:
         provider_calls = 0
         retries = 0
         truncated_count = 0
+        excluded_count = 0
         for address in addresses:
             cursor = ""
             seen_cursors: set[str] = set()
@@ -204,6 +222,7 @@ class MailReceiptsEvidenceAdapter:
                         cursor=cursor,
                         page_size=min(100, remaining),
                         include_body=False,
+                        timeout_ms=self.config.max_latency_ms,
                     )
                 except MailReceiptsReadError as exc:
                     if exc.retryable and retries < 1 and provider_calls < 4:
@@ -258,6 +277,19 @@ class MailReceiptsEvidenceAdapter:
                 invalid_record = False
                 for record_index, payload in enumerate(page.records):
                     try:
+                        if not isinstance(payload, Mapping):
+                            raise TypeError("Mail Receipts record must be an object")
+                        source_event = datetime.fromisoformat(
+                            str(payload.get("sent_at") or "").replace("Z", "+00:00")
+                        )
+                        if (
+                            source_event.tzinfo is None
+                            or source_event.utcoffset() is None
+                        ):
+                            raise ValueError("sent_at must include a timezone")
+                        if source_event.astimezone(timezone.utc) < lookback_start:
+                            excluded_count += 1
+                            continue
                         record = self._bounded_record(
                             payload,
                             query_address=address,
@@ -322,6 +354,7 @@ class MailReceiptsEvidenceAdapter:
             warnings=warnings,
             provider_calls=provider_calls,
             truncated_count=truncated_count,
+            excluded_count=excluded_count,
         )
         validate_mail_artifact("mail_query_receipt", receipt)
         return MailReceiptsRetrievalResult(
@@ -448,6 +481,7 @@ class MailReceiptsEvidenceAdapter:
         warnings: list[str],
         provider_calls: int,
         truncated_count: int,
+        excluded_count: int,
     ) -> dict[str, Any]:
         request_core = {
             "conversation_id": request.conversation_id,
@@ -499,13 +533,13 @@ class MailReceiptsEvidenceAdapter:
                 "max_records": request.max_records,
                 "max_characters": request.max_characters,
                 "max_calls": 4,
-                "max_latency_ms": 30_000,
+                "max_latency_ms": self.config.max_latency_ms,
                 "max_pages": 10,
             },
             "status": status,
             "counts": {
                 "selected": len(snapshots),
-                "excluded": 0,
+                "excluded": excluded_count,
                 "truncated": truncated_count,
                 "provider_writes": 0,
             },

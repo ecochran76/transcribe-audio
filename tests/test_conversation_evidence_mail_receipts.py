@@ -201,8 +201,58 @@ def test_adapter_normalizes_one_exact_mail_metadata_page_and_emits_a_receipt() -
             "cursor": "",
             "page_size": 25,
             "include_body": False,
+            "timeout_ms": 30_000,
         }
     ]
+
+
+def test_adapter_excludes_records_older_than_the_frozen_365_day_lookback() -> None:
+    def record(evidence_id: str, sent_at: str) -> dict[str, Any]:
+        return {
+            "evidence_id": evidence_id,
+            "record_ref": f"record-{evidence_id}",
+            "logical_message_ref": f"logical-{evidence_id}",
+            "thread_ref": f"thread-{evidence_id}",
+            "source_key": f"source-{evidence_id}",
+            "sent_at": sent_at,
+            "from": ["alex@example.test"],
+            "to": ["account@example.test"],
+            "cc": [],
+            "contact_ids_by_address": {
+                "alex@example.test": "contact-redacted-alex"
+            },
+            "signature": None,
+        }
+
+    reader = FakeMailReceiptsReader(
+        operator_lite_profile(),
+        {
+            ("alex@example.test", ""): mail_page(
+                records=(
+                    record("within-lookback", "2025-01-07T16:00:00Z"),
+                    record("before-lookback", "2025-01-07T15:59:59Z"),
+                ),
+                as_of="2026-01-07T16:00:00Z",
+            )
+        },
+    )
+    adapter = MailReceiptsEvidenceAdapter(
+        config=MailReceiptsAdapterConfig(
+            scope=SCOPE,
+            namespace="namespace-redacted",
+            corpus_id="corpus-redacted",
+            account_address="account@example.test",
+        ),
+        reader=reader,
+        retrieved_at="2026-01-07T16:01:00Z",
+    )
+
+    result = adapter.retrieve(request())
+
+    assert len(result.snapshots) == 1
+    assert result.snapshots[0].structured_metadata["evidence_id"] == "within-lookback"
+    assert result.query_receipt["counts"]["selected"] == 1
+    assert result.query_receipt["counts"]["excluded"] == 1
 
 
 def test_adapter_preserves_successful_evidence_when_another_exact_query_fails() -> None:

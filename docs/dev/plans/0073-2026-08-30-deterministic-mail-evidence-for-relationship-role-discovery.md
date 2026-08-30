@@ -199,6 +199,39 @@ P5 preview preparation on 2026-08-30:
 - 100 focused Plan 0073/Contacts/API tests pass. No exact private preview,
   approval, Mail Receipts evidence read, or private runtime write has occurred.
 
+P5 execution preparation on 2026-08-30:
+
+- `plan0073_private_pilot_execution.py` adds one deep apply/replay interface
+  behind the exact preview and approval validator; invalid approval, time,
+  contact, source, or operator-lite profile state fails before a corpus read;
+- the executor accounts for each exact-address query, enforces one retry over
+  the whole pilot, deduplicates the same message across queries, preserves each
+  conversation's historical cutoff, writes immutable private 0600 artifacts,
+  and fixes every accepted/provider/person/speaker/biometric/Graphiti effect at
+  zero;
+- the Mail Receipts adapter now filters records before the frozen 365-day
+  lookback and accounts for them as excluded, so the previewed temporal budget
+  is enforced rather than receipt-only;
+- local exact-email Contacts, including shared-address classifications, are
+  projected by the host; provider-supplied local contact IDs are discarded and
+  rebuilt before normalization, with a deterministic non-accepted account node
+  added only when the mail account has no existing local contact;
+- repeat apply is provider-free and incomplete apply fails closed; offline
+  replay rebuilds hypotheses from normalized private inputs and verifies every
+  artifact hash and aggregate count without a reader;
+- 11 execution tests prove approval gating, pre-read validation, host-owned
+  contact joining, single and multi-query accounting, duplicate control,
+  partial failure, pilot-wide retry, immutable replay, and the current
+  25-conversation/57-query shape;
+- current local API replay builds 187 unique email contacts and resolves all 25
+  distinct cohort addresses behind the 57 exact queries with zero missing
+  joins; and
+- the shared backend was refreshed after installed-version drift was observed,
+  but storage-backed registry/operations calls still time out at 10 and 120
+  seconds. Static descriptor calls work, and the configured HTTP child has no
+  listener. The focused P0-P5/Contacts/API selection passes 112 tests. No exact
+  selector or private evidence was obtained.
+
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
 - Plan 0072 A6-R3 deterministically exposes 3 contextual-role, 59 affiliation,

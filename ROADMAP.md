@@ -223,10 +223,14 @@ controls, support pointer/keyboard column resizing, and expand inline into
 privacy-safe evidence detail on desktop and mobile. P5 is now `awaiting-gate`:
 its zero-read preview and literal approval contract is implemented, and the
 current 25-item local review cohort resolves deterministically to 57 exact,
-non-shared contact-email queries. The installed registration fixes namespace
+non-shared contact-email queries. Its approval-bound execution seam now proves
+the full 25/57 shape against synthetic metadata, including one pilot-wide
+retry, duplicate control, immutable private receipts, and provider-free offline
+replay. The installed registration fixes namespace
 `default` and profile `operator-lite`, but exact account, tenant, and corpus
-selectors are not yet bound because the read-only Mail Receipts registry
-transport is unavailable. Therefore
+selectors are not yet bound because every storage-backed Mail Receipts metadata
+call still times out after a backend refresh, while the configured HTTP child
+surface has no listener. Therefore
 no private Mail Receipts read may occur until the exact namespace, corpus,
 tenant/account selectors, as-of window, budgets, and no-more-than-25-item
 cohort are previewed and explicitly approved. The plan extends the
