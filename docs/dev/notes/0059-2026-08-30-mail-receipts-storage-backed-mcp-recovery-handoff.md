@@ -61,8 +61,12 @@ runtime observation is still current.
 
 - Repository: `/home/ecochran76/workspace.local/mail-receipts`
 - Current branch: `plan/227-device-verification-link-claim`
-- Current commit: `edfb1c1c2f88c8ead0dd0733f0d55da9e30b38ca`
-- Upstream divergence at readback: `0 0`; worktree clean
+- Current commit after the later upgrade:
+  `2e0dac8cf6e26b9e1584c0aa0d76b411d70e387b`
+- Upstream divergence at readback: `0 0`
+- The worktree now contains untracked generated benchmark attachment
+  temporaries under `fixtures/benchmarks/corpus/.tmp_attachments/`. Treat them
+  as unrelated user/runtime work and do not remove or absorb them.
 - This branch belongs to unrelated Plan 227 work. Do not implement the MCP
   repair on it. Reconcile current default-ref and active-lane policy, then
   create a dedicated branch/worktree for the repair.
@@ -82,11 +86,14 @@ Observed on 2026-08-30; refresh before relying on process IDs or timestamps:
 - Backend unit: `mail-receipts-mcp-backend.service`
 - Backend executable:
   `/home/ecochran76/.local/share/mail-receipts/venv/bin/mail-receipts`
-- Latest readback: backend `active/running`, PID `52273`, started
-  `2026-08-30 10:31:08 CDT`; the Unix socket exists
+- Installed source checkout after the later upgrade:
+  `/home/ecochran76/.local/share/mail-receipts/source-checkouts/plan231-auth-challenge-runtime`
+- Installed source commit: `c949ff9dfea37ea16b0142bc559236bf3812c642`
+- Latest readback: backend `active/running`, PID `11867`, started
+  `2026-08-30 17:31:25 CDT`; the Unix socket exists
 - All four live-mailbox schedulers and both worker services were
-  `active/running` at the Plan 0073 Turn 410 closeout. Refresh this census
-  before and after any authorized runtime change.
+  `active/running` after the upgrade recheck. Refresh this census before and
+  after any authorized runtime change.
 - The configured HTTP child target `http://127.0.0.1:8000` had no listening
   TCP socket; a three-second `/v1/service/profile` probe timed out with HTTP
   code `000`.
@@ -120,6 +127,33 @@ It did not read Mail Receipts storage directly.
 No provider call, mailbox mutation, corpus-operation execution, corpus content
 read, message-body read, private runtime artifact, schema migration, or
 deployment occurred.
+
+## Post-handoff upgrade recheck
+
+The operator later reported that Mail Receipts had been upgraded. A fresh
+read-only recheck established:
+
+1. The installed executable and backend were replaced/restarted at
+   approximately `2026-08-30 17:31 CDT`.
+2. The installed package still reports `0.1.14`; its direct-install metadata
+   points to Plan 231 source commit `c949ff9d`, whose purpose is the installed
+   email authentication-challenge runtime.
+3. The Codex-hosted `mail_receipts` MCP tools in the already-running session
+   return `Transport closed` even for the static descriptor.
+4. A fresh standalone installed shim using the same `operator-lite`, namespace,
+   authentication, and backend-socket arguments returned the static Mail Live
+   descriptor successfully with no stderr.
+5. The same fresh shim's `corpus_registry` `list_corpora` request for namespace
+   `default` still exceeded a single 30-second ceiling with no response and no
+   stderr.
+6. Inspection of the installed `UnifiedMailMcpBackendClient._request` confirms
+   it still calls `client.settimeout(None)` immediately after connection.
+
+Conclusion: the upgrade is installed and its unrelated Plan 231 runtime is
+active, but it did not include or prove the storage-backed MCP repair. A new
+Codex session may be needed to reacquire the hosted MCP transport after an
+upgrade, but session reconnection alone will not fix the independently
+reproduced registry timeout.
 
 ## Source-level fault boundary
 

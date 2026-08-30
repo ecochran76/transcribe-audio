@@ -1,5 +1,48 @@
 # Runbook
 
+## Turn 411: Recheck Plan 0073 after Mail Receipts upgrade (2026-08-30)
+
+Summary: Verified the newly installed Mail Receipts runtime without reading a
+private corpus. The upgrade is real but belongs to Plan 231 authentication
+challenge work, not the storage-backed MCP recovery. Plan 0073 remains blocked
+at the exact selector gate.
+
+Evidence:
+
+- The installed package remains version `0.1.14` and now points to source
+  checkout `plan231-auth-challenge-runtime` at commit `c949ff9d`.
+- `mail-receipts-mcp-backend.service` restarted from the upgraded executable at
+  `2026-08-30 17:31:25 CDT`; the backend, all four mailbox schedulers, and both
+  worker services are `active/running`.
+- The current Codex-hosted `mail_receipts` tools return `Transport closed`, so
+  this session has not adopted a usable stdio transport after the upgrade.
+- A separately launched installed `operator-lite` shim successfully returned
+  `get_mail_live_view_descriptor` with no stderr. This proves the upgraded
+  executable, framing, authentication context, and static backend dispatch.
+- Through that same upgraded shim, `corpus_registry` `list_corpora` for
+  namespace `default` still exceeded a single 30-second outer ceiling with no
+  response and no stderr.
+- The installed `UnifiedMailMcpBackendClient._request` still changes the Unix
+  socket to `settimeout(None)` after connecting, so the missing backend-response
+  deadline identified in Note 0059 remains present.
+- The Mail Receipts source worktree advanced to Plan 227 commit `2e0dac8c` and
+  contains untracked benchmark attachment temporaries. They were treated as
+  unrelated user/runtime work and were not changed.
+- Graphiti is healthy but still has no current Plan 0073 incident recall.
+
+Effects: zero provider calls, mailbox writes, corpus reads, corpus operations,
+private Plan 0073 artifacts, accepted hypotheses, person/speaker effects,
+deployments, or service changes by this recheck. One bounded temporary response
+capture contained only the static public descriptor and timeout metadata and
+was removed after inspection.
+
+Progress classification: `no_progress`. The upgrade changed installed identity
+but did not reduce the selector blocker.
+
+Next: Execute the bounded Mail Receipts storage-backed MCP repair described in
+Note 0059, then repeat the static-plus-registry smoke. Only a successful,
+tenant-safe selector read can advance Plan 0073 to its immutable preview gate.
+
 ## Turn 410: Prepare Plan 0073 P5 execution and isolate selector fault (2026-08-30)
 
 Summary: Implemented the approval-bound P5 apply/replay seam against injected
