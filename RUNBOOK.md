@@ -87,6 +87,8 @@ this repo or provide the exact operator-lite selectors. Then bind the already
 frozen 25-conversation/57-query cohort, present the immutable preview, stop for
 its literal approval, execute once, and run offline replay before P6.
 
+Recovery handoff: `docs/dev/notes/0059-2026-08-30-mail-receipts-storage-backed-mcp-recovery-handoff.md`
+
 ## Turn 409: Prepare Plan 0073 P5 zero-read authorization (2026-08-30)
 
 Summary: Implemented the immutable P5 preview/approval seam, froze the current
