@@ -208,8 +208,11 @@ automatic identity conclusions remain gated.
 
 Plan 0073 is the open deterministic-mail successor. P0 is closed with four
 versioned portable-artifact contracts, closed JSON Schemas, exact thresholds
-and reason codes, and seven synthetic/redacted scenario fixtures. P1 is active
-to implement the injected operator-lite adapter against those contracts. The plan will extend the
+and reason codes, and seven synthetic/redacted scenario fixtures. P1 is closed
+with an injected operator-lite adapter that enforces exact-address queries,
+scope echo, bounded cursor pagination, one transient retry, deterministic
+receipts, and privacy-safe partial failures. P2 is active for deterministic
+normalization, deduplication, independence grouping, and watermarks. The plan will extend the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

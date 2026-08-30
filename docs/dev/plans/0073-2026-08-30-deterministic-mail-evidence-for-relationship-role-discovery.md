@@ -73,16 +73,16 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN`. P0 is closed and P1 is active on the critical path. P0-P4 may use source
+Plan 0073 is `OPEN`. P0-P1 are closed and P2 is active on the critical path. P0-P4 may use source
 code, synthetic/redacted fixtures, mocked operator-lite transports, disposable
 stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
 Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
 numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
 
-| Field | Active P0 control |
+| Field | Active P2 control |
 | --- | --- |
 | Authority | User goal `execute plan 73`; ordinary local implementation only |
-| Bounded outcome | Freeze and validate the versioned mail query, observation, independence-group, and hypothesis contracts plus deterministic thresholds and redacted fixtures |
+| Bounded outcome | Normalize, deduplicate, and group bounded mail metadata with deterministic IDs, ordering, temporal classification, and watermarks |
 | Write surface | Repo source, tests, `docs/dev/fixtures/plan-0073-p0/`, Plan 0073, ROADMAP, RUNBOOK, and focused commits |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
 | Attempts and review | At most two implementation attempts and one closed-world rework cycle per packet; no broad review pass is opened at activation |
@@ -105,6 +105,23 @@ P0 delivered on 2026-08-30:
   carry accepted effects; and
 - 41 focused and adjacent contract/adapter tests plus Python compilation pass.
   No Mail Receipts corpus or provider was queried.
+
+P1 delivered on 2026-08-30:
+
+- `conversation_evidence_mail_receipts.py` adds an injected, operator-lite-only
+  Mail Receipts adapter for exact normalized email terms and the common bounded
+  evidence envelope;
+- every page must echo the authorized source profile, account, tenant,
+  namespace, and corpus, while calls retain the fixed `as_of`, opaque cursor,
+  zero-body request, and numerical budgets;
+- malformed pages/records, raw-content fields, scope drift, and provider
+  failures become typed, privacy-safe receipts; one transient retry is allowed
+  without widening the query and successful evidence survives partial failure;
+- query receipts are content-addressed and carry selected/result counts,
+  truncation, warnings, failures, and result hashes with provider writes fixed
+  at zero; and
+- 66 focused and adjacent adapter tests plus compilation and diff checks pass.
+  Tests use only injected mocks and `.test` data; no corpus/provider read ran.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.

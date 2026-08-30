@@ -1,5 +1,47 @@
 # Runbook
 
+## Turn 405: Close Plan 0073 P1 operator-lite adapter (2026-08-30)
+
+Summary: Completed the non-private P1 Mail Receipts adapter and moved Plan
+0073 to pure normalization and independence grouping in P2.
+
+Authority: Plan 0073 P1 under the user goal `execute plan 73`. This packet used
+only injected readers, source code, and synthetic `.test` records. It made no
+Mail Receipts corpus read, provider call, runtime data write, schema migration,
+deployment, accepted graph decision, or Graphiti write.
+
+Evidence:
+
+- `conversation_evidence_mail_receipts.py` requires the read-only
+  `operator-lite` service profile and exposes only `mail_metadata_read` through
+  the common bounded evidence adapter contract.
+- Exact normalized email terms, authorized source-profile/account/tenant/
+  namespace/corpus scope, fixed `as_of`, opaque cursors, zero body retrieval,
+  four-call/ten-page/250-record ceilings, and one transient retry are enforced.
+- Immutable content-addressed query receipts expose counts, truncation,
+  warnings, typed failures, and result hashes while retaining zero provider
+  writes. Provider IDs are hashed and raw message content is rejected.
+- Malformed records/pages, scope drift, unavailable reads, and partial failure
+  remain visible without leaking rejected content or erasing valid evidence.
+
+Validation:
+
+- `.venv/bin/python -m pytest -q
+  tests/test_conversation_evidence_mail_receipts.py
+  tests/test_mail_relationship_contracts.py
+  tests/test_conversation_evidence_adapters.py
+  tests/test_conversation_evidence_gws.py
+  tests/test_conversation_evidence_odollo.py` passes 66 tests.
+- `.venv/bin/python -m py_compile conversation_evidence_mail_receipts.py
+  mail_relationship_contracts.py` and `git diff --check` pass.
+
+Progress classification: `outcome_progress`. P1's terminal mocked adapter
+contract is complete. P2 is ready; P5 remains gated on exact private selectors,
+budgets, cohort, and preview.
+
+Next: Build pure observation normalization and independence grouping from the
+frozen scenario fixtures, proving replay and reordered-input equality.
+
 ## Turn 404: Close Plan 0073 P0 contract freeze (2026-08-30)
 
 Summary: Completed the non-private P0 contract freeze and moved Plan 0073 to
