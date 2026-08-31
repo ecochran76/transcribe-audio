@@ -1,5 +1,41 @@
 # Runbook
 
+## Turn 414: Freeze Plan 0073 default-source private preview (2026-08-31)
+
+Summary: Bound the operator-selected default Mail Receipts source into the
+already frozen P5 cohort and persisted one immutable zero-read preview. The
+preview is awaiting its exact literal approval; no private mail evidence was
+read.
+
+Evidence:
+
+- A fresh authenticated `operator-lite` public selector response returned the
+  selected complete six-field source bundle with zero blocked reasons, no
+  provider read, and no mutation.
+- Live dashboard API readback rebuilt exactly 25 queued conversations and 57
+  exact-email queries. Cohort SHA-256 remains
+  `8879f37973b0bfe119fd31fab75b803615cf572e725220f2d92a195a2b319ddd`,
+  spanning historical cutoffs from `2019-07-01T19:07:06Z` through
+  `2024-06-25T19:59:45.103000Z`.
+- Preview `plan0073-p5-139eea68bfb7e6929e4e22115458e35e` has content
+  SHA-256
+  `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`
+  and persists at the declared user-scoped runtime path as a regular `0600`
+  private file under a `0700` directory tree.
+- The preview remains exact-email, metadata-only, body/subject/attachment-free,
+  bounded to a 365-day lookback per conversation, and limited to one transient
+  retry across the pilot.
+
+Effects: one private preview artifact was written. Owned-corpus reads,
+mailbox/provider calls, provider writes, corpus operations, accepted role or
+relationship decisions, person merges, speaker/biometric effects, deployments,
+and Graphiti writes remain zero. The literal approval phrase is intentionally
+not recorded in repo history.
+
+Next: Review the exact preview summary and supply its literal approval phrase.
+Only then may the one bounded private shadow pilot execute, followed by
+provider-free offline replay.
+
 ## Turn 413: Mail Receipts selector dependency resolved (2026-08-30)
 
 - Mail Receipts Plan 232 installed checkpoint `2b3c7fd5` and decoupled

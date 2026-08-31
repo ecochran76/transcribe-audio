@@ -75,24 +75,26 @@ not advance automatic identity acceptance beyond Level 2.
 
 Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
 source code, synthetic/redacted fixtures, mocked operator-lite transports,
-disposable stores, and local frontend builds. P5 remains `awaiting-preview`
-because Mail Receipts now returns four complete authorized public selector
-candidates and one source still must be selected to bind the already frozen
-as-of window, numerical budgets, and 25-conversation cohort into its approvable
-preview.
+disposable stores, and local frontend builds. P5 is now
+`awaiting-explicit-approval`: the operator selected the documented default from
+four complete authorized public selector candidates, and the exact source,
+as-of window, numerical budgets, and frozen 25-conversation cohort are bound in
+one immutable zero-read preview.
 
 Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
 checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
 mailbox-mutation runtime. The authenticated installed page now returns four
-complete candidates with zero blocked reasons. The original transport and
-selector defect is resolved; P5 now needs only one explicit source choice
-before building its zero-read preview.
+complete candidates with zero blocked reasons. The original transport,
+selector, and source-choice gates are resolved. Preview
+`plan0073-p5-139eea68bfb7e6929e4e22115458e35e` is frozen with content SHA-256
+`00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`;
+it authorizes nothing until its exact literal approval is supplied.
 
 | Field | Active P5 checkpoint control |
 | --- | --- |
 | Authority | The active user goal covers ordinary repo implementation and zero-read preview preparation; no private P5 read authority exists |
 | Bounded outcome | Bind the exact private pilot selectors, budgets, as-of rule, and cohort into one immutable preview, then stop for its literal approval |
-| Write surface | Repo source, tests, redacted fixtures, Plan 0073, ROADMAP, and RUNBOOK; no private runtime write before approval |
+| Write surface | Repo source, tests, redacted fixtures, Plan 0073, ROADMAP, RUNBOOK, and the one immutable private preview; no evidence/runtime corpus write before approval |
 | Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
 | Attempts and review | P5 allows one preview, one apply after exact approval, and only one transient idempotent read retry |
 | Checkpoint cadence | Before the first private/read effect and again before any apply, runtime, deployment, or accepted-effect gate |
@@ -202,10 +204,16 @@ P5 preview preparation on 2026-08-30:
   role `operator-lite`, required authentication, and the user-scoped local
   backend socket; the successor installed MCP now returns four complete
   account, tenant, corpus, and source selector bundles with no blocked reasons;
+- the operator selected the documented default source, and live dashboard
+  readback reproduced the frozen 25-conversation/57-query cohort and its
+  SHA-256 before preview construction;
+- immutable preview `plan0073-p5-139eea68bfb7e6929e4e22115458e35e`
+  persists as a `0600` private artifact with content SHA-256
+  `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`;
 - the stalled diagnostic process group was terminated exactly without
   restarting or mutating the shared Mail Receipts service; and
-- 100 focused Plan 0073/Contacts/API tests pass. No exact private preview,
-  approval, Mail Receipts evidence read, or private runtime write has occurred.
+- 100 focused Plan 0073/Contacts/API tests pass. No approval, Mail Receipts
+  evidence read, provider call, or accepted effect has occurred.
 
 P5 execution preparation on 2026-08-30:
 
