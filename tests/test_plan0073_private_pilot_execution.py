@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 import pytest
 
+from acoustic_audio_derivatives import ensure_private_tree, write_immutable_private_json
 from conversation_evidence_mail_receipts import MailReceiptsPage, MailReceiptsReadError
 from mail_relationship_contracts import ZERO_EFFECTS
 from plan0073_private_pilot import build_private_pilot_preview
@@ -386,16 +387,56 @@ def test_execute_one_approved_query_persists_private_zero_effect_receipts(
             "corpus_id": "owned-mail-corpus-1",
             "address": "alex@private-mail.invalid",
             "as_of": "2026-01-07T16:00:00Z",
-                "cursor": "",
-                "page_size": 25,
-                "include_body": False,
-                "timeout_ms": 30_000,
-            },
-        ]
+            "cursor": "",
+            "page_size": 25,
+            "include_body": False,
+            "timeout_ms": 30_000,
+        },
+    ]
     aggregate_path = Path(receipt["aggregate_path"])
     assert aggregate_path.is_file()
     assert aggregate_path.stat().st_mode & 0o777 == 0o600
     assert runtime_root.stat().st_mode & 0o777 == 0o700
+
+
+def test_execute_accepts_the_exact_persisted_preview_only_checkpoint(
+    tmp_path: Path,
+) -> None:
+    preview, approval = approved_preview()
+    runtime_root = tmp_path / "private-runtime"
+    run = runtime_root / preview["runtime_write_surface"]["relative_root"]
+    ensure_private_tree(runtime_root, run)
+    write_immutable_private_json(run / "preview.json", preview)
+    source = preview["request"]["source_scope"]
+    reader = OnePageReader(
+        MailReceiptsPage(
+            records=(),
+            as_of=preview["query_plan"][0]["as_of"],
+            source_scope={
+                "source_profile_id": source["source_profile_id"],
+                "account_id": source["account_id"],
+                "tenant_id": source["tenant_id"],
+                "namespace": source["namespace"],
+                "corpus_id": source["corpus_id"],
+            },
+        )
+    )
+
+    receipt = execute_private_pilot(
+        preview,
+        approval,
+        reader=reader,
+        contacts={},
+        runtime_root=runtime_root,
+        executed_at="2026-08-30T16:01:00Z",
+    )
+
+    assert receipt["status"] == "complete"
+    assert receipt["counts"]["accounted_queries"] == 1
+    assert (run / "approval.json").is_file()
+    assert replay_private_pilot(
+        preview["preview_id"], runtime_root=runtime_root
+    )["replay_equal"] is True
 
 
 def test_execute_accounts_for_each_exact_query_without_double_counting_one_message(

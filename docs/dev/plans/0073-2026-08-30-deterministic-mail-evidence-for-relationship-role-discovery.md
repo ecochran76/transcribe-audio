@@ -4,10 +4,12 @@ State: OPEN
 
 Execution authority: the user goal `execute plan 73` authorizes ordinary
 bounded implementation, tests, redacted fixtures, local builds, and dashboard
-code under this plan. Its explicit action gates remain in force: it does not
-authorize owned private Mail Receipts evidence reads, mailbox/provider calls,
-live backfill, schema migration, deployment, accepted graph writes, speaker
-assignment, contact/person merge, or Graphiti publication.
+code under this plan. On 2026-08-31 the user also granted this session read
+access across the Mail Receipts suite; that session authority covers bounded
+owned-corpus and public metadata reads without repeated approval prompts. It
+does not authorize mailbox/provider writes, live backfill, schema migration,
+deployment, accepted graph writes, speaker assignment, contact/person merge,
+or Graphiti publication.
 
 Lane: P09/P10
 
@@ -75,11 +77,13 @@ not advance automatic identity acceptance beyond Level 2.
 
 Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
 source code, synthetic/redacted fixtures, mocked operator-lite transports,
-disposable stores, and local frontend builds. P5 is now
-`awaiting-explicit-approval`: the operator selected the documented default from
-four complete authorized public selector candidates, and the exact source,
-as-of window, numerical budgets, and frozen 25-conversation cohort are bound in
-one immutable zero-read preview.
+disposable stores, and local frontend builds. The session-wide Mail Receipts
+read grant satisfied P5's private-read gate without another approval ceremony.
+The frozen 25-conversation/57-query pilot executed once and replayed offline,
+but it produced no usable observations because the public source descriptor
+advertises an archive-plus-live pair whose archive anchor cannot be resolved
+through the public corpus registry. P5 is therefore `blocked-source-incomplete`,
+not accepted; P6 remains unopened.
 
 Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
 checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
@@ -87,18 +91,19 @@ mailbox-mutation runtime. The authenticated installed page now returns four
 complete candidates with zero blocked reasons. The original transport,
 selector, and source-choice gates are resolved. Preview
 `plan0073-p5-139eea68bfb7e6929e4e22115458e35e` is frozen with content SHA-256
-`00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`;
-it authorizes nothing until its exact literal approval is supplied.
+`00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
+The session read grant was bound internally to that exact preview; no literal
+approval phrase is required again during this session.
 
 | Field | Active P5 checkpoint control |
 | --- | --- |
-| Authority | The active user goal covers ordinary repo implementation and zero-read preview preparation; no private P5 read authority exists |
-| Bounded outcome | Bind the exact private pilot selectors, budgets, as-of rule, and cohort into one immutable preview, then stop for its literal approval |
-| Write surface | Repo source, tests, redacted fixtures, Plan 0073, ROADMAP, RUNBOOK, and the one immutable private preview; no evidence/runtime corpus write before approval |
-| Prohibited effects | Private evidence/provider reads, runtime corpus writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
-| Attempts and review | P5 allows one preview, one apply after exact approval, and only one transient idempotent read retry |
-| Checkpoint cadence | Before the first private/read effect and again before any apply, runtime, deployment, or accepted-effect gate |
-| Terminal evidence | P0-P4 tests and browser acceptance are green; P5 requires aggregate private accounting, offline replay equality, zero-effect readback, and explicit git/runtime state |
+| Authority | Session-wide read access covers the exact frozen Mail Receipts pilot; all write-bearing and accepted-effect gates remain closed |
+| Bounded outcome | Repair or replace the incomplete archive-plus-live read scope, then replay the same immutable cohort without widening it |
+| Write surface | Repo source/docs/tests plus immutable user-scoped pilot receipts; no Mail Receipts corpus/provider mutation or accepted graph write |
+| Prohibited effects | Reads beyond the frozen cohort, direct mailbox/provider access, corpus/provider writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
+| Attempts and review | The frozen apply completed once; a rerun is allowed only after the source-scope defect is corrected and must use the same preview/cohort |
+| Checkpoint cadence | No repeated read approval in this session; stop before any provider/corpus mutation, deployment, or accepted effect |
+| Terminal evidence | Query accounting and offline replay are complete with zero effects, but source completeness and nonzero provider yield are unresolved |
 
 P0 delivered on 2026-08-30:
 
@@ -247,6 +252,35 @@ P5 execution preparation on 2026-08-30:
   seconds. Static descriptor calls work, and the configured HTTP child has no
   listener. The focused P0-P5/Contacts/API selection passes 112 tests. No exact
   selector or private evidence was obtained.
+
+P5 bounded execution on 2026-08-31:
+
+- the user's session-wide Mail Receipts read grant was bound to the frozen
+  preview and used without asking for another literal approval phrase;
+- the executor accepted the existing preview-only checkpoint, issued all 57
+  planned exact-email reads, sealed every query receipt, and completed its
+  provider-free offline replay with equal source and replay hashes;
+- aggregate validation is content-addressed by
+  `3e3b877e1ce931a4f419ffaa81f4ef046e08a15ad7b1a8d5ea81620d0a575803`:
+  57 planned/accounted queries, zero unavailable receipts, zero selected
+  records, observations, independence groups, or hypotheses, and zero effects
+  of every prohibited class;
+- public follow-up showed that the selected source resolves as
+  `archive_plus_live` with two targets, while exact-address occurrence search
+  takes `duckdb-message-search-direct-participant-address` against only the
+  requested live corpus; logical-message search reaches the merge path but
+  falls back to persisted messages because the advertised archive anchor is
+  not resolvable through public corpus inspection;
+- `mail_receipts_mcp_reader.py` now rejects the known single-corpus fast path
+  whenever the public response advertises a multi-corpus merge target, so an
+  incomplete family can no longer be recorded as a successful empty result;
+- the executor now permits a byte-identical preview-only checkpoint while
+  retaining fail-closed behavior for every other partial run directory;
+- the focused Plan 0073/Contacts/API regression selection passes 116 tests,
+  with Python compilation, diff hygiene, and the active-only planning audit
+  green; and
+- P5 is not accepted from zero yield. The pilot artifacts remain immutable and
+  private; P6 and every accepted graph/speaker/context consumer remain closed.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
@@ -480,10 +514,12 @@ a planning-ledger checkpoint before the next begins.
 
 ## Explicit gates
 
-Separate user authority is required before:
+Separate user authority is required before the following actions. The current
+session-wide read grant satisfies only the first bullet during this session:
 
-- querying owned private Mail Receipts evidence, a mailbox, or a provider
-  during this plan's execution;
+- querying bounded owned private Mail Receipts evidence during this plan's
+  execution;
+- reading or writing a mailbox/provider directly;
 - selecting or widening provider accounts, tenants, capabilities, time ranges,
   or pilot cohorts beyond an approved preview;
 - retaining message subjects/snippets or adding body/attachment retrieval;
@@ -575,7 +611,11 @@ rebuild contract.
 
 ## Next authorized execution slice
 
-Stop at P5. Before any private Mail Receipts read, present the exact namespace,
-corpus, tenant/account selectors, as-of window, numerical budgets, and cohort of
-no more than 25 already-queued conversations for explicit user approval. P6 is
-not authorized by a P5 preview or pilot.
+Keep P5 open and P6 closed. Repair the public Mail Receipts source family so
+its advertised archive anchor is registered and searchable, and so exact-email
+queries search both archive and live members rather than taking a single-corpus
+fast path. Then rerun only the same frozen 25-conversation/57-query cohort under
+the current session read grant, require complete query accounting plus offline
+replay equality, and expose any nonzero review-only hypotheses in Contacts.
+Any corpus/provider mutation needed for that repair, and every P6 consumer or
+accepted effect, still requires separate authority.

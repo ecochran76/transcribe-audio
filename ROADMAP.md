@@ -220,8 +220,9 @@ hypotheses, exact exclusions, conflict visibility, and zero accepted effects.
 P4 is closed with bounded `/api/people` summaries and a dense Contacts review
 table whose hypotheses default to reverse-time order, expose visible SVG sort
 controls, support pointer/keyboard column resizing, and expand inline into
-privacy-safe evidence detail on desktop and mobile. P5 is now
-`awaiting-explicit-approval`:
+privacy-safe evidence detail on desktop and mobile. The user's 2026-08-31
+session-wide Mail Receipts read grant satisfied P5's private-read gate without
+another approval ceremony. P5 is now `blocked-source-incomplete`:
 its zero-read preview and literal approval contract is implemented, and the
 current 25-item local review cohort resolves deterministically to 57 exact,
 non-shared contact-email queries. Its approval-bound execution seam now proves
@@ -235,13 +236,20 @@ reasons. The operator selected the documented default, and immutable preview
 historical cutoffs, frozen budgets, and 25-conversation/57-query cohort with
 content SHA-256
 `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
-No private Mail Receipts read may occur until that exact preview receives its
-literal approval. The plan extends the
+The bounded run accounted for all 57 queries and replayed offline with equal
+hashes and zero prohibited effects, but returned zero observations or
+hypotheses. Public diagnostics show that the selected live source advertises a
+two-member archive-plus-live family while exact-address search takes a
+single-corpus fast path; the archive anchor is also not publicly resolvable, so
+the merged fallback cannot recover historical mail. The local MCP adapter now
+fails closed on the known incomplete fast path. P5 is not accepted from this
+zero-yield run, and P6 remains closed until Mail Receipts supplies a complete,
+searchable source family. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2
-review-only discovery: no owned-corpus or private mailbox query is authorized
-by the planning artifact, message bodies stay out of the initial contract,
+review-only discovery: the current session grant covers bounded read-only
+corpus access, message bodies stay out of the initial contract,
 duplicate source copies count once, historical queries obey `as_of`, and
 accepted graph facts, speaker effects, provider writes, and Graphiti projection
 remain separately gated.

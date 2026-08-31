@@ -1,5 +1,75 @@
 # Runbook
 
+## Turn 415: Execute Plan 0073 P5 and isolate incomplete source family (2026-08-31)
+
+Summary: Honored the user's session-wide Mail Receipts read authority without
+another approval ceremony, executed the exact frozen private pilot once, and
+completed provider-free offline replay. The run accounted for every query but
+returned zero evidence because the selected public archive-plus-live source
+family is incomplete. P5 remains open and P6 remains closed.
+
+Authority: The user's explicit full-read grant covers bounded Mail Receipts
+corpus and public metadata reads for this session. It does not authorize
+mailbox/provider writes, corpus repair or backfill, deployment, accepted graph
+decisions, person merges, speaker/profile effects, or Graphiti writes.
+
+Evidence:
+
+- Preview `plan0073-p5-139eea68bfb7e6929e4e22115458e35e` remained byte-exact
+  at content SHA-256
+  `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
+- The executor sealed 57 of 57 planned query receipts with no unavailable
+  receipt and wrote aggregate validation content SHA-256
+  `3e3b877e1ce931a4f419ffaa81f4ef046e08a15ad7b1a8d5ea81620d0a575803`.
+  Selected records, normalized observations, independence groups, and
+  hypotheses were all zero.
+- Offline replay was provider-free and equal to the execution aggregate; its
+  source hash matched the sealed aggregate. Every provider-write, accepted
+  relationship/role, person-merge, speaker, biometric, deployment, and
+  Graphiti effect remained zero.
+- Authenticated public selector discovery still returns four complete source
+  bundles. The selected default live corpus resolves to an
+  `archive_plus_live` descriptor with two targets.
+- Exact-address occurrence search reports
+  `duckdb-message-search-direct-participant-address`, which is constructed from
+  only the requested live registry record before the merge-target search branch
+  in Mail Receipts `UnifiedMailService.search_corpus`.
+- A logical-message diagnostic deliberately bypassed that shortcut and reached
+  the merged-target path, but returned
+  `merged-target-persisted-message-fallback` with zero hits. Public inspection
+  and search of the advertised archive anchor both fail, while the incremental
+  live member is registered but retrieval-pending.
+- `mail_receipts_mcp_reader.py` now rejects a direct participant-address fast
+  path when the response advertises more than one merge target. This prevents
+  an incomplete archive-plus-live search from being recorded as a valid empty
+  result.
+- `plan0073_private_pilot_execution.py` now accepts the exact preview-only
+  checkpoint created for review, while continuing to reject every other
+  incomplete run directory.
+
+Validation: the focused Plan 0073/Contacts/API selection passes 116 tests;
+Python compilation, `git diff --check`, and the active-only planning audit all
+pass. The private run directory is `0700` and its aggregate receipt is `0600`.
+
+Effects: the one authorized private read run and its immutable user-scoped
+receipts occurred. No mailbox/provider write, corpus operation, schema change,
+accepted graph decision, person merge, speaker/profile effect, deployment, or
+Graphiti write occurred. No private selector or message content was added to
+the repository.
+
+Progress classification: `blocker_discovery`. The execution and replay
+machinery worked, but zero yield from a demonstrably incomplete source family
+is not P5 acceptance and does not make Contacts useful for mail-assisted
+review.
+
+Next: Repair the Mail Receipts archive anchor registration and exact-address
+archive-plus-live search path, then rerun only the same frozen cohort under the
+current session read grant. Keep P6 and all accepted consumers closed until P5
+produces complete, reviewable evidence.
+
+Recovery handoff:
+`docs/dev/notes/0060-2026-08-31-mail-receipts-archive-live-search-handoff.md`
+
 ## Turn 414: Freeze Plan 0073 default-source private preview (2026-08-31)
 
 Summary: Bound the operator-selected default Mail Receipts source into the

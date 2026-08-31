@@ -357,9 +357,18 @@ def execute_private_pilot(
             "idempotent": True,
         }
     if run.exists():
-        raise Plan0073PrivatePilotExecutionError(
-            "P5 has an incomplete private run and will not repeat its corpus read."
-        )
+        ensure_private_tree(root, run)
+        preview_path = run / "preview.json"
+        children = sorted(run.iterdir(), key=lambda path: path.name)
+        if children != [preview_path]:
+            raise Plan0073PrivatePilotExecutionError(
+                "P5 has an incomplete private run and will not repeat its corpus read."
+            )
+        require_private_file(preview_path, root)
+        if read_private_object(preview_path) != dict(preview):
+            raise Plan0073PrivatePilotExecutionError(
+                "P5 persisted preview no longer matches the approved preview."
+            )
     normalized_executed_at, execution_time = _timestamp(executed_at, "executed_at")
     _, approval_time = _timestamp(normalized_approval["approved_at"], "approved_at")
     if execution_time < approval_time:
