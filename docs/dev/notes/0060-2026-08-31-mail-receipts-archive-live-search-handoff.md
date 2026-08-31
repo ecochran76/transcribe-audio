@@ -4,6 +4,29 @@ Date: 2026-08-31
 
 Consumer: transcribe-audio Plan 0073 P5
 
+Status: RESOLVED
+
+## Resolution
+
+Mail Receipts Plan 235 fixed the defect at installed checkpoint
+`3fca8b7e430fcb45c231656f40a163821929650f` by following the source-owned
+`attached_corpus_storage_root` with namespace validation and fail-closed
+ambiguity handling. Final documentation commit
+`4f270a47ce5f2c168aebf48567cf91eeabcde8c7` is upstream-even. Fresh installed
+runtime readback proved `archive_plus_live`, two DuckDB backends, and real exact
+participant results while the backend remained healthy at PID `64879` with
+zero restarts.
+
+Transcribe Audio commit `88786d5` removed its server-side `before:` directive,
+which had selected a different backend path, and retained the historical
+`as_of` check over body-free returned metadata. The unchanged frozen cohort
+then completed 57 of 57 queries with zero unavailable queries and replay-equal
+aggregate SHA-256
+`f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`.
+No record qualified before the historical conversation cutoffs, so Plan 0073
+closed with a zero-coverage, shadow-only decision. This is no longer an open
+Mail Receipts defect.
+
 ## Outcome required
 
 Make the existing authenticated `operator-lite` public read surface return a
@@ -92,7 +115,7 @@ single-corpus direct participant-address effect. This guard is in
 - Do not treat a zero-hit response as success unless execution metadata proves
   every advertised source-family member was searched.
 
-## Bounded next packet
+## Historical bounded repair packet
 
 Implement and test one Mail Receipts change that makes the exact-address path
 merge-aware and restores/resolves the existing archive anchor through the

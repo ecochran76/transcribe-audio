@@ -206,7 +206,7 @@ across 103 contacts. Every lead is review-required; accepted graph events,
 ontology changes, provider writes, person merges, speaker assignment, and
 automatic identity conclusions remain gated.
 
-Plan 0073 is the open deterministic-mail successor. P0 is closed with four
+Plan 0073 is the closed deterministic-mail successor. P0 is closed with four
 versioned portable-artifact contracts, closed JSON Schemas, exact thresholds
 and reason codes, and seven synthetic/redacted scenario fixtures. P1 is closed
 with an injected operator-lite adapter that enforces exact-address queries,
@@ -222,7 +222,8 @@ table whose hypotheses default to reverse-time order, expose visible SVG sort
 controls, support pointer/keyboard column resizing, and expand inline into
 privacy-safe evidence detail on desktop and mobile. The user's 2026-08-31
 session-wide Mail Receipts read grant satisfied P5's private-read gate without
-another approval ceremony. P5 is now `blocked-source-incomplete`:
+another approval ceremony. Plan 0073 is now closed with a measured no-advance
+decision:
 its zero-read preview and literal approval contract is implemented, and the
 current 25-item local review cohort resolves deterministically to 57 exact,
 non-shared contact-email queries. Its approval-bound execution seam now proves
@@ -236,15 +237,18 @@ reasons. The operator selected the documented default, and immutable preview
 historical cutoffs, frozen budgets, and 25-conversation/57-query cohort with
 content SHA-256
 `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
-The bounded run accounted for all 57 queries and replayed offline with equal
-hashes and zero prohibited effects, but returned zero observations or
-hypotheses. Public diagnostics show that the selected live source advertises a
-two-member archive-plus-live family while exact-address search takes a
-single-corpus fast path; the archive anchor is also not publicly resolvable, so
-the merged fallback cannot recover historical mail. The local MCP adapter now
-fails closed on the known incomplete fast path. P5 is not accepted from this
-zero-yield run, and P6 remains closed until Mail Receipts supplies a complete,
-searchable source family. The plan extends the
+Mail Receipts Plan 235 installed checkpoint `3fca8b7e` and repaired the
+cross-root archive lookup. Live aggregate diagnostics now prove a two-member
+archive-plus-live exact-address search over two DuckDB backends with real
+results. Transcribe Audio commit `88786d5` keeps exact participant searches on
+that merged path and applies each frozen `as_of` cutoff locally to body-free
+metadata. The unchanged cohort then accounted for all 57 queries, replayed
+offline with equal hash
+`f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`,
+and retained zero prohibited effects, but produced zero qualifying records,
+observations, or hypotheses. P6 therefore records zero coverage and appropriate
+abstention for all 25 conversations and opens no speaker/context consumer. The
+mail lane remains a Level 2 review-only shadow capability. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

@@ -1,5 +1,58 @@
 # Runbook
 
+## Turn 416: Validate Mail Receipts repair and close Plan 0073 (2026-08-31)
+
+Summary: Verified the installed Mail Receipts Plan 235 repair, corrected the
+Transcribe Audio consumer to stay on the repaired exact-address merge path,
+reran the unchanged frozen cohort, and closed Plan 0073 with a measured
+zero-coverage/no-advance decision.
+
+Authority: The user's session-wide Mail Receipts read grant covered the public
+runtime verification and frozen cohort rerun without another approval prompt.
+No mailbox/provider write, backfill, corpus/registry mutation, deployment,
+accepted graph decision, person merge, speaker/profile effect, or Graphiti
+write was authorized or performed.
+
+Evidence:
+
+- The installed Mail Receipts `service.py` SHA-256 exactly matches checkpoint
+  `3fca8b7e430fcb45c231656f40a163821929650f`. The Plan 235 source worktree is
+  clean and upstream-even at final documentation commit
+  `4f270a47ce5f2c168aebf48567cf91eeabcde8c7`.
+- `mail-receipts-mcp-backend.service` remained `active/running` at PID `64879`
+  with `NRestarts=0`.
+- Fresh aggregate-only MCP diagnostics returned `archive_plus_live`, two merge
+  targets, `archive-plus-live-duckdb-message-search`, backend
+  `duckdb_message_search`, and real results for an exact participant query.
+- Adding the frozen `before:` directive selected
+  `persisted-retrieval-index-plus-live-delta` instead and returned no results.
+  Transcribe Audio commit `88786d5` now preserves the exact merged search and
+  applies `as_of` locally to body-free returned message metadata, within the
+  existing three-search-plus-one-context call budget.
+- The first participant smoke proved current exact hits existed but all were
+  later than that conversation's historical cutoff; none were admitted.
+- The commit-bound consumer rerun preserved the exact preview, selectors,
+  cohort, budgets, contacts, and approval. It accounted for 57 of 57 queries
+  with zero unavailable queries and sealed aggregate content SHA-256
+  `f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`.
+- Provider-free offline replay was equal to that exact aggregate. Selected
+  records, observations, independence groups, hypotheses, provider writes,
+  accepted effects, person merges, speaker/biometric effects, and Graphiti
+  writes were all zero.
+
+Validation: the focused Plan 0073/Contacts/API selection passes 116 tests;
+Python compilation and `git diff --check` pass. Graphiti was healthy but had no
+current Plan 0073 recall, so repository, installed-code hash, runtime, and
+private aggregate evidence remained authoritative.
+
+Progress classification: `terminal_measurement`. Mail Receipts is repaired and
+the consumer path is valid. This particular historical cohort has zero
+qualifying mail coverage, so P6 opens no automatic speaker/context consumer and
+the implemented mail lane remains shadow-only.
+
+Next: none under Plan 0073. Any new mail-assisted evaluation should use a
+separate bounded plan with a non-vacuous source/time coverage preflight.
+
 ## Turn 415: Execute Plan 0073 P5 and isolate incomplete source family (2026-08-31)
 
 Summary: Honored the user's session-wide Mail Receipts read authority without

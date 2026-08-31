@@ -1,6 +1,6 @@
 # Plan 0073 | Deterministic mail evidence for relationship and role discovery
 
-State: OPEN
+State: CLOSED
 
 Execution authority: the user goal `execute plan 73` authorizes ordinary
 bounded implementation, tests, redacted fixtures, local builds, and dashboard
@@ -75,15 +75,16 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
-source code, synthetic/redacted fixtures, mocked operator-lite transports,
-disposable stores, and local frontend builds. The session-wide Mail Receipts
+Plan 0073 is `CLOSED` with a measured no-advance decision. P0-P4 delivered the
+portable contracts, injected reader, deterministic normalization and shadow
+discovery, and compact Contacts review surface. The session-wide Mail Receipts
 read grant satisfied P5's private-read gate without another approval ceremony.
-The frozen 25-conversation/57-query pilot executed once and replayed offline,
-but it produced no usable observations because the public source descriptor
-advertises an archive-plus-live pair whose archive anchor cannot be resolved
-through the public corpus registry. P5 is therefore `blocked-source-incomplete`,
-not accepted; P6 remains unopened.
+Mail Receipts Plan 235 repaired the cross-root archive-plus-live lookup, and a
+commit-bound Transcribe Audio consumer rerun exercised both DuckDB backends for
+all 57 frozen queries. Every query completed, offline replay was equal, and all
+effects remained zero, but no mail record qualified at or before the 25
+conversations' historical cutoffs. P6 therefore records zero coverage and zero
+candidate utility for this cohort and leaves the mail lane shadow-only.
 
 Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
 checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
@@ -95,15 +96,15 @@ selector, and source-choice gates are resolved. Preview
 The session read grant was bound internally to that exact preview; no literal
 approval phrase is required again during this session.
 
-| Field | Active P5 checkpoint control |
+| Field | Terminal P5/P6 outcome |
 | --- | --- |
-| Authority | Session-wide read access covers the exact frozen Mail Receipts pilot; all write-bearing and accepted-effect gates remain closed |
-| Bounded outcome | Repair or replace the incomplete archive-plus-live read scope, then replay the same immutable cohort without widening it |
-| Write surface | Repo source/docs/tests plus immutable user-scoped pilot receipts; no Mail Receipts corpus/provider mutation or accepted graph write |
-| Prohibited effects | Reads beyond the frozen cohort, direct mailbox/provider access, corpus/provider writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes |
-| Attempts and review | The frozen apply completed once; a rerun is allowed only after the source-scope defect is corrected and must use the same preview/cohort |
-| Checkpoint cadence | No repeated read approval in this session; stop before any provider/corpus mutation, deployment, or accepted effect |
-| Terminal evidence | Query accounting and offline replay are complete with zero effects, but source completeness and nonzero provider yield are unresolved |
+| Authority | Session-wide read access covered the exact frozen Mail Receipts pilot; all write-bearing and accepted-effect gates stayed closed |
+| Bounded outcome | The repaired archive-plus-live source was rerun against the unchanged 25-conversation/57-query cohort |
+| Write surface | Immutable user-scoped validation receipts plus repo source/docs/tests; no Mail Receipts corpus/provider mutation or accepted graph write |
+| Prohibited effects | Direct mailbox/provider access, corpus/provider writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes remained zero |
+| Attempts and review | The original defective-source attempt and two preserved consumer validations remain separate; no artifact was overwritten |
+| Checkpoint cadence | No repeated read approval was requested; no write-bearing or accepted-effect gate was crossed |
+| Terminal evidence | Both DuckDB backends executed, 57/57 queries were accounted for, replay was equal, provider yield and hypothesis coverage were zero, and the lane remains shadow-only |
 
 P0 delivered on 2026-08-30:
 
@@ -281,6 +282,46 @@ P5 bounded execution on 2026-08-31:
   green; and
 - P5 is not accepted from zero yield. The pilot artifacts remain immutable and
   private; P6 and every accepted graph/speaker/context consumer remain closed.
+
+P5 repaired-source consumer validation on 2026-08-31:
+
+- Mail Receipts installed checkpoint
+  `3fca8b7e430fcb45c231656f40a163821929650f` follows the source-owned attached
+  archive storage root with namespace checks and fail-closed ambiguity; the
+  installed `service.py` SHA-256 exactly matches that checkpoint;
+- the backend remained `active/running` at PID `64879` with `NRestarts=0`, and
+  the Plan 235 source worktree was clean, upstream-even, and finalized at docs
+  commit `4f270a47ce5f2c168aebf48567cf91eeabcde8c7`;
+- aggregate-only live diagnostics proved exact participant search now reports
+  `archive-plus-live-duckdb-message-search`, two merge targets, and real hits;
+- the frozen `before:` directive switched the request away from that exact
+  merged path. Transcribe Audio commit `88786d5` therefore keeps the exact
+  participant search intact and applies `as_of` locally to body-free message
+  metadata, preserving the same three-search-plus-one-context call ceiling;
+- the unchanged 25-conversation/57-query cohort then completed with 57
+  accounted queries, zero unavailable queries, zero qualifying records,
+  observations, independence groups, or hypotheses, and all effects at zero;
+- consumer-validation aggregate content SHA-256 is
+  `f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`,
+  and provider-free offline replay returned equality against that exact hash;
+  and
+- the result is no longer attributed to a Mail Receipts defect. The repaired
+  corpus has current participant hits, but this frozen historical cohort has no
+  qualifying evidence at or before its conversation cutoffs.
+
+P6 usefulness decision on 2026-08-31:
+
+- provider availability and query accounting are 100 percent for the frozen
+  cohort, while selected-record, observation, relationship/role hypothesis,
+  candidate-recall, contradiction, duplicate-control, and review-load counts
+  are all zero;
+- temporal integrity was preserved: later matching mail was not allowed to
+  leak backward into historical conversations;
+- appropriate abstention is 25 of 25 conversations because no qualifying mail
+  evidence exists under the frozen exact-address/as-of contract; and
+- no speaker-deduction or contextualization consumer is opened. The mail lane
+  remains available as a review-only shadow input for a separately planned
+  cohort whose source/time coverage can be established non-vacuously.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
@@ -611,11 +652,10 @@ rebuild contract.
 
 ## Next authorized execution slice
 
-Keep P5 open and P6 closed. Repair the public Mail Receipts source family so
-its advertised archive anchor is registered and searchable, and so exact-email
-queries search both archive and live members rather than taking a single-corpus
-fast path. Then rerun only the same frozen 25-conversation/57-query cohort under
-the current session read grant, require complete query accounting plus offline
-replay equality, and expose any nonzero review-only hypotheses in Contacts.
-Any corpus/provider mutation needed for that repair, and every P6 consumer or
-accepted effect, still requires separate authority.
+None under Plan 0073. The plan closes with the mail lane implemented but
+shadow-only because the frozen historical cohort produced zero qualifying
+evidence. Any new mail-assisted evaluation should be a separate bounded plan
+with a non-vacuous source/time coverage preflight before running a private
+cohort. Accepted graph facts, speaker/context consumers, mailbox/provider
+writes, corpus mutation, deployment, and Graphiti publication remain outside
+this closure.
