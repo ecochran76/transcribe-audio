@@ -243,7 +243,6 @@ class MailReceiptsMcpReader:
         for field_name in ("from", "to", "cc"):
             query = (
                 f'{field_name}:{json.dumps(normalized_address)} '
-                f'before:{json.dumps(normalized_as_of)} '
                 "rank:lexical group_by:message"
             )
             response = self.client.call_tool(

@@ -94,7 +94,7 @@ def test_reader_uses_three_exact_actor_searches_and_one_body_free_context_pack()
         "selected_result_context_pack",
     ]
     assert all(
-        'before:"2026-01-07T16:00:00Z"' in call[1]["intent"]
+        'before:' not in call[1]["intent"]
         for call in client.calls[:3]
     )
     assert client.calls[-1][1]["include_body"] is False
