@@ -75,21 +75,18 @@ not advance automatic identity acceptance beyond Level 2.
 
 Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
 source code, synthetic/redacted fixtures, mocked operator-lite transports,
-disposable stores, and local frontend builds. P5 remains `awaiting-gate` because
-its exact Mail Receipts corpus and tenant/account selectors have not been
-returned by an authorized public surface, so the already frozen as-of window,
-numerical budgets, and 25-conversation cohort cannot yet form an approvable
+disposable stores, and local frontend builds. P5 remains `awaiting-preview`
+because Mail Receipts now returns four complete authorized public selector
+candidates and one source still must be selected to bind the already frozen
+as-of window, numerical budgets, and 25-conversation cohort into its approvable
 preview.
 
-Mail Receipts Plans 228-230 fixed and independently accepted the original MCP
-timeout, multi-source discovery, and corpus-operations scaling defects, but
-their installed packets were rolled back; the last public candidate page was
-typed and empty. Plan 231 then installed from a separate source line. Mail
-Receipts Plan 232 reconciles both accepted product lines at source commit
-`d3e472c3`, with `160` focused tests passing, but it is not independently
-reviewed or installed. Even after installation, a complete server-owned
-selector candidate must exist before this plan can bind its preview. Direct
-private binding inspection or repair is outside Plan 0073 authority.
+Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
+checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
+mailbox-mutation runtime. The authenticated installed page now returns four
+complete candidates with zero blocked reasons. The original transport and
+selector defect is resolved; P5 now needs only one explicit source choice
+before building its zero-read preview.
 
 | Field | Active P5 checkpoint control |
 | --- | --- |
@@ -203,9 +200,8 @@ P5 preview preparation on 2026-08-30:
   SHA-256 `8879f37973b0bfe119fd31fab75b803615cf572e725220f2d92a195a2b319ddd`;
 - installed registration metadata proves namespace `default`, profile and auth
   role `operator-lite`, required authentication, and the user-scoped local
-  backend socket; however, account, tenant, and corpus selectors remain
-  unresolved because the MCP registry transport returned `Transport closed`
-  twice and the equivalent read-only CLI registry diagnostic did not complete;
+  backend socket; the successor installed MCP now returns four complete
+  account, tenant, corpus, and source selector bundles with no blocked reasons;
 - the stalled diagnostic process group was terminated exactly without
   restarting or mutating the shared Mail Receipts service; and
 - 100 focused Plan 0073/Contacts/API tests pass. No exact private preview,

@@ -2,14 +2,13 @@
 
 Date: 2026-08-30
 
-Purpose: Give a fresh agent a restart-safe, evidence-bounded packet for the
-Mail Receipts repository defect that blocks the approved Plan 0073
-relationship-and-role discovery campaign. This note describes the dependency;
-it does not authorize a private corpus read, a provider call, or a live repair.
+Purpose: Preserve the historical Mail Receipts defect and record its completed
+repair for Plan 0073. This note no longer routes agents into backend recovery;
+it does not authorize a private corpus read or provider call.
 
 ## Successor status update
 
-This handoff is historical fault evidence, not the current repair entrypoint.
+This handoff is historical fault evidence, not a current repair entrypoint.
 Mail Receipts Plans 228-230 subsequently produced independently accepted
 product fixes for the unbounded backend response wait, authenticated
 multi-source selector discovery, and repeated corpus-operations metadata
@@ -17,26 +16,18 @@ scans. Their bounded installed attempts were rolled back. The last attempt
 returned zero complete server-owned selector candidates without exposing a
 selector or private field.
 
-Plan 231 later installed a separate email authentication challenge runtime from
-the Plan 227 line and did not contain the accepted Plans 228-230 changes. Mail
-Receipts Plan 232 now reconciles both source histories at commit `d3e472c3` on
-branch `fix/plan232-mcp-auth-runtime-reconciliation`. Focused provider-free
-validation passes `54` recovery/challenge tests and `106` schema, renderer, and
-investigation-MCP tests. The reconciled build has not been independently
-reviewed or installed.
+Plan 232 reconciled both product lines and then repaired the installed defect
+at checkpoint `2b3c7fd55a3bf03d25a87c9ffd13b29001e9ee90`. Selector discovery
+now uses an owner-only, read-only multi-source tenant registry instead of
+depending on the optional mailbox-mutation runtime. The installed authenticated
+`operator-lite` call returns four complete selector candidates, zero blocked
+reasons, and a successful static follow-up in the same framed session. The
+backend, four source schedulers, and two workers are active.
 
-The remaining Plan 0073 dependency is therefore two-part:
-
-1. independently review and, only with separate runtime authority, install the
-   reconciled Mail Receipts source; and
-2. obtain at least one complete selector candidate through server-owned public
-   bindings.
-
-The second item is an owner-private operator-state gate. This note still does
-not authorize direct storage inspection, private source/tenant/account/corpus
-binding repair, source choice, or a Plan 0073 evidence read. Do not reopen or
-retry Plans 228-230, and do not diagnose the old unbounded wait from this note
-without first verifying the current installed commit.
+The storage-backed MCP dependency is resolved. Plan 0073 now needs an operator
+choice among the four public candidates so it can bind one exact zero-read
+preview. This note does not choose that source or authorize the preview's first
+owned-corpus read.
 
 ## Outcome first
 
@@ -45,16 +36,10 @@ The `transcribe-audio` side of Plan 0073 P5 is implementation-ready at commit
 25-conversation/57-query cohort, private artifact controls, and provider-free
 offline replay pass the focused 112-test selection.
 
-P5 cannot produce an approvable private preview because the installed Mail
-Receipts `operator-lite` workbench cannot currently return the exact
-source-profile, account, tenant, account-address, and corpus selectors. Static
-MCP initialization, tool discovery, and the Mail Live descriptor work, while
-storage-backed registry reads do not return within bounded diagnostics.
-
-The next agent should repair or safely fail the storage-backed public read path
-in a new, scoped Mail Receipts worktree. Do not add a private-storage bypass to
-`transcribe-audio`, enumerate Mail Receipts files directly, or reinterpret the
-running service and socket as proof that storage-backed tools are healthy.
+P5 can now obtain exact source-profile, account, tenant, account-address, and
+corpus selectors from the installed public workbench. Its remaining zero-read
+step is to select one returned source, bind the immutable preview, and show it
+for literal approval before the first owned-corpus read.
 
 ## Authority order
 
@@ -77,7 +62,11 @@ Current source, tests, installed-runtime readback, and immutable receipts are
 authoritative. This handoff is a routing surface, not proof that an older
 runtime observation is still current.
 
-## Repository and installed-runtime anchors
+## Historical repository and installed-runtime anchors
+
+These anchors describe the original incident. For current Mail Receipts source
+and runtime authority, use Plan 232 checkpoint `2b3c7fd5` and its closeout
+runbook entry.
 
 ### Consumer repository
 
@@ -254,7 +243,10 @@ or selectors copied from private storage. Once the selectors are returned by
 an authorized public surface, Plan 0073 will create the exact 25/57 preview and
 stop for literal operator approval before its first owned-corpus read.
 
-## Recommended bounded repair packet
+## Historical repair packet
+
+The sequence below is retained as historical context. Plan 232 completed it;
+do not open another backend-recovery packet for this incident.
 
 Open one Mail Receipts plan/packet whose outcome is: storage-backed
 `operator-lite` metadata reads either return a tenant-safe typed response
@@ -377,7 +369,6 @@ outer process ceiling and an explicit cleanup/readback step.
 
 ## Handoff state
 
-This is a `blocked` dependency handoff, not a completion claim. The Mail
-Receipts repository and installed runtime were not modified while preparing
-it. Graphiti was healthy but returned no current Plan 0073 incident recall;
-the current repositories and runtime readbacks above remain authoritative.
+This dependency handoff is `resolved`. Mail Receipts Plan 232 is the completion
+authority. Transcribe Audio Plan 0073 remains at zero reads until one of the
+four public source candidates is selected and its exact preview is approved.

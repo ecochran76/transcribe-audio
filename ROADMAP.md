@@ -220,19 +220,18 @@ hypotheses, exact exclusions, conflict visibility, and zero accepted effects.
 P4 is closed with bounded `/api/people` summaries and a dense Contacts review
 table whose hypotheses default to reverse-time order, expose visible SVG sort
 controls, support pointer/keyboard column resizing, and expand inline into
-privacy-safe evidence detail on desktop and mobile. P5 is now `awaiting-gate`:
+privacy-safe evidence detail on desktop and mobile. P5 is now `awaiting-preview`:
 its zero-read preview and literal approval contract is implemented, and the
 current 25-item local review cohort resolves deterministically to 57 exact,
 non-shared contact-email queries. Its approval-bound execution seam now proves
 the full 25/57 shape against synthetic metadata, including one pilot-wide
 retry, duplicate control, immutable private receipts, and provider-free offline
-replay. The installed registration fixes namespace
-`default` and profile `operator-lite`, but exact account, tenant, and corpus
-selectors are not yet bound because every storage-backed Mail Receipts metadata
-call still times out after a backend refresh, while the configured HTTP child
-surface has no listener. Therefore
-no private Mail Receipts read may occur until the exact namespace, corpus,
-tenant/account selectors, as-of window, budgets, and no-more-than-25-item
+replay. The installed registration fixes namespace `default` and profile
+`operator-lite`. Mail Receipts Plan 232 now returns four complete authenticated
+public source/account/tenant/corpus selector candidates with zero blocked
+reasons. One source must be chosen and bound into the zero-read preview;
+therefore no private Mail Receipts read may occur until the exact namespace,
+corpus, tenant/account selectors, as-of window, budgets, and no-more-than-25-item
 cohort are previewed and explicitly approved. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed

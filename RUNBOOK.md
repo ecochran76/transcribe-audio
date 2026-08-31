@@ -1,5 +1,19 @@
 # Runbook
 
+## Turn 413: Mail Receipts selector dependency resolved (2026-08-30)
+
+- Mail Receipts Plan 232 installed checkpoint `2b3c7fd5` and decoupled
+  read-only tenant authority from the optional mailbox-mutation runtime.
+- Authenticated installed `operator-lite` MCP returned four complete six-field
+  candidates, zero blocked reasons, and a successful static follow-up in the
+  same session; exit and stderr were zero.
+- Note 0059 is now historical resolved evidence rather than a repair handoff.
+  Plan 0073 moves from backend recovery to one explicit public source choice
+  and zero-read preview construction.
+- No Mail Receipts message/provider read, corpus operation, accepted graph
+  decision, person merge, speaker/profile effect, or Plan 0073 preview/apply
+  occurred in this turn.
+
 ## Turn 412: Reconcile the Mail Receipts dependency state (2026-08-30)
 
 Summary: Corrected the stale recovery route in Note 0059 after verifying the
