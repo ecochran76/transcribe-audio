@@ -75,9 +75,21 @@ not advance automatic identity acceptance beyond Level 2.
 
 Plan 0073 is `OPEN` at its private checkpoint. P0-P4 are closed. Their work used
 source code, synthetic/redacted fixtures, mocked operator-lite transports,
-disposable stores, and local frontend builds. P5 remains `awaiting-gate` because its exact
-Mail Receipts namespace, corpus, tenant/account selectors, as-of window,
-numerical budgets, and 25-or-smaller cohort have not been previewed or approved.
+disposable stores, and local frontend builds. P5 remains `awaiting-gate` because
+its exact Mail Receipts corpus and tenant/account selectors have not been
+returned by an authorized public surface, so the already frozen as-of window,
+numerical budgets, and 25-conversation cohort cannot yet form an approvable
+preview.
+
+Mail Receipts Plans 228-230 fixed and independently accepted the original MCP
+timeout, multi-source discovery, and corpus-operations scaling defects, but
+their installed packets were rolled back; the last public candidate page was
+typed and empty. Plan 231 then installed from a separate source line. Mail
+Receipts Plan 232 reconciles both accepted product lines at source commit
+`d3e472c3`, with `160` focused tests passing, but it is not independently
+reviewed or installed. Even after installation, a complete server-owned
+selector candidate must exist before this plan can bind its preview. Direct
+private binding inspection or repair is outside Plan 0073 authority.
 
 | Field | Active P5 checkpoint control |
 | --- | --- |

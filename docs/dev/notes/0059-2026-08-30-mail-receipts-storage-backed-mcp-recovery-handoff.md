@@ -7,6 +7,37 @@ Mail Receipts repository defect that blocks the approved Plan 0073
 relationship-and-role discovery campaign. This note describes the dependency;
 it does not authorize a private corpus read, a provider call, or a live repair.
 
+## Successor status update
+
+This handoff is historical fault evidence, not the current repair entrypoint.
+Mail Receipts Plans 228-230 subsequently produced independently accepted
+product fixes for the unbounded backend response wait, authenticated
+multi-source selector discovery, and repeated corpus-operations metadata
+scans. Their bounded installed attempts were rolled back. The last attempt
+returned zero complete server-owned selector candidates without exposing a
+selector or private field.
+
+Plan 231 later installed a separate email authentication challenge runtime from
+the Plan 227 line and did not contain the accepted Plans 228-230 changes. Mail
+Receipts Plan 232 now reconciles both source histories at commit `d3e472c3` on
+branch `fix/plan232-mcp-auth-runtime-reconciliation`. Focused provider-free
+validation passes `54` recovery/challenge tests and `106` schema, renderer, and
+investigation-MCP tests. The reconciled build has not been independently
+reviewed or installed.
+
+The remaining Plan 0073 dependency is therefore two-part:
+
+1. independently review and, only with separate runtime authority, install the
+   reconciled Mail Receipts source; and
+2. obtain at least one complete selector candidate through server-owned public
+   bindings.
+
+The second item is an owner-private operator-state gate. This note still does
+not authorize direct storage inspection, private source/tenant/account/corpus
+binding repair, source choice, or a Plan 0073 evidence read. Do not reopen or
+retry Plans 228-230, and do not diagnose the old unbounded wait from this note
+without first verifying the current installed commit.
+
 ## Outcome first
 
 The `transcribe-audio` side of Plan 0073 P5 is implementation-ready at commit

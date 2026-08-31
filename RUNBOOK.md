@@ -1,5 +1,44 @@
 # Runbook
 
+## Turn 412: Reconcile the Mail Receipts dependency state (2026-08-30)
+
+Summary: Corrected the stale recovery route in Note 0059 after verifying the
+completed Mail Receipts Plan 228-230 branches and the separate installed Plan
+231 line. Created Mail Receipts Plan 232 and reconciled both accepted product
+histories without crossing the private selector or runtime gates.
+
+Evidence:
+
+- Plans 228-230 independently accepted bounded backend timeouts,
+  authenticated multi-source selector discovery, and one-scan-per-metadata-
+  scope corpus-operation listing. Their installed attempts were rolled back;
+  the terminal public result was zero complete selector candidates.
+- Plan 231 was based on the separate Plan 227 line and therefore did not carry
+  those accepted MCP repairs despite being the current installed source family.
+- Mail Receipts branch `fix/plan232-mcp-auth-runtime-reconciliation` now joins
+  both histories at commit `d3e472c3`.
+- Combined recovery and authentication challenge tests pass `54`; schema,
+  daemon-renderer, and investigation-MCP tests pass `106`. Fatal-error Ruff,
+  compilation, plan wiring, and diff hygiene pass.
+- Graphiti was healthy. A query of `transcribe_audio_main` returned eight
+  facts, five nodes, and five episode previews but no current Plan 0073/Note
+  0059 incident evidence, so repository and Git evidence remained authoritative.
+
+Effects: no Mail Receipts installation, service restart, provider call,
+private binding inspection, selector choice, mailbox/corpus mutation, private
+Plan 0073 artifact, evidence read, accepted hypothesis, person/speaker effect,
+deployment, or Graphiti write occurred.
+
+Progress classification: `blocker_reduction`. The accepted product fixes now
+coexist on one source line, eliminating a future regression-by-upgrade risk.
+P5 remains `awaiting-gate` because the reconciled source still requires review
+and installation, and the authorized public selector list previously contained
+zero complete candidates.
+
+Next: Independently review Mail Receipts commit `d3e472c3`. Installation and
+owner-private binding diagnosis remain separate action-specific gates. Do not
+retry Plans 228-230 or run the Plan 0073 private preview.
+
 ## Turn 411: Recheck Plan 0073 after Mail Receipts upgrade (2026-08-30)
 
 Summary: Verified the newly installed Mail Receipts runtime without reading a
