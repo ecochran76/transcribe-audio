@@ -348,6 +348,22 @@ class MailReceiptsMcpReader:
             if isinstance(validation, Mapping)
             else ""
         )
+        failed_backend_count = (
+            validation.get("aggregate_failed_backend_count")
+            if isinstance(validation, Mapping)
+            else None
+        )
+        try:
+            aggregate_failed = int(failed_backend_count or 0)
+        except (TypeError, ValueError):
+            aggregate_failed = 0
+        if aggregate_failed > 0 or (
+            isinstance(validation, Mapping) and validation.get("valid") is False
+        ):
+            raise MailReceiptsReadError(
+                "provider_query_failed",
+                "Mail Receipts archive-plus-live backend execution failed.",
+            )
         if effect == "duckdb-message-search-direct-participant-address":
             raise MailReceiptsReadError(
                 "provider_response_invalid",

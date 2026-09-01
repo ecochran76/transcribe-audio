@@ -183,6 +183,42 @@ def test_reader_rejects_single_corpus_fast_path_for_archive_plus_live_scope() ->
     assert [call[0] for call in client.calls] == ["search_mail"]
 
 
+def test_reader_rejects_archive_plus_live_backend_failures_even_when_validation_says_valid() -> None:
+    class FailedMergeClient(FakeMcpClient):
+        def call_tool(
+            self, name: str, arguments: Mapping[str, Any], *, timeout_ms: int
+        ) -> Mapping[str, Any]:
+            response = dict(super().call_tool(name, arguments, timeout_ms=timeout_ms))
+            if name == "search_mail":
+                response["merge_target"] = {
+                    "merge_kind": "archive_plus_live",
+                    "target_corpus_ids": ["archive-corpus", "owned-corpus"],
+                }
+                response["retrieval_index_validation"] = {
+                    "valid": True,
+                    "workflow_action_effect": "archive-plus-live-duckdb-message-search",
+                    "aggregate_backend_count": 2,
+                    "aggregate_failed_backend_count": 2,
+                }
+            return response
+
+    client = FailedMergeClient()
+
+    with pytest.raises(MailReceiptsReadError, match="backend execution failed"):
+        reader(client).search_exact_email(
+            namespace="default",
+            corpus_id="owned-corpus",
+            address="alex@example.test",
+            as_of="2026-01-07T16:00:00Z",
+            cursor="",
+            page_size=25,
+            include_body=False,
+            timeout_ms=30_000,
+        )
+
+    assert [call[0] for call in client.calls] == ["search_mail"]
+
+
 def test_reader_accepts_archive_context_from_requested_live_scope() -> None:
     class ArchiveMergeClient(FakeMcpClient):
         def call_tool(
