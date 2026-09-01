@@ -1,5 +1,66 @@
 # Runbook
 
+## Turn 432: Close Plan 0079 with actionable review focus (2026-09-01)
+
+Summary: Closed
+`docs/dev/plans/0079-2026-09-01-actionable-directory-review-focus.md`
+after installing and visually accepting the focused Contacts review workflow.
+
+Evidence:
+
+- The live default now renders 52 rows, exactly the rows containing at least
+  one unreviewed directory lead. The compact Rows selector restores 208 all
+  rows or isolates reviewed/deferred rows, and the first tab truthfully reads
+  `All contacts 208`.
+- The Organizations view remains independently browseable with 40 rows. Review
+  selectors distinguish `Use accepted organization (1)` from creating an
+  organization from the reviewed proposal; accepted people are labelled the
+  same way.
+- Expansion renders the actionable organization/role table first and keeps
+  activities, sources, affiliations, and reconciliation notes in one closed
+  evidence/history disclosure. The SVG action controls remain approximately
+  25 pixels high.
+- The client uses a synchronous in-flight gate and refreshes current state on
+  HTTP 409. An Agent Browser fetch intercept returned a synthetic 409 while a
+  double click was dispatched; exactly one POST was attempted, the current row
+  refreshed, and no terminal error was displayed.
+- Frontend unit tests passed two tests; the focused backend/API selection
+  passed 77 tests; the full provider-free suite passed 1,283 tests in 65.70
+  seconds. The production build and diff hygiene passed.
+- Agent Browser passed 1440-by-900 and 390-by-844 review. The narrow view had
+  no page-level horizontal overflow; wide directory tables remained contained
+  in their own scroll surface. The exact QA session was closed.
+- `transcripts.service` is active/running with `NRestarts=0`. Final live
+  readback remains five accepted, 57 unreviewed, zero rejected, and zero
+  deferred, proving QA performed no live review decision.
+
+Progress classification: `outcome_progress`. Plan 0079 is `CLOSED`; the live
+dashboard is ready for focused organization and role review.
+
+## Turn 431: Open Plan 0079 actionable directory review repair (2026-09-01)
+
+Summary: Opened
+`docs/dev/plans/0079-2026-09-01-actionable-directory-review-focus.md`
+after installed operator use exposed a review-focus and stale-feedback defect.
+
+Evidence:
+
+- Live API readback contains 208 people-view rows but only 52 with an
+  unreviewed organization/role lead. The UI has no row-scope control.
+- Agent Browser confirmed that expanding the first non-actionable row opens a
+  428-entry activity timeline with no review action ahead of it.
+- The live payload contains 40 proposed organizations but only one accepted
+  organization target; the current selector labels neither authority class.
+- Scott Roberts is accepted at projection version 2. CodeGraph shows the UI
+  generates a fresh idempotency key for every invocation and lacks a
+  synchronous in-flight guard, so a rapid duplicate can surface the second
+  request's correct stale error after the first request commits.
+- No review action, provider operation, corpus refresh, or Graphiti write was
+  performed during diagnosis.
+
+Progress classification: `outcome_progress`. Plan 0079 is `OPEN`; P1 begins
+with a failing row-scope regression and P4 requires installed visual proof.
+
 ## Turn 430: Close Plan 0078 with installed review workflow (2026-09-01)
 
 Summary: Closed

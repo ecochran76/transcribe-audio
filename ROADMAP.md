@@ -319,6 +319,11 @@ three-role expansion stays dense. The live ledger still has zero roles, so the
 slice changed no accepted affiliation truth and remains Level 2 shadow.
 
 Plan 0078 is closed with the organization and role review workflow installed.
+Plan 0079 is closed. The Contacts workflow now defaults to the 52 actionable
+rows in the 208-row contact directory, keeps reviewed/deferred and all-row
+scopes configurable, collapses evidence/history behind actions, labels
+accepted targets explicitly, and suppresses duplicate in-flight review posts
+while refreshing current state on a stale response.
 The v3 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer

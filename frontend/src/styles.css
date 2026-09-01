@@ -748,7 +748,7 @@
 
 .directory-toolbar {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) auto minmax(10rem, auto);
+  grid-template-columns: minmax(16rem, 1fr) auto minmax(10rem, 12rem) minmax(8rem, auto);
   gap: 0.65rem;
   align-items: end;
   padding-bottom: 0.45rem;
@@ -764,7 +764,8 @@
   letter-spacing: 0.035em;
 }
 
-.directory-toolbar input {
+.directory-toolbar input,
+.directory-row-filter select {
   width: 100%;
   min-height: 2.1rem;
   border: 1px solid rgba(244, 236, 216, 0.14);
@@ -772,6 +773,11 @@
   background: rgba(10, 11, 8, 0.5);
   color: var(--ink);
   padding: 0.35rem 0.5rem;
+}
+
+.directory-row-filter select {
+  height: 2.1rem;
+  min-width: 10rem;
 }
 
 .directory-toolbar nav {
@@ -931,6 +937,38 @@
   min-width: 0;
   padding: 0.38rem 0.5rem 0.48rem;
   border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.directory-evidence {
+  min-width: 0;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.directory-evidence > summary {
+  display: flex;
+  min-height: 1.9rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.5rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  list-style-position: inside;
+  text-transform: uppercase;
+}
+
+.directory-evidence > summary small {
+  color: var(--ink);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.directory-evidence-body {
+  min-width: 0;
 }
 
 .directory-detail h3 {

@@ -1,5 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
+import {
+  createInFlightGate,
+  directoryRowCounts,
+  filterDirectoryRows
+} from "./directory-review-utils.js";
 
 const SPEAKER_ACTIONS = [
   "confirm",
@@ -145,7 +150,12 @@ const FALLBACK_PEOPLE = {
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    const error = new Error(payload.error || `${response.status} ${response.statusText}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
   return payload;
 }
 
@@ -722,6 +732,7 @@ function PeopleView() {
   const [payload, setPayload] = useState({ items: [], counts: {} });
   const [query, setQuery] = useState("");
   const [view, setView] = useState("people");
+  const [rowScope, setRowScope] = useState("actionable");
   const [sort, setSort] = useState({ key: "last", direction: "desc" });
   const [widths, setWidths] = useState(DIRECTORY_COLUMNS.map((column) => column.width));
   const [expandedId, setExpandedId] = useState("");
@@ -752,7 +763,11 @@ function PeopleView() {
     };
   }, [query, view, refreshToken]);
 
-  const items = useMemo(() => [...(payload.items || [])].sort((left, right) => {
+  const rowCounts = useMemo(() => directoryRowCounts(payload.items), [payload.items]);
+  const items = useMemo(() => [...filterDirectoryRows(
+    payload.items,
+    view === "organizations" ? "all" : rowScope
+  )].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
     const rightValue = directorySortValue(right, sort.key);
     const comparison = typeof leftValue === "number"
@@ -760,7 +775,7 @@ function PeopleView() {
       : String(leftValue).localeCompare(String(rightValue));
     return (sort.direction === "asc" ? comparison : -comparison)
       || String(left.primary_name || "").localeCompare(String(right.primary_name || ""));
-  }), [payload.items, sort]);
+  }), [payload.items, rowScope, sort, view]);
 
   function sortBy(key) {
     setSort((current) => current.key === key
@@ -804,9 +819,10 @@ function PeopleView() {
       <div className="directory-toolbar">
         <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
         <nav aria-label="Directory views">
-          {[["people", `People ${payload.counts?.people || 0}`], ["organizations", `Organizations ${payload.counts?.organizations || 0}`], ["unresolved", `Unresolved ${payload.counts?.unresolved_groups || 0}`]].map(([key, text]) => <button aria-current={view === key ? "page" : undefined} key={key} onClick={() => setView(key)} type="button">{text}</button>)}
+          {[["people", `All contacts ${(payload.counts?.people || 0) + (payload.counts?.unresolved_groups || 0)}`], ["organizations", `Organizations ${payload.counts?.organizations || 0}`], ["unresolved", `Unresolved ${payload.counts?.unresolved_groups || 0}`]].map(([key, text]) => <button aria-current={view === key ? "page" : undefined} key={key} onClick={() => setView(key)} type="button">{text}</button>)}
         </nav>
-        <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{payload.total || 0}</strong><span>{loadState.message}</span></div>
+        {view !== "organizations" && <label className="directory-row-filter"><span>Rows</span><select aria-label="Directory row filter" onChange={(event) => setRowScope(event.target.value)} value={rowScope}><option value="actionable">Needs review ({rowCounts.actionable})</option><option value="decided">Reviewed / deferred ({rowCounts.decided})</option><option value="all">All rows ({rowCounts.all})</option></select></label>}
+        <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{items.length}</strong><span>{items.length === (payload.items?.length || 0) ? loadState.message : `of ${payload.items?.length || 0} · ${loadState.message}`}</span></div>
       </div>
       <div className="directory-table-wrap">
         <table className="directory-table" ref={tableRef}>
@@ -876,8 +892,10 @@ function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
   const [organizationTarget, setOrganizationTarget] = useState(matchingOrganization ? `existing:${matchingOrganization.id}` : "create");
   const [roleTitle, setRoleTitle] = useState(lead.display_value || "");
   const [decision, setDecision] = useState({ status: "idle", message: "" });
+  const inFlight = useRef(createInFlightGate());
 
   async function review(action) {
+    if (!inFlight.current.begin()) return;
     setDecision({ status: "loading", message: "Saving…" });
     const personMode = personTarget.startsWith("existing:") ? "existing" : "create";
     const personId = personMode === "existing" ? personTarget.slice("existing:".length) : "";
@@ -905,7 +923,14 @@ function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
       setDecision({ status: "saved", message: action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred" });
       onReviewed();
     } catch (error) {
-      setDecision({ status: "error", message: error.message });
+      if (error.status === 409) {
+        setDecision({ status: "loading", message: "Refreshing current state…" });
+        onReviewed();
+      } else {
+        setDecision({ status: "error", message: error.message });
+      }
+    } finally {
+      inFlight.current.end();
     }
   }
 
@@ -913,8 +938,8 @@ function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
   return <tr className="directory-review-row">
     <td><strong>{lead.hypothesis_kind === "contextual_role" ? "Role" : "Affiliation"}</strong><small>{lead.basis || "Provider observation"}</small></td>
     <td>{organizationName || "—"}</td>
-    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from this contact</option>{(reviewTargets.people || []).map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</select></td>
-    <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} value={organizationTarget}><option value="create">Create {organizationName}</option>{(reviewTargets.organizations || []).map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</select></td>
+    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from reviewed contact</option>{!!reviewTargets.people?.length && <optgroup label={`Use accepted person (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
+    <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} value={organizationTarget}><option value="create">Create from reviewed proposal: {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Use accepted organization (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
     <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} value={roleTitle} /> : <span className="muted">No role asserted</span>}</td>
     <td><span className={`directory-review-state ${decision.status === "error" ? "error" : lead.review_state || "unreviewed"}`} title={decision.message}>{decision.message || (lead.review_state === "accepted" ? "Accepted" : lead.review_state === "rejected" ? "Rejected" : lead.review_state === "deferred" ? "Deferred" : "Needs review")}</span></td>
     <td><div className="directory-review-actions">
@@ -975,6 +1000,7 @@ function DirectoryDetail({ item, onReviewed, reviewTargets }) {
   const roleCount = affiliationRows.filter(({ role }) => role).length;
   return <div className="directory-detail">
     <DirectoryReviewLeads item={item} onReviewed={onReviewed} reviewTargets={reviewTargets} />
+    <details className="directory-evidence"><summary><span>Evidence &amp; history</span><small>{counted(item.activities?.length || 0, "activity")} · {counted(sources.length, "source")}{affiliations.length ? ` · ${counted(affiliations.length, "organization")}` : ""}</small></summary><div className="directory-evidence-body">
     <section><h3>Activity timeline <span>{item.activities?.length || 0}</span></h3>
       <div className="directory-detail-scroll"><table><thead><tr><th>Date</th><th>Channel</th><th>Conversation or evidence</th><th>Participation</th><th>Source</th></tr></thead><tbody>{(item.activities || []).map((activity) => <tr key={`${activity.channel}-${activity.observation_id}`}><td>{activity.occurred_at ? formatDate(activity.occurred_at) : "Undated"}</td><td>{label(activity.channel)}</td><td>{activity.title || "Bounded source evidence"}</td><td>{label(activity.participation_status)} · {label(activity.evidence_status)}</td><td><code>{compactHash(activity.source_record_id)}</code></td></tr>)}</tbody></table></div>
     </section>
@@ -983,6 +1009,7 @@ function DirectoryDetail({ item, onReviewed, reviewTargets }) {
     </section>
     {!!affiliations.length && <section><h3>Affiliations <span>{counted(affiliations.length, "organization")} · {counted(roleCount, "role")}</span></h3><div className="directory-detail-scroll"><table><thead><tr><th>Organization</th><th>Role</th><th>State</th><th>Valid dates</th><th>Evidence</th><th>Basis</th></tr></thead><tbody>{affiliationRows.map(({ affiliation, role }) => <tr key={`${affiliation.affiliation_id || affiliation.organization_id}:${role?.role_id || "unassigned"}`}><td>{affiliation.primary_name}</td><td>{role ? label(role.role_type) : "No role asserted"}</td><td>{label(role?.status || affiliation.status)}</td><td>{roleValidity(role || affiliation)}</td><td>{role ? counted(role.evidence_ids?.length, "item") : "—"}</td><td>{label(role?.basis || affiliation.basis)}</td></tr>)}</tbody></table></div></section>}
     {item.entity_kind === "unresolved_group" && <p className="people-editing-boundary">These source records share a display name. They remain separate identities until an explicit reviewed reconciliation decision.</p>}
+    </div></details>
   </div>;
 }
 
