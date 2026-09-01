@@ -35,7 +35,7 @@ Evidence:
   touched-module compilation, Vite production build, and `git diff --check`.
   CodeGraph is current at 391 files, 11,377 nodes, and 39,536 edges.
 - Final runtime readback after restart: `transcripts.service` active/running,
-  PID 23234, `NRestarts=0`, health `status=ok`, and editing surface
+  PID 29202, `NRestarts=0`, health `status=ok`, and editing surface
   `explicit_relationship_review`.
 - No new Mail Receipts/provider read, provider or mailbox write, person merge,
   speaker assignment, biometric effect, Graphiti write, or live relationship
