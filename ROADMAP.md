@@ -222,8 +222,9 @@ table whose hypotheses default to reverse-time order, expose visible SVG sort
 controls, support pointer/keyboard column resizing, and expand inline into
 privacy-safe evidence detail on desktop and mobile. The user's 2026-08-31
 session-wide Mail Receipts read grant satisfied P5's private-read gate without
-another approval ceremony. Plan 0073 is now closed with a measured no-advance
-decision:
+another approval ceremony. Plan 0073's implementation is closed; its earlier
+measured no-advance decision is superseded by corrected corpus-serving
+evidence:
 its zero-read preview and literal approval contract is implemented, and the
 current 25-item local review cohort resolves deterministically to 57 exact,
 non-shared contact-email queries. Its approval-bound execution seam now proves
@@ -237,18 +238,18 @@ reasons. The operator selected the documented default, and immutable preview
 historical cutoffs, frozen budgets, and 25-conversation/57-query cohort with
 content SHA-256
 `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
-Mail Receipts Plan 235 installed checkpoint `3fca8b7e` and repaired the
-cross-root archive lookup. Live aggregate diagnostics now prove a two-member
-archive-plus-live exact-address search over two DuckDB backends with real
-results. Transcribe Audio commit `88786d5` keeps exact participant searches on
-that merged path and applies each frozen `as_of` cutoff locally to body-free
-metadata. The unchanged cohort then accounted for all 57 queries, replayed
-offline with equal hash
-`f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`,
-and retained zero prohibited effects, but produced zero qualifying records,
-observations, or hypotheses. P6 therefore records zero coverage and appropriate
-abstention for all 25 conversations and opens no speaker/context consumer. The
-mail lane remains a Level 2 review-only shadow capability. The plan extends the
+Mail Receipts Plan 236 installed checkpoint
+`e5fb9b8dd2722e55941715cbc331a9a45544630c` now serves the retained pre-2024
+and 2024 partitions as one 359,693-message archive member, hydrates aggregate
+selected-result context, normalizes retained timestamps to UTC, and applies
+historical bounds before ranking/page limiting on the two-member
+archive-plus-live DuckDB path. Transcribe Audio now sends one bounded exact
+participant query per frozen address. The unchanged cohort accounted for all
+57 queries: 50 returned 976 pre-cutoff records and 7 were content-level zero
+matches, with zero provider/mailbox/graph/speaker effects. The prior zero-record
+P6 measurement is preserved as superseded evidence of the repaired serving
+defects, not current corpus coverage. The mail lane remains a Level 2
+review-only shadow capability. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

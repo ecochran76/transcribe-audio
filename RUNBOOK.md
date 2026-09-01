@@ -1,5 +1,42 @@
 # Runbook
 
+## Turn 417: Restore non-vacuous Mail Receipts historical reads (2026-08-31)
+
+Summary: Repaired the final Mail Receipts serving and Transcribe query-window
+defects, then reran the unchanged 57-query frozen cohort through Transcribe's
+actual installed stdio MCP reader. The former zero-coverage conclusion is
+superseded: the historical corpus now returns useful pre-cutoff metadata.
+
+Evidence:
+
+- Mail Receipts installed commit
+  `e5fb9b8dd2722e55941715cbc331a9a45544630c` serves a provider-free historical
+  aggregate of `359,693` messages and `1,262,078` participant-role rows.
+- Selected-result context hydrates directly from the aggregate search sidecar,
+  preserving sender and To/Cc/Bcc roles and normalizing retained timestamps to
+  UTC.
+- `MailReceiptsMcpReader` now sends one exact participant query with the frozen
+  `as_of` value as a server-side `before:` bound. Mail Receipts keeps that query
+  on archive-plus-live DuckDB fanout, so historical filtering precedes ranking
+  and the 25-record page cap.
+- A representative 2019 query returned 25 pre-cutoff records. The full frozen
+  cohort accounted for 57/57 queries: 50 returned records, 976 records were
+  selected, and 7 were genuine zero matches.
+- Validation receipt:
+  `~/.local/state/transcribe-audio/plan-0073/plan236-mail-recovery-validation.json`.
+  Provider reads, mailbox writes, accepted graph writes, and speaker/profile
+  effects are all zero.
+
+Validation: four focused Transcribe MCP-reader tests pass; Mail Receipts
+aggregate hydration, relocated archive context, historical-bound, and query
+compiler regressions pass. Diff and planning checks pass.
+
+Progress classification: `outcome_progress`. The original cross-software read
+problem is resolved. Plan 0073's implementation remains closed, but its prior
+P6 zero-coverage measurement is invalid and must not be used as current corpus
+evidence. Any later hypothesis/Contacts evaluation can consume this recovered
+metadata without another Mail Receipts storage repair.
+
 ## Turn 416: Validate Mail Receipts repair and close Plan 0073 (2026-08-31)
 
 Summary: Verified the installed Mail Receipts Plan 235 repair, corrected the

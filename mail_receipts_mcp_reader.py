@@ -240,12 +240,12 @@ class MailReceiptsMcpReader:
         targets: list[dict[str, Any]] = []
         target_keys: set[str] = set()
         search_truncated = False
-        for field_name in ("from", "to", "cc"):
-            query = (
-                f'{field_name}:{json.dumps(normalized_address)} '
-                "rank:lexical group_by:message"
-            )
-            response = self.client.call_tool(
+        query = (
+            f'{json.dumps(normalized_address)} '
+            f'before:{normalized_as_of} '
+            "rank:lexical group_by:message"
+        )
+        response = self.client.call_tool(
                 "search_mail",
                 {
                     "corpus_id": corpus_id,
@@ -265,23 +265,23 @@ class MailReceiptsMcpReader:
                 },
                 timeout_ms=timeout_ms,
             )
-            if response.get("corpus_id") != corpus_id or response.get("namespace") != namespace:
-                raise MailReceiptsReadError(
-                    "provider_response_invalid",
-                    "Mail Receipts search response scope drifted.",
-                )
-            self._validate_merge_coverage(response)
-            page = response.get("page")
-            if isinstance(page, Mapping) and page.get("has_more") is True:
-                search_truncated = True
-            for hit in response.get("hits") or []:
-                target = self._target(hit, corpus_id=corpus_id, namespace=namespace)
-                if target is None:
-                    continue
-                key = self._hash_json(target)
-                if key not in target_keys:
-                    target_keys.add(key)
-                    targets.append(target)
+        if response.get("corpus_id") != corpus_id or response.get("namespace") != namespace:
+            raise MailReceiptsReadError(
+                "provider_response_invalid",
+                "Mail Receipts search response scope drifted.",
+            )
+        self._validate_merge_coverage(response)
+        page = response.get("page")
+        if isinstance(page, Mapping) and page.get("has_more") is True:
+            search_truncated = True
+        for hit in response.get("hits") or []:
+            target = self._target(hit, corpus_id=corpus_id, namespace=namespace)
+            if target is None:
+                continue
+            key = self._hash_json(target)
+            if key not in target_keys:
+                target_keys.add(key)
+                targets.append(target)
 
         if not targets:
             return MailReceiptsPage(
@@ -371,7 +371,7 @@ class MailReceiptsMcpReader:
             "target_kind": kind,
             "hit_kind": kind,
             "namespace": namespace,
-            "corpus_id": corpus_id,
+            "corpus_id": str(follow_up.get("corpus_id") or corpus_id),
             "native_ids": {},
         }
         if record_ref:
@@ -398,7 +398,8 @@ class MailReceiptsMcpReader:
     ) -> dict[str, Any] | None:
         if not isinstance(message, Mapping):
             return None
-        if message.get("corpus_id") != corpus_id or message.get("namespace") != namespace:
+        message_corpus_id = str(message.get("corpus_id") or "").strip()
+        if not message_corpus_id or message.get("namespace") != namespace:
             return None
         senders = cls._addresses([message.get("sender")])
         recipients = cls._addresses(message.get("to"))
@@ -418,7 +419,7 @@ class MailReceiptsMcpReader:
         source_refs = message.get("source_refs")
         source_identity = {
             "namespace": namespace,
-            "corpus_id": corpus_id,
+            "corpus_id": message_corpus_id,
             "message_id": message_id,
             "source_refs": source_refs if isinstance(source_refs, Mapping) else {},
         }

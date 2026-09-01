@@ -8,24 +8,25 @@ Status: RESOLVED
 
 ## Resolution
 
-Mail Receipts Plan 235 fixed the defect at installed checkpoint
-`3fca8b7e430fcb45c231656f40a163821929650f` by following the source-owned
-`attached_corpus_storage_root` with namespace validation and fail-closed
-ambiguity handling. Final documentation commit
-`4f270a47ce5f2c168aebf48567cf91eeabcde8c7` is upstream-even. Fresh installed
-runtime readback proved `archive_plus_live`, two DuckDB backends, and real exact
-participant results while the backend remained healthy at PID `64879` with
-zero restarts.
+Mail Receipts Plan 236 completed the repair at installed checkpoint
+`e5fb9b8dd2722e55941715cbc331a9a45544630c`. It materialized and registered the
+retained pre-2024 partition, combined it with 2024 into a 359,693-message
+archive member, repaired relocated DuckDB pointer resolution, hydrated selected
+context from aggregate search sidecars, normalized retained timestamps to UTC,
+and kept exact-address historical bounds on archive-plus-live DuckDB fanout.
 
-Transcribe Audio commit `88786d5` removed its server-side `before:` directive,
-which had selected a different backend path, and retained the historical
-`as_of` check over body-free returned metadata. The unchanged frozen cohort
-then completed 57 of 57 queries with zero unavailable queries and replay-equal
-aggregate SHA-256
-`f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`.
-No record qualified before the historical conversation cutoffs, so Plan 0073
-closed with a zero-coverage, shadow-only decision. This is no longer an open
-Mail Receipts defect.
+Transcribe Audio now sends one exact participant query with the frozen `as_of`
+value as `before:`. The unchanged 57-query cohort returned 976 usable pre-cutoff
+records across 50 queries; 7 queries were content-level zero matches. Receipt:
+`~/.local/state/transcribe-audio/plan-0073/plan236-mail-recovery-validation.json`.
+No provider read, mailbox write, accepted graph write, or speaker/profile effect
+occurred. The former zero-coverage conclusion is superseded and must not be
+treated as current corpus evidence.
+
+## Historical diagnosis
+
+The sections below preserve the pre-Plan-236 failure and repair contract for
+audit. They are not current operating instructions.
 
 ## Outcome required
 

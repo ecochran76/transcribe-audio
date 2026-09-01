@@ -75,16 +75,21 @@ not advance automatic identity acceptance beyond Level 2.
 
 ## Current State
 
-Plan 0073 is `CLOSED` with a measured no-advance decision. P0-P4 delivered the
+Plan 0073 implementation is `CLOSED`; its earlier zero-coverage measurement is
+superseded. P0-P4 delivered the
 portable contracts, injected reader, deterministic normalization and shadow
 discovery, and compact Contacts review surface. The session-wide Mail Receipts
 read grant satisfied P5's private-read gate without another approval ceremony.
-Mail Receipts Plan 235 repaired the cross-root archive-plus-live lookup, and a
-commit-bound Transcribe Audio consumer rerun exercised both DuckDB backends for
-all 57 frozen queries. Every query completed, offline replay was equal, and all
-effects remained zero, but no mail record qualified at or before the 25
-conversations' historical cutoffs. P6 therefore records zero coverage and zero
-candidate utility for this cohort and leaves the mail lane shadow-only.
+Mail Receipts Plan 236 then repaired the retained-corpus serving state that the
+Plan 235 route-only smoke had missed. Installed commit
+`e5fb9b8dd2722e55941715cbc331a9a45544630c` serves a 359,693-message historical
+aggregate, hydrates aggregate selected context, normalizes timestamps to UTC,
+and applies exact-address historical bounds before ranking/page limiting. The
+unchanged consumer cohort accounted for all 57 queries: 50 returned 976
+pre-cutoff records and 7 were content-level zero matches. All effects remained
+zero. P6's old zero-coverage result remains historical but is not valid current
+corpus evidence; the implemented mail lane remains shadow-only pending any
+separately scoped evaluation of the recovered records.
 
 Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
 checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
@@ -104,7 +109,7 @@ approval phrase is required again during this session.
 | Prohibited effects | Direct mailbox/provider access, corpus/provider writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes remained zero |
 | Attempts and review | The original defective-source attempt and two preserved consumer validations remain separate; no artifact was overwritten |
 | Checkpoint cadence | No repeated read approval was requested; no write-bearing or accepted-effect gate was crossed |
-| Terminal evidence | Both DuckDB backends executed, 57/57 queries were accounted for, replay was equal, provider yield and hypothesis coverage were zero, and the lane remains shadow-only |
+| Terminal evidence | Both DuckDB backends execute with historical bounds; 57/57 queries were accounted for, 50 yielded 976 pre-cutoff records, 7 were content-level zero matches, and the lane remains shadow-only |
 
 P0 delivered on 2026-08-30:
 
@@ -283,7 +288,7 @@ P5 bounded execution on 2026-08-31:
 - P5 is not accepted from zero yield. The pilot artifacts remain immutable and
   private; P6 and every accepted graph/speaker/context consumer remain closed.
 
-P5 repaired-source consumer validation on 2026-08-31:
+Superseded P5 route-only consumer validation on 2026-08-31:
 
 - Mail Receipts installed checkpoint
   `3fca8b7e430fcb45c231656f40a163821929650f` follows the source-owned attached
@@ -305,11 +310,10 @@ P5 repaired-source consumer validation on 2026-08-31:
   `f758d82123e0882ac489b60f9ed1e93214cceb3f5f31060315d7350f4e32a568`,
   and provider-free offline replay returned equality against that exact hash;
   and
-- the result is no longer attributed to a Mail Receipts defect. The repaired
-  corpus has current participant hits, but this frozen historical cohort has no
-  qualifying evidence at or before its conversation cutoffs.
+- this conclusion was later disproved by Plan 236. It is retained only as the
+  failure record that led to full historical-corpus serving repair.
 
-P6 usefulness decision on 2026-08-31:
+Superseded P6 usefulness decision on 2026-08-31:
 
 - provider availability and query accounting are 100 percent for the frozen
   cohort, while selected-record, observation, relationship/role hypothesis,
@@ -322,6 +326,20 @@ P6 usefulness decision on 2026-08-31:
 - no speaker-deduction or contextualization consumer is opened. The mail lane
   remains available as a review-only shadow input for a separately planned
   cohort whose source/time coverage can be established non-vacuously.
+
+Current recovery measurement on 2026-08-31:
+
+- installed Mail Receipts commit
+  `e5fb9b8dd2722e55941715cbc331a9a45544630c` serves the retained pre-2024 and
+  2024 partitions as a 359,693-message historical aggregate;
+- Transcribe sends one exact participant query per address and supplies the
+  frozen `as_of` as `before:`, while Mail Receipts applies that bound before
+  ranking and page limiting on archive-plus-live DuckDB fanout;
+- all 57 frozen queries were accounted for, 50 returned 976 pre-cutoff records,
+  and 7 were content-level zero matches; and
+- provider reads, mailbox writes, accepted graph writes, and speaker/profile
+  effects remained zero. This proves non-vacuous source/time coverage but does
+  not itself authorize or claim accepted relationship, role, or speaker effects.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
@@ -653,9 +671,9 @@ rebuild contract.
 ## Next authorized execution slice
 
 None under Plan 0073. The plan closes with the mail lane implemented but
-shadow-only because the frozen historical cohort produced zero qualifying
-evidence. Any new mail-assisted evaluation should be a separate bounded plan
-with a non-vacuous source/time coverage preflight before running a private
-cohort. Accepted graph facts, speaker/context consumers, mailbox/provider
-writes, corpus mutation, deployment, and Graphiti publication remain outside
-this closure.
+shadow-only. The frozen historical cohort now has non-vacuous metadata coverage;
+the earlier zero-coverage P6 decision is superseded. Any evaluation that turns
+the recovered records into hypotheses or Contacts review output is separate
+work, not another storage repair. Accepted graph facts, speaker/context
+consumers, mailbox/provider writes, corpus mutation, deployment, and Graphiti
+publication remain outside this closure.
