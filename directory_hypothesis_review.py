@@ -217,6 +217,32 @@ def _contact(root: Path | None, contact_id: str) -> dict[str, str]:
     }
 
 
+def _accepted_person(root: Path | None, person_id: str) -> dict[str, Any] | None:
+    with transcript_store.connect(root) as con:
+        row = con.execute(
+            """
+            SELECT person_id, resolution_status, primary_name, aliases_json,
+                   input_watermark
+            FROM knowledge_current_person_profiles
+            WHERE person_id = ?
+            """,
+            (person_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    try:
+        aliases = json.loads(str(row["aliases_json"]))
+    except json.JSONDecodeError:
+        aliases = []
+    return {
+        "person_id": str(row["person_id"]),
+        "status": str(row["resolution_status"]),
+        "primary_name": str(row["primary_name"]),
+        "aliases": [str(value) for value in aliases if _text(value)],
+        "input_watermark": str(row["input_watermark"]),
+    }
+
+
 def _receipt(
     *,
     hypothesis_id: str,
@@ -372,7 +398,16 @@ def record_directory_hypothesis_review(
             if organization_mode == "create"
             else requested_organization_id
         )
-        if person_mode == "existing" and person_id not in snapshot["people"]:
+        accepted_person = (
+            _accepted_person(root, person_id)
+            if person_mode == "existing" and person_id not in snapshot["people"]
+            else None
+        )
+        if (
+            person_mode == "existing"
+            and person_id not in snapshot["people"]
+            and accepted_person is None
+        ):
             raise DirectoryHypothesisReviewError(
                 "Directory review selected an unknown canonical person."
             )
@@ -390,7 +425,36 @@ def record_directory_hypothesis_review(
             raise DirectoryHypothesisReviewError(
                 "Changing accepted review targets requires an explicit correction workflow."
             )
-        if person_id not in snapshot["people"]:
+        if accepted_person is not None:
+            events.append(
+                {
+                    **common,
+                    "event_type": "person_created",
+                    "idempotency_key": f"{idempotency_key}:person-adopted",
+                    "payload": {
+                        "person_id": person_id,
+                        "primary_name": accepted_person["primary_name"],
+                        "status": accepted_person["status"],
+                        "metadata": {
+                            "source_hypothesis_id": hypothesis_id,
+                            "adopted_from": "knowledge_current_person_profiles",
+                            "input_watermark": accepted_person["input_watermark"],
+                        },
+                    },
+                }
+            )
+            for ordinal, alias in enumerate(accepted_person["aliases"]):
+                events.append(
+                    {
+                        **common,
+                        "event_type": "alias_added",
+                        "idempotency_key": (
+                            f"{idempotency_key}:person-alias:{ordinal}"
+                        ),
+                        "payload": {"person_id": person_id, "alias": alias},
+                    }
+                )
+        elif person_id not in snapshot["people"]:
             events.append(
                 {
                     **common,
@@ -584,8 +648,7 @@ def record_directory_hypothesis_review(
             "payload": payload,
         }
     )
-    receipts = ledger.append_events(events)
-    ledger.rebuild()
+    receipts = ledger.append_events(events, rebuild=True)
     return _receipt(
         hypothesis_id=hypothesis_id,
         action=action,

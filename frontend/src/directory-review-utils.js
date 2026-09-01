@@ -26,3 +26,25 @@ export function createInFlightGate() {
     }
   };
 }
+
+function normalizedNames(values) {
+  return new Set((values || []).map((value) => String(value || "").trim().toLocaleLowerCase()).filter(Boolean));
+}
+
+export function findUniqueAcceptedPersonTarget(item, targets) {
+  const acceptedId = String(item?.accepted_person_id || "");
+  if (acceptedId) return (targets || []).find((target) => target.id === acceptedId) || null;
+  const itemNames = normalizedNames([item?.primary_name, ...(item?.aliases || [])]);
+  const matches = (targets || []).filter((target) => {
+    const targetNames = normalizedNames([target.label, ...(target.aliases || [])]);
+    return [...itemNames].some((name) => targetNames.has(name));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function hasDirectoryReviewDecision(rows, hypothesisId, idempotencyKey) {
+  return (rows || []).some((item) => (item.review_leads || []).some((lead) => (
+    lead.hypothesis_id === hypothesisId
+    && (lead.decision_history || []).some((decision) => decision.idempotency_key === idempotencyKey)
+  )));
+}

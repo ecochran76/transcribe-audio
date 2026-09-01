@@ -1,5 +1,32 @@
 # Runbook
 
+## Turn 435: Open Plan 0081 atomic directory-review recovery (2026-09-01)
+
+Summary: Opened
+`docs/dev/plans/0081-2026-09-01-atomic-directory-review-recovery.md` after the
+operator reported a red warning triangle for every attempted review.
+
+Evidence:
+
+- The clicks must not be retried: immutable history contains five accepts and
+  one reject after the previously frozen baseline, including the Ecochran
+  decision.
+- Review batches use one `occurred_at` value but replay currently orders by
+  `occurred_at, id`. Generated event IDs can therefore replay a source link
+  before its new person exists.
+- `record_directory_hypothesis_review` commits raw events through
+  `append_events` and only then calls `rebuild`. A rebuild exception therefore
+  produces a red client error after the decision is already durable.
+- The live accepted-person list already contains Eric Cochran, while the
+  Ecochran row contains exact aliases `Eric Cochran` and
+  `ecochran@iastate.edu`. The operator explicitly confirmed these are one
+  person.
+- No provider, speaker, or corpus mutation is authorized by this recovery.
+
+Progress classification: `outcome_progress`. Plan 0081 is `OPEN`; P1 begins
+with the same-timestamp dependency-order regression, followed by atomic
+append-and-rebuild.
+
 ## Turn 434: Close Plan 0080 flat approval-row view (2026-09-01)
 
 Summary: Closed

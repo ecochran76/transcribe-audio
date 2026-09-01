@@ -2,7 +2,9 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import {
   createInFlightGate,
-  flattenDirectoryReviewRows
+  findUniqueAcceptedPersonTarget,
+  flattenDirectoryReviewRows,
+  hasDirectoryReviewDecision
 } from "./directory-review-utils.js";
 
 const SPEAKER_ACTIONS = [
@@ -1022,10 +1024,10 @@ function reviewLeadValue(lead, key) {
 }
 
 function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, reviewTargets }) {
-  const acceptedPerson = item.accepted_person_id || "";
+  const matchingPerson = findUniqueAcceptedPersonTarget(item, reviewTargets.people);
   const organizationName = lead.organization || lead.counterpart_label || "";
   const matchingOrganization = reviewTargets.organizations?.find((target) => target.label.trim().toLowerCase() === organizationName.trim().toLowerCase());
-  const [personTarget, setPersonTarget] = useState(acceptedPerson ? `existing:${acceptedPerson}` : "create");
+  const [personTarget, setPersonTarget] = useState(matchingPerson ? `existing:${matchingPerson.id}` : "create");
   const [organizationTarget, setOrganizationTarget] = useState(matchingOrganization ? `existing:${matchingOrganization.id}` : "create");
   const [roleTitle, setRoleTitle] = useState(lead.display_value || "");
   const [decision, setDecision] = useState({ status: "idle", message: "" });
@@ -1060,7 +1062,17 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
       setDecision({ status: "saved", message: action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred" });
       onReviewed();
     } catch (error) {
-      if (error.status === 409) {
+      let committed = false;
+      try {
+        const current = await fetchJson("/api/people?limit=500&view=people");
+        committed = hasDirectoryReviewDecision(current.items, lead.hypothesis_id, submission.idempotency_key);
+      } catch {
+        committed = false;
+      }
+      if (committed) {
+        setDecision({ status: "saved", message: action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred" });
+        onReviewed();
+      } else if (error.status === 409) {
         setDecision({ status: "loading", message: "Refreshing current state…" });
         onReviewed();
       } else {

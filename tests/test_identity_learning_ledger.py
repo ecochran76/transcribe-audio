@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 from dataclasses import replace
@@ -14,6 +15,7 @@ from identity_learning_ledger import (
     BaselineSourceRecord,
     IdentityLearningLedger,
     IdentityOntologyTerm,
+    _stable_id,
 )
 
 
@@ -89,6 +91,164 @@ def test_append_events_is_atomic_when_a_later_event_conflicts(
     assert [event["idempotency_key"] for event in ledger.events()] == [
         "existing-key"
     ]
+
+
+def test_append_and_rebuild_preserves_same_timestamp_dependency_order(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    occurred_at = "2026-09-01T12:00:00Z"
+    person_key = "same-time-person"
+    source_key = next(
+        f"same-time-source-{ordinal}"
+        for ordinal in range(100)
+        if _stable_id("identity-event", f"same-time-source-{ordinal}")
+        < _stable_id("identity-event", person_key)
+    )
+
+    ledger.append_events(
+        (
+            {
+                "event_type": "person_created",
+                "payload": {
+                    "person_id": "person-same-time",
+                    "primary_name": "Same Time Person",
+                    "status": "reviewed",
+                },
+                "actor_id": "reviewer:test",
+                "occurred_at": occurred_at,
+                "idempotency_key": person_key,
+            },
+            {
+                "event_type": "source_record_observed",
+                "payload": {
+                    "source_record_id": "source-same-time",
+                    "person_id": "person-same-time",
+                    "source_profile_id": "fixture",
+                    "provider_kind": "local",
+                    "record_type": "contact",
+                    "external_ref": "local:source-same-time",
+                    "label": "Same Time Person",
+                    "observed_at": occurred_at,
+                    "content_hash": "same-time-content",
+                },
+                "actor_id": "reviewer:test",
+                "occurred_at": occurred_at,
+                "idempotency_key": source_key,
+            },
+        ),
+        rebuild=True,
+    )
+
+    snapshot = ledger.projection_snapshot()
+    assert snapshot["people"]["person-same-time"]["primary_name"] == (
+        "Same Time Person"
+    )
+    assert snapshot["sources"]["source-same-time"]["person_id"] == (
+        "person-same-time"
+    )
+
+
+def test_append_and_rebuild_rolls_back_raw_events_when_projection_fails(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+
+    with pytest.raises(ValueError, match="unknown person"):
+        ledger.append_events(
+            (
+                {
+                    "event_type": "source_record_observed",
+                    "payload": {
+                        "source_record_id": "source-orphan",
+                        "person_id": "person-missing",
+                        "source_profile_id": "fixture",
+                        "provider_kind": "local",
+                        "record_type": "contact",
+                        "external_ref": "local:source-orphan",
+                        "label": "Orphan Source",
+                        "observed_at": "2026-09-01T12:00:00Z",
+                        "content_hash": "orphan-content",
+                    },
+                    "actor_id": "reviewer:test",
+                    "occurred_at": "2026-09-01T12:00:00Z",
+                    "idempotency_key": "orphan-source",
+                },
+            ),
+            rebuild=True,
+        )
+
+    assert ledger.events() == ()
+    assert ledger.projection_snapshot()["sources"] == {}
+
+
+def test_rebuild_coalesces_equivalent_deterministic_organization_creations(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    events = []
+    for ordinal, hypothesis_id in enumerate(("hypothesis-a", "hypothesis-b")):
+        events.append(
+            {
+                "event_type": "organization_created",
+                "payload": {
+                    "organization_id": "organization:shared",
+                    "primary_name": "Shared Organization",
+                    "status": "reviewed",
+                    "metadata": {"source_hypothesis_id": hypothesis_id},
+                },
+                "actor_id": "reviewer:test",
+                "occurred_at": f"2026-09-01T12:0{ordinal}:00Z",
+                "idempotency_key": f"shared-organization-{ordinal}",
+            }
+        )
+
+    ledger.append_events(tuple(events), rebuild=True)
+
+    organization = ledger.projection_snapshot()["organizations"][
+        "organization:shared"
+    ]
+    metadata = json.loads(organization["metadata_json"])
+    assert metadata["source_hypothesis_ids"] == ["hypothesis-a", "hypothesis-b"]
+
+
+def test_rebuild_rejects_conflicting_deterministic_organization_creations(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    common = {
+        "actor_id": "reviewer:test",
+        "occurred_at": "2026-09-01T12:00:00Z",
+    }
+
+    with pytest.raises(ValueError, match="conflicting definitions"):
+        ledger.append_events(
+            (
+                {
+                    "event_type": "organization_created",
+                    "payload": {
+                        "organization_id": "organization:shared",
+                        "primary_name": "Shared Organization",
+                        "status": "reviewed",
+                    },
+                    "idempotency_key": "shared-organization-a",
+                    **common,
+                },
+                {
+                    "event_type": "organization_created",
+                    "payload": {
+                        "organization_id": "organization:shared",
+                        "primary_name": "Different Organization",
+                        "status": "reviewed",
+                    },
+                    "idempotency_key": "shared-organization-b",
+                    **common,
+                },
+            ),
+            rebuild=True,
+        )
+
+    assert ledger.events() == ()
 
 
 def test_append_only_events_rebuild_merge_split_and_reversal_deterministically(

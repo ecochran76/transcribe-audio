@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,8 +204,10 @@ class IdentityLearningLedger:
     def append_events(
         self,
         events: Sequence[Mapping[str, Any]],
+        *,
+        rebuild: bool = False,
     ) -> tuple[AppendEventReceipt, ...]:
-        """Append a review's dependent identity events in one transaction."""
+        """Append dependent events, optionally rebuilding in one transaction."""
         if not events:
             raise ValueError("Identity ledger event batches cannot be empty.")
         prepared: list[tuple[dict[str, Any], str]] = []
@@ -315,6 +318,8 @@ class IdentityLearningLedger:
                     receipts.append(
                         AppendEventReceipt(core["id"], content_hash, "inserted")
                     )
+                if rebuild:
+                    self._rebuild(con)
                 con.commit()
             except Exception:
                 con.rollback()
@@ -461,7 +466,18 @@ class IdentityLearningLedger:
         return tuple(dict(row) for row in rows)
 
     def rebuild(self) -> RebuildReceipt:
-        rows = self._load_events()
+        with transcript_store.connect(self.root) as con:
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                receipt = self._rebuild(con)
+                con.commit()
+            except Exception:
+                con.rollback()
+                raise
+        return receipt
+
+    def _rebuild(self, con: sqlite3.Connection) -> RebuildReceipt:
+        rows = self._load_events(con)
         reversed_ids = {
             str(row["reverses_event_id"])
             for row in rows
@@ -502,11 +518,28 @@ class IdentityLearningLedger:
                 }
             elif event_type == "organization_created":
                 organization_id = self._required(payload, "organization_id")
+                candidate = self._organization_projection(payload)
                 if organization_id in organizations:
-                    raise ValueError(
-                        f"Organization was created more than once: {organization_id}."
+                    current = organizations[organization_id]
+                    comparable = set(candidate) - {"metadata"}
+                    if any(current[key] != candidate[key] for key in comparable):
+                        raise ValueError(
+                            "Organization creation events contain conflicting "
+                            f"definitions: {organization_id}."
+                        )
+                    hypothesis_ids = {
+                        _text(current["metadata"].get("source_hypothesis_id")),
+                        _text(candidate["metadata"].get("source_hypothesis_id")),
+                        *map(
+                            _text,
+                            _list(current["metadata"].get("source_hypothesis_ids")),
+                        ),
+                    }
+                    current["metadata"]["source_hypothesis_ids"] = sorted(
+                        value for value in hypothesis_ids if value
                     )
-                organizations[organization_id] = self._organization_projection(payload)
+                    continue
+                organizations[organization_id] = candidate
             elif event_type == "organization_source_observed":
                 source_id = self._required(payload, "source_record_id")
                 organization_sources[source_id] = self._organization_source_projection(
@@ -785,6 +818,7 @@ class IdentityLearningLedger:
         }
         projection_hash = _canonical_hash(semantic)
         self._replace_projections(
+            con=con,
             people=people,
             sources=sources,
             external_identities=external_identities,
@@ -930,13 +964,25 @@ class IdentityLearningLedger:
             proposals=tuple(sorted(proposals, key=lambda item: item.source_record_id)),
         )
 
-    def _load_events(self) -> list[sqlite3.Row]:
-        with transcript_store.connect(self.root) as con:
+    def _load_events(
+        self,
+        con: sqlite3.Connection | None = None,
+    ) -> list[sqlite3.Row]:
+        if con is None:
+            with transcript_store.connect(self.root) as owned_con:
+                rows = owned_con.execute(
+                    """
+                    SELECT *
+                    FROM knowledge_identity_ledger_events
+                    ORDER BY occurred_at, rowid
+                    """
+                ).fetchall()
+        else:
             rows = con.execute(
                 """
                 SELECT *
                 FROM knowledge_identity_ledger_events
-                ORDER BY occurred_at, id
+                ORDER BY occurred_at, rowid
                 """
             ).fetchall()
         for row in rows:
@@ -1368,6 +1414,7 @@ class IdentityLearningLedger:
     def _replace_projections(
         self,
         *,
+        con: sqlite3.Connection | None = None,
         people: Mapping[str, Mapping[str, Any]],
         sources: Mapping[str, Mapping[str, Any]],
         external_identities: Mapping[str, Mapping[str, Any]],
@@ -1381,12 +1428,22 @@ class IdentityLearningLedger:
         watermark: str,
         built_at: str,
     ) -> None:
-        with transcript_store.connect(self.root) as con:
-            con.execute("BEGIN IMMEDIATE")
+        owns_connection = con is None
+        connection_context = (
+            transcript_store.connect(self.root)
+            if owns_connection
+            else nullcontext(con)
+        )
+        with connection_context as active_con:
+            if active_con is None:
+                raise RuntimeError("Projection replacement requires a connection.")
+            owns_transaction = not active_con.in_transaction
+            if owns_transaction:
+                active_con.execute("BEGIN IMMEDIATE")
             try:
                 available_tables = {
                     str(row["name"])
-                    for row in con.execute(
+                    for row in active_con.execute(
                         "SELECT name FROM sqlite_master WHERE type = 'table'"
                     ).fetchall()
                 }
@@ -1403,10 +1460,10 @@ class IdentityLearningLedger:
                     "knowledge_identity_people_projection",
                 ):
                     if table in available_tables:
-                        con.execute(f"DELETE FROM {table}")
+                        active_con.execute(f"DELETE FROM {table}")
                 for person_id in sorted(people):
                     value = people[person_id]
-                    con.execute(
+                    active_con.execute(
                         """
                         INSERT INTO knowledge_identity_people_projection (
                             person_id, status, primary_name, aliases_json,
@@ -1427,7 +1484,7 @@ class IdentityLearningLedger:
                     )
                 for source_id in sorted(sources):
                     value = sources[source_id]
-                    con.execute(
+                    active_con.execute(
                         """
                         INSERT INTO knowledge_identity_source_projection (
                             source_record_id, person_id, source_profile_id,
@@ -1464,26 +1521,36 @@ class IdentityLearningLedger:
                         ),
                     )
                 self._insert_external_identities(
-                    con,
+                    active_con,
                     external_identities,
                     watermark,
                     built_at,
                 )
-                self._insert_roles(con, roles, watermark, built_at)
-                self._insert_relationships(con, relationships, watermark, built_at)
-                self._insert_reconciliations(con, reconciliations, watermark, built_at)
+                self._insert_roles(active_con, roles, watermark, built_at)
+                self._insert_relationships(
+                    active_con, relationships, watermark, built_at
+                )
+                self._insert_reconciliations(
+                    active_con, reconciliations, watermark, built_at
+                )
                 if "knowledge_identity_organizations_projection" in available_tables:
-                    self._insert_organizations(con, organizations, watermark, built_at)
+                    self._insert_organizations(
+                        active_con, organizations, watermark, built_at
+                    )
                     self._insert_organization_sources(
-                        con, organization_sources, watermark, built_at
+                        active_con, organization_sources, watermark, built_at
                     )
-                    self._insert_activities(con, activities, watermark, built_at)
+                    self._insert_activities(
+                        active_con, activities, watermark, built_at
+                    )
                     self._insert_activity_coverage(
-                        con, activity_coverage, watermark, built_at
+                        active_con, activity_coverage, watermark, built_at
                     )
-                con.commit()
+                if owns_transaction:
+                    active_con.commit()
             except Exception:
-                con.rollback()
+                if owns_transaction:
+                    active_con.rollback()
                 raise
 
     @staticmethod

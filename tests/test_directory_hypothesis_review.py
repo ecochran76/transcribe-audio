@@ -146,6 +146,52 @@ def test_accept_affiliation_renders_reviewed_membership_without_inventing_role(
     assert affiliation["role_count"] == 0
 
 
+def test_accept_can_adopt_an_existing_reviewed_person_into_the_ledger(
+    tmp_path: Path,
+) -> None:
+    root = _root_with_contact(tmp_path)
+    with transcript_store.connect(root) as con:
+        con.execute(
+            """
+            INSERT INTO knowledge_people (
+              id, status, primary_name, metadata_json, created_at, updated_at
+            ) VALUES (
+              'canonical-alex', 'reviewed', 'Alex Example', '{}',
+              '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z'
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO knowledge_current_person_profiles (
+              person_id, resolution_status, primary_name, aliases_json,
+              source_record_ids_json, observation_ids_json, input_watermark,
+              metadata_json, built_at
+            ) VALUES (
+              'canonical-alex', 'reviewed', 'Alex Example', '["Alex E."]',
+              '[]', '[]', 'profile-watermark', '{}',
+              '2026-09-01T00:00:00Z'
+            )
+            """
+        )
+        con.commit()
+    lead = project_directory_review_hypotheses(root)["by_contact_id"][
+        "contact-alex"
+    ]["relationship_hypotheses"][0]
+    submission = _submission(lead)
+    submission["person_target"] = {"mode": "existing", "id": "canonical-alex"}
+
+    receipt = record_directory_hypothesis_review(root, submission)
+    snapshot = IdentityLearningLedger(root).projection_snapshot()
+
+    assert receipt["accepted_person_effect_count"] == 0
+    assert snapshot["people"]["canonical-alex"]["primary_name"] == "Alex Example"
+    assert json.loads(snapshot["people"]["canonical-alex"]["aliases_json"]) == [
+        "Alex E."
+    ]
+    assert snapshot["sources"]["contact-alex"]["person_id"] == "canonical-alex"
+
+
 def test_reject_and_defer_create_no_accepted_graph_effects(tmp_path: Path) -> None:
     for action in ("reject", "defer"):
         root = _root_with_contact(tmp_path / action)

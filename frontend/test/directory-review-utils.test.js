@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   createInFlightGate,
-  flattenDirectoryReviewRows
+  findUniqueAcceptedPersonTarget,
+  flattenDirectoryReviewRows,
+  hasDirectoryReviewDecision
 } from "../src/directory-review-utils.js";
 
 test("approval rows flatten every unreviewed hypothesis without collapsing contacts", () => {
@@ -40,4 +42,35 @@ test("an in-flight review gate suppresses a duplicate until release", () => {
   assert.equal(gate.begin(), false);
   gate.end();
   assert.equal(gate.begin(), true);
+});
+
+test("a unique accepted name or alias match is suggested without guessing ambiguity", () => {
+  const targets = [
+    { id: "person-eric", label: "Eric Cochran", aliases: ["Eric W Cochran"] },
+    { id: "person-other", label: "Other Person", aliases: ["Ecochran"] }
+  ];
+  assert.equal(findUniqueAcceptedPersonTarget(
+    { primary_name: "Ecochran", aliases: ["Eric Cochran"] },
+    targets
+  ), null);
+  assert.equal(findUniqueAcceptedPersonTarget(
+    { primary_name: "Ecochran", aliases: ["Eric Cochran"] },
+    targets.slice(0, 1)
+  )?.id, "person-eric");
+  assert.equal(findUniqueAcceptedPersonTarget(
+    { accepted_person_id: "person-eric", primary_name: "Anything" },
+    targets
+  )?.id, "person-eric");
+});
+
+test("ambiguous response reconciliation requires the exact review idempotency key", () => {
+  const rows = [{
+    review_leads: [{
+      hypothesis_id: "hypothesis-1",
+      decision_history: [{ idempotency_key: "review-key-1" }]
+    }]
+  }];
+  assert.equal(hasDirectoryReviewDecision(rows, "hypothesis-1", "review-key-1"), true);
+  assert.equal(hasDirectoryReviewDecision(rows, "hypothesis-1", "review-key-2"), false);
+  assert.equal(hasDirectoryReviewDecision(rows, "hypothesis-2", "review-key-1"), false);
 });

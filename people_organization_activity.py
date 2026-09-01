@@ -786,6 +786,7 @@ def build_directory_index(
                 {
                     "id": item["accepted_person_id"],
                     "label": item["primary_name"],
+                    "aliases": item.get("aliases") or [],
                 }
                 for item in people
                 if item.get("accepted_person_id")
