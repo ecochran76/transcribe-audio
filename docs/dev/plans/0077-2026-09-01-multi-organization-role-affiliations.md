@@ -1,6 +1,6 @@
 # Plan 0077 | Multi-Organization Role Affiliations
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -144,8 +144,30 @@ subagent is needed for this tightly coupled path.
 - Named Agent Browser desktop/mobile session, screenshots, DOM/accessibility
   evidence, and exact-session closeout.
 
-## Current State After Opening
+## Current State After Closure
 
-P0 is documented and P1 is ready to begin with a public-behavior regression
-test. P2-P4 remain open. This plan grants no new private/provider scope and no
-external effect authority.
+P0-P4 are complete at implementation checkpoint `85aa922`. Schema v9 remains
+the authority: no migration or accepted-evidence rewrite occurred. The v2
+directory projection preserves every stable role ID, derives deterministic
+person/organization affiliation groups, exposes a compact primary-plus-count
+summary, and lists all role appointments in the inline expansion. The evidence
+fabric now retrieves accepted/reviewed roles only when anchor, effective-time,
+acceptance-time, budget, and current-conversation boundaries permit them.
+
+The adversarial two-organization/three-role fixture returns two affiliation
+groups and three role rows through the real API. Focused projector, ledger,
+evidence, workflow, and API checks pass; the provider-free comprehensive suite
+passes 1,276 tests in 75.03 seconds without retry; Python compilation and the
+Vite production build pass. Agent Browser confirmed desktop and 390-by-844
+mobile layouts, SVG controls, explicit sort state, keyboard resizing from 20
+to 22 percent, zero directory buttons taller than 48 pixels, and three unique
+expanded role rows. The named browser session and synthetic server were
+closed; private screenshots remain under the Plan 0077 operator-state folder.
+
+Installed readback after restarting `transcripts.service` reports PID 26539,
+`NRestarts=0`, schema v9 sidecar authority, `dirty=0`, and database integrity
+`ok`. The v2 API is byte-stable and reports 59 displayed provider-observed
+affiliations but zero displayed or authority role rows. Those affiliations
+remain proposed; no live role acceptance was manufactured. The plan therefore
+advances the intended Level 2 representation and review/context seams without
+claiming Level 3 discovery automation or measured speaker-quality lift.

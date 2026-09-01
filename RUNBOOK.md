@@ -1,5 +1,48 @@
 # Runbook
 
+## Turn 428: Close Plan 0077 with installed multi-role validation (2026-09-01)
+
+Summary: Closed
+`docs/dev/plans/0077-2026-09-01-multi-organization-role-affiliations.md`
+after installing the v2 directory projection and accepted temporal role
+retrieval. A role appointment remains independent ledger authority; an
+affiliation remains only a deterministic person/organization presentation
+group.
+
+Evidence:
+
+- Implementation checkpoint `85aa922` is pushed on `plan-0037-campaign`.
+- The public-behavior regression first reproduced the same-organization role
+  collapse. The corrected two-organization/three-role fixture returns two
+  affiliation groups and all three stable role IDs with replay-equal hashes.
+- Correction and reversal of one role preserve its sibling appointment. Role
+  context retrieval excludes proposed, future, expired, and
+  current-conversation-originating appointments.
+- Focused projector/ledger/evidence checks passed 19 tests; workflow passed 10
+  tests; the focused API test passed; Python compilation and the Vite build
+  passed. The provider-free comprehensive suite passed 1,276 tests in 75.03
+  seconds without retry.
+- Agent Browser at 1440-by-900 and 390-by-844 showed the compact primary
+  organization/role plus `+N organizations`, followed by three independent
+  expanded role rows. DOM evidence found explicit sort state, keyboard column
+  resizing from 20 to 22 percent, 13 SVG-backed controls, and no directory
+  button taller than 48 pixels. The exact named session and synthetic server
+  were closed; private screenshots remain outside the repository.
+- Installed `transcripts.service` restarted healthy at PID 26539 with
+  `NRestarts=0`. Schema v9 remains sidecar/clean and database integrity is
+  `ok`. Two serialized v2 API reads were byte-identical with response SHA-256
+  `6fceea5a00c022b3ffbc27ba81f082e6591e6f5d31cf6d4d2a041191a2002576`.
+- Live accounting is intentionally non-vacuous but authority-safe: 59
+  provider-observed affiliation groups remain proposed, while both the
+  authority role projection and displayed role-row count remain zero. No
+  provider read/write, acceptance, merge, speaker assignment, or Graphiti
+  write occurred.
+
+Progress classification: `outcome_progress`. Plan 0077 is `CLOSED`; the next
+best bounded slice is the operator review workflow that turns proposed
+organization observations into explicit accepted organizations and role
+appointments before measuring chronological context or speaker-identity lift.
+
 ## Turn 427: Open Plan 0077 for multi-organization roles (2026-09-01)
 
 Summary: Opened the bounded correction for people who belong to several
