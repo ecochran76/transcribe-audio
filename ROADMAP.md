@@ -267,6 +267,26 @@ duplicate source copies count once, historical queries obey `as_of`, and
 accepted graph facts, speaker effects, provider writes, and Graphiti projection
 remain separately gated.
 
+Plan 0074 closed the architecture-consolidation walking skeleton. Note 0061
+reframes
+Calendar, Mail Receipts, Contacts, Drive, SysRAG, messages, CRM, prior
+transcripts, and future corpora as capability-scoped evidence adapters rather
+than separate product branches. Two coordinated loops share that fabric and
+the append-only knowledge authority: People and Relationship Discovery builds
+temporal evidence-backed knowledge about real people, while Conversation
+Understanding uses accepted knowledge plus bounded direct evidence to explain
+what a real conversation meant. The milestone established an
+integrated Level 1 walking skeleton on disposable state: a reviewed
+relationship originating in conversation A must become cited context for later
+conversation B, remain unavailable to A itself, obey `as_of`, replay
+deterministically, and preserve the existing speaker-identity contract. The
+source-independent fabric now serves all three declared purposes and the
+existing GWS, Odollo, and Mail Receipts adapters cross that seam. Drive,
+SysRAG, representative-corpus usefulness, and live accepted knowledge remain
+later milestones. The closed slice authorized no private/provider read, live
+accepted relationship, dashboard deployment, person/speaker effect, or
+external write.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -296,8 +316,19 @@ Plans:
 - `docs/dev/plans/0062-2026-08-08-reconnect-contextual-speaker-identity-join.md`
 - `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`
 - `docs/dev/plans/0073-2026-08-30-deterministic-mail-evidence-for-relationship-role-discovery.md`
+- `docs/dev/plans/0074-2026-09-01-two-loop-evidence-fabric-walking-skeleton.md`
 
 Milestone Focus:
+
+- Closed milestone M5 is Plan 0074's two-loop evidence-fabric walking skeleton.
+  Its people/relationship and conversation-understanding loops share one
+  capability-based seam, one append-only decision authority, explicit
+  temporal/circularity rules, and distinct conversation-first and entity-first
+  review projections. Disposable-state tests now establish integrated Level 1
+  proof, including explicit hindsight and one/two-hop relationship behavior;
+  representative private-corpus usefulness, accepted live graph changes,
+  Drive/SysRAG adapters, and automatic watcher coordination remain later
+  measured milestones.
 
 - Closed milestone M1 is the dogfoodable conversation review loop: a single
   selected conversation can move through source-audio verification, transcript

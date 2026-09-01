@@ -470,7 +470,29 @@ relationship with that person the record represents.
 
 ## Retrieval contract
 
-The external seam should remain small:
+People/relationship discovery and per-conversation understanding are parallel
+product loops over the same evidence and decision authority. The first loop
+builds temporal knowledge about real people, organizations, roles, and
+relationships. The second consumes accepted knowledge plus bounded direct
+evidence to explain a conversation and returns new claims for review. Calendar,
+Mail Receipts, Contacts, Drive, SysRAG, messages, CRM, and prior conversations
+are capability-scoped adapters to those loops, not hard-coded architectural
+branches.
+
+The external seam should remain small and source-independent:
+
+```python
+collect(EvidenceRequest) -> EvidenceBundle
+```
+
+`EvidenceRequest` carries the requesting purpose and typed anchors in addition
+to scope, temporal, capability, and budget policy. `EvidenceBundle` carries
+bounded source observations and accepted local-knowledge context with one
+deterministic content hash and accepted-knowledge watermark. Provider-specific
+commands, cursors, rate limits, and privacy shaping stay behind adapters.
+
+The existing identity entry point remains a compatibility facade over that
+fabric:
 
 ```python
 prepare_identity_evidence(
@@ -486,6 +508,13 @@ prepare_identity_evidence(
 The interface hides provider commands, caches, indexes, ranking features,
 deduplication, graph traversal, temporal classification, and packet budgeting.
 Callers and tests receive the same immutable `EvidenceBundle`.
+
+An accepted relationship or role records the conversation that originated the
+claim and its acceptance time. A request cannot consume accepted knowledge
+originating in the same conversation processing version. Under a no-hindsight
+policy, it also cannot consume knowledge accepted after `as_of`. Accepted
+knowledge may influence a later conversation or an explicitly versioned rerun;
+unreviewed hypotheses never corroborate themselves.
 
 ### Retrieval request
 

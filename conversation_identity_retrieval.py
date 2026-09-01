@@ -5,10 +5,17 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Protocol
 from uuid import UUID, uuid4, uuid5
 
 import transcript_store
+from conversation_evidence_fabric import (
+    EvidenceAdapter as HostEvidenceAdapter,
+    EvidenceAnchor,
+    EvidenceFabric,
+    EvidenceRequest,
+    ProviderRetrievalRequest,
+    ProviderRetrievalResult,
+)
 from conversation_knowledge_evidence import (
     ConversationEvidenceRepository,
     EvidenceBundleItem,
@@ -25,33 +32,6 @@ RETRIEVAL_VERSION = "conversation-identity-retrieval.v1"
 RANKING_VERSION = "conversation-identity-ranking.v1"
 MAX_PROVIDER_QUERY_TERMS = 24
 _IDENTITY_NAMESPACE = UUID("fd5f90be-0f38-43df-ac36-68e7e78c29de")
-
-
-@dataclass(frozen=True)
-class ProviderRetrievalRequest:
-    conversation_id: str
-    query_terms: tuple[str, ...]
-    scopes: tuple[EvidenceScope, ...]
-    capabilities: tuple[str, ...]
-    as_of: str
-    max_records: int
-    max_characters: int
-
-
-@dataclass(frozen=True)
-class ProviderRetrievalResult:
-    snapshots: tuple[EvidenceSnapshotRecord, ...] = ()
-    failures: tuple[dict[str, str], ...] = ()
-    warnings: tuple[str, ...] = ()
-
-
-class HostEvidenceAdapter(Protocol):
-    adapter_id: str
-
-    def retrieve(
-        self,
-        request: ProviderRetrievalRequest,
-    ) -> ProviderRetrievalResult: ...
 
 
 @dataclass(frozen=True)
@@ -214,46 +194,6 @@ def _event_attendees(event: dict[str, object]) -> tuple[dict[str, str], ...]:
     return tuple(attendees)
 
 
-def _snapshot_is_allowed(
-    snapshot: EvidenceSnapshotRecord,
-    policy: IdentityEvidencePolicy,
-    *,
-    as_of: str,
-) -> bool:
-    if (
-        snapshot.source_profile_id,
-        snapshot.account_id,
-        snapshot.tenant_id,
-    ) not in {_scope_key(scope) for scope in policy.scopes}:
-        return False
-    if snapshot.capability not in policy.capabilities:
-        return False
-    if snapshot.freshness_state not in policy.allowed_freshness_states:
-        return False
-    if snapshot.source_event_at and snapshot.source_event_at > as_of:
-        return False
-    allowed_temporal = {
-        "exclude": {"contemporaneous"},
-        "allow_later_retrieved": {
-            "contemporaneous",
-            "later_retrieved",
-        },
-        "allow_hindsight": {
-            "contemporaneous",
-            "later_retrieved",
-            "hindsight",
-        },
-    }.get(policy.hindsight_policy)
-    if allowed_temporal is None or snapshot.temporal_class not in allowed_temporal:
-        return False
-    if (
-        snapshot.temporal_class == "contemporaneous"
-        and snapshot.observed_at > as_of
-    ):
-        return False
-    return True
-
-
 def prepare_identity_evidence(
     conversation_id: str,
     *,
@@ -365,46 +305,27 @@ def prepare_identity_evidence(
     )
     repository.save_retrieval_request(request)
 
-    source_failures: list[dict[str, str]] = []
-    warnings: list[str] = []
-    for adapter in policy.provider_adapters[: policy.max_provider_calls]:
-        adapter_request = ProviderRetrievalRequest(
+    fabric = EvidenceFabric(store.root)
+    provider_bundle = fabric.collect(
+        EvidenceRequest(
+            purpose="speaker_identity",
             conversation_id=conversation_id,
+            anchors=(),
             query_terms=query_terms,
             scopes=policy.scopes,
             capabilities=policy.capabilities,
             as_of=effective_as_of,
+            hindsight_policy=policy.hindsight_policy,
+            allowed_freshness_states=policy.allowed_freshness_states,
             max_records=policy.max_records,
             max_characters=policy.max_characters,
-        )
-        try:
-            result = adapter.retrieve(adapter_request)
-        except Exception as exc:
-            source_failures.append(
-                {
-                    "adapter_id": adapter.adapter_id,
-                    "reason_code": "provider_exception",
-                    "detail": type(exc).__name__,
-                }
-            )
-            continue
-        warnings.extend(result.warnings)
-        source_failures.extend(dict(item) for item in result.failures)
-        for provider_snapshot in result.snapshots:
-            if not _snapshot_is_allowed(
-                provider_snapshot,
-                policy,
-                as_of=effective_as_of,
-            ):
-                source_failures.append(
-                    {
-                        "adapter_id": adapter.adapter_id,
-                        "reason_code": "out_of_scope_provider_result",
-                        "detail": provider_snapshot.evidence_id,
-                    }
-                )
-                continue
-            repository.save_snapshot(provider_snapshot)
+            max_provider_calls=policy.max_provider_calls,
+            max_relationship_hops=0,
+        ),
+        adapters=policy.provider_adapters,
+    )
+    source_failures = [dict(item) for item in provider_bundle.source_failures]
+    warnings = list(provider_bundle.warnings)
 
     people, calendar_candidates = _exact_candidates(
         repository,
@@ -460,12 +381,68 @@ def prepare_identity_evidence(
             pool[evidence.evidence_id] = evidence
             semantic_rank[evidence.evidence_id] = rank
 
-    relationships = _relationship_summaries(
+    relationship_summaries = list(_relationship_summaries(
         root=store.root,
         person_ids=tuple(item.person_id for item in people),
         max_hops=policy.max_relationship_hops,
         scopes=policy.scopes,
         capabilities=policy.capabilities,
+    ))
+    accepted_bundle = fabric.collect(
+        EvidenceRequest(
+            purpose="speaker_identity",
+            conversation_id=conversation_id,
+            anchors=tuple(
+                EvidenceAnchor("person", item.person_id)
+                for item in people
+            ),
+            query_terms=(),
+            scopes=policy.scopes,
+            capabilities=("accepted_relationships",),
+            as_of=effective_as_of,
+            hindsight_policy=policy.hindsight_policy,
+            allowed_freshness_states=policy.allowed_freshness_states,
+            max_records=max(policy.max_records, 1),
+            max_characters=policy.max_characters,
+            max_provider_calls=0,
+            max_relationship_hops=policy.max_relationship_hops,
+        )
+    )
+    warnings.extend(accepted_bundle.warnings)
+    relationship_summaries.extend(
+        RelationshipSummary(
+            subject_id=item.subject_id,
+            relationship_type=item.relationship_type,
+            object_type=item.object_type,
+            object_id=item.object_id,
+            display_value=str(
+                item.metadata.get("display_value") or item.object_id
+            ),
+            observation_ids=item.evidence_ids,
+            input_watermark=item.input_watermark,
+        )
+        for item in accepted_bundle.relationships
+    )
+    relationships = tuple(
+        sorted(
+            {
+                (
+                    item.subject_id,
+                    item.relationship_type,
+                    item.object_type,
+                    item.object_id,
+                    item.input_watermark,
+                ): item
+                for item in relationship_summaries
+            }.values(),
+            key=lambda item: (
+                item.subject_id,
+                item.relationship_type,
+                item.object_type,
+                item.object_id,
+                item.input_watermark,
+            ),
+        )
     )
     candidate_source_profiles = {
         profile_id

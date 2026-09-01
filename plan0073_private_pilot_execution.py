@@ -21,7 +21,7 @@ from conversation_evidence_mail_receipts import (
     MailReceiptsReader,
     MailReceiptsReadError,
 )
-from conversation_identity_retrieval import ProviderRetrievalRequest
+from conversation_evidence_fabric import ProviderRetrievalRequest
 from conversation_knowledge_evidence import EvidenceScope
 from mail_evidence_normalization import (
     NormalizedMailEvidence,

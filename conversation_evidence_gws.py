@@ -18,7 +18,7 @@ from conversation_evidence_adapters import (
     adapter_failure,
     adapter_warning,
 )
-from conversation_identity_retrieval import (
+from conversation_evidence_fabric import (
     ProviderRetrievalRequest,
     ProviderRetrievalResult,
 )

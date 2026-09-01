@@ -1,5 +1,81 @@
 # Runbook
 
+## Turn 421: Close two-loop evidence-fabric walking skeleton (2026-09-01)
+
+Summary: Closed Plan 0074 with one provider-independent evidence seam serving
+people/relationship discovery, speaker identity, and conversation
+understanding. Existing identity callers remain compatible, while reviewed
+relationship knowledge can now cross from an earlier conversation into a
+later conversation under explicit temporal and circularity controls.
+
+Evidence:
+
+- `conversation_evidence_fabric.py` defines the common request, adapter,
+  accepted-relationship, bundle, watermark, and semantic-hash contracts. It
+  imports no GWS, Odollo, Mail Receipts, Drive, or SysRAG implementation.
+- GWS, Odollo, and Mail Receipts adapters now implement the common protocol;
+  `prepare_identity_evidence` uses the fabric for both provider collection and
+  accepted relationship context without changing its public bundle contract.
+- A disposable schema-v8 fixture proves that a reviewed relationship from
+  conversation A is available to later conversation B, excluded from A,
+  excluded before acceptance under normal historical retrieval, available
+  only with explicit hindsight, and expanded through no more than the requested
+  one or two relationship hops.
+- Focused and regression validation passed: 9 fabric/identity tests, 52
+  provider/identity tests, 37 workflow/store/ledger tests, touched-module
+  compilation, and the full provider-free suite at 1,259 tests.
+- The active-only planning audit and `git diff --check` passed. Post-edit
+  CodeGraph status reports 389 files, 11,315 nodes, 39,260 edges, and zero
+  pending changes; its existing `reindexRecommended=true` advisory remains and
+  does not indicate edit staleness. The committed checkpoint and upstream
+  parity are recorded in the final turn readback.
+- Provider, private-corpus, mailbox, Graphiti, person, speaker, biometric,
+  deployment, runtime-config, and live-schema effects remained zero.
+
+Progress classification: `outcome_progress`. Plan 0074 and milestone M5 are
+closed at integrated Level 1. The next product milestone must measure one
+bounded real-corpus outcome or add one capability adapter through this seam;
+it must not infer that Drive/SysRAG or live relationship acceptance is already
+implemented.
+
+## Turn 420: Freeze two-loop evidence-fabric milestone (2026-09-01)
+
+Summary: Paused source-by-source feature work and converted the product
+architecture discussion into a bounded successor. Calendar, Mail Receipts,
+Contacts, Drive, SysRAG, messages, CRM, and prior transcripts are now planned
+as capability-scoped evidence adapters serving two coordinated product loops:
+People and Relationship Discovery, and Conversation Understanding.
+
+Evidence:
+
+- `VISION.md` requires one automatic knowledge loop whose accepted knowledge
+  improves later conversations while preserving ambiguity, provenance,
+  temporal integrity, and replay.
+- Current CodeGraph is up to date at 387 files, 11,261 nodes, and 39,088 edges.
+  It shows `prepare_identity_evidence` already owns scopes, capabilities,
+  `as_of`, budgets, provider adapters, and relationship retrieval, but the seam
+  is identity-named and accepted relationship projections are not the common
+  source for conversation context.
+- Graphiti `transcribe_audio_main` was healthy. A bounded discovery returned
+  eight facts, eight nodes, and five episode previews; expanded episode
+  `a5166827-6d74-4222-accc-e1a5a64fd22e` pointed back to the current repository
+  architecture for canonical-person and temporal relationship authority.
+- Note 0061 freezes the source-agnostic evidence fabric, two-loop authority,
+  Drive/SysRAG extension posture, shared review projections, and
+  anti-circularity rule.
+- `docs/dev/plans/0074-2026-09-01-two-loop-evidence-fabric-walking-skeleton.md`
+  opens the integrated Level 1 walking skeleton. Its disposable-store
+  terminal proof requires a reviewed relationship from conversation A to
+  become cited context for later conversation B without becoming evidence for
+  A itself or leaking across `as_of`.
+- The active-only planning audit was green before the plan was opened. Branch
+  `plan-0037-campaign` was clean, upstream-even, and at `af53069`.
+
+Progress classification: `outcome_progress`. The next action is the Plan 0074
+red/green implementation through one public evidence-fabric interface. No
+provider/private/runtime/Graphiti/person/speaker/biometric/deployment effect
+occurred in this planning checkpoint.
+
 ## Turn 419: Fail closed on Mail Receipts fanout errors and revalidate P5 (2026-08-31)
 
 Summary: Corrected the cross-software acceptance contract after DuckDB child
