@@ -1,6 +1,6 @@
 # Plan 0076 | Canonical People, Organization, And Activity Index
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -271,3 +271,32 @@ with explicit unresolved identity groups and truthful cross-channel history.
 Completion establishes measured Level 2 product capability. It does not close
 Plan 0072's broader reviewed-learning/automation campaign or authorize Level 3
 automatic identity, relationship, speaker, or provider effects.
+
+## Execution outcome
+
+Plan 0076 completed P0-P6 on 2026-09-01.
+
+| Packet | Outcome evidence |
+| --- | --- |
+| P0 | The v1 directory contract, adversarial fixtures, and behavior tests freeze canonical people, unresolved same-name groups, organizations, affiliations, source-neutral activity, coverage, provenance, and zero-effect decision rules. |
+| P1 | The directory now projects 6 accepted people plus 202 explicit unresolved groups from 548 retained source records. Exact source duplicates collapse, while name-only records do not become one accepted person. |
+| P2 | Schema v9 and the append-only identity ledger support first-class organizations, sources, temporal roles, merge/split/alias/correction, reversal, and deterministic rebuild. All 40 current organization entities remain proposed. |
+| P3 | Transcript, calendar, and email evidence project into one activity contract with explicit participation, evidence, coverage, independence, time, and bounded citation fields. The installed corpus exposes 1,245 rows: 71 confirmed and 1,174 proposed. |
+| P4 | The live Contacts workspace is one compact sortable/resizable table with People, Organizations, and Unresolved views, SVG controls, inline evidence expansion, and desktop/mobile Agent Browser acceptance. Pointer and keyboard resizing both pass. |
+| P5 | Disposable v8-to-v9 migration and rollback preserved SQLite integrity. The backed-up live store migrated cleanly to v9; installed API and UI readback pass, and Baker Kuehl renders as one unresolved group containing three separate records, seven source records, and 25 activities. |
+| P6 | The frozen current-corpus measurement reports complete bounded citations, zero within-entity duplicate IDs, zero non-descending timelines, and correct abstention. The live authority contains zero accepted organization or activity rows, so accepted-history retrieval correctly returns zero. Directory shadow use advances; automatic speaker/context policy promotion is withheld. |
+
+The installed checkpoint is schema v9 with directory semantic hash
+`e9a194045bd9ee47ff23f0b3513754ea4af0fc57bddfad19642dd5fb83f3a55a`.
+The private aggregate P6 receipt is
+`~/.local/state/transcribe-audio/plan0076/p6-contextual-utility.json`.
+No provider write, mailbox or calendar mutation, person merge, organization or
+affiliation acceptance, speaker/biometric effect, public share, or Graphiti
+write occurred.
+
+The measured maturity outcome is Level 2 for the canonical directory,
+organization proposal index, and cross-channel history presentation. Level 2
+accepted-history contextual utility is not claimed because the frozen live
+cohort has no accepted organization or activity rows; a successor must first
+accumulate reviewed authority and then run a chronological before/after
+comparison without moving its acceptance band.

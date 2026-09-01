@@ -1,5 +1,65 @@
 # Runbook
 
+## Turn 426: Close Plan 0076 after installed corpus and visual acceptance (2026-09-01)
+
+Summary: Completed Plan 0076 P5-P6. The live schema-v9 Contacts workspace is
+ready for operator shadow review as a compact canonical people, organization,
+and activity index. The P6 decision advances this review surface and withholds
+automatic speaker/context policy because the current ledger has no accepted
+organization or activity rows from which to measure contextual lift.
+
+Evidence:
+
+- Disposable rehearsal migrated and rolled back a copy of the live v8 store
+  with `integrity_check=ok`. The live migration created backup
+  `/home/ecochran76/.transcripts/backups/transcripts-pre-migrate-v8-ae7b0e847ef4.sqlite3`;
+  current schema status is version 9, clean, and the database integrity check
+  is `ok`.
+- The installed service is `transcripts.service`, active/running after the
+  final code reload with `NRestarts=0`. `/api/health` reports the expected
+  `/home/ecochran76/.transcripts/transcripts.sqlite3` store.
+- The installed directory semantic hash is
+  `e9a194045bd9ee47ff23f0b3513754ea4af0fc57bddfad19642dd5fb83f3a55a`;
+  two independently serialized API reads produced SHA-256
+  `e1b7b284e8d41d7ea7a35e83aa369aeab5420e0574576c44494a1e5e4975637a`.
+- Current accounting is 208 directory rows: 6 accepted people and 202
+  unresolved groups, with 548 source records retained. The Organizations view
+  contains 40 proposed organizations and zero accepted organizations.
+- The activity index contains 1,245 displayed observations: 71 confirmed and
+  1,174 proposed. All 1,245 have a source-record ID and bounded locator; no
+  entity contains a duplicate observation ID or a non-descending timeline.
+- Baker Kuehl appears once as an unresolved group containing three separate
+  member records, seven source records, one confirmed transcript observation,
+  and 24 proposed calendar observations. No merge decision was created.
+- Agent Browser desktop/mobile inspection passed reverse-date sorting, visible
+  SVG controls, pointer and keyboard column resizing, People/Organizations
+  switching, inline activity/source expansion, and the 390-by-844 responsive
+  table. Private screenshots and the aggregate P6 receipt are under
+  `/home/ecochran76/.local/state/transcribe-audio/plan0076/` and are not tracked.
+- Visual QA found and corrected two acceptance issues before closeout:
+  organization rows now show linked-person/status metadata instead of a false
+  affiliation placeholder, and confirmed operator-review history now carries
+  its exact source-record ID. The focused regression lane passed 78 tests and
+  the Vite production build passed. The final comprehensive provider-free lane
+  passed 1,273 tests in 75.78 seconds with no retry.
+- The live ledger contains zero accepted activity and zero accepted
+  organization projection rows. A strict-as-of, zero-provider-call evidence
+  request therefore returned zero accepted activities with watermark `empty`;
+  this is correct abstention, not evidence of contextual lift.
+- The service-mediated browser acquisition path remained fail-closed on an
+  existing principal/profile reconciliation interlock. Acceptance used one
+  isolated named `plan0076-review` runtime session and closed only that session;
+  the dashboard itself was reachable and healthy.
+- No provider read or write, person merge, organization/affiliation acceptance,
+  mailbox or calendar mutation, speaker/biometric effect, public share, or
+  Graphiti write occurred.
+
+Progress classification: `capability_advance`. Plan 0076 is `CLOSED`; it
+establishes measured Level 2 directory and history-presentation capability.
+Automatic speaker/context promotion remains withheld. The best successor is a
+bounded reviewed-authority cohort that records explicit organization/activity
+acceptance and then repeats the frozen chronological utility comparison.
+
 ## Turn 425: Open Plan 0076 and complete the provider-free index (2026-09-01)
 
 Summary: Opened Plan 0076 and completed its provider-free P0-P4 checkpoint:

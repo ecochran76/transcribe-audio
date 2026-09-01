@@ -296,17 +296,19 @@ graph context, while only accept may enter the identity projection and shared
 evidence fabric. Live visual and API readback establish Level 2 operator-ready
 review, not automatic speaker assignment or Level 3 automation.
 
-Plan 0076 is the open canonical people, organization, and activity-index
-successor. Its provider-free P0-P4 checkpoint now replaces the peer presentation of canonical people,
-provider contacts, and reviewed speaker labels with one resolved-person row or
-an explicit unresolved reconciliation group while preserving every source
-record. It adds schema-v9 first-class organizations and temporal affiliations, then
-projects transcript, calendar, and Mail Receipts observations into truthful
-per-channel summaries and one cited timeline. The target is measured Level 2
-canonical/reconciliation usability over the current corpus. P5 installed
-rehearsal and P6 contextual-utility measurement remain active; name/domain-only
-merges, automatic acceptance, provider writes, Graphiti writes, biometric
-effects, and speaker-policy changes remain excluded.
+Plan 0076 is closed as the canonical people, organization, and activity-index
+successor. The installed schema-v9 projection replaces 228 peer source rows
+with 6 accepted people plus 202 explicit unresolved groups while retaining 548
+source records. Forty first-class organization entities remain proposed, and
+1,245 transcript/calendar/email activity rows retain truthful status, coverage,
+time, independence, and bounded citations. Desktop/mobile Agent Browser QA
+passed the dense sortable/resizable People and Organizations tables, including
+inline evidence expansion. The frozen P6 decision advances the directory for
+Level 2 operator shadow use but withholds automatic speaker/context policy:
+the current authority has no accepted organization or activity rows from which
+to measure contextual lift. Name/domain-only merges, automatic acceptance,
+provider writes, Graphiti writes, biometric effects, and speaker-policy changes
+remain excluded.
 
 Plans:
 
@@ -343,14 +345,13 @@ Plans:
 
 Milestone Focus:
 
-- Planned milestone M7 is Plan 0076's canonical people, organization, and
-  activity index. Its first packet freezes the cross-entity, activity,
-  coverage, reconciliation, and UI contracts before implementation. The
-  critical path then establishes stable canonical/unresolved person
-  projections; organization and activity work can proceed independently only
-  after those identifiers are frozen, and must join before live UI cutover.
-  Baker Kuehl's three current source-facing records are the named real-corpus
-  reconciliation example, not pre-authorized evidence of a same-person merge.
+- Closed milestone M7 is Plan 0076's canonical people, organization, and
+  activity index. Schema v9, deterministic ledger replay, the source-neutral
+  directory/API, and the compact Contacts UI are installed and validated over
+  the current corpus. Baker Kuehl's three source-facing records now appear in
+  one explicit unresolved group without an inferred merge. P6 advanced the
+  operator review surface and withheld automatic contextual policy until a
+  later frozen cohort contains reviewed organization/activity authority.
 
 - Closed milestone M6 is Plan 0075's Mail hypothesis Contacts review bridge.
   The recovered proposed-only mail corpus is now an explicit, hash-pinned live
