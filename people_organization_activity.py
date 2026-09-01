@@ -15,10 +15,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v2"
+SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v3"
 CHANNELS = ("transcript", "calendar", "email")
 MAIL_HYPOTHESIS_KINDS = {"correspondence", "sent_mail", "thread_coparticipation"}
 REVIEWED_ROLE_STATUSES = {"accepted", "reviewed"}
+DIRECTORY_REVIEW_HYPOTHESIS_KINDS = {"affiliation", "contextual_role"}
 
 
 def _text(value: object) -> str:
@@ -217,7 +218,7 @@ def _summary(activities: Sequence[Mapping[str, Any]], *, resolved: bool) -> dict
 def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     members = sorted((_record_member(record) for record in records), key=lambda item: item["record_id"])
     canonical = [record for record in records if record.get("identity_kind") == "canonical_person"]
-    resolved = len(canonical) == 1 and len(records) == 1
+    resolved = len(canonical) == 1
     accepted_person_id = _text(canonical[0].get("person_id")) if resolved else ""
     primary_name = _text(records[0].get("primary_name"))
     member_ids = [member["record_id"] for member in members]
@@ -264,6 +265,23 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         (_text(value.get("last_at")) for value in summary.values()),
         default="",
     )
+    review_leads = [
+        dict(hypothesis)
+        for record in records
+        for collection_name in ("role_hypotheses", "relationship_hypotheses")
+        for hypothesis in _array(record.get(collection_name))
+        if isinstance(hypothesis, Mapping)
+        and _text(hypothesis.get("hypothesis_kind"))
+        in DIRECTORY_REVIEW_HYPOTHESIS_KINDS
+    ]
+    review_leads.sort(
+        key=lambda item: (
+            _text(item.get("hypothesis_kind")),
+            _text(item.get("organization") or item.get("counterpart_label")).casefold(),
+            _text(item.get("display_value")).casefold(),
+            _text(item.get("hypothesis_id")),
+        )
+    )
     return {
         "entity_id": entity_id,
         "person_id": entity_id,
@@ -282,6 +300,7 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "members": members,
         "source_records": [source_records[key] for key in sorted(source_records)],
         "organizations": [],
+        "review_leads": review_leads,
         "activities": activities,
         "activity_summary": summary,
         "last_interaction_at": last_interaction_at,
@@ -289,6 +308,7 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "member_count": len(members),
             "source_record_count": len(source_records),
             "conflict_count": 0,
+            "review_lead_count": len(review_leads),
             "requires_review": not resolved,
         },
     }
@@ -449,18 +469,41 @@ def build_directory_index(
         for item in _array(source_payload.get("items"))
         if isinstance(item, Mapping) and _text(item.get("person_id"))
     ]
-    canonical: list[list[Mapping[str, Any]]] = []
+    authority = authority_snapshot or {}
+    canonical_by_id: dict[str, list[Mapping[str, Any]]] = {}
     unresolved_by_name: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for item in source_items:
         if item.get("identity_kind") == "canonical_person" and not _text(
             item.get("merged_into_person_id")
         ):
-            canonical.append([item])
-        elif item.get("identity_kind") != "canonical_person":
-            key = _text(item.get("primary_name")).casefold() or _text(item.get("person_id"))
-            unresolved_by_name[key].append(item)
+            canonical_by_id[_text(item.get("person_id"))] = [item]
+    authority_sources = authority.get("sources") or {}
+    for item in source_items:
+        if item.get("identity_kind") == "canonical_person":
+            continue
+        linked_person_ids = {
+            _text(authority_sources[source_id].get("person_id"))
+            for source_id in (
+                _text(source.get("source_record_id"))
+                for source in _array(item.get("source_records"))
+                if isinstance(source, Mapping)
+            )
+            if source_id in authority_sources
+            and isinstance(authority_sources[source_id], Mapping)
+            and _text(authority_sources[source_id].get("person_id"))
+        }
+        if len(linked_person_ids) == 1:
+            linked_person_id = next(iter(linked_person_ids))
+            if linked_person_id in canonical_by_id:
+                canonical_by_id[linked_person_id].append(item)
+                continue
+        key = _text(item.get("primary_name")).casefold() or _text(item.get("person_id"))
+        unresolved_by_name[key].append(item)
 
-    people = [_directory_entity(records) for records in canonical]
+    people = [
+        _directory_entity(records)
+        for _person_id, records in sorted(canonical_by_id.items())
+    ]
     people.extend(_directory_entity(records) for _, records in sorted(unresolved_by_name.items()))
     entity_by_member_id = {
         member["record_id"]: person
@@ -537,7 +580,6 @@ def build_directory_index(
                 },
             }
         )
-    authority = authority_snapshot or {}
     organization_by_id = {
         organization["organization_id"]: organization
         for organization in organizations
@@ -632,6 +674,53 @@ def build_directory_index(
             {*organization.get("affiliated_person_ids", []), person["entity_id"]}
         )
 
+    for relationship_id, relationship in sorted(
+        (authority.get("relationships") or {}).items()
+    ):
+        if not isinstance(relationship, Mapping) or _text(
+            relationship.get("relationship_type")
+        ) != "AFFILIATED_WITH":
+            continue
+        if _text(relationship.get("status")) not in REVIEWED_ROLE_STATUSES:
+            continue
+        if not (
+            relationship.get("subject_type") == "person"
+            and relationship.get("object_type") == "organization"
+        ):
+            continue
+        person = person_by_id.get(_text(relationship.get("subject_id")))
+        organization_id = _text(relationship.get("object_id"))
+        organization = organization_by_id.get(organization_id)
+        if person is None or organization is None:
+            continue
+        affiliation = next(
+            (
+                item
+                for item in person["organizations"]
+                if item.get("organization_id") == organization_id
+            ),
+            None,
+        )
+        if affiliation is None:
+            affiliation = {
+                "affiliation_id": relationship_id,
+                "organization_id": organization_id,
+                "primary_name": organization["primary_name"],
+                "status": _text(relationship.get("status")),
+                "basis": "identity_relationship_projection",
+                "roles": [],
+            }
+            person["organizations"].append(affiliation)
+        else:
+            affiliation.update(
+                affiliation_id=relationship_id,
+                status=_text(relationship.get("status")),
+                basis="identity_relationship_projection",
+            )
+        organization["affiliated_person_ids"] = sorted(
+            {*organization.get("affiliated_person_ids", []), person["entity_id"]}
+        )
+
     for person in people:
         _finalize_affiliations(person)
     for organization in organization_by_id.values():
@@ -692,11 +781,30 @@ def build_directory_index(
         "schema_version": SCHEMA_VERSION,
         "people": people,
         "organizations": organizations,
+        "review_targets": {
+            "people": [
+                {
+                    "id": item["accepted_person_id"],
+                    "label": item["primary_name"],
+                }
+                for item in people
+                if item.get("accepted_person_id")
+            ],
+            "organizations": [
+                {
+                    "id": item["accepted_organization_id"],
+                    "label": item["primary_name"],
+                }
+                for item in organizations
+                if item.get("accepted_organization_id")
+            ],
+        },
         "counts": {
             "people": sum(item["entity_kind"] == "canonical_person" for item in people),
             "unresolved_groups": sum(item["entity_kind"] == "unresolved_group" for item in people),
             "source_records": source_record_count,
             "organizations": len(organizations),
+            "review_leads": sum(len(item["review_leads"]) for item in people),
         },
         "source_projection": {
             "schema_version": _text(source_payload.get("schema_version")),

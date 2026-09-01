@@ -185,83 +185,141 @@ class IdentityLearningLedger:
         subject_id: str = "",
         reverses_event_id: str = "",
     ) -> AppendEventReceipt:
-        if event_type not in EVENT_TYPES:
-            raise ValueError(f"Unsupported identity ledger event type: {event_type}.")
-        if not all((_text(actor_id), _text(occurred_at), _text(idempotency_key))):
-            raise ValueError("Identity ledger events require actor, time, and idempotency key.")
-        if event_type == "event_reversed" and not _text(reverses_event_id):
-            raise ValueError("Reversal events require reverses_event_id.")
-        if event_type != "event_reversed" and _text(reverses_event_id):
-            raise ValueError("Only reversal events may reference a reversed event.")
-        self._validate_event_payload(event_type, payload)
-        event_id = _stable_id("identity-event", _text(idempotency_key))
-        core = {
-            "id": event_id,
-            "event_type": event_type,
-            "event_schema": EVENT_SCHEMA,
-            "occurred_at": _text(occurred_at),
-            "actor_id": _text(actor_id),
-            "idempotency_key": _text(idempotency_key),
-            "subject_type": _text(subject_type),
-            "subject_id": _text(subject_id),
-            "reverses_event_id": _text(reverses_event_id),
-            "payload": dict(payload),
-        }
-        content_hash = _canonical_hash(core)
-        with transcript_store.connect(self.root) as con:
-            existing = con.execute(
-                """
-                SELECT id, content_hash
-                FROM knowledge_identity_ledger_events
-                WHERE idempotency_key = ?
-                """,
-                (_text(idempotency_key),),
-            ).fetchone()
-            if existing is not None:
-                if str(existing["content_hash"]) != content_hash:
-                    raise ValueError(
-                        "Identity event idempotency key was reused with "
-                        "different content."
-                    )
-                return AppendEventReceipt(str(existing["id"]), content_hash, "unchanged")
-            if reverses_event_id:
-                reversed_row = con.execute(
-                    """
-                    SELECT event_type
-                    FROM knowledge_identity_ledger_events
-                    WHERE id = ?
-                    """,
-                    (reverses_event_id,),
-                ).fetchone()
-                if reversed_row is None:
-                    raise ValueError("Reversal references an unknown identity event.")
-                if str(reversed_row["event_type"]) == "event_reversed":
-                    raise ValueError("Reversal events cannot reverse another reversal event.")
-            con.execute(
-                """
-                INSERT INTO knowledge_identity_ledger_events (
-                    id, event_type, event_schema, occurred_at, actor_id,
-                    idempotency_key, subject_type, subject_id,
-                    reverses_event_id, payload_json, content_hash, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event_id,
-                    event_type,
-                    EVENT_SCHEMA,
-                    _text(occurred_at),
-                    _text(actor_id),
-                    _text(idempotency_key),
-                    _text(subject_type),
-                    _text(subject_id),
-                    _text(reverses_event_id) or None,
-                    _canonical_json(dict(payload)),
-                    content_hash,
-                    _text(occurred_at),
-                ),
+        return self.append_events(
+            (
+                {
+                    "event_type": event_type,
+                    "payload": payload,
+                    "actor_id": actor_id,
+                    "occurred_at": occurred_at,
+                    "idempotency_key": idempotency_key,
+                    "subject_type": subject_type,
+                    "subject_id": subject_id,
+                    "reverses_event_id": reverses_event_id,
+                },
             )
-            con.commit()
-        return AppendEventReceipt(event_id, content_hash, "inserted")
+        )[0]
+
+    def append_events(
+        self,
+        events: Sequence[Mapping[str, Any]],
+    ) -> tuple[AppendEventReceipt, ...]:
+        """Append a review's dependent identity events in one transaction."""
+        if not events:
+            raise ValueError("Identity ledger event batches cannot be empty.")
+        prepared: list[tuple[dict[str, Any], str]] = []
+        for raw in events:
+            event_type = _text(raw.get("event_type"))
+            payload = raw.get("payload")
+            if event_type not in EVENT_TYPES:
+                raise ValueError(
+                    f"Unsupported identity ledger event type: {event_type}."
+                )
+            if not isinstance(payload, Mapping):
+                raise ValueError("Identity ledger event payload must be an object.")
+            actor_id = _text(raw.get("actor_id"))
+            occurred_at = _text(raw.get("occurred_at"))
+            idempotency_key = _text(raw.get("idempotency_key"))
+            if not all((actor_id, occurred_at, idempotency_key)):
+                raise ValueError(
+                    "Identity ledger events require actor, time, and idempotency key."
+                )
+            reverses_event_id = _text(raw.get("reverses_event_id"))
+            if event_type == "event_reversed" and not reverses_event_id:
+                raise ValueError("Reversal events require reverses_event_id.")
+            if event_type != "event_reversed" and reverses_event_id:
+                raise ValueError(
+                    "Only reversal events may reference a reversed event."
+                )
+            self._validate_event_payload(event_type, payload)
+            event_id = _stable_id("identity-event", idempotency_key)
+            core = {
+                "id": event_id,
+                "event_type": event_type,
+                "event_schema": EVENT_SCHEMA,
+                "occurred_at": occurred_at,
+                "actor_id": actor_id,
+                "idempotency_key": idempotency_key,
+                "subject_type": _text(raw.get("subject_type")),
+                "subject_id": _text(raw.get("subject_id")),
+                "reverses_event_id": reverses_event_id,
+                "payload": dict(payload),
+            }
+            prepared.append((core, _canonical_hash(core)))
+
+        receipts: list[AppendEventReceipt] = []
+        with transcript_store.connect(self.root) as con:
+            con.execute("BEGIN IMMEDIATE")
+            try:
+                for core, content_hash in prepared:
+                    existing = con.execute(
+                        """
+                        SELECT id, content_hash
+                        FROM knowledge_identity_ledger_events
+                        WHERE idempotency_key = ?
+                        """,
+                        (core["idempotency_key"],),
+                    ).fetchone()
+                    if existing is not None:
+                        if str(existing["content_hash"]) != content_hash:
+                            raise ValueError(
+                                "Identity event idempotency key was reused with "
+                                "different content."
+                            )
+                        receipts.append(
+                            AppendEventReceipt(
+                                str(existing["id"]), content_hash, "unchanged"
+                            )
+                        )
+                        continue
+                    if core["reverses_event_id"]:
+                        reversed_row = con.execute(
+                            """
+                            SELECT event_type
+                            FROM knowledge_identity_ledger_events
+                            WHERE id = ?
+                            """,
+                            (core["reverses_event_id"],),
+                        ).fetchone()
+                        if reversed_row is None:
+                            raise ValueError(
+                                "Reversal references an unknown identity event."
+                            )
+                        if str(reversed_row["event_type"]) == "event_reversed":
+                            raise ValueError(
+                                "Reversal events cannot reverse another reversal event."
+                            )
+                    con.execute(
+                        """
+                        INSERT INTO knowledge_identity_ledger_events (
+                            id, event_type, event_schema, occurred_at, actor_id,
+                            idempotency_key, subject_type, subject_id,
+                            reverses_event_id, payload_json, content_hash, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            core["id"],
+                            core["event_type"],
+                            EVENT_SCHEMA,
+                            core["occurred_at"],
+                            core["actor_id"],
+                            core["idempotency_key"],
+                            core["subject_type"],
+                            core["subject_id"],
+                            core["reverses_event_id"] or None,
+                            _canonical_json(core["payload"]),
+                            content_hash,
+                            core["occurred_at"],
+                        ),
+                    )
+                    receipts.append(
+                        AppendEventReceipt(core["id"], content_hash, "inserted")
+                    )
+                con.commit()
+            except Exception:
+                con.rollback()
+                raise
+        return tuple(receipts)
 
     def events(
         self,

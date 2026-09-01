@@ -726,6 +726,7 @@ function PeopleView() {
   const [widths, setWidths] = useState(DIRECTORY_COLUMNS.map((column) => column.width));
   const [expandedId, setExpandedId] = useState("");
   const [loadState, setLoadState] = useState({ status: "loading", message: "Loading directory…" });
+  const [refreshToken, setRefreshToken] = useState(0);
   const tableRef = useRef(null);
 
   useEffect(() => {
@@ -749,7 +750,7 @@ function PeopleView() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, view]);
+  }, [query, view, refreshToken]);
 
   const items = useMemo(() => [...(payload.items || [])].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
@@ -839,7 +840,7 @@ function PeopleView() {
                 <td>{item.last_interaction_at ? formatDate(item.last_interaction_at) : "No dated activity"}</td>
                 <td><span className="directory-cell-stack"><strong>{health.requires_review ? "Review needed" : "Resolved"}</strong><small>{health.source_record_count ?? health.source_name_count ?? 0} sources · {health.conflict_count || 0} conflicts</small></span></td>
               </tr>
-              {expanded && <tr className="directory-expanded-row"><td colSpan={DIRECTORY_COLUMNS.length}><DirectoryDetail item={item} /></td></tr>}
+              {expanded && <tr className="directory-expanded-row"><td colSpan={DIRECTORY_COLUMNS.length}><DirectoryDetail item={item} onReviewed={() => setRefreshToken((value) => value + 1)} reviewTargets={payload.review_targets || { people: [], organizations: [] }} /></td></tr>}
             </Fragment>;
           })}</tbody>
         </table>
@@ -849,7 +850,122 @@ function PeopleView() {
   );
 }
 
-function DirectoryDetail({ item }) {
+const DIRECTORY_REVIEW_COLUMNS = [
+  { key: "lead", label: "Lead", width: 18 },
+  { key: "organization", label: "Organization", width: 17 },
+  { key: "person", label: "Person target", width: 16 },
+  { key: "organizationTarget", label: "Organization target", width: 17 },
+  { key: "title", label: "Role title", width: 15 },
+  { key: "state", label: "State", width: 9 },
+  { key: "actions", label: "Actions", width: 8 }
+];
+
+function reviewLeadValue(lead, key) {
+  if (key === "lead") return hypothesisLabel(lead.hypothesis_kind);
+  if (key === "organization" || key === "organizationTarget") return lead.organization || lead.counterpart_label || "";
+  if (key === "title") return lead.display_value || "";
+  if (key === "state") return lead.review_state || "unreviewed";
+  return "";
+}
+
+function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
+  const acceptedPerson = item.accepted_person_id || "";
+  const organizationName = lead.organization || lead.counterpart_label || "";
+  const matchingOrganization = reviewTargets.organizations?.find((target) => target.label.trim().toLowerCase() === organizationName.trim().toLowerCase());
+  const [personTarget, setPersonTarget] = useState(acceptedPerson ? `existing:${acceptedPerson}` : "create");
+  const [organizationTarget, setOrganizationTarget] = useState(matchingOrganization ? `existing:${matchingOrganization.id}` : "create");
+  const [roleTitle, setRoleTitle] = useState(lead.display_value || "");
+  const [decision, setDecision] = useState({ status: "idle", message: "" });
+
+  async function review(action) {
+    setDecision({ status: "loading", message: "Saving…" });
+    const personMode = personTarget.startsWith("existing:") ? "existing" : "create";
+    const personId = personMode === "existing" ? personTarget.slice("existing:".length) : "";
+    const organizationMode = organizationTarget.startsWith("existing:") ? "existing" : "create";
+    const organizationId = organizationMode === "existing" ? organizationTarget.slice("existing:".length) : "";
+    const submission = {
+      schema_version: "transcribe-audio.directory-hypothesis-review-submission.v1",
+      hypothesis_id: lead.hypothesis_id,
+      action,
+      expected_projection_version: lead.projection_version,
+      source_content_sha256: lead.source_content_sha256,
+      reviewer: "operator",
+      decided_at: new Date().toISOString(),
+      idempotency_key: operationId(`directory-${lead.hypothesis_id}-${action}`),
+      person_target: { mode: personMode, ...(personId ? { id: personId } : {}) },
+      organization_target: { mode: organizationMode, ...(organizationId ? { id: organizationId } : {}) },
+      ...(lead.hypothesis_kind === "contextual_role" ? { role_title: roleTitle.trim() } : {})
+    };
+    try {
+      await fetchJson(`/api/directory-hypotheses/${encodeURIComponent(lead.hypothesis_id)}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission)
+      });
+      setDecision({ status: "saved", message: action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred" });
+      onReviewed();
+    } catch (error) {
+      setDecision({ status: "error", message: error.message });
+    }
+  }
+
+  const disabled = decision.status === "loading";
+  return <tr className="directory-review-row">
+    <td><strong>{lead.hypothesis_kind === "contextual_role" ? "Role" : "Affiliation"}</strong><small>{lead.basis || "Provider observation"}</small></td>
+    <td>{organizationName || "—"}</td>
+    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from this contact</option>{(reviewTargets.people || []).map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</select></td>
+    <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} value={organizationTarget}><option value="create">Create {organizationName}</option>{(reviewTargets.organizations || []).map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</select></td>
+    <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} value={roleTitle} /> : <span className="muted">No role asserted</span>}</td>
+    <td><span className={`directory-review-state ${decision.status === "error" ? "error" : lead.review_state || "unreviewed"}`} title={decision.message}>{decision.message || (lead.review_state === "accepted" ? "Accepted" : lead.review_state === "rejected" ? "Rejected" : lead.review_state === "deferred" ? "Deferred" : "Needs review")}</span></td>
+    <td><div className="directory-review-actions">
+      <button aria-label="Accept organization or role lead" className="accept" disabled={disabled || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title="Accept" type="button"><Icon name="reviewed" size={14} /></button>
+      <button aria-label="Reject organization or role lead" className="reject" disabled={disabled || lead.review_state === "rejected"} onClick={() => review("reject")} title="Reject" type="button"><Icon name="reject" size={14} /></button>
+      <button aria-label="Defer organization or role lead" className="defer" disabled={disabled || lead.review_state === "deferred"} onClick={() => review("defer")} title="Defer" type="button"><Icon name="defer" size={14} /></button>
+    </div></td>
+  </tr>;
+}
+
+function DirectoryReviewLeads({ item, onReviewed, reviewTargets }) {
+  const leads = item.review_leads || [];
+  const [sort, setSort] = useState({ key: "organization", direction: "asc" });
+  const [widths, setWidths] = useState(DIRECTORY_REVIEW_COLUMNS.map((column) => column.width));
+  const tableRef = useRef(null);
+  const ordered = useMemo(() => [...leads].sort((left, right) => {
+    const comparison = String(reviewLeadValue(left, sort.key)).localeCompare(String(reviewLeadValue(right, sort.key)));
+    return (sort.direction === "asc" ? comparison : -comparison) || String(left.hypothesis_id).localeCompare(String(right.hypothesis_id));
+  }), [leads, sort]);
+
+  function sortBy(key) {
+    if (key === "actions" || key === "person") return;
+    setSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const startX = event.clientX;
+    const start = [...widths];
+    const move = (nextEvent) => {
+      const pair = start[index] + start[index + 1];
+      const left = Math.max(7, Math.min(pair - 7, start[index] + ((nextEvent.clientX - startX) / tableWidth) * 100));
+      const next = [...start];
+      next[index] = left;
+      next[index + 1] = pair - left;
+      setWidths(next);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  if (!leads.length) return null;
+  return <section className="directory-review-leads"><h3>Organization &amp; role leads <span>{leads.length}</span></h3><div className="directory-detail-scroll"><table ref={tableRef}><colgroup>{widths.map((width, index) => <col key={DIRECTORY_REVIEW_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr>{DIRECTORY_REVIEW_COLUMNS.map((column, index) => <th aria-sort={sort.key === column.key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} key={column.key}><button className="directory-review-sort" disabled={column.key === "actions" || column.key === "person"} onClick={() => sortBy(column.key)} type="button"><span>{column.label}</span>{column.key !== "actions" && column.key !== "person" && <Icon name={sort.key === column.key ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>{index < DIRECTORY_REVIEW_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" className="directory-resizer" onDoubleClick={() => setWidths(DIRECTORY_REVIEW_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}</th>)}</tr></thead><tbody>{ordered.map((lead) => <DirectoryReviewLeadRow item={item} key={`${lead.hypothesis_id}:${lead.projection_version}`} lead={lead} onReviewed={onReviewed} reviewTargets={reviewTargets} />)}</tbody></table></div></section>;
+}
+
+function DirectoryDetail({ item, onReviewed, reviewTargets }) {
   const members = item.members || [];
   const sources = item.source_records || members.flatMap((member) => member.source_records || []);
   const affiliations = item.organizations || [];
@@ -858,6 +974,7 @@ function DirectoryDetail({ item }) {
     : [{ affiliation, role: null }]);
   const roleCount = affiliationRows.filter(({ role }) => role).length;
   return <div className="directory-detail">
+    <DirectoryReviewLeads item={item} onReviewed={onReviewed} reviewTargets={reviewTargets} />
     <section><h3>Activity timeline <span>{item.activities?.length || 0}</span></h3>
       <div className="directory-detail-scroll"><table><thead><tr><th>Date</th><th>Channel</th><th>Conversation or evidence</th><th>Participation</th><th>Source</th></tr></thead><tbody>{(item.activities || []).map((activity) => <tr key={`${activity.channel}-${activity.observation_id}`}><td>{activity.occurred_at ? formatDate(activity.occurred_at) : "Undated"}</td><td>{label(activity.channel)}</td><td>{activity.title || "Bounded source evidence"}</td><td>{label(activity.participation_status)} · {label(activity.evidence_status)}</td><td><code>{compactHash(activity.source_record_id)}</code></td></tr>)}</tbody></table></div>
     </section>

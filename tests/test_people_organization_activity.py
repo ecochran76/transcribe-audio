@@ -90,13 +90,14 @@ def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> Non
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v2"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v3"
     assert index["counts"] == {
         "people": 0,
         "unresolved_groups": 1,
-        "source_records": 8,
-        "organizations": 0,
-    }
+            "source_records": 8,
+            "organizations": 0,
+            "review_leads": 0,
+        }
     group = index["people"][0]
     assert group["entity_kind"] == "unresolved_group"
     assert group["resolution_state"] == "review_required"
@@ -187,6 +188,66 @@ def test_provider_organization_strings_create_one_proposed_entity_not_an_employe
         assert affiliation["affiliation_id"].startswith("affiliation:")
         assert person["primary_affiliation"] == affiliation
         assert person["additional_organization_count"] == 0
+
+
+def test_directory_carries_provider_affiliation_and_role_review_leads() -> None:
+    source_payload = {
+        "schema_version": "transcribe-audio.identity-people.v1",
+        "items": [
+            {
+                "person_id": "contact:alex",
+                "identity_kind": "local_contact",
+                "status": "provisional",
+                "primary_name": "Alex Example",
+                "aliases": [],
+                "source_records": [{"source_record_id": "contact-alex"}],
+                "organizations": ["Example Labs"],
+                "calendar_occurrences": [],
+                "review_occurrences": [],
+                "role_hypotheses": [
+                    {
+                        "hypothesis_id": "role-hypothesis-alex",
+                        "hypothesis_kind": "contextual_role",
+                        "subject_contact_id": "contact-alex",
+                        "display_value": "Research Director",
+                        "organization": "Example Labs",
+                        "department": "Research",
+                        "status": "proposed",
+                        "source_content_sha256": "a" * 64,
+                        "projection_version": "1",
+                        "review_state": "unreviewed",
+                    }
+                ],
+                "relationship_hypotheses": [
+                    {
+                        "hypothesis_id": "affiliation-hypothesis-alex",
+                        "hypothesis_kind": "affiliation",
+                        "subject_contact_id": "contact-alex",
+                        "relationship_type": "AFFILIATED_WITH",
+                        "counterpart_id": "organization-example-labs",
+                        "counterpart_label": "Example Labs",
+                        "status": "proposed",
+                        "source_content_sha256": "b" * 64,
+                        "projection_version": "1",
+                        "review_state": "unreviewed",
+                    }
+                ],
+            }
+        ],
+    }
+
+    index = build_directory_index(source_payload)
+
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v3"
+    assert index["counts"]["review_leads"] == 2
+    person = index["people"][0]
+    assert [lead["hypothesis_kind"] for lead in person["review_leads"]] == [
+        "affiliation",
+        "contextual_role",
+    ]
+    assert person["review_leads"][0]["subject_contact_id"] == "contact-alex"
+    assert person["review_leads"][1]["display_value"] == "Research Director"
+    assert person["identity_health"]["review_lead_count"] == 2
 
 
 def test_activity_counts_independent_evidence_and_preserves_participation_state() -> None:

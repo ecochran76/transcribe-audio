@@ -318,6 +318,14 @@ appointments to the evidence fabric. Desktop/mobile QA confirms the complete
 three-role expansion stays dense. The live ledger still has zero roles, so the
 slice changed no accepted affiliation truth and remains Level 2 shadow.
 
+Plan 0078 is closed with the organization and role review workflow installed.
+The v3 directory restores all 62 current affiliation/role leads inside one
+compact sortable/resizable inline table, requires explicit create-or-select
+person and organization targets, and records stale-safe accept/reject/defer
+decisions through an atomic ledger batch. Accepted roles and affiliations enter
+the existing directory and evidence seams. Desktop/mobile Agent Browser QA and
+live readback left all 62 leads unreviewed and created no authority effects.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -351,8 +359,14 @@ Plans:
 - `docs/dev/plans/0075-2026-09-01-mail-hypothesis-contacts-review-bridge.md`
 - `docs/dev/plans/0076-2026-09-01-canonical-people-organization-activity-index.md`
 - `docs/dev/plans/0077-2026-09-01-multi-organization-role-affiliations.md`
+- `docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
 
 Milestone Focus:
+
+- Closed milestone M9 is Plan 0078's organization and role review workflow.
+  The dense canonical directory now provides one explicit atomic route from a
+  source contact to selected or newly created person/organization authority
+  and one role or affiliation assertion. Installation accepted no live lead.
 
 - Closed milestone M8 is Plan 0077's multi-organization and multi-role
   correction. The person/org overwrite defect is removed, independently

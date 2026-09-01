@@ -137,6 +137,7 @@ def discover_relationship_roles(
                     {
                         "hypothesis_id": _candidate_id("role-hypothesis", *key),
                         "hypothesis_kind": "contextual_role",
+                        "subject_contact_id": contact["contact_id"],
                         "role_type": "professional_title",
                         "display_value": title,
                         "organization": organization,
@@ -160,6 +161,7 @@ def discover_relationship_roles(
                     {
                         "hypothesis_id": _candidate_id("relationship-hypothesis", "affiliation", *key),
                         "hypothesis_kind": "affiliation",
+                        "subject_contact_id": contact["contact_id"],
                         "relationship_type": "AFFILIATED_WITH",
                         "directionality": "directional",
                         "counterpart_type": "organization",

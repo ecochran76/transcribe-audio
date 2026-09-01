@@ -971,6 +971,107 @@
   text-transform: uppercase;
 }
 
+.directory-review-leads table {
+  min-width: 70rem;
+  table-layout: fixed;
+}
+
+.directory-review-leads th {
+  position: relative;
+  padding: 0;
+}
+
+.directory-review-sort {
+  display: flex;
+  width: 100%;
+  min-height: 1.7rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0.2rem 0.32rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.directory-review-sort:not(:disabled) {
+  cursor: pointer;
+}
+
+.directory-review-row td {
+  vertical-align: middle;
+}
+
+.directory-review-row td > strong,
+.directory-review-row td > small {
+  display: block;
+}
+
+.directory-review-row td > small {
+  max-width: 18rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.6rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-review-row select,
+.directory-review-row input {
+  width: 100%;
+  min-width: 0;
+  height: 1.65rem;
+  padding: 0.12rem 0.28rem;
+  border: 1px solid rgba(244, 236, 216, 0.16);
+  border-radius: 0.18rem;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  font: inherit;
+}
+
+.directory-review-state {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-review-state.accepted,
+.directory-review-state.saved { color: #83d4a1; }
+.directory-review-state.rejected,
+.directory-review-state.error { color: #ee9d93; }
+.directory-review-state.deferred { color: #d4bd83; }
+
+.directory-review-actions {
+  display: flex;
+  gap: 0.18rem;
+}
+
+.directory-review-actions button {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(244, 236, 216, 0.16);
+  border-radius: 0.18rem;
+  background: transparent;
+  color: var(--muted);
+}
+
+.directory-review-actions button.accept:hover,
+.directory-review-actions button.accept:focus-visible { color: #83d4a1; border-color: #83d4a1; }
+.directory-review-actions button.reject:hover,
+.directory-review-actions button.reject:focus-visible { color: #ee9d93; border-color: #ee9d93; }
+.directory-review-actions button.defer:hover,
+.directory-review-actions button.defer:focus-visible { color: #d4bd83; border-color: #d4bd83; }
+.directory-review-actions button:disabled { opacity: 0.38; cursor: default; }
+
 @media (max-width: 900px) {
   .identity-workspace .view-heading {
     display: grid;

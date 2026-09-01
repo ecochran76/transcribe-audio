@@ -41,6 +41,56 @@ def _append(
     ).event_id
 
 
+def test_append_events_is_atomic_when_a_later_event_conflicts(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    common = {
+        "actor_id": "reviewer:test",
+        "occurred_at": "2026-09-01T12:00:00Z",
+    }
+    ledger.append_event(
+        event_type="person_created",
+        payload={
+            "person_id": "person-existing",
+            "primary_name": "Existing Person",
+            "status": "reviewed",
+        },
+        idempotency_key="existing-key",
+        **common,
+    )
+
+    with pytest.raises(ValueError, match="reused with different content"):
+        ledger.append_events(
+            (
+                {
+                    "event_type": "organization_created",
+                    "payload": {
+                        "organization_id": "organization-new",
+                        "primary_name": "New Organization",
+                        "status": "reviewed",
+                    },
+                    "idempotency_key": "new-key",
+                    **common,
+                },
+                {
+                    "event_type": "person_created",
+                    "payload": {
+                        "person_id": "person-different",
+                        "primary_name": "Different Person",
+                        "status": "reviewed",
+                    },
+                    "idempotency_key": "existing-key",
+                    **common,
+                },
+            )
+        )
+
+    assert [event["idempotency_key"] for event in ledger.events()] == [
+        "existing-key"
+    ]
+
+
 def test_append_only_events_rebuild_merge_split_and_reversal_deterministically(
     tmp_path: Path,
 ) -> None:

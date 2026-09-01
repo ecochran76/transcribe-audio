@@ -436,6 +436,9 @@ def test_people_projection_exposes_shadow_graph_hypotheses_without_accepting_the
     assert payload["graph_discovery"]["accepted_effect_count"] == 0
     contact = payload["items"][0]
     assert contact["role_hypotheses"][0]["display_value"] == "Research Director"
+    assert contact["role_hypotheses"][0]["review_state"] == "unreviewed"
+    assert contact["role_hypotheses"][0]["projection_version"] == "1"
+    assert len(contact["role_hypotheses"][0]["source_content_sha256"]) == 64
     assert contact["relationship_hypotheses"][0]["relationship_type"] == "AFFILIATED_WITH"
     assert contact["roles"] == []
     assert contact["relationships"] == []

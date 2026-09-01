@@ -1,5 +1,75 @@
 # Runbook
 
+## Turn 430: Close Plan 0078 with installed review workflow (2026-09-01)
+
+Summary: Closed
+`docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
+after installing the explicit organization/role hypothesis review path in the
+canonical Contacts directory.
+
+Evidence:
+
+- Directory schema v3 carries stable review IDs, source hashes, projection
+  versions, review history, and exact accepted/create target options. The live
+  readback contains 62 leads: 59 affiliations and three contextual roles.
+- Accept validates exact person and organization targets and atomically writes
+  the bounded source observation plus one accepted role or affiliation. Reject
+  and defer write reconciliation history only. All paths are stale-safe and
+  idempotent; conflicting replay fails closed.
+- Accepted affiliation relationships render without an invented role, while
+  accepted role appointments remain independent and enter accepted temporal
+  context retrieval. No provider, speaker, or Graphiti write path was added.
+- The compact inline table exposes sortable headers, six draggable column
+  separators, exact target controls, optional role-title editing, and three
+  25-by-25 SVG action controls. It adds no cards, modal ceremony, pills, or
+  large buttons.
+- Focused directory/review/workflow/API/ledger tests passed 96 tests. The full
+  provider-free suite passed 1,283 tests in 72.25 seconds through
+  `.venv/bin/python -m pytest -q`. Python compilation, Vite production build,
+  and diff hygiene passed.
+- Agent Browser at 1440-by-900 verified seven headers, sortable state, six
+  resize handles, successful column resizing, three SVG actions, compact
+  25-pixel buttons, 26-pixel target controls, and no page-level overflow. At
+  390-by-844 the wide tables remained horizontally contained. No action button
+  was activated.
+- `transcripts.service` restarted successfully and remains active with
+  `NRestarts=0`. Final API readback still shows all 62 leads as `unreviewed`,
+  proving installation and QA made no live review decision.
+
+Progress classification: `outcome_progress`. Plan 0078 and milestone M9 are
+`CLOSED`. The dashboard is ready for operator organization/role review; any
+accepted graph truth now requires an explicit user action in that workflow.
+
+## Turn 429: Open Plan 0078 organization and role review (2026-09-01)
+
+Summary: Opened
+`docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
+to restore affiliation and role leads to the canonical dense directory and
+give them one explicit stale-safe review path.
+
+Evidence:
+
+- The branch began clean and synchronized at `fe288d4`.
+- Graphiti runtime and MCP were healthy, but repo-group discovery returned no
+  current Plan 0077/0078 memory. Current source, Plan 0077, and installed API
+  readback therefore remain authoritative.
+- CodeGraph showed that `IdentityReviewWorkflow.list_people` still produces
+  source hypotheses, while `build_directory_index` drops them and the current
+  `DirectoryDetail` never mounts the older `HypothesisTable`.
+- Current local projection readback contains 59 provider affiliation leads and
+  three exact-email contextual-role leads. All are unreviewed. The separate
+  mail cohort contains 120 unreviewed correspondence/co-participation leads and
+  remains outside this slice.
+- Current ledger projections contain zero people, sources, organizations,
+  roles, and relationships. Therefore acceptance must explicitly create or
+  select person and organization targets; a provider organization string
+  cannot silently establish person identity.
+- The policy selector reports the repo already aligned with no missing modules
+  or validation problems. No provider or Graphiti write occurred.
+
+Progress classification: `outcome_progress`. Plan 0078 is `OPEN`; P0 is frozen
+and P1 begins with a failing public directory projection test.
+
 ## Turn 428: Close Plan 0077 with installed multi-role validation (2026-09-01)
 
 Summary: Closed

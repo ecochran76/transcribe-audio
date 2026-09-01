@@ -13,6 +13,11 @@ import transcript_store
 from conversation_knowledge_store import ConversationKnowledgeStore, LATEST_SCHEMA_VERSION
 from identity_learning_contracts import ARTIFACT_SCHEMAS, validate_artifact
 from identity_learning_ledger import IdentityLearningLedger
+from directory_hypothesis_review import (
+    StaleDirectoryHypothesisReview,
+    project_directory_review_hypotheses,
+    record_directory_hypothesis_review,
+)
 from mail_hypothesis_review import (
     MailHypothesisProjectionError,
     StaleMailHypothesisReview,
@@ -892,6 +897,9 @@ class IdentityReviewWorkflow:
             projected_mail_hypotheses=projected_mail,
             mail_source=mail_source,
         )
+        graph_discovery = project_directory_review_hypotheses(
+            self.root, graph_discovery
+        )
         graph_by_contact = graph_discovery["by_contact_id"]
         with transcript_store.connect(self.root) as con:
             people = con.execute(
@@ -1314,3 +1322,9 @@ class IdentityReviewWorkflow:
         submission: Mapping[str, Any],
     ) -> dict[str, Any]:
         return record_mail_hypothesis_review(self.root, submission)
+
+    def record_directory_hypothesis_review(
+        self,
+        submission: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return record_directory_hypothesis_review(self.root, submission)
