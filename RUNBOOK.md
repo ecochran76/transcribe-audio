@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 419: Fail closed on Mail Receipts fanout errors and revalidate P5 (2026-08-31)
+
+Summary: Corrected the cross-software acceptance contract after DuckDB child
+failures were shown capable of coexisting with `valid=true`. Mail Receipts now
+invalidates that response, and Transcribe Audio independently rejects either a
+nonzero child-failure count or `valid=false`.
+
+Evidence:
+
+- Installed Mail Receipts checkpoint
+  `6a1af2f50eb2e6830e428701371e6ea78153b576` forces
+  `valid=false` with reason `aggregate_backend_failure` whenever any fanout
+  child fails. Installed bounded page 1 and page 2 smokes each reached two
+  backends with zero failures and valid pagination cursors.
+- Transcribe Audio checkpoint `ade2ee4` adds the independent consumer guard.
+  Its regression starts from the misleading shape
+  `valid=true, aggregate_failed_backend_count=2` and proves the reader stops
+  before selected-context reads.
+- The unchanged frozen cohort was executed again through installed stdio MCP
+  under that guard: 57/57 queries, 966 selected records, 951 observations and
+  independence groups, 120 proposed-only hypotheses, zero unavailable queries,
+  and equal provider-free replay.
+- Provider writes, mailbox writes, accepted graph effects, person merges,
+  speaker assignments, and biometric effects remained zero. Private receipt:
+  `~/.local/state/transcribe-audio/plan-0073/consumer-validations/mail-receipts-failclosed-6a1af2f5-transcribe-ade2ee4/plan-0073/private-pilots/plan0073-p5-139eea68bfb7e6929e4e22115458e35e/aggregate-validation.json`.
+
+Validation: five focused reader tests pass. Mail Receipts' focused validity,
+historical-bound, and bounded-pagination regressions pass. Current installed
+cutoff execution is healthy; the former `valid=true` contract is superseded.
+
+Progress classification: `corrective_outcome_progress`. The original
+mail-evidence read problem remains resolved, now with failure reporting a
+consumer can safely trust.
+
 ## Turn 418: Execute repaired Mail Receipts through hypothesis discovery (2026-08-31)
 
 Summary: Reran the unchanged Plan 0073 private cohort through the full
@@ -59,9 +93,9 @@ Evidence:
   `as_of` value as a server-side `before:` bound. Mail Receipts keeps that query
   on archive-plus-live DuckDB fanout, so historical filtering precedes ranking
   and the 25-record page cap.
-- A representative 2019 query returned 25 pre-cutoff records. The full frozen
-  cohort accounted for 57/57 queries: 50 returned records, 976 records were
-  selected, and 7 were genuine zero matches.
+- A representative 2019 query returned 25 pre-cutoff records. This first full
+  replay accounted for 57/57 queries, but its 976-record summary predated the
+  fail-closed correction and is superseded by Turn 419's 966-record replay.
 - Validation receipt:
   `~/.local/state/transcribe-audio/plan-0073/plan236-mail-recovery-validation.json`.
   Provider reads, mailbox writes, accepted graph writes, and speaker/profile

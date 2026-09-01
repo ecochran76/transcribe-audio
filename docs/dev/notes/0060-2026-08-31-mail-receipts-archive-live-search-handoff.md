@@ -8,20 +8,29 @@ Status: RESOLVED
 
 ## Resolution
 
-Mail Receipts Plan 236 completed the repair at installed checkpoint
-`e5fb9b8dd2722e55941715cbc331a9a45544630c`. It materialized and registered the
+Mail Receipts Plan 236 completed the repair and fail-closed correction at
+installed checkpoint `6a1af2f50eb2e6830e428701371e6ea78153b576`. It
+materialized and registered the
 retained pre-2024 partition, combined it with 2024 into a 359,693-message
 archive member, repaired relocated DuckDB pointer resolution, hydrated selected
 context from aggregate search sidecars, normalized retained timestamps to UTC,
 and kept exact-address historical bounds on archive-plus-live DuckDB fanout.
+Any failed fanout child now forces `valid=false` with reason
+`aggregate_backend_failure`; Transcribe checkpoint `ade2ee4` independently
+rejects either that signal or a nonzero failure count.
 
 Transcribe Audio now sends one exact participant query with the frozen `as_of`
-value as `before:`. The unchanged 57-query cohort returned 976 usable pre-cutoff
-records across 50 queries; 7 queries were content-level zero matches. Receipt:
-`~/.local/state/transcribe-audio/plan-0073/plan236-mail-recovery-validation.json`.
+value as `before:`. The unchanged fail-closed cohort selected 966 pre-cutoff
+records with zero unavailable queries and equal replay. Receipt:
+`~/.local/state/transcribe-audio/plan-0073/consumer-validations/mail-receipts-failclosed-6a1af2f5-transcribe-ade2ee4/plan-0073/private-pilots/plan0073-p5-139eea68bfb7e6929e4e22115458e35e/aggregate-validation.json`.
 No provider read, mailbox write, accepted graph write, or speaker/profile effect
 occurred. The former zero-coverage conclusion is superseded and must not be
 treated as current corpus evidence.
+
+The earlier acceptance wording is also corrected: `valid=true` alone was not
+safe because fanout failure metadata did not recompute validity. Current
+installed bounded page 1 and page 2 smokes each report two backends, zero
+failures, and valid cursors; future child failures stop the consumer.
 
 ## Historical diagnosis
 

@@ -239,11 +239,13 @@ historical cutoffs, frozen budgets, and 25-conversation/57-query cohort with
 content SHA-256
 `00de9e575524e17ab4c853ec7f9594f875ebd3e26068df6adc0688d2bf152156`.
 Mail Receipts Plan 236 installed checkpoint
-`e5fb9b8dd2722e55941715cbc331a9a45544630c` now serves the retained pre-2024
+`6a1af2f50eb2e6830e428701371e6ea78153b576` now serves the retained pre-2024
 and 2024 partitions as one 359,693-message archive member, hydrates aggregate
 selected-result context, normalizes retained timestamps to UTC, and applies
 historical bounds before ranking/page limiting on the two-member
-archive-plus-live DuckDB path. Transcribe Audio now sends one bounded exact
+archive-plus-live DuckDB path. Any failed fanout child now forces
+`valid=false`, and Transcribe checkpoint `ade2ee4` independently rejects either
+that signal or a nonzero failure count. Transcribe Audio sends one bounded exact
 participant query per frozen address. The unchanged cohort accounted for all
 57 queries in a full repaired-source P5 rerun, selected 966 records, retained
 951 normalized observations and independence groups, and produced 120
