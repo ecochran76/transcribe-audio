@@ -324,6 +324,10 @@ rows in the 208-row contact directory, keeps reviewed/deferred and all-row
 scopes configurable, collapses evidence/history behind actions, labels
 accepted targets explicitly, and suppresses duplicate in-flight review posts
 while refreshing current state on a stale response.
+Plan 0080 is closed. Contacts now defaults to 57 flat, one-line approval rows
+with direct evidence, activity, target, title, and SVG decision controls. A
+peer Directory mode restores the complete 208-contact and 40-organization
+surfaces without any implicit approval filter.
 The v3 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer

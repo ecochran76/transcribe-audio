@@ -1,5 +1,62 @@
 # Runbook
 
+## Turn 434: Close Plan 0080 flat approval-row view (2026-09-01)
+
+Summary: Closed
+`docs/dev/plans/0080-2026-09-01-flat-approval-row-view.md` after replacing the
+contact-level review filter with a true flat approval work surface.
+
+Evidence:
+
+- The installed default renders 57 top-level approval rows for the 57
+  unreviewed hypotheses. It contains zero contact expand controls, expanded
+  rows, evidence disclosures, activity tables, or source tables.
+- Every 33-pixel row exposes contact, proposal, compact source basis,
+  transcript/calendar/email history, explicit person and organization targets,
+  optional role title, and three SVG decision actions. Meaningful headers are
+  sortable and all column boundaries are resizable.
+- The peer Directory mode renders all 208 contacts or all 40 organizations and
+  contains no inherited review-row filter.
+- Agent Browser passed 1440-by-900 and 390-by-844 review. All eight approval
+  columns fit the desktop viewport; the mobile page has no horizontal overflow
+  and confines the table width to its own scroll surface. The exact QA session
+  was closed without invoking an action.
+- Frontend unit tests passed two tests; the focused backend/API selection
+  passed 15 tests; the full provider-free suite passed 1,283 tests in 67.20
+  seconds. The production build and diff hygiene passed.
+- `transcripts.service` is active/running with `NRestarts=0`. Final live
+  readback remains five accepted and 57 unreviewed leads, seven accepted person
+  targets, and one accepted organization target, proving QA changed no review
+  state or provider authority.
+
+Progress classification: `outcome_progress`. Plan 0080 is `CLOSED`; the live
+dashboard is ready for direct organization and role approvals or full-directory
+browsing from the same Contacts surface.
+
+## Turn 433: Open Plan 0080 flat approval-row view (2026-09-01)
+
+Summary: Opened
+`docs/dev/plans/0080-2026-09-01-flat-approval-row-view.md` after operator use
+showed that Plan 0079 filtered contacts rather than exposing approvals.
+
+Evidence:
+
+- The installed default contains 52 contact rows but the live payload contains
+  57 unreviewed hypotheses. Every action still requires expanding its parent
+  contact row.
+- The contact-level filter hides 156 directory rows from the default surface,
+  which makes the non-review directory appear permanently removed even though
+  208 contacts and 40 organizations remain in the API.
+- CodeGraph confirms `PeopleView` filters parent items before rendering and
+  mounts `DirectoryReviewLeads` only inside `DirectoryDetail` after expansion.
+- Graphiti is healthy but returned no useful Plan 0079 recall; current source,
+  installed DOM, API readback, and repo authorities remain the evidence base.
+- The successor keeps the backend review contract unchanged and grants no
+  provider, speaker, merge, or automatic-acceptance effect.
+
+Progress classification: `outcome_progress`. Plan 0080 is `OPEN`; P1 begins
+with a deterministic flat-projection test.
+
 ## Turn 432: Close Plan 0079 with actionable review focus (2026-09-01)
 
 Summary: Closed

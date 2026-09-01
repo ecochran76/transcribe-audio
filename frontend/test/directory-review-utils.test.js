@@ -3,33 +3,35 @@ import test from "node:test";
 
 import {
   createInFlightGate,
-  directoryRowCounts,
-  filterDirectoryRows
+  flattenDirectoryReviewRows
 } from "../src/directory-review-utils.js";
 
-const rows = [
-  {
-    primary_name: "Needs review",
-    review_leads: [{ review_state: "unreviewed" }, { review_state: "accepted" }]
-  },
-  {
-    primary_name: "Already decided",
-    review_leads: [{ review_state: "accepted" }, { review_state: "deferred" }]
-  },
-  { primary_name: "Evidence only", review_leads: [] }
-];
+test("approval rows flatten every unreviewed hypothesis without collapsing contacts", () => {
+  const reviewRows = flattenDirectoryReviewRows([
+    {
+      person_id: "person-1",
+      primary_name: "One Contact",
+      review_leads: [
+        { hypothesis_id: "affiliation-1", projection_version: "1", review_state: "unreviewed" },
+        { hypothesis_id: "role-1", projection_version: "2", review_state: "unreviewed" },
+        { hypothesis_id: "accepted-1", projection_version: "1", review_state: "accepted" }
+      ]
+    },
+    {
+      person_id: "person-2",
+      primary_name: "No Pending Work",
+      review_leads: [{ hypothesis_id: "accepted-2", projection_version: "1", review_state: "accepted" }]
+    }
+  ]);
 
-test("directory scopes distinguish actionable, decided, and all rows", () => {
-  assert.deepEqual(
-    filterDirectoryRows(rows, "actionable").map((row) => row.primary_name),
-    ["Needs review"]
-  );
-  assert.deepEqual(
-    filterDirectoryRows(rows, "decided").map((row) => row.primary_name),
-    ["Already decided"]
-  );
-  assert.equal(filterDirectoryRows(rows, "all").length, 3);
-  assert.deepEqual(directoryRowCounts(rows), { actionable: 1, decided: 1, all: 3 });
+  assert.deepEqual(reviewRows.map(({ item, lead }) => [item.primary_name, lead.hypothesis_id]), [
+    ["One Contact", "affiliation-1"],
+    ["One Contact", "role-1"]
+  ]);
+  assert.deepEqual(reviewRows.map(({ row_id }) => row_id), [
+    "person-1:affiliation-1:1",
+    "person-1:role-1:2"
+  ]);
 });
 
 test("an in-flight review gate suppresses a duplicate until release", () => {

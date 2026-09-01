@@ -1,21 +1,16 @@
-export function filterDirectoryRows(rows, scope) {
+export function flattenDirectoryReviewRows(rows, reviewState = "unreviewed") {
   const source = Array.isArray(rows) ? rows : [];
-  if (scope === "all") return source;
-  return source.filter((row) => {
-    const leads = Array.isArray(row.review_leads) ? row.review_leads : [];
-    const hasUnreviewed = leads.some((lead) => lead.review_state === "unreviewed");
-    if (scope === "actionable") return hasUnreviewed;
-    if (scope === "decided") return leads.length > 0 && !hasUnreviewed;
-    return true;
+  return source.flatMap((item) => {
+    const leads = Array.isArray(item.review_leads) ? item.review_leads : [];
+    const itemId = item.entity_id || item.organization_id || item.person_id || item.primary_name || "directory-row";
+    return leads
+      .filter((lead) => !reviewState || lead.review_state === reviewState)
+      .map((lead) => ({
+        item,
+        lead,
+        row_id: `${itemId}:${lead.hypothesis_id}:${lead.projection_version || ""}`
+      }));
   });
-}
-
-export function directoryRowCounts(rows) {
-  return {
-    actionable: filterDirectoryRows(rows, "actionable").length,
-    decided: filterDirectoryRows(rows, "decided").length,
-    all: Array.isArray(rows) ? rows.length : 0
-  };
 }
 
 export function createInFlightGate() {

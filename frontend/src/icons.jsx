@@ -40,6 +40,30 @@ const ICON_PATHS = {
       <path d="m10 16.5 1.35 1.35L14.5 14.7" />
     </>
   ),
+  transcript: (
+    <>
+      <path d="M6 3.75h8l4 4v12.5H6z" />
+      <path d="M14 3.75v4h4M9 12h6M9 15.5h6" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3.75" y="5.25" width="16.5" height="15" rx="1.5" />
+      <path d="M7.5 3.5v3.75M16.5 3.5v3.75M3.75 9.5h16.5" />
+    </>
+  ),
+  email: (
+    <>
+      <rect x="3.25" y="5.25" width="17.5" height="13.5" rx="1.5" />
+      <path d="m4.25 7 7.75 6 7.75-6" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="M12 3.5 21 20H3Z" />
+      <path d="M12 9v5M12 17.25v.25" />
+    </>
+  ),
   chevronRight: <path d="m9 5 7 7-7 7" />,
   chevronDown: <path d="m5 9 7 7 7-7" />,
   play: <path d="m8 5 11 7-11 7Z" />,

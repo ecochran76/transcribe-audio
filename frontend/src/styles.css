@@ -748,11 +748,77 @@
 
 .directory-toolbar {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) auto minmax(10rem, 12rem) minmax(8rem, auto);
+  grid-template-columns: minmax(16rem, 1fr) auto minmax(8rem, auto);
   gap: 0.65rem;
   align-items: end;
   padding-bottom: 0.45rem;
   border-bottom: 1px solid rgba(244, 236, 216, 0.1);
+}
+
+.directory-mode-bar {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.16);
+}
+
+.directory-mode-bar nav {
+  display: flex;
+  gap: 0.85rem;
+}
+
+.directory-mode-bar button {
+  min-height: 1.9rem;
+  padding: 0.18rem 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.directory-mode-bar button span {
+  margin-left: 0.22rem;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.directory-mode-bar button[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.directory-approval-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(8rem, auto);
+  gap: 0.65rem;
+  align-items: end;
+  padding-bottom: 0.35rem;
+}
+
+.directory-approval-toolbar label {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 25rem);
+  gap: 0.45rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.directory-approval-toolbar input {
+  width: 100%;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.18rem;
+  background: rgba(10, 11, 8, 0.5);
+  color: var(--ink);
+  font-size: 0.7rem;
 }
 
 .directory-toolbar label {
@@ -814,6 +880,117 @@
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.72rem;
+}
+
+.directory-approval-wrap {
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.directory-approval-table {
+  width: 100%;
+  min-width: 82rem;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+}
+
+.directory-approval-table th,
+.directory-approval-table td {
+  position: relative;
+  height: 1.95rem;
+  padding: 0.17rem 0.3rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.075);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.directory-approval-table th {
+  height: 1.7rem;
+  color: var(--muted);
+  font-size: 0.59rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.directory-approval-sort {
+  display: flex;
+  width: 100%;
+  min-height: 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.2rem;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.directory-approval-sort span,
+.directory-approval-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-approval-sort:not(:disabled) {
+  cursor: pointer;
+}
+
+.directory-approval-row:hover td {
+  background: rgba(244, 236, 216, 0.035);
+}
+
+.directory-approval-row select,
+.directory-approval-row input {
+  width: 100%;
+  min-width: 0;
+  height: 1.55rem;
+  padding: 0.08rem 0.24rem;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.15rem;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  font: inherit;
+}
+
+.directory-approval-history {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+
+.directory-approval-history > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.directory-approval-history b {
+  color: var(--ink);
+  font-size: 0.64rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.directory-approval-none {
+  color: var(--muted);
+}
+
+.directory-approval-row[data-review-status="error"] td {
+  border-bottom-color: rgba(238, 157, 147, 0.55);
+}
+
+.directory-approval-row[data-review-status="error"] .directory-review-actions > .ui-icon {
+  color: #ee9d93;
 }
 
 .directory-table th,
@@ -1136,12 +1313,33 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .directory-approval-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .directory-approval-toolbar label {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .directory-approval-toolbar .identity-load-state {
+    min-height: 1.75rem;
+    padding: 0.12rem 0.35rem;
+  }
+
+  .directory-approval-toolbar .identity-load-state strong {
+    font-size: 0.85rem;
+  }
+
+  .directory-approval-toolbar .identity-load-state span {
+    display: none;
+  }
+
   .directory-toolbar nav {
     overflow-x: auto;
   }
 
   .directory-toolbar nav button {
-    min-height: 2.75rem;
+    min-height: 2rem;
     white-space: nowrap;
   }
 

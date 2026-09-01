@@ -2,8 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import {
   createInFlightGate,
-  directoryRowCounts,
-  filterDirectoryRows
+  flattenDirectoryReviewRows
 } from "./directory-review-utils.js";
 
 const SPEAKER_ACTIONS = [
@@ -731,19 +730,20 @@ function roleValidity(role) {
 function PeopleView() {
   const [payload, setPayload] = useState({ items: [], counts: {} });
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState("approvals");
   const [view, setView] = useState("people");
-  const [rowScope, setRowScope] = useState("actionable");
   const [sort, setSort] = useState({ key: "last", direction: "desc" });
   const [widths, setWidths] = useState(DIRECTORY_COLUMNS.map((column) => column.width));
   const [expandedId, setExpandedId] = useState("");
   const [loadState, setLoadState] = useState({ status: "loading", message: "Loading directory…" });
   const [refreshToken, setRefreshToken] = useState(0);
   const tableRef = useRef(null);
+  const requestedView = mode === "approvals" ? "people" : view;
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const params = new URLSearchParams({ limit: "500", view });
+      const params = new URLSearchParams({ limit: "500", view: requestedView });
       if (query.trim()) params.set("q", query.trim());
       try {
         const next = await fetchJson(`/api/people?${params}`);
@@ -761,13 +761,10 @@ function PeopleView() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, view, refreshToken]);
+  }, [query, requestedView, refreshToken]);
 
-  const rowCounts = useMemo(() => directoryRowCounts(payload.items), [payload.items]);
-  const items = useMemo(() => [...filterDirectoryRows(
-    payload.items,
-    view === "organizations" ? "all" : rowScope
-  )].sort((left, right) => {
+  const approvalRows = useMemo(() => flattenDirectoryReviewRows(payload.items), [payload.items]);
+  const items = useMemo(() => [...payload.items].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
     const rightValue = directorySortValue(right, sort.key);
     const comparison = typeof leftValue === "number"
@@ -775,7 +772,8 @@ function PeopleView() {
       : String(leftValue).localeCompare(String(rightValue));
     return (sort.direction === "asc" ? comparison : -comparison)
       || String(left.primary_name || "").localeCompare(String(right.primary_name || ""));
-  }), [payload.items, rowScope, sort, view]);
+  }), [payload.items, sort]);
+  const directoryCount = (payload.counts?.people || 0) + (payload.counts?.unresolved_groups || 0);
 
   function sortBy(key) {
     setSort((current) => current.key === key
@@ -816,15 +814,27 @@ function PeopleView() {
 
   return (
     <section className="identity-surface directory-surface" aria-label="People and organizations">
-      <div className="directory-toolbar">
-        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
-        <nav aria-label="Directory views">
-          {[["people", `All contacts ${(payload.counts?.people || 0) + (payload.counts?.unresolved_groups || 0)}`], ["organizations", `Organizations ${payload.counts?.organizations || 0}`], ["unresolved", `Unresolved ${payload.counts?.unresolved_groups || 0}`]].map(([key, text]) => <button aria-current={view === key ? "page" : undefined} key={key} onClick={() => setView(key)} type="button">{text}</button>)}
+      <div className="directory-mode-bar">
+        <nav aria-label="Contacts work modes">
+          <button aria-current={mode === "approvals" ? "page" : undefined} onClick={() => setMode("approvals")} type="button">Approval rows <span>{approvalRows.length}</span></button>
+          <button aria-current={mode === "directory" ? "page" : undefined} onClick={() => setMode("directory")} type="button">Directory <span>{directoryCount}</span></button>
         </nav>
-        {view !== "organizations" && <label className="directory-row-filter"><span>Rows</span><select aria-label="Directory row filter" onChange={(event) => setRowScope(event.target.value)} value={rowScope}><option value="actionable">Needs review ({rowCounts.actionable})</option><option value="decided">Reviewed / deferred ({rowCounts.decided})</option><option value="all">All rows ({rowCounts.all})</option></select></label>}
-        <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{items.length}</strong><span>{items.length === (payload.items?.length || 0) ? loadState.message : `of ${payload.items?.length || 0} · ${loadState.message}`}</span></div>
       </div>
-      <div className="directory-table-wrap">
+      {mode === "approvals" ? <>
+        <div className="directory-approval-toolbar">
+          <label><span>Search approvals</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Contact, organization, role, or source" /></label>
+          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{approvalRows.length}</strong><span>{loadState.message}</span></div>
+        </div>
+        <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={approvalRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
+      </> : <>
+        <div className="directory-toolbar">
+          <label><span>Search directory</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
+          <nav aria-label="Directory views">
+            {[["people", `All contacts ${directoryCount}`], ["organizations", `Organizations ${payload.counts?.organizations || 0}`], ["unresolved", `Unresolved ${payload.counts?.unresolved_groups || 0}`]].map(([key, text]) => <button aria-current={view === key ? "page" : undefined} key={key} onClick={() => setView(key)} type="button">{text}</button>)}
+          </nav>
+          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{items.length}</strong><span>{loadState.message}</span></div>
+        </div>
+        <div className="directory-table-wrap">
         <table className="directory-table" ref={tableRef}>
           <colgroup>{widths.map((width, index) => <col key={DIRECTORY_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
           <thead><tr>{DIRECTORY_COLUMNS.map((column, index) => {
@@ -861,9 +871,136 @@ function PeopleView() {
           })}</tbody>
         </table>
         {!items.length && <p className="muted contacts-empty">No directory rows match this view.</p>}
-      </div>
+        </div>
+      </>}
     </section>
   );
+}
+
+const DIRECTORY_APPROVAL_COLUMNS = [
+  { key: "contact", label: "Contact", width: 13, sortable: true },
+  { key: "proposal", label: "Proposed affiliation / role", width: 16, sortable: true },
+  { key: "evidence", label: "Source basis", width: 14, sortable: true },
+  { key: "history", label: "History", width: 10, sortable: true },
+  { key: "person", label: "Person target", width: 15, sortable: false },
+  { key: "organizationTarget", label: "Organization target", width: 17, sortable: false },
+  { key: "role", label: "Role title", width: 8, sortable: true },
+  { key: "actions", label: "Actions", width: 7, sortable: false }
+];
+
+function approvalOrganization(lead) {
+  return lead.organization || lead.counterpart_label || "";
+}
+
+function activityCount(item, channel) {
+  const summary = item.activity_summary?.[channel] || {};
+  return Number(summary.confirmed_count || 0) + Number(summary.proposed_count || 0);
+}
+
+function approvalSortValue(row, key) {
+  const { item, lead } = row;
+  if (key === "contact") return item.primary_name || "";
+  if (key === "proposal") return `${lead.hypothesis_kind || ""} ${approvalOrganization(lead)} ${lead.display_value || ""}`;
+  if (key === "evidence") {
+    const source = lead.source_records?.[0] || {};
+    return `${source.provider || ""} ${source.profile || ""} ${source.match_basis || ""} ${lead.observation_count || 0}`;
+  }
+  if (key === "history") return ["transcript", "calendar", "email"].reduce((sum, channel) => sum + activityCount(item, channel), 0);
+  if (key === "role") return lead.display_value || "";
+  return "";
+}
+
+function reviewSourceSummary(lead) {
+  const sources = lead.source_records || [];
+  const source = sources[0] || {};
+  const provider = source.provider ? label(source.provider) : label(lead.evidence_source || "source");
+  const match = source.match_basis ? label(source.match_basis) : "Provider evidence";
+  const observations = Number(lead.observation_count || sources.length || 0);
+  return `${provider}${source.profile ? `/${source.profile}` : ""} · ${match} · ${observations}`;
+}
+
+function reviewSourceTitle(lead) {
+  const sourceDetails = (lead.source_records || []).map((source) => [source.provider, source.profile, source.record_type, source.match_basis].filter(Boolean).join(" / ")).join("; ");
+  return [lead.basis, lead.why_not_accepted, sourceDetails].filter(Boolean).join(" — ");
+}
+
+function ActivityHistory({ item }) {
+  return <span className="directory-approval-history" aria-label="Transcript, calendar, and email history">
+    {["transcript", "calendar", "email"].map((channel) => {
+      const summary = item.activity_summary?.[channel] || {};
+      const count = activityCount(item, channel);
+      const last = summary.last_at ? `; last ${formatDate(summary.last_at)}` : "";
+      return <span key={channel} title={`${label(channel)}: ${count} observations${last}`}><Icon name={channel} size={13} /><b>{count}</b></span>;
+    })}
+  </span>;
+}
+
+function DirectoryApprovalTable({ onReviewed, reviewRows, reviewTargets }) {
+  const [sort, setSort] = useState({ key: "history", direction: "desc" });
+  const [widths, setWidths] = useState(DIRECTORY_APPROVAL_COLUMNS.map((column) => column.width));
+  const tableRef = useRef(null);
+  const ordered = useMemo(() => [...reviewRows].sort((left, right) => {
+    const leftValue = approvalSortValue(left, sort.key);
+    const rightValue = approvalSortValue(right, sort.key);
+    const comparison = typeof leftValue === "number"
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue));
+    return (sort.direction === "asc" ? comparison : -comparison)
+      || String(left.item.primary_name || "").localeCompare(String(right.item.primary_name || ""))
+      || String(left.lead.hypothesis_id).localeCompare(String(right.lead.hypothesis_id));
+  }), [reviewRows, sort]);
+
+  function sortBy(column) {
+    if (!column.sortable) return;
+    setSort((current) => current.key === column.key
+      ? { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key: column.key, direction: column.key === "history" ? "desc" : "asc" });
+  }
+
+  function resize(index, clientX, startX, startWidths) {
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const pair = startWidths[index] + startWidths[index + 1];
+    const nextLeft = Math.max(5, Math.min(pair - 5, startWidths[index] + ((clientX - startX) / tableWidth) * 100));
+    const next = [...startWidths];
+    next[index] = nextLeft;
+    next[index + 1] = pair - nextLeft;
+    setWidths(next);
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidths = [...widths];
+    const move = (moveEvent) => resize(index, moveEvent.clientX, startX, startWidths);
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  function resizeWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    resize(index, tableWidth * (event.key === "ArrowLeft" ? -0.012 : 0.012), 0, widths);
+  }
+
+  return <div className="directory-table-wrap directory-approval-wrap">
+    <table className="directory-approval-table" ref={tableRef}>
+      <colgroup>{widths.map((width, index) => <col key={DIRECTORY_APPROVAL_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
+      <thead><tr>{DIRECTORY_APPROVAL_COLUMNS.map((column, index) => {
+        const active = sort.key === column.key;
+        return <th aria-sort={column.sortable ? (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined} key={column.key}>
+          <button className="directory-approval-sort" disabled={!column.sortable} onClick={() => sortBy(column)} type="button"><span>{column.label}</span>{column.sortable && <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>
+          {index < DIRECTORY_APPROVAL_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(DIRECTORY_APPROVAL_COLUMNS.map((value) => value.width))} onKeyDown={(event) => resizeWithKeyboard(event, index)} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+        </th>;
+      })}</tr></thead>
+      <tbody>{ordered.map(({ item, lead, row_id: rowId }) => <DirectoryReviewLeadRow approvalMode item={item} key={rowId} lead={lead} onReviewed={onReviewed} reviewTargets={reviewTargets} />)}</tbody>
+    </table>
+    {!ordered.length && <p className="muted contacts-empty">No approval rows match this search.</p>}
+  </div>;
 }
 
 const DIRECTORY_REVIEW_COLUMNS = [
@@ -884,7 +1021,7 @@ function reviewLeadValue(lead, key) {
   return "";
 }
 
-function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
+function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, reviewTargets }) {
   const acceptedPerson = item.accepted_person_id || "";
   const organizationName = lead.organization || lead.counterpart_label || "";
   const matchingOrganization = reviewTargets.organizations?.find((target) => target.label.trim().toLowerCase() === organizationName.trim().toLowerCase());
@@ -935,6 +1072,26 @@ function DirectoryReviewLeadRow({ item, lead, onReviewed, reviewTargets }) {
   }
 
   const disabled = decision.status === "loading";
+  if (approvalMode) {
+    const proposal = lead.hypothesis_kind === "contextual_role"
+      ? `Role · ${organizationName}${lead.display_value ? ` · ${lead.display_value}` : ""}`
+      : `Affiliation · ${organizationName}`;
+    return <tr className="directory-review-row directory-approval-row" data-review-status={decision.status}>
+      <td><span className="directory-approval-text" title={item.primary_name || "Unnamed contact"}>{item.primary_name || "Unnamed contact"}</span></td>
+      <td><span className="directory-approval-text" title={proposal}>{proposal}</span></td>
+      <td><span className="directory-approval-text" title={reviewSourceTitle(lead)}>{reviewSourceSummary(lead)}</span></td>
+      <td><ActivityHistory item={item} /></td>
+      <td><select aria-label={`Person target for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} title="Choose the canonical person that this approval should update" value={personTarget}><option value="create">Create person</option>{!!reviewTargets.people?.length && <optgroup label={`Accepted people (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
+      <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} title="Choose the canonical organization that this approval should update" value={organizationTarget}><option value="create">Create {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Accepted organizations (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
+      <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} title="Reviewed role title" value={roleTitle} /> : <span className="directory-approval-none" aria-label="No role title required">—</span>}</td>
+      <td><div className="directory-review-actions" title={decision.message || "Accept, reject, or defer this hypothesis"}>
+        {decision.status === "error" && <Icon name="warning" size={14} />}
+        <button aria-label={`Accept ${proposal} for ${item.primary_name || "contact"}`} className="accept" disabled={disabled || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title="Accept" type="button"><Icon name="reviewed" size={14} /></button>
+        <button aria-label={`Reject ${proposal} for ${item.primary_name || "contact"}`} className="reject" disabled={disabled || lead.review_state === "rejected"} onClick={() => review("reject")} title="Reject" type="button"><Icon name="reject" size={14} /></button>
+        <button aria-label={`Defer ${proposal} for ${item.primary_name || "contact"}`} className="defer" disabled={disabled || lead.review_state === "deferred"} onClick={() => review("defer")} title="Defer" type="button"><Icon name="defer" size={14} /></button>
+      </div></td>
+    </tr>;
+  }
   return <tr className="directory-review-row">
     <td><strong>{lead.hypothesis_kind === "contextual_role" ? "Role" : "Affiliation"}</strong><small>{lead.basis || "Provider observation"}</small></td>
     <td>{organizationName || "—"}</td>
