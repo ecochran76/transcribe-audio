@@ -287,6 +287,15 @@ later milestones. The closed slice authorized no private/provider read, live
 accepted relationship, dashboard deployment, person/speaker effect, or
 external write.
 
+Plan 0075 closed the bounded consumer bridge for the already completed Plan
+0073 Mail Receipts analysis without rerunning mail discovery. The immutable
+120-hypothesis artifact is now preview/hash pinned and projected into compact
+live Contacts review as 238 contact-facing rows. Explicit accept/reject/defer
+decisions are stale-safe and append-only; reject/defer remain outside accepted
+graph context, while only accept may enter the identity projection and shared
+evidence fabric. Live visual and API readback establish Level 2 operator-ready
+review, not automatic speaker assignment or Level 3 automation.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -317,8 +326,15 @@ Plans:
 - `docs/dev/plans/0072-2026-08-16-correction-first-speaker-contact-learning.md`
 - `docs/dev/plans/0073-2026-08-30-deterministic-mail-evidence-for-relationship-role-discovery.md`
 - `docs/dev/plans/0074-2026-09-01-two-loop-evidence-fabric-walking-skeleton.md`
+- `docs/dev/plans/0075-2026-09-01-mail-hypothesis-contacts-review-bridge.md`
 
 Milestone Focus:
+
+- Closed milestone M6 is Plan 0075's Mail hypothesis Contacts review bridge.
+  The recovered proposed-only mail corpus is now an explicit, hash-pinned live
+  evidence source with compact operator decisions and accepted-only downstream
+  eligibility. All 120 hypotheses are visible as 238 contact-facing rows and
+  remain unreviewed; no acceptance was inferred during deployment or QA.
 
 - Closed milestone M5 is Plan 0074's two-loop evidence-fabric walking skeleton.
   Its people/relationship and conversation-understanding loops share one

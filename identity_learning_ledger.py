@@ -255,6 +255,29 @@ class IdentityLearningLedger:
             con.commit()
         return AppendEventReceipt(event_id, content_hash, "inserted")
 
+    def events(
+        self,
+        *,
+        event_types: tuple[str, ...] = (),
+    ) -> tuple[dict[str, Any], ...]:
+        """Return hash-verified immutable events, optionally filtered by type."""
+        rows = self._load_events()
+        allowed = set(event_types)
+        return tuple(
+            {
+                "id": str(row["id"]),
+                "event_type": str(row["event_type"]),
+                "occurred_at": str(row["occurred_at"]),
+                "actor_id": str(row["actor_id"]),
+                "idempotency_key": str(row["idempotency_key"]),
+                "subject_type": str(row["subject_type"]),
+                "subject_id": str(row["subject_id"]),
+                "payload": json.loads(str(row["payload_json"])),
+            }
+            for row in rows
+            if not allowed or str(row["event_type"]) in allowed
+        )
+
     def register_ontology(
         self,
         *,

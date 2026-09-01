@@ -5980,6 +5980,26 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
+            if parsed.path.startswith("/api/relationship-hypotheses/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4 and parts[3] == "reviews":
+                    body = self.read_json_body()
+                    if str(body.get("hypothesis_id") or "") != parts[2]:
+                        self.write_error(
+                            HTTPStatus.BAD_REQUEST,
+                            "Request hypothesis_id does not match the route.",
+                        )
+                        return
+                    self.write_json(
+                        identity_review_workflow.IdentityReviewWorkflow(
+                            self.store_root,
+                            gold_root=(
+                                self.state_root / "speaker-evaluation-campaigns"
+                            ),
+                        ).record_mail_hypothesis_review(body),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
             if parsed.path.startswith("/api/identity-review/items/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 5 and parts[4] in {"preview", "decisions"}:
@@ -6913,7 +6933,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 self.write_error(HTTPStatus.NOT_FOUND, "Not found")
                 return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
-        except identity_review_workflow.StaleReviewSubmission as exc:
+        except (
+            identity_review_workflow.StaleReviewSubmission,
+            identity_review_workflow.StaleMailHypothesisReview,
+        ) as exc:
             self.write_error(HTTPStatus.CONFLICT, str(exc))
         except identity_review_workflow.IdempotencyConflict as exc:
             self.write_error(HTTPStatus.CONFLICT, str(exc))

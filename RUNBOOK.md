@@ -1,5 +1,77 @@
 # Runbook
 
+## Turn 423: Close Mail hypothesis Contacts review bridge (2026-09-01)
+
+Summary: Closed Plan 0075 by connecting the completed Plan 0073 mail analysis
+to the live compact Contacts workflow. The dashboard now presents the existing
+relationship hypotheses for review instead of leaving them in a private pilot
+artifact.
+
+Evidence:
+
+- `mail_hypothesis_review.py` validates an explicit absolute source locator,
+  preview ID, aggregate content hash, manifest and per-artifact hashes,
+  proposed-only status, and zero source effects before returning hypotheses.
+- The live source is preview
+  `plan0073-p5-139eea68bfb7e6929e4e22115458e35e`, content SHA-256
+  `031a31ec68eab795a2412d99293b159c5b1a640ca48074c6a3478dd3d21d456d`,
+  and 120 hypotheses: 3 correspondence, 70 sent-mail, and 47
+  thread-coparticipation.
+- The live Contacts API reports 187 local contacts and 238 reciprocal
+  contact-facing mail rows. All 238 remain `unreviewed`; the response does not
+  duplicate the full source artifact.
+- Accept/reject/defer submissions require source hash, optimistic projection
+  version, reviewer, timestamp, and content-sensitive idempotency key. Only an
+  accepted decision reaches the identity relationship projection and shared
+  evidence fabric; later reject/defer explicitly removes accepted eligibility.
+- The React surface keeps the existing dense two-pane workflow, reverse-time
+  hypothesis order, visible SVG sort controls, pointer/keyboard resizers, and
+  inline expansion. Mail review adds only three 1.75rem square SVG controls,
+  not cards, panels, pills, or text-icon buttons.
+- Service-owned Agent Browser QA at 1440x1000 verified the live Contacts list,
+  mail-derived row, inline basis/limitations/time/evidence/conflicts, and
+  accessible accept/reject/defer controls without making a decision.
+- Validation passed: 93 focused tests, 1,267 complete provider-free tests,
+  touched-module compilation, Vite production build, and `git diff --check`.
+  CodeGraph is current at 391 files, 11,377 nodes, and 39,536 edges.
+- Final runtime readback after restart: `transcripts.service` active/running,
+  PID 23234, `NRestarts=0`, health `status=ok`, and editing surface
+  `explicit_relationship_review`.
+- No new Mail Receipts/provider read, provider or mailbox write, person merge,
+  speaker assignment, biometric effect, Graphiti write, or live relationship
+  acceptance occurred.
+
+Progress classification: `outcome_progress`. Plan 0075 and milestone M6 are
+closed at operator-ready Level 2; the remaining work is actual human review
+and later measured usefulness, not another source-discovery pass.
+
+## Turn 422: Open the Mail hypothesis Contacts review bridge (2026-09-01)
+
+Summary: Opened Plan 0075 as the missing consumer bridge for the completed Plan
+0073 Mail Receipts analysis. The work starts from the existing 120 immutable
+proposed hypotheses rather than repeating provider discovery.
+
+Evidence:
+
+- The repaired P5 aggregate is complete, covers 25 conversations and 57 exact
+  queries, and contains 120 proposed-only relationship hypotheses with zero
+  accepted/provider/person/speaker/biometric/Graphiti effects.
+- The live Contacts backend currently calls relationship discovery without
+  mail evidence. The compact frontend table already defaults to reverse-time
+  sorting, exposes SVG sort controls, supports pointer and keyboard resizing,
+  and expands evidence inline.
+- Plan 0075 requires an explicit preview/content-hash locator, fail-closed
+  artifact validation, stale-safe accept/reject/defer decisions, and an
+  accepted-only identity-ledger/evidence-fabric handoff.
+- Active authority:
+  `docs/dev/plans/0075-2026-09-01-mail-hypothesis-contacts-review-bridge.md`.
+- Real hypotheses remain undecided during implementation and browser QA;
+  mutation proof uses a disposable store and synthetic artifacts.
+
+Progress classification: `outcome_progress`. The active task is the Plan 0075
+red/green implementation, live read-only projection, compact visual QA, and
+published validation checkpoint.
+
 ## Turn 421: Close two-loop evidence-fabric walking skeleton (2026-09-01)
 
 Summary: Closed Plan 0074 with one provider-independent evidence seam serving

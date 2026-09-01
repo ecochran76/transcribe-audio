@@ -639,6 +639,10 @@
   white-space: nowrap;
 }
 
+.hypothesis-status.accepted { color: #83d4a1; }
+.hypothesis-status.rejected { color: #ee9d93; }
+.hypothesis-status.deferred { color: #d4bd83; }
+
 .hypothesis-row.expanded td {
   background: rgba(244, 236, 216, 0.035);
 }
@@ -676,6 +680,44 @@
   font-size: 0.72rem;
   line-height: 1.35;
 }
+
+.hypothesis-review-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem 0.35rem 1.85rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.1);
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.hypothesis-review-strip > div {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.hypothesis-review-strip button {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(244, 236, 216, 0.16);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--muted);
+}
+
+.hypothesis-review-strip button.accept:hover,
+.hypothesis-review-strip button.accept:focus-visible { color: #83d4a1; border-color: #83d4a1; }
+.hypothesis-review-strip button.reject:hover,
+.hypothesis-review-strip button.reject:focus-visible { color: #ee9d93; border-color: #ee9d93; }
+.hypothesis-review-strip button.defer:hover,
+.hypothesis-review-strip button.defer:focus-visible { color: #d4bd83; border-color: #d4bd83; }
+.hypothesis-review-strip button:disabled { opacity: 0.38; cursor: default; }
 
 .identity-provenance {
   padding-top: 0.6rem;
@@ -752,6 +794,14 @@
     position: sticky;
     left: 0;
     width: min(calc(100vw - 6rem), 34rem);
+    padding-left: 1rem;
+  }
+
+  .hypothesis-review-strip {
+    position: sticky;
+    left: 0;
+    width: min(calc(100vw - 6rem), 34rem);
+    box-sizing: border-box;
     padding-left: 1rem;
   }
 

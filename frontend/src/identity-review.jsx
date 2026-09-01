@@ -669,6 +669,12 @@ function PeopleView() {
   const [sort, setSort] = useState("name");
   const [selectedId, setSelectedId] = useState("");
   const [loadState, setLoadState] = useState({ status: "loading", message: "Loading contacts…" });
+  const [hypothesisDecision, setHypothesisDecision] = useState({ id: "", status: "idle", message: "" });
+
+  function loadedMessage(next) {
+    const count = Number(next.graph_discovery?.mail_hypothesis_count || 0);
+    return count ? `Local directory · ${count} mail leads` : "Local directory loaded";
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -681,7 +687,7 @@ function PeopleView() {
         if (cancelled) return;
         setPayload(next);
         setSelectedId((current) => next.items?.some((item) => item.person_id === current) ? current : next.items?.[0]?.person_id || "");
-        setLoadState({ status: "live", message: "Local directory loaded" });
+        setLoadState({ status: "live", message: loadedMessage(next) });
       } catch (error) {
         if (cancelled) return;
         setPayload(FALLBACK_PEOPLE);
@@ -708,6 +714,38 @@ function PeopleView() {
   }, [payload.items, sort]);
   const selected = items.find((item) => item.person_id === selectedId) || items[0] || null;
   const counts = payload.counts || {};
+
+  async function reviewHypothesis(row, action) {
+    setHypothesisDecision({ id: row.hypothesis_id, status: "loading", message: `Recording ${action}…` });
+    const submission = {
+      schema_version: "transcribe-audio.mail-hypothesis-review-submission.v1",
+      hypothesis_id: row.hypothesis_id,
+      action,
+      expected_projection_version: row.projection_version,
+      source_content_sha256: row.source_content_sha256,
+      reviewer: "operator",
+      decided_at: new Date().toISOString(),
+      idempotency_key: operationId(`mail-hypothesis-${action}`),
+      note: ""
+    };
+    try {
+      await fetchJson(`/api/relationship-hypotheses/${encodeURIComponent(row.hypothesis_id)}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission)
+      });
+      const params = new URLSearchParams({ limit: "500" });
+      if (query.trim()) params.set("q", query.trim());
+      if (kindFilter) params.set("kind", kindFilter);
+      const next = await fetchJson(`/api/people?${params}`);
+      setPayload(next);
+      setLoadState({ status: "live", message: loadedMessage(next) });
+      setHypothesisDecision({ id: row.hypothesis_id, status: "recorded", message: `${action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred"} relationship lead.` });
+    } catch (error) {
+      setHypothesisDecision({ id: row.hypothesis_id, status: "error", message: `Decision rejected: ${error.message}` });
+    }
+  }
+
   return (
     <section className="identity-surface" aria-label="Contacts">
       <div className="identity-toolbar contacts-toolbar">
@@ -726,13 +764,13 @@ function PeopleView() {
             </button>
           ))}
         </div>
-        <div className="identity-detail">{selected ? <PeopleDetail person={selected} /> : <p className="muted contacts-empty">No contacts match these filters.</p>}</div>
+        <div className="identity-detail">{selected ? <PeopleDetail hypothesisDecision={hypothesisDecision} onReviewHypothesis={reviewHypothesis} person={selected} /> : <p className="muted contacts-empty">No contacts match these filters.</p>}</div>
       </div>
     </section>
   );
 }
 
-function PeopleDetail({ person }) {
+function PeopleDetail({ person, onReviewHypothesis, hypothesisDecision }) {
   const kind = identityKindLabel(person.identity_kind);
   const boundary = person.identity_kind === "reviewed_speaker"
     ? "Operator-reviewed speaker name. It is evidence for reconciliation, not yet a canonical contact link."
@@ -754,8 +792,8 @@ function PeopleDetail({ person }) {
       {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
       {!!person.relationships?.length && <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={person.relationships.map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />}
       {!!person.role_hypotheses?.length && <HypothesisTable title="Role hypotheses" rows={person.role_hypotheses} role />}
-      {!!person.relationship_hypotheses?.length && <HypothesisTable title="Relationship hypotheses" rows={person.relationship_hypotheses} />}
-      {(person.role_hypotheses?.length || person.relationship_hypotheses?.length) ? <p className="people-editing-boundary">These graph leads can support speaker deduction and conversation context. They remain unaccepted until a later explicit review action records a decision.</p> : null}
+      {!!person.relationship_hypotheses?.length && <HypothesisTable hypothesisDecision={hypothesisDecision} onReview={onReviewHypothesis} title="Relationship hypotheses" rows={person.relationship_hypotheses} />}
+      {(person.role_hypotheses?.length || person.relationship_hypotheses?.length) ? <p className="people-editing-boundary">Mail leads enter conversation context only after you accept them. Rejected and deferred leads remain outside accepted knowledge.</p> : null}
       <details className="identity-provenance"><summary>Record provenance</summary><dl className="identity-lineage"><div><dt>Record ID</dt><dd><code>{person.source_identity_id || person.person_id}</code></dd></div><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at ? formatDate(person.built_at) : "Unavailable"}</dd></div></dl></details>
     </>
   );
@@ -793,7 +831,7 @@ function hypothesisValue(row, key, role) {
   return "";
 }
 
-function HypothesisTable({ title, rows, role = false }) {
+function HypothesisTable({ title, rows, role = false, onReview, hypothesisDecision }) {
   const [sort, setSort] = useState({ key: "last", direction: "desc" });
   const [expandedId, setExpandedId] = useState("");
   const [widths, setWidths] = useState(DEFAULT_HYPOTHESIS_WIDTHS);
@@ -866,7 +904,7 @@ function HypothesisTable({ title, rows, role = false }) {
                 <td>{row.evidence_source === "mail_metadata" ? "Mail metadata" : hypothesisLabel(row.hypothesis_kind)}</td>
                 <td>{row.independent_thread_count || row.observation_count || 0}</td>
                 <td>{row.last_observed_at ? formatDate(row.last_observed_at) : "—"}</td>
-                <td><span className="hypothesis-status"><Icon name="preview" size={13} />Needs review</span></td>
+                <td><span className={`hypothesis-status ${row.review_state || "unreviewed"}`}><Icon name={row.review_state === "accepted" ? "reviewed" : row.review_state === "rejected" ? "reject" : row.review_state === "deferred" ? "defer" : "preview"} size={13} />{row.review_state === "accepted" ? "Accepted" : row.review_state === "rejected" ? "Rejected" : row.review_state === "deferred" ? "Deferred" : "Needs review"}</span></td>
               </tr>
               {expanded && <tr className="hypothesis-evidence-row"><td colSpan={HYPOTHESIS_COLUMNS.length}><dl>
                 <div><dt>Basis</dt><dd>{row.basis || "—"}</dd></div>
@@ -875,7 +913,14 @@ function HypothesisTable({ title, rows, role = false }) {
                 <div><dt>Time range</dt><dd>{row.first_observed_at ? `${formatDate(row.first_observed_at)} – ${formatDate(row.last_observed_at)}` : "—"}</dd></div>
                 <div><dt>Evidence</dt><dd>{counted(row.observation_count, "observation")} · {counted(row.independent_thread_count, "independent thread")}</dd></div>
                 <div><dt>Conflicts</dt><dd>{row.conflicts?.length ? row.conflicts.map((conflict) => conflict.title || conflict.reason).join(" · ") : "None recorded"}</dd></div>
-              </dl></td></tr>}
+              </dl>{row.evidence_source === "mail_metadata" && onReview ? <div className="hypothesis-review-strip" aria-label="Relationship review actions">
+                <span>{hypothesisDecision?.id === row.hypothesis_id && hypothesisDecision.message ? hypothesisDecision.message : "Review this mail-derived lead"}</span>
+                <div>
+                  <button aria-label="Accept relationship lead" className="accept" disabled={hypothesisDecision?.status === "loading" || row.review_state === "accepted"} onClick={() => onReview(row, "accept")} title="Accept" type="button"><Icon name="reviewed" size={15} /></button>
+                  <button aria-label="Reject relationship lead" className="reject" disabled={hypothesisDecision?.status === "loading" || row.review_state === "rejected"} onClick={() => onReview(row, "reject")} title="Reject" type="button"><Icon name="reject" size={15} /></button>
+                  <button aria-label="Defer relationship lead" className="defer" disabled={hypothesisDecision?.status === "loading" || row.review_state === "deferred"} onClick={() => onReview(row, "defer")} title="Defer" type="button"><Icon name="defer" size={15} /></button>
+                </div>
+              </div> : null}</td></tr>}
             </Fragment>;
           })}</tbody>
         </table>

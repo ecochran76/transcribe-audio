@@ -6,7 +6,7 @@ import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 import transcript_store
 from mail_evidence_normalization import NormalizedMailEvidence
@@ -60,6 +60,8 @@ def discover_relationship_roles(
     minimum_recurring_invitations: int = MIN_RECURRING_INVITATIONS,
     mail_evidence: NormalizedMailEvidence | None = None,
     mail_account_address: str = "",
+    projected_mail_hypotheses: tuple[dict[str, Any], ...] = (),
+    mail_source: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build review-only hypotheses from exact local contact observations."""
     if minimum_recurring_invitations < 2:
@@ -247,6 +249,10 @@ def discover_relationship_roles(
         by_contact_id[left_id]["relationship_hypotheses"].append(left)
         by_contact_id[right_id]["relationship_hypotheses"].append(right)
 
+    if mail_evidence is not None and projected_mail_hypotheses:
+        raise ValueError(
+            "Mail discovery accepts normalized evidence or a projected artifact, not both."
+        )
     mail_discovery: MailRelationshipDiscovery | None = None
     if mail_evidence is not None:
         if not _text(mail_account_address):
@@ -306,6 +312,44 @@ def discover_relationship_roles(
                         "evidence_source": "mail_metadata",
                     }
                 )
+
+    projected_mail_count = 0
+    for raw_hypothesis in projected_mail_hypotheses:
+        hypothesis = dict(raw_hypothesis)
+        subject_reference = _text(hypothesis.get("subject_contact_id"))
+        subject_id = subject_reference.removeprefix("contact:")
+        if subject_id not in by_contact_id:
+            raise ValueError("Projected mail hypothesis subject is outside Contacts.")
+        counterpart_reference = _text(hypothesis.get("counterpart_id"))
+        counterpart_id = counterpart_reference.removeprefix("contact:")
+        candidate = {
+            **hypothesis,
+            "subject_contact_id": subject_id,
+            "counterpart_id": counterpart_reference,
+            "mail_direction": (
+                "sent" if hypothesis.get("hypothesis_kind") == "sent_mail" else "symmetric"
+            ),
+            "evidence_source": "mail_metadata",
+        }
+        by_contact_id[subject_id]["relationship_hypotheses"].append(candidate)
+        if (
+            hypothesis.get("counterpart_type") == "contact_candidate"
+            and counterpart_id in by_contact_id
+        ):
+            by_contact_id[counterpart_id]["relationship_hypotheses"].append(
+                {
+                    **candidate,
+                    "subject_contact_id": counterpart_id,
+                    "counterpart_id": subject_reference,
+                    "counterpart_label": contacts[subject_id]["label"],
+                    "mail_direction": (
+                        "received"
+                        if hypothesis.get("hypothesis_kind") == "sent_mail"
+                        else "symmetric"
+                    ),
+                }
+            )
+        projected_mail_count += 1
     for candidates in by_contact_id.values():
         candidates["role_hypotheses"].sort(
             key=lambda item: (item["display_value"].casefold(), item["organization"].casefold())
@@ -329,7 +373,11 @@ def discover_relationship_roles(
         "input_watermark": _hash(
             {
                 "contacts": input_rows,
-                "mail": mail_evidence.input_watermark if mail_evidence else "",
+                "mail": (
+                    mail_evidence.input_watermark
+                    if mail_evidence
+                    else _text((mail_source or {}).get("content_sha256"))
+                ),
             }
         ),
         "built_at": max((_text(row.get("updated_at")) for row in rows), default=""),
@@ -341,7 +389,7 @@ def discover_relationship_roles(
         "affiliation_hypothesis_count": len(affiliation_groups),
         "calendar_co_invitation_hypothesis_count": len(pair_candidates),
         "mail_hypothesis_count": (
-            len(mail_discovery.hypotheses) if mail_discovery else 0
+            len(mail_discovery.hypotheses) if mail_discovery else projected_mail_count
         ),
         "mail_hypothesis_counts": (
             {
@@ -355,16 +403,34 @@ def discover_relationship_roles(
                 )
             }
             if mail_discovery
-            else {}
+            else {
+                kind: sum(
+                    1
+                    for item in projected_mail_hypotheses
+                    if item.get("hypothesis_kind") == kind
+                )
+                for kind in sorted(
+                    {
+                        _text(item.get("hypothesis_kind"))
+                        for item in projected_mail_hypotheses
+                        if _text(item.get("hypothesis_kind"))
+                    }
+                )
+            }
         ),
         "mail_excluded_reason_counts": (
             mail_discovery.excluded_reason_counts if mail_discovery else {}
         ),
+        "mail_source": dict(mail_source or {"status": "not_configured"}),
         "mail_input_watermark": (
-            mail_discovery.input_watermark if mail_discovery else ""
+            mail_discovery.input_watermark
+            if mail_discovery
+            else _text((mail_source or {}).get("content_sha256"))
         ),
         "mail_hypotheses": (
-            list(mail_discovery.hypotheses) if mail_discovery else []
+            list(mail_discovery.hypotheses)
+            if mail_discovery
+            else [dict(item) for item in projected_mail_hypotheses]
         ),
         "accepted_effect_count": 0,
         "provider_write_count": 0,
