@@ -449,10 +449,13 @@ def _operator_review_people(
                 "campaign_id": str(review.get("campaign_id") or ""),
                 "gold_id": str(review.get("gold_id") or ""),
             }
+            occurrence["source_record_id"] = (
+                f"{occurrence['gold_id']}:{occurrence['speaker_ref']}"
+            )
             record["review_occurrences"].append(occurrence)
             record["source_records"].append(
                 {
-                    "source_record_id": f"{occurrence['gold_id']}:{occurrence['speaker_ref']}",
+                    "source_record_id": occurrence["source_record_id"],
                     "provider_kind": "operator_review",
                     "record_type": "speaker_identity",
                     "label": f"{occurrence['recording_filename']} · Speaker {occurrence['speaker_ref']}",

@@ -687,7 +687,10 @@ function channelSummary(item, channel) {
 
 function directorySortValue(item, key) {
   if (key === "name") return item.primary_name || "";
-  if (key === "organization") return item.organizations?.[0]?.primary_name || item.organization_type || "";
+  if (key === "organization") {
+    if (item.entity_kind === "organization") return item.affiliated_person_ids?.length || 0;
+    return item.organizations?.[0]?.primary_name || item.organization_type || "";
+  }
   if (["transcript", "calendar", "email"].includes(key)) {
     const summary = item.activity_summary?.[key] || {};
     return Number(summary.confirmed_count || 0) + Number(summary.proposed_count || 0);
@@ -770,6 +773,13 @@ function PeopleView() {
     window.addEventListener("pointerup", stop);
   }
 
+  function resizeWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    resize(index, tableWidth * (event.key === "ArrowLeft" ? -0.015 : 0.015), 0, widths);
+  }
+
   return (
     <section className="identity-surface directory-surface" aria-label="People and organizations">
       <div className="directory-toolbar">
@@ -784,9 +794,14 @@ function PeopleView() {
           <colgroup>{widths.map((width, index) => <col key={DIRECTORY_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
           <thead><tr>{DIRECTORY_COLUMNS.map((column, index) => {
             const active = sort.key === column.key;
+            const columnLabel = view === "organizations" && column.key === "name"
+              ? "Organization"
+              : view === "organizations" && column.key === "organization"
+                ? "People and status"
+                : column.label;
             return <th aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} key={column.key}>
-              <button className="directory-sort" aria-label={`Sort by ${column.label}`} onClick={() => sortBy(column.key)} type="button"><span>{view === "organizations" && column.key === "name" ? "Organization" : column.label}</span><Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={13} /></button>
-              {index < DIRECTORY_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" className="directory-resizer" onDoubleClick={() => setWidths(DIRECTORY_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+              <button className="directory-sort" aria-label={`Sort by ${columnLabel}`} onClick={() => sortBy(column.key)} type="button"><span>{columnLabel}</span><Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={13} /></button>
+              {index < DIRECTORY_COLUMNS.length - 1 && <span aria-label={`Resize ${columnLabel} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(DIRECTORY_COLUMNS.map((value) => value.width))} onKeyDown={(event) => resizeWithKeyboard(event, index)} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
             </th>;
           })}</tr></thead>
           <tbody>{items.map((item) => {
@@ -797,7 +812,9 @@ function PeopleView() {
             return <Fragment key={id}>
               <tr className={expanded ? "directory-row expanded" : "directory-row"}>
                 <td><button className="directory-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${item.primary_name}`} onClick={() => setExpandedId(expanded ? "" : id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><span><strong>{item.primary_name || "Unnamed"}</strong><small>{item.entity_kind === "unresolved_group" ? `${health.member_count || 0} separate records · unresolved` : label(item.resolution_state)}</small></span></button></td>
-                <td><span className="directory-cell-stack"><strong>{affiliation?.primary_name || (view === "organizations" ? label(item.organization_type) : "—")}</strong><small>{affiliation ? `${label(affiliation.role_type || affiliation.status)}${affiliation.status === "proposed" ? " · proposed" : ""}` : "No accepted affiliation"}</small></span></td>
+                <td>{view === "organizations"
+                  ? <span className="directory-cell-stack"><strong>{counted(item.affiliated_person_ids?.length, "linked person")}</strong><small>{label(item.resolution_state)} organization</small></span>
+                  : <span className="directory-cell-stack"><strong>{affiliation?.primary_name || "—"}</strong><small>{affiliation ? `${label(affiliation.role_type || affiliation.status)}${affiliation.status === "proposed" ? " · proposed" : ""}` : "No accepted affiliation"}</small></span>}</td>
                 <td>{channelSummary(item, "transcript")}</td>
                 <td>{channelSummary(item, "calendar")}</td>
                 <td>{channelSummary(item, "email")}</td>

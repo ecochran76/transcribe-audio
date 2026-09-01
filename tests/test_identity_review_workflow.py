@@ -292,6 +292,7 @@ def test_queue_read_reconciles_exact_operator_gold_without_mutating_proposal(
     assert reviewed_person["speaker_review_count"] == 1
     assert reviewed_person["recording_count"] == 1
     assert reviewed_person["review_occurrences"][0]["recording_filename"] == "Monday planning.m4a"
+    assert reviewed_person["review_occurrences"][0]["source_record_id"] == "gold-1:SPEAKER_01"
 
 
 def test_preview_is_zero_effect_and_submit_is_idempotent_and_stale_safe(
