@@ -328,12 +328,14 @@ Plan 0080 is closed. Contacts now defaults to 57 flat, one-line approval rows
 with direct evidence, activity, target, title, and SVG decision controls. A
 peer Directory mode restores the complete 208-contact and 40-organization
 surfaces without any implicit approval filter.
-Plan 0081 is open after live use exposed an atomicity defect: several review
+Plan 0081 is closed after live use exposed an atomicity defect: several review
 events committed before their projection rebuild failed, while the UI showed a
-red warning triangle. The bounded recovery makes ledger append and projection
+red warning triangle. The installed recovery makes ledger append and projection
 replacement one transaction, preserves dependency insertion order, suggests
 unique accepted-person targets without automatic acceptance, and reconciles
-the already-recorded decisions without replaying them.
+the already-recorded decisions without replaying them. Final live state is 10
+accepted, 1 rejected, and 51 unreviewed leads; Ecochran is corrected to the
+accepted Eric Cochran identity through immutable events.
 The v3 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer

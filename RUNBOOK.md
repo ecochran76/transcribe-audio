@@ -1,5 +1,45 @@
 # Runbook
 
+## Turn 436: Close Plan 0081 atomic directory-review recovery (2026-09-01)
+
+Summary: Closed
+`docs/dev/plans/0081-2026-09-01-atomic-directory-review-recovery.md` after
+repairing the red-triangle-after-commit failure and reconciling its live effects.
+
+Evidence:
+
+- Ledger replay now orders same-time dependent events by insertion order, and
+  raw append plus projection replacement commit or roll back in one SQLite
+  transaction. Equivalent deterministic organization creates coalesce;
+  conflicting definitions remain fail-closed.
+- Unique accepted-person name or alias matches are suggested in the selector.
+  Existing reviewed people can enter this ledger without being counted as new,
+  while ambiguous matches remain explicit operator choices.
+- Client failure handling reloads current state and recognizes a committed
+  result only by the exact hypothesis and idempotency key.
+- Existing immutable history rebuilt to 10 accepted, 1 rejected, and 51
+  unreviewed leads without retrying a click. Eight accepted organizations and
+  15 accepted person targets are currently available.
+- Five immutable corrective events apply the operator assertion that Ecochran,
+  Eric Cochran, and the exact Iowa State email are one person. The accidental
+  person is merged, its local source and Iowa State affiliation point to Eric,
+  and the email is retained only as a SHA-256 external identity. Ken Anderson
+  was not merged from a name match alone.
+- Frontend tests pass 4 tests; focused backend tests pass 27 tests; the full
+  provider-free suite passes 1,288 tests in 83.88 seconds. The frontend
+  production build and diff hygiene pass.
+- Checkpoint `444f936` is pushed. `transcripts.service` is active/running with
+  `NRestarts=0`.
+- Agent Browser loaded 51 compact approval rows at 1440 by 900 and 390 by 844.
+  The desktop view exposes sort controls, resize handles, compact targets, and
+  SVG actions without cards or panels; the narrow page remains contained. No
+  review action was invoked and every Plan 0081 QA session was closed.
+
+Progress classification: `outcome_progress`. Plan 0081 is `CLOSED`; the live
+approval queue is ready for continued review. Accepted Ken Anderson and
+Michael Forrester duplicates remain explicit correction candidates because
+names alone do not authorize identity merges.
+
 ## Turn 435: Open Plan 0081 atomic directory-review recovery (2026-09-01)
 
 Summary: Opened

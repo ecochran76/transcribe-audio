@@ -1,6 +1,6 @@
 # Plan 0081 | Atomic Directory Review Recovery
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -68,3 +68,32 @@ baseline. Their raw ledger events are durable, but projection rebuild stopped
 on a source record sorted before its newly created person. Direct idempotent
 replay returns the recorded receipt, confirming that retrying is unsafe. P1 is
 next.
+
+## Current state after completion
+
+P1-P5 are complete. Same-time dependent event batches replay in insertion
+order, and raw append plus projection replacement now share one SQLite
+transaction. Regression tests prove a valid create-then-link batch succeeds,
+a projection failure leaves no raw event, and equivalent deterministic
+organization creation coalesces while conflicting definitions fail closed.
+
+The client suggests an existing person only for one unique case-insensitive
+primary-name or alias match. Accepted people sourced from the canonical
+knowledge profile can be adopted into the learning ledger without being
+counted as newly created. Ambiguous response handling reloads current state
+and recognizes only the same hypothesis and idempotency key as committed.
+
+The 40 previously recorded live events rebuilt without replaying any review.
+The projection now exposes 10 accepted, 1 rejected, and 51 unreviewed leads.
+Five operator-authorized immutable correction events link the Ecochran contact,
+hashed email identity, and Iowa State affiliation to accepted Eric Cochran and
+mark the accidental created person merged. No name-only Ken Anderson merge was
+made.
+
+Four frontend tests, 27 focused backend tests, the production frontend build,
+and the full 1,288-test provider-free suite pass. The pushed checkpoint is
+`444f936`. The installed service is active with `NRestarts=0`. Agent Browser
+validated the loaded 51-row approval table at 1440 by 900 and 390 by 844; all
+isolated QA sessions were closed without invoking a review action. Final live
+readback resolves Eric Cochran with Ecochran, the exact email alias, five
+source records, and the reviewed Iowa State organization.
