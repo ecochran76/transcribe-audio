@@ -1,5 +1,54 @@
 # Runbook
 
+## Turn 424: Plan the canonical people, organization, and activity index (2026-09-01)
+
+Summary: Converted the Contacts deduplication, organization, and cross-channel
+history observations into bounded Plan 0076. The plan treats the current
+directory as a source-evidence projection that must become a canonical
+person-and-organization index without erasing or over-counting its source
+records.
+
+Evidence:
+
+- Live `/api/people` readback returned 228 peer rows: 6 canonical people, 187
+  local contacts, and 35 reviewed speaker records. Exact display names form 15
+  repeated-name groups containing 39 records; the current graph projection
+  reports zero person merges.
+- Baker Kuehl currently appears as two local contacts with 7 and 17
+  calendar-linked recordings plus one reviewed-speaker identity with one
+  reviewed appearance. Exact-name related-record flags connect the three, but
+  do not prove a same-person merge.
+- Fifty-seven directory rows carry organization strings, while organization
+  entities are not independently addressable in the Contacts projection.
+  Transcript/calendar/review appearances remain separate, and the 120
+  Mail Receipts hypotheses are relationship leads rather than general email
+  histories.
+- Graphiti discovery was healthy in `transcribe_audio_main` and returned eight
+  facts, five nodes, and five episode previews. The relevant facts cited the
+  current contact/role/relationship sequencing note and conversation-knowledge
+  domain contract; those repo files remained authoritative.
+- The deterministic policy selector classified the repo as already aligned;
+  the pre-plan active-only planning audit passed. The installed policy bundle
+  contains only policies 0001-0022 even though the supplied `AGENTS.md` wire-in
+  also names later 0023-0045 paths, so no absent policy file was treated as
+  readable authority.
+- Plan 0076 defines six implementation packets after the contract freeze:
+  canonical directory projection, first-class organizations, unified activity
+  indexing, compact People/Organizations UX, real-corpus rehearsal/cutover,
+  and a frozen contextual-utility measurement.
+- Active planning authority:
+  `docs/dev/plans/0076-2026-09-01-canonical-people-organization-activity-index.md`.
+- The UI contract is one dense sortable/resizable table, one expandable cited
+  timeline, small SVG controls, and no large cards, nested panels, pill
+  controls, or text-icon buttons.
+
+Progress classification: `blocker_reduction`. The architecture now has one
+source-neutral execution path instead of separate transcript, calendar, mail,
+contact, and organization feature branches. Plan 0076 remains `PLANNED`; no
+schema, source corpus, provider, person, organization, relationship, speaker,
+biometric, dashboard runtime, or Graphiti mutation occurred in this turn. The
+recommended next slice is Plan 0076 P0 contract and adversarial-fixture freeze.
+
 ## Turn 423: Close Mail hypothesis Contacts review bridge (2026-09-01)
 
 Summary: Closed Plan 0075 by connecting the completed Plan 0073 mail analysis
