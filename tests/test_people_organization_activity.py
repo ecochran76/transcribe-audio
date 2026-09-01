@@ -90,7 +90,7 @@ def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> Non
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v1"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v2"
     assert index["counts"] == {
         "people": 0,
         "unresolved_groups": 1,
@@ -175,17 +175,18 @@ def test_provider_organization_strings_create_one_proposed_entity_not_an_employe
     }
     assert organization["activity_summary"]["calendar"]["confirmed_count"] == 0
     assert organization["activity_summary"]["calendar"]["proposed_count"] == 1
-    assert all(
-        person["organizations"] == [
-            {
-                "organization_id": organization["organization_id"],
-                "primary_name": "Acme Research",
-                "status": "proposed",
-                "basis": "provider_organization_string",
-            }
-        ]
-        for person in index["people"]
-    )
+    for person in index["people"]:
+        assert len(person["organizations"]) == 1
+        affiliation = person["organizations"][0]
+        assert affiliation["organization_id"] == organization["organization_id"]
+        assert affiliation["primary_name"] == "Acme Research"
+        assert affiliation["status"] == "proposed"
+        assert affiliation["basis"] == "provider_organization_string"
+        assert affiliation["roles"] == []
+        assert affiliation["role_count"] == 0
+        assert affiliation["affiliation_id"].startswith("affiliation:")
+        assert person["primary_affiliation"] == affiliation
+        assert person["additional_organization_count"] == 0
 
 
 def test_activity_counts_independent_evidence_and_preserves_participation_state() -> None:
@@ -383,6 +384,116 @@ def test_schema_v9_rebuilds_organization_activity_and_coverage_authority(
     )
     ledger.rebuild()
     assert "activity-mail-1" not in ledger.projection_snapshot()["activities"]
+
+
+def test_directory_groups_multiple_roles_without_collapsing_organizations() -> None:
+    person_id = "00000000-0000-4000-8000-000000000771"
+    source_payload = {
+        "schema_version": "transcribe-audio.identity-people.v1",
+        "items": [
+            {
+                "person_id": person_id,
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Jordan Example",
+                "aliases": [],
+                "source_records": [{"source_record_id": "gws:jordan"}],
+                "organizations": [],
+                "calendar_occurrences": [],
+                "review_occurrences": [],
+                "relationship_hypotheses": [],
+            }
+        ],
+    }
+    authority_snapshot = {
+        "organizations": {
+            "organization-acme": {
+                "organization_id": "organization-acme",
+                "primary_name": "Acme Research",
+                "status": "reviewed",
+                "aliases_json": "[]",
+                "domains_json": "[]",
+                "websites_json": "[]",
+                "locations_json": "[]",
+                "organization_type": "company",
+                "merged_into_organization_id": "",
+            },
+            "organization-beta": {
+                "organization_id": "organization-beta",
+                "primary_name": "Beta Foundation",
+                "status": "reviewed",
+                "aliases_json": "[]",
+                "domains_json": "[]",
+                "websites_json": "[]",
+                "locations_json": "[]",
+                "organization_type": "nonprofit",
+                "merged_into_organization_id": "",
+            },
+        },
+        "organization_sources": {},
+        "roles": {
+            "role-acme-founder": {
+                "role_id": "role-acme-founder",
+                "person_id": person_id,
+                "role_type": "founder",
+                "organization_id": "organization-acme",
+                "starts_at": "2020-01-01T00:00:00Z",
+                "ends_at": "",
+                "status": "reviewed",
+                "evidence_ids_json": '["evidence-founder"]',
+            },
+            "role-acme-ceo": {
+                "role_id": "role-acme-ceo",
+                "person_id": person_id,
+                "role_type": "chief_executive_officer",
+                "organization_id": "organization-acme",
+                "starts_at": "2021-01-01T00:00:00Z",
+                "ends_at": "",
+                "status": "accepted",
+                "evidence_ids_json": '["evidence-ceo"]',
+            },
+            "role-beta-advisor": {
+                "role_id": "role-beta-advisor",
+                "person_id": person_id,
+                "role_type": "advisor",
+                "organization_id": "organization-beta",
+                "starts_at": "2024-01-01T00:00:00Z",
+                "ends_at": "",
+                "status": "proposed",
+                "evidence_ids_json": '["evidence-advisor"]',
+            },
+        },
+        "activities": {},
+        "activity_coverage": {},
+    }
+
+    first = build_directory_index(
+        source_payload,
+        authority_snapshot=authority_snapshot,
+    )
+    second = build_directory_index(
+        source_payload,
+        authority_snapshot=authority_snapshot,
+    )
+    person = first["people"][0]
+
+    assert first["semantic_hash"] == second["semantic_hash"]
+    assert [item["organization_id"] for item in person["organizations"]] == [
+        "organization-acme",
+        "organization-beta",
+    ]
+    assert [role["role_id"] for role in person["organizations"][0]["roles"]] == [
+        "role-acme-ceo",
+        "role-acme-founder",
+    ]
+    assert person["primary_affiliation"]["organization_id"] == "organization-acme"
+    assert person["primary_affiliation"]["role_types"] == [
+        "chief_executive_officer",
+        "founder",
+    ]
+    assert person["additional_organization_count"] == 1
+    assert person["identity_health"]["affiliation_count"] == 2
+    assert person["identity_health"]["role_count"] == 3
 
 
 def test_organization_alias_merge_split_and_reversal_preserve_history(
@@ -609,3 +720,83 @@ def test_accepted_activity_is_eligible_for_scoped_as_of_context_without_self_cor
     ]
     assert "current_conversation_activity_excluded" in bundle.warnings
     assert "activity_after_as_of_excluded" in bundle.warnings
+
+
+def test_accepted_roles_are_anchor_scoped_and_effective_at_context_time(
+    tmp_path: Path,
+) -> None:
+    conversation_knowledge_store.ConversationKnowledgeStore(tmp_path).migrate(
+        backup=False
+    )
+    ledger = IdentityLearningLedger(tmp_path)
+    person_id = "00000000-0000-4000-8000-000000000772"
+    ledger.append_event(
+        event_type="person_created",
+        payload={"person_id": person_id, "primary_name": "Casey Example", "status": "reviewed"},
+        actor_id="reviewer:test",
+        occurred_at="2026-09-01T15:00:00Z",
+        idempotency_key="plan77-context-person",
+    )
+    ledger.append_event(
+        event_type="organization_created",
+        payload={
+            "organization_id": "organization-acme",
+            "primary_name": "Acme Research",
+            "status": "reviewed",
+        },
+        actor_id="reviewer:test",
+        occurred_at="2026-09-01T15:01:00Z",
+        idempotency_key="plan77-context-organization",
+    )
+    for suffix, starts_at, ends_at, status, origin in (
+        ("current", "2025-01-01T00:00:00Z", "", "reviewed", "conversation-prior"),
+        ("self", "2025-01-01T00:00:00Z", "", "accepted", "conversation-current"),
+        ("proposed", "2025-01-01T00:00:00Z", "", "proposed", "conversation-prior"),
+        ("future", "2027-01-01T00:00:00Z", "", "accepted", "conversation-prior"),
+        ("ended", "2024-01-01T00:00:00Z", "2026-01-01T00:00:00Z", "accepted", "conversation-prior"),
+    ):
+        ledger.append_event(
+            event_type="role_asserted",
+            payload={
+                "role_id": f"role-{suffix}",
+                "person_id": person_id,
+                "organization_id": "organization-acme",
+                "role_type": suffix,
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "status": status,
+                "evidence_ids": [f"evidence-{suffix}"],
+                "metadata": {
+                    "accepted_at": "2026-02-01T00:00:00Z",
+                    "originating_conversation_id": origin,
+                },
+            },
+            actor_id="reviewer:test",
+            occurred_at="2026-09-01T15:02:00Z",
+            idempotency_key=f"plan77-context-role-{suffix}",
+        )
+    ledger.rebuild()
+
+    bundle = EvidenceFabric(tmp_path).collect(
+        EvidenceRequest(
+            purpose="conversation_understanding",
+            conversation_id="conversation-current",
+            anchors=(EvidenceAnchor("person", person_id),),
+            query_terms=(),
+            scopes=(EvidenceScope("local-knowledge", "", ""),),
+            capabilities=("accepted_role_appointments",),
+            as_of="2026-09-01T00:00:00Z",
+            hindsight_policy="exclude",
+            allowed_freshness_states=("current",),
+            max_records=10,
+            max_characters=10000,
+            max_provider_calls=0,
+            max_relationship_hops=0,
+        )
+    )
+
+    assert [role.role_id for role in bundle.role_appointments] == ["role-current"]
+    assert bundle.role_appointments[0].organization_id == "organization-acme"
+    assert "current_conversation_role_excluded" in bundle.warnings
+    assert "role_after_as_of_excluded" in bundle.warnings
+    assert "role_outside_effective_time_excluded" in bundle.warnings

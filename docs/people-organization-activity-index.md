@@ -1,8 +1,8 @@
 # People, Organization, And Activity Index Contract
 
-Plan 0076 defines a source-neutral directory read model over the existing
-append-only identity authority. The public schema is
-`transcribe-audio.people-organization-activity-index.v1`.
+Plans 0076 and 0077 define a source-neutral directory read model over the
+existing append-only identity authority. The current public schema is
+`transcribe-audio.people-organization-activity-index.v2`.
 
 ## Identity boundaries
 
@@ -16,6 +16,24 @@ append-only identity authority. The public schema is
   creates an accepted person, organization, or affiliation.
 - Merge, split, correction, alias, and reversal decisions are append-only.
   Rebuilding from active events must yield the same semantic hash.
+
+## Affiliation and role boundary
+
+- Every role appointment remains an independently correctable temporal
+  assertion with its own durable `role_id`, status, evidence IDs, and validity
+  interval.
+- `organizations[]` groups those appointments by person and organization for
+  presentation. Its stable `affiliation_id` is derived; an affiliation is not
+  a second mutable authority.
+- `primary_affiliation` is a deterministic compact display projection, and
+  `additional_organization_count` reports the other affiliation groups. It
+  does not imply that one organization or role is permanently primary.
+- Provider organization strings can create proposed affiliations with an
+  empty `roles[]`. They never create accepted employment, membership, or
+  ownership.
+- Accepted contextual retrieval uses role appointments only when they match
+  an evidence anchor, are effective at the request time, were accepted by that
+  time, and did not originate in the conversation being interpreted.
 
 ## Activity boundary
 

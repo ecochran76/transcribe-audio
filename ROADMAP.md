@@ -310,6 +310,13 @@ to measure contextual lift. Name/domain-only merges, automatic acceptance,
 provider writes, Graphiti writes, biometric effects, and speaker-policy changes
 remain excluded.
 
+Plan 0077 is open as the multi-organization/multi-role correction to that
+directory. It preserves every stable role assertion, derives one affiliation
+group per person/organization pair, adds a compact primary-plus-additional
+organization projection, and exposes only accepted temporally valid role
+appointments to the evidence fabric. The live ledger currently has zero roles,
+so the slice changes no accepted affiliation truth and remains Level 2 shadow.
+
 Plans:
 
 - `docs/dev/plans/0009-2026-05-12-react-vite-review-console.md`
@@ -342,8 +349,16 @@ Plans:
 - `docs/dev/plans/0074-2026-09-01-two-loop-evidence-fabric-walking-skeleton.md`
 - `docs/dev/plans/0075-2026-09-01-mail-hypothesis-contacts-review-bridge.md`
 - `docs/dev/plans/0076-2026-09-01-canonical-people-organization-activity-index.md`
+- `docs/dev/plans/0077-2026-09-01-multi-organization-role-affiliations.md`
 
 Milestone Focus:
+
+- Open milestone M8 is Plan 0077's multi-organization and multi-role
+  correction. Its critical path removes the person/org overwrite defect,
+  preserves independently reviewable role IDs and temporal intervals, and
+  keeps the dense People table compact through a derived primary affiliation
+  plus complete inline expansion. Installed acceptance must retain truthful
+  zero-role live accounting rather than fabricating review authority.
 
 - Closed milestone M7 is Plan 0076's canonical people, organization, and
   activity index. Schema v9, deterministic ledger replay, the source-neutral

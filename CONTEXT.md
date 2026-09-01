@@ -226,6 +226,29 @@ that person has a source record. A person candidate may have multiple source
 affinities, each retaining its own relationship context.
 _Avoid_: Preferred source, duplicate identity
 
+**Organization**:
+A durable entity representing a company, institution, team, or other named
+body independently of the people connected to it.
+_Avoid_: Employer string, company field
+
+**Affiliation**:
+The derived, temporal grouping connecting one person to one organization and
+containing that person's role appointments there. It is a read model, not an
+independent assertion or a permanent employer field.
+_Avoid_: Employment record, organization string, role
+
+**Role Appointment**:
+One independently reviewable assertion that a person holds a named role in an
+organization or scoped project, matter, or conversation during a validity
+interval.
+_Avoid_: Affiliation, title string, permanent role
+
+**Primary Affiliation**:
+The deterministically ranked affiliation shown in a compact directory row.
+It is a presentation choice and never replaces or outranks the underlying
+role appointments as authority.
+_Avoid_: Current employer, canonical organization
+
 **Source Context**:
 The declared owner, relationship scope, account or tenant label, evidence
 capabilities, and identifier authority of a configured provenance source.

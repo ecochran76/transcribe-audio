@@ -15,9 +15,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v1"
+SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v2"
 CHANNELS = ("transcript", "calendar", "email")
 MAIL_HYPOTHESIS_KINDS = {"correspondence", "sent_mail", "thread_coparticipation"}
+REVIEWED_ROLE_STATUSES = {"accepted", "reviewed"}
 
 
 def _text(value: object) -> str:
@@ -326,6 +327,85 @@ def _authority_activity(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _role_appointment(row: Mapping[str, Any]) -> dict[str, Any]:
+    evidence_ids = _json_value(row.get("evidence_ids_json"), row.get("evidence_ids") or [])
+    return {
+        "role_id": _text(row.get("role_id")),
+        "role_type": _text(row.get("role_type")),
+        "status": _text(row.get("status")) or "proposed",
+        "starts_at": _text(row.get("starts_at")),
+        "ends_at": _text(row.get("ends_at")),
+        "project_id": _text(row.get("project_id")),
+        "matter_id": _text(row.get("matter_id")),
+        "conversation_id": _text(row.get("conversation_id")),
+        "evidence_ids": sorted(
+            {_text(value) for value in _array(evidence_ids) if _text(value)}
+        ),
+    }
+
+
+def _role_rank(role: Mapping[str, Any]) -> tuple[int, int, str, str, str]:
+    return (
+        1 if _text(role.get("status")) in REVIEWED_ROLE_STATUSES else 0,
+        1 if not _text(role.get("ends_at")) else 0,
+        _text(role.get("starts_at")),
+        _text(role.get("role_type")).casefold(),
+        _text(role.get("role_id")),
+    )
+
+
+def _finalize_affiliations(person: dict[str, Any]) -> None:
+    affiliations: list[dict[str, Any]] = []
+    for raw in person.get("organizations") or []:
+        affiliation = dict(raw)
+        roles = [
+            dict(role)
+            for role in _array(affiliation.get("roles"))
+            if isinstance(role, Mapping) and _text(role.get("role_id"))
+        ]
+        roles.sort(key=_role_rank, reverse=True)
+        affiliation["roles"] = roles
+        affiliation["role_types"] = [
+            role["role_type"] for role in roles if role.get("role_type")
+        ]
+        affiliation["role_count"] = len(roles)
+        affiliation["evidence_ids"] = sorted(
+            {
+                evidence_id
+                for role in roles
+                for evidence_id in role.get("evidence_ids") or []
+            }
+        )
+        affiliation["starts_at"] = min(
+            (role["starts_at"] for role in roles if role.get("starts_at")),
+            default="",
+        )
+        affiliation["ends_at"] = "" if any(
+            not role.get("ends_at") for role in roles
+        ) else max(
+            (role["ends_at"] for role in roles if role.get("ends_at")),
+            default="",
+        )
+        if roles:
+            affiliation["status"] = roles[0]["status"]
+        affiliations.append(affiliation)
+    affiliations.sort(
+        key=lambda item: (
+            _role_rank((item.get("roles") or [{}])[0]),
+            _text(item.get("primary_name")).casefold(),
+            _text(item.get("affiliation_id")),
+        ),
+        reverse=True,
+    )
+    person["organizations"] = affiliations
+    person["primary_affiliation"] = dict(affiliations[0]) if affiliations else None
+    person["additional_organization_count"] = max(0, len(affiliations) - 1)
+    person["identity_health"]["affiliation_count"] = len(affiliations)
+    person["identity_health"]["role_count"] = sum(
+        len(item.get("roles") or []) for item in affiliations
+    )
+
+
 def _merge_activities(
     target: dict[str, Any], rows: Sequence[Mapping[str, Any]]
 ) -> None:
@@ -411,10 +491,14 @@ def build_directory_index(
             linked_entity_ids.add(person["entity_id"])
             person["organizations"].append(
                 {
+                    "affiliation_id": _stable_id(
+                        "affiliation", person["entity_id"], organization_id
+                    ),
                     "organization_id": organization_id,
                     "primary_name": primary_name,
                     "status": "proposed",
                     "basis": "provider_organization_string",
+                    "roles": [],
                 }
             )
             activities.extend(record_activities)
@@ -503,36 +587,57 @@ def build_directory_index(
         for person in people
         if person.get("accepted_person_id")
     }
+    role_rows: dict[str, Mapping[str, Any]] = {
+        _text(role.get("role_id")): role
+        for role in (authority.get("roles") or {}).values()
+        if isinstance(role, Mapping) and _text(role.get("role_id"))
+    }
     for record in source_items:
-        person = person_by_id.get(_text(record.get("person_id")))
+        for role in _array(record.get("roles")):
+            if isinstance(role, Mapping) and _text(role.get("role_id")):
+                role_rows.setdefault(_text(role.get("role_id")), role)
+    for role_id, role in sorted(role_rows.items()):
+        person = person_by_id.get(_text(role.get("person_id")))
         if person is None:
             continue
-        for role in _array(record.get("roles")):
-            if not isinstance(role, Mapping):
-                continue
-            organization_id = _text(role.get("organization_id"))
-            organization = organization_by_id.get(organization_id)
-            if not organization:
-                continue
-            affiliation = {
-                "organization_id": organization_id,
-                "primary_name": organization["primary_name"],
-                "status": _text(role.get("status")) or "proposed",
-                "role_type": _text(role.get("role_type")),
-                "starts_at": _text(role.get("starts_at")),
-                "ends_at": _text(role.get("ends_at")),
-                "evidence_ids": list(role.get("evidence_ids") or []),
-                "basis": "identity_role_projection",
-            }
-            person["organizations"] = [
+        organization_id = _text(role.get("organization_id"))
+        organization = organization_by_id.get(organization_id)
+        if not organization:
+            continue
+        affiliation = next(
+            (
                 item
                 for item in person["organizations"]
-                if item.get("organization_id") != organization_id
-            ]
+                if item.get("organization_id") == organization_id
+            ),
+            None,
+        )
+        if affiliation is None:
+            affiliation = {
+                "affiliation_id": _stable_id(
+                    "affiliation", person["entity_id"], organization_id
+                ),
+                "organization_id": organization_id,
+                "primary_name": organization["primary_name"],
+                "status": "proposed",
+                "basis": "identity_role_projection",
+                "roles": [],
+            }
             person["organizations"].append(affiliation)
-            organization["affiliated_person_ids"] = sorted(
-                {*organization.get("affiliated_person_ids", []), person["entity_id"]}
-            )
+        affiliation.setdefault("roles", []).append(
+            _role_appointment({**role, "role_id": role_id})
+        )
+        affiliation["basis"] = "identity_role_projection"
+        organization["affiliated_person_ids"] = sorted(
+            {*organization.get("affiliated_person_ids", []), person["entity_id"]}
+        )
+
+    for person in people:
+        _finalize_affiliations(person)
+    for organization in organization_by_id.values():
+        organization["identity_health"]["affiliation_count"] = len(
+            organization.get("affiliated_person_ids") or []
+        )
 
     activities_by_subject: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for raw in (authority.get("activities") or {}).values():

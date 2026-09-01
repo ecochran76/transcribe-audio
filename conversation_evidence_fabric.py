@@ -27,6 +27,7 @@ SUPPORTED_HINDSIGHT_POLICIES = {
 }
 ACCEPTED_RELATIONSHIP_STATUSES = {"accepted", "reviewed"}
 ACCEPTED_ACTIVITY_STATUSES = {"accepted", "confirmed", "observed"}
+ACCEPTED_ROLE_STATUSES = {"accepted", "reviewed"}
 
 
 def _canonical_json(value: object) -> str:
@@ -144,11 +145,31 @@ class AcceptedActivity:
 
 
 @dataclass(frozen=True)
+class AcceptedRoleAppointment:
+    role_id: str
+    person_id: str
+    organization_id: str
+    role_type: str
+    project_id: str
+    matter_id: str
+    conversation_id: str
+    starts_at: str
+    ends_at: str
+    status: str
+    evidence_ids: tuple[str, ...]
+    originating_conversation_id: str
+    accepted_at: str
+    input_watermark: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class EvidenceBundle:
     purpose: str
     conversation_id: str
     provider_snapshots: tuple[EvidenceSnapshotRecord, ...]
     relationships: tuple[AcceptedRelationship, ...]
+    role_appointments: tuple[AcceptedRoleAppointment, ...]
     activities: tuple[AcceptedActivity, ...]
     warnings: tuple[str, ...]
     source_failures: tuple[dict[str, str], ...]
@@ -175,15 +196,21 @@ class EvidenceFabric:
         relationships, relationship_warnings, watermark = (
             self._accepted_relationships(request)
         )
+        role_appointments, role_warnings, role_watermark = (
+            self._accepted_role_appointments(request)
+        )
         activities, activity_warnings, activity_watermark = (
             self._accepted_activities(request)
         )
+        if watermark == "empty":
+            watermark = role_watermark
         if watermark == "empty":
             watermark = activity_watermark
         warnings = tuple(
             sorted(
                 set(provider_warnings)
                 .union(relationship_warnings)
+                .union(role_warnings)
                 .union(activity_warnings)
             )
         )
@@ -204,6 +231,9 @@ class EvidenceFabric:
                 asdict(item) for item in provider_snapshots
             ],
             "relationships": [asdict(item) for item in relationships],
+            "role_appointments": [
+                asdict(item) for item in role_appointments
+            ],
             "activities": [asdict(item) for item in activities],
             "warnings": list(warnings),
             "source_failures": list(ordered_failures),
@@ -214,11 +244,128 @@ class EvidenceFabric:
             conversation_id=request.conversation_id,
             provider_snapshots=provider_snapshots,
             relationships=relationships,
+            role_appointments=role_appointments,
             activities=activities,
             warnings=warnings,
             source_failures=ordered_failures,
             knowledge_watermark=watermark,
             content_hash=_canonical_hash(semantic),
+        )
+
+    def _accepted_role_appointments(
+        self,
+        request: EvidenceRequest,
+    ) -> tuple[tuple[AcceptedRoleAppointment, ...], list[str], str]:
+        if (
+            "accepted_role_appointments" not in request.capabilities
+            or not request.anchors
+        ):
+            return (), [], self._knowledge_watermark()
+        with transcript_store.connect(self.root) as con:
+            table = con.execute(
+                """
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'knowledge_identity_role_projection'
+                """
+            ).fetchone()
+            if table is None:
+                return (
+                    (),
+                    ["accepted_role_projection_unavailable"],
+                    self._knowledge_watermark(),
+                )
+            rows = con.execute(
+                """
+                SELECT * FROM knowledge_identity_role_projection
+                ORDER BY role_id
+                """
+            ).fetchall()
+        watermark = (
+            str(rows[0]["input_watermark"])
+            if rows
+            else self._knowledge_watermark()
+        )
+        anchor_keys = {
+            (anchor.anchor_type, anchor.anchor_id)
+            for anchor in request.anchors
+        }
+        as_of = _parse_time(request.as_of, field_name="as_of")
+        included: list[AcceptedRoleAppointment] = []
+        warnings: list[str] = []
+        consumed_characters = 0
+        for row in rows:
+            if (
+                ("person", str(row["person_id"])) not in anchor_keys
+                and (
+                    "organization",
+                    str(row["organization_id"]),
+                ) not in anchor_keys
+            ):
+                continue
+            if str(row["status"]) not in ACCEPTED_ROLE_STATUSES:
+                continue
+            metadata = self._json_object(row["metadata_json"])
+            originating_conversation_id = str(
+                metadata.get("originating_conversation_id") or ""
+            )
+            if originating_conversation_id == request.conversation_id:
+                warnings.append("current_conversation_role_excluded")
+                continue
+            starts_at = str(row["starts_at"] or "")
+            ends_at = str(row["ends_at"] or "")
+            accepted_at = str(metadata.get("accepted_at") or "")
+            if (
+                starts_at
+                and _parse_time(starts_at, field_name="starts_at") > as_of
+            ):
+                warnings.append("role_after_as_of_excluded")
+                continue
+            if (
+                ends_at
+                and _parse_time(ends_at, field_name="ends_at") <= as_of
+            ):
+                warnings.append("role_outside_effective_time_excluded")
+                continue
+            if request.hindsight_policy != "allow_hindsight":
+                if not accepted_at:
+                    warnings.append("role_acceptance_time_missing")
+                    continue
+                if _parse_time(accepted_at, field_name="accepted_at") > as_of:
+                    warnings.append("role_after_as_of_excluded")
+                    continue
+            role = AcceptedRoleAppointment(
+                role_id=str(row["role_id"]),
+                person_id=str(row["person_id"]),
+                organization_id=str(row["organization_id"]),
+                role_type=str(row["role_type"]),
+                project_id=str(row["project_id"]),
+                matter_id=str(row["matter_id"]),
+                conversation_id=str(row["conversation_id"]),
+                starts_at=starts_at,
+                ends_at=ends_at,
+                status=str(row["status"]),
+                evidence_ids=tuple(
+                    self._json_list(row["evidence_ids_json"])
+                ),
+                originating_conversation_id=originating_conversation_id,
+                accepted_at=accepted_at,
+                input_watermark=str(row["input_watermark"]),
+                metadata=metadata,
+            )
+            role_size = len(_canonical_json(asdict(role)))
+            if (
+                len(included) >= request.max_records
+                or consumed_characters + role_size > request.max_characters
+            ):
+                warnings.append("evidence_budget_exhausted")
+                continue
+            included.append(role)
+            consumed_characters += role_size
+        return (
+            tuple(sorted(included, key=lambda item: item.role_id)),
+            warnings,
+            watermark,
         )
 
     def _collect_provider_snapshots(

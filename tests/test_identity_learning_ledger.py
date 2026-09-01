@@ -378,6 +378,91 @@ def test_external_identity_and_corrections_replay_without_raw_identifier_leakage
     assert ledger.projection_snapshot()["sources"]["source-1"]["label"] == "Morgan Example"
 
 
+def test_role_correction_and_reversal_preserve_sibling_appointments(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    person_id = "00000000-0000-4000-8000-000000000773"
+    _append(
+        ledger,
+        "person_created",
+        {"person_id": person_id, "primary_name": "Casey Example"},
+        1,
+    )
+    _append(
+        ledger,
+        "organization_created",
+        {
+            "organization_id": "organization-acme",
+            "primary_name": "Acme Research",
+        },
+        2,
+    )
+    for ordinal, role_id, role_type in (
+        (3, "role-acme-founder", "founder"),
+        (4, "role-acme-ceo", "chief_executive_officer"),
+    ):
+        _append(
+            ledger,
+            "role_asserted",
+            {
+                "role_id": role_id,
+                "person_id": person_id,
+                "organization_id": "organization-acme",
+                "role_type": role_type,
+                "status": "reviewed",
+                "evidence_ids": [f"evidence-{role_id}"],
+            },
+            ordinal,
+        )
+    ledger.rebuild()
+    original = ledger.projection_snapshot()["roles"]
+
+    def appointment_value(value: dict[str, object]) -> dict[str, object]:
+        return {
+            key: item
+            for key, item in value.items()
+            if key not in {"input_watermark", "built_at"}
+        }
+
+    correction_id = _append(
+        ledger,
+        "role_corrected",
+        {
+            "role_id": "role-acme-ceo",
+            "changes": {"role_type": "president", "status": "accepted"},
+        },
+        5,
+    )
+    ledger.rebuild()
+    corrected = ledger.projection_snapshot()["roles"]
+
+    assert corrected["role-acme-ceo"]["role_type"] == "president"
+    assert corrected["role-acme-ceo"]["status"] == "accepted"
+    assert appointment_value(corrected["role-acme-founder"]) == appointment_value(
+        original["role-acme-founder"]
+    )
+
+    _append(
+        ledger,
+        "event_reversed",
+        {"reason": "role correction was inaccurate"},
+        6,
+        reverses_event_id=correction_id,
+    )
+    reversed_receipt = ledger.rebuild()
+    restored = ledger.projection_snapshot()["roles"]
+    replay_receipt = ledger.rebuild()
+
+    assert appointment_value(restored["role-acme-ceo"]) == appointment_value(
+        original["role-acme-ceo"]
+    )
+    assert appointment_value(restored["role-acme-founder"]) == appointment_value(
+        original["role-acme-founder"]
+    )
+    assert replay_receipt.projection_hash == reversed_receipt.projection_hash
+
+
 def test_baseline_reconciliation_deduplicates_exact_scope_and_fails_closed(
     tmp_path: Path,
 ) -> None:

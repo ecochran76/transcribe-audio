@@ -689,7 +689,7 @@ function directorySortValue(item, key) {
   if (key === "name") return item.primary_name || "";
   if (key === "organization") {
     if (item.entity_kind === "organization") return item.affiliated_person_ids?.length || 0;
-    return item.organizations?.[0]?.primary_name || item.organization_type || "";
+    return item.primary_affiliation?.primary_name || item.organizations?.[0]?.primary_name || item.organization_type || "";
   }
   if (["transcript", "calendar", "email"].includes(key)) {
     const summary = item.activity_summary?.[key] || {};
@@ -698,6 +698,24 @@ function directorySortValue(item, key) {
   if (key === "last") return Date.parse(item.last_interaction_at || "") || 0;
   if (key === "health") return Number(item.identity_health?.requires_review || 0) * 1000 + Number(item.identity_health?.source_record_count || 0);
   return "";
+}
+
+function affiliationRoleSummary(affiliation) {
+  const roleTypes = affiliation?.role_types?.length
+    ? affiliation.role_types
+    : (affiliation?.roles || []).map((role) => role.role_type).filter(Boolean);
+  if (!roleTypes.length) return affiliation?.status === "proposed"
+    ? "Organization observed · proposed"
+    : "No role asserted";
+  const visible = roleTypes.slice(0, 2).map(label).join(" / ");
+  return roleTypes.length > 2 ? `${visible} · +${roleTypes.length - 2} roles` : visible;
+}
+
+function roleValidity(role) {
+  if (!role?.starts_at && !role?.ends_at) return "Not established";
+  const start = role.starts_at ? formatDate(role.starts_at) : "Earlier";
+  const end = role.ends_at ? formatDate(role.ends_at) : "Current";
+  return `${start} – ${end}`;
 }
 
 function PeopleView() {
@@ -807,14 +825,14 @@ function PeopleView() {
           <tbody>{items.map((item) => {
             const id = directoryId(item);
             const expanded = expandedId === id;
-            const affiliation = item.organizations?.[0];
+            const affiliation = item.primary_affiliation || item.organizations?.[0];
             const health = item.identity_health || {};
             return <Fragment key={id}>
               <tr className={expanded ? "directory-row expanded" : "directory-row"}>
                 <td><button className="directory-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${item.primary_name}`} onClick={() => setExpandedId(expanded ? "" : id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><span><strong>{item.primary_name || "Unnamed"}</strong><small>{item.entity_kind === "unresolved_group" ? `${health.member_count || 0} separate records · unresolved` : label(item.resolution_state)}</small></span></button></td>
                 <td>{view === "organizations"
                   ? <span className="directory-cell-stack"><strong>{counted(item.affiliated_person_ids?.length, "linked person")}</strong><small>{label(item.resolution_state)} organization</small></span>
-                  : <span className="directory-cell-stack"><strong>{affiliation?.primary_name || "—"}</strong><small>{affiliation ? `${label(affiliation.role_type || affiliation.status)}${affiliation.status === "proposed" ? " · proposed" : ""}` : "No accepted affiliation"}</small></span>}</td>
+                  : <span className="directory-cell-stack"><strong>{affiliation?.primary_name || "—"}</strong><small>{affiliation ? `${affiliationRoleSummary(affiliation)}${item.additional_organization_count ? ` · +${item.additional_organization_count} ${item.additional_organization_count === 1 ? "organization" : "organizations"}` : ""}` : "No accepted affiliation"}</small></span>}</td>
                 <td>{channelSummary(item, "transcript")}</td>
                 <td>{channelSummary(item, "calendar")}</td>
                 <td>{channelSummary(item, "email")}</td>
@@ -834,6 +852,11 @@ function PeopleView() {
 function DirectoryDetail({ item }) {
   const members = item.members || [];
   const sources = item.source_records || members.flatMap((member) => member.source_records || []);
+  const affiliations = item.organizations || [];
+  const affiliationRows = affiliations.flatMap((affiliation) => affiliation.roles?.length
+    ? affiliation.roles.map((role) => ({ affiliation, role }))
+    : [{ affiliation, role: null }]);
+  const roleCount = affiliationRows.filter(({ role }) => role).length;
   return <div className="directory-detail">
     <section><h3>Activity timeline <span>{item.activities?.length || 0}</span></h3>
       <div className="directory-detail-scroll"><table><thead><tr><th>Date</th><th>Channel</th><th>Conversation or evidence</th><th>Participation</th><th>Source</th></tr></thead><tbody>{(item.activities || []).map((activity) => <tr key={`${activity.channel}-${activity.observation_id}`}><td>{activity.occurred_at ? formatDate(activity.occurred_at) : "Undated"}</td><td>{label(activity.channel)}</td><td>{activity.title || "Bounded source evidence"}</td><td>{label(activity.participation_status)} · {label(activity.evidence_status)}</td><td><code>{compactHash(activity.source_record_id)}</code></td></tr>)}</tbody></table></div>
@@ -841,7 +864,7 @@ function DirectoryDetail({ item }) {
     <section><h3>Source identities <span>{sources.length}</span></h3>
       <div className="directory-detail-scroll"><table><thead><tr><th>Member</th><th>Provider</th><th>Type</th><th>Label</th><th>Status</th></tr></thead><tbody>{sources.map((source, index) => <tr key={source.source_record_id || index}><td>{source.person_id || source.organization_id || "—"}</td><td>{label(source.provider_kind)}</td><td>{label(source.record_type)}</td><td>{source.label || source.external_ref || "—"}</td><td>{label(source.resolution_status)}</td></tr>)}</tbody></table></div>
     </section>
-    {!!item.organizations?.length && <section><h3>Affiliations <span>{item.organizations.length}</span></h3><div className="directory-detail-scroll"><table><thead><tr><th>Organization</th><th>Role</th><th>State</th><th>Valid dates</th><th>Basis</th></tr></thead><tbody>{item.organizations.map((organization) => <tr key={organization.organization_id}><td>{organization.primary_name}</td><td>{label(organization.role_type)}</td><td>{label(organization.status)}</td><td>{organization.starts_at || organization.ends_at ? `${formatDate(organization.starts_at)} – ${formatDate(organization.ends_at)}` : "Not established"}</td><td>{label(organization.basis)}</td></tr>)}</tbody></table></div></section>}
+    {!!affiliations.length && <section><h3>Affiliations <span>{counted(affiliations.length, "organization")} · {counted(roleCount, "role")}</span></h3><div className="directory-detail-scroll"><table><thead><tr><th>Organization</th><th>Role</th><th>State</th><th>Valid dates</th><th>Evidence</th><th>Basis</th></tr></thead><tbody>{affiliationRows.map(({ affiliation, role }) => <tr key={`${affiliation.affiliation_id || affiliation.organization_id}:${role?.role_id || "unassigned"}`}><td>{affiliation.primary_name}</td><td>{role ? label(role.role_type) : "No role asserted"}</td><td>{label(role?.status || affiliation.status)}</td><td>{roleValidity(role || affiliation)}</td><td>{role ? counted(role.evidence_ids?.length, "item") : "—"}</td><td>{label(role?.basis || affiliation.basis)}</td></tr>)}</tbody></table></div></section>}
     {item.entity_kind === "unresolved_group" && <p className="people-editing-boundary">These source records share a display name. They remain separate identities until an explicit reviewed reconciliation decision.</p>}
   </div>;
 }

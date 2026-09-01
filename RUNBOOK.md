@@ -1,5 +1,34 @@
 # Runbook
 
+## Turn 427: Open Plan 0077 for multi-organization roles (2026-09-01)
+
+Summary: Opened the bounded correction for people who belong to several
+organizations or hold several roles at one organization. The architecture
+keeps each `role_id` as independent temporal authority and derives affiliation
+groups for presentation instead of introducing a competing affiliation store.
+
+Evidence:
+
+- Current branch `plan-0037-campaign` was clean and synchronized at
+  `4ec64cb5046e52362a16e468a7139ed20ed42d7d` before the slice.
+- `transcripts.service` was active/running with PID 23301 and `NRestarts=0`.
+- CodeGraph traced the defect to `build_directory_index`: it removes all
+  existing entries for a person/organization pair before appending each role.
+  The UI then reads only `organizations[0]` and keys expansion rows only by
+  organization ID.
+- Schema v9 already preserves `role_id`, person, organization, scope, validity,
+  status, evidence IDs, and metadata. The live role projection has zero rows,
+  so no migration or accepted-evidence rewrite is needed.
+- `CONTEXT.md` now distinguishes organization, affiliation, role appointment,
+  and primary affiliation. ADR 0004 records why affiliation is a derived read
+  model rather than a second mutable authority.
+- The repo-policy selector reported the repository already aligned with its
+  installed profile and no validation problems. Graphiti discovery remained
+  advisory; current repo source and live state are the authority.
+
+Progress classification: `outcome_progress`. Plan 0077 is `OPEN`; P0 is
+documented and P1 begins with a failing public-behavior regression test.
+
 ## Turn 426: Close Plan 0076 after installed corpus and visual acceptance (2026-09-01)
 
 Summary: Completed Plan 0076 P5-P6. The live schema-v9 Contacts workspace is
