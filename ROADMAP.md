@@ -245,11 +245,17 @@ selected-result context, normalizes retained timestamps to UTC, and applies
 historical bounds before ranking/page limiting on the two-member
 archive-plus-live DuckDB path. Transcribe Audio now sends one bounded exact
 participant query per frozen address. The unchanged cohort accounted for all
-57 queries: 50 returned 976 pre-cutoff records and 7 were content-level zero
-matches, with zero provider/mailbox/graph/speaker effects. The prior zero-record
-P6 measurement is preserved as superseded evidence of the repaired serving
-defects, not current corpus coverage. The mail lane remains a Level 2
-review-only shadow capability. The plan extends the
+57 queries in a full repaired-source P5 rerun, selected 966 records, retained
+951 normalized observations and independence groups, and produced 120
+proposed-only hypotheses: 70 sent-mail, 47 thread-coparticipation, and 3
+correspondence hypotheses. Provider-free replay was equal and all
+provider/mailbox/graph/speaker effects remained zero. The prior zero-record P6
+measurement is preserved as superseded evidence of the repaired serving
+defects, not current corpus coverage. The installed `/api/people` surface still
+uses the earlier calendar/provider shadow projection and does not consume these
+private P5 artifacts, so a bounded consumer/evaluation successor is required
+before the recovered mail hypotheses appear in live Contacts. The mail lane
+remains a Level 2 review-only shadow capability. The plan extends the
 existing bounded evidence adapters and Plan 0072 shadow graph projection with
 exact-email, directional, thread-aware observations from the installed
 user-scoped Mail Receipts operator-lite workbench. Its target remains Level 2

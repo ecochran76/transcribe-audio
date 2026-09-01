@@ -85,11 +85,15 @@ Plan 235 route-only smoke had missed. Installed commit
 `e5fb9b8dd2722e55941715cbc331a9a45544630c` serves a 359,693-message historical
 aggregate, hydrates aggregate selected context, normalizes timestamps to UTC,
 and applies exact-address historical bounds before ranking/page limiting. The
-unchanged consumer cohort accounted for all 57 queries: 50 returned 976
-pre-cutoff records and 7 were content-level zero matches. All effects remained
-zero. P6's old zero-coverage result remains historical but is not valid current
-corpus evidence; the implemented mail lane remains shadow-only pending any
-separately scoped evaluation of the recovered records.
+unchanged consumer cohort then completed the full P5 pipeline: 57 of 57 queries
+were accounted for, 966 records were selected, 951 normalized observations and
+independence groups were retained, and 120 proposed-only hypotheses were
+produced. Provider writes, accepted effects, and speaker/profile effects all
+remained zero, and provider-free replay was equal. P6's old zero-coverage
+result remains historical but is not valid current corpus evidence. The live
+Contacts projection does not yet consume the private P5 artifacts, so the
+implemented mail lane remains shadow-only pending a bounded consumer/evaluation
+successor.
 
 Mail Receipts Plan 232 reconciled the accepted product lines, installed exact
 checkpoint `2b3c7fd5`, and removed the accidental selector dependency on the
@@ -109,7 +113,7 @@ approval phrase is required again during this session.
 | Prohibited effects | Direct mailbox/provider access, corpus/provider writes, schema migration, deployment, accepted graph decisions, person merge, speaker/profile effects, and Graphiti writes remained zero |
 | Attempts and review | The original defective-source attempt and two preserved consumer validations remain separate; no artifact was overwritten |
 | Checkpoint cadence | No repeated read approval was requested; no write-bearing or accepted-effect gate was crossed |
-| Terminal evidence | Both DuckDB backends execute with historical bounds; 57/57 queries were accounted for, 50 yielded 976 pre-cutoff records, 7 were content-level zero matches, and the lane remains shadow-only |
+| Terminal evidence | Both DuckDB backends execute with historical bounds; the full P5 rerun accounted for 57/57 queries, selected 966 records, retained 951 observations/groups, produced 120 proposed-only hypotheses, replayed equally offline, and left the lane shadow-only |
 
 P0 delivered on 2026-08-30:
 
@@ -340,6 +344,28 @@ Current recovery measurement on 2026-08-31:
 - provider reads, mailbox writes, accepted graph writes, and speaker/profile
   effects remained zero. This proves non-vacuous source/time coverage but does
   not itself authorize or claim accepted relationship, role, or speaker effects.
+
+Current full repaired-source P5 rerun on 2026-08-31:
+
+- the unchanged preview
+  `plan0073-p5-139eea68bfb7e6929e4e22115458e35e` and its original frozen
+  25-conversation/57-query cohort were executed in a new immutable private
+  validation root against installed Mail Receipts `0.1.14` and Transcribe
+  checkpoint `61b44ca`;
+- all 57 queries completed with zero unavailable queries, selecting 966 records
+  and retaining 951 normalized observations in 951 independence groups;
+- discovery produced 120 proposed-only hypotheses: 70 `sent_mail`, 47
+  `thread_coparticipation`, and 3 `correspondence`; no contextual-role or
+  affiliation hypothesis was produced from the available metadata;
+- aggregate content SHA-256 is
+  `a300543d2e6323c757391f2b9883e14813561a41a7c8e26e93c9c16b0f9a7a51`,
+  and provider-free replay returned equality with the same counts and zero
+  effects; and
+- a fresh live `/api/people` readback returned 228 Contacts records and the
+  earlier calendar/provider shadow projection, but its code path calls
+  `discover_relationship_roles` without the P5 mail evidence. The 120 mail
+  hypotheses therefore exist as private review artifacts but are not yet
+  visible in the installed Contacts pane.
 
 - Plan 0072 A6-R2 accounts for 186 recording-associated attendee emails and
   enriches them through exact-email, read-only GWS/Odollo contact observations.
@@ -671,9 +697,10 @@ rebuild contract.
 ## Next authorized execution slice
 
 None under Plan 0073. The plan closes with the mail lane implemented but
-shadow-only. The frozen historical cohort now has non-vacuous metadata coverage;
-the earlier zero-coverage P6 decision is superseded. Any evaluation that turns
-the recovered records into hypotheses or Contacts review output is separate
-work, not another storage repair. Accepted graph facts, speaker/context
-consumers, mailbox/provider writes, corpus mutation, deployment, and Graphiti
-publication remain outside this closure.
+shadow-only. The frozen historical cohort now has non-vacuous metadata coverage
+and 120 deterministic proposed hypotheses; the earlier zero-coverage P6
+decision is superseded. A bounded successor may project those immutable
+hypotheses into the live Contacts review surface and perform the P6 utility and
+safety comparison without accepting them. Accepted graph facts,
+speaker/context consumers, mailbox/provider writes, corpus mutation,
+deployment, and Graphiti publication remain outside this closure.

@@ -1,5 +1,45 @@
 # Runbook
 
+## Turn 418: Execute repaired Mail Receipts through hypothesis discovery (2026-08-31)
+
+Summary: Reran the unchanged Plan 0073 private cohort through the full
+Transcribe pipeline after the Mail Receipts repair. The repaired source is now
+useful beyond a route smoke: it produced deterministic, review-only mail
+relationship hypotheses with no accepted or external effects.
+
+Evidence:
+
+- The original frozen preview
+  `plan0073-p5-139eea68bfb7e6929e4e22115458e35e` retained its exact
+  25-conversation/57-query cohort, source scope, cutoffs, and budgets.
+- All 57 queries completed with zero unavailable queries. The executor selected
+  966 records and retained 951 normalized observations in 951 independence
+  groups.
+- Discovery produced 120 proposed-only hypotheses: 70 `sent_mail`, 47
+  `thread_coparticipation`, and 3 `correspondence`.
+- Aggregate content SHA-256 is
+  `a300543d2e6323c757391f2b9883e14813561a41a7c8e26e93c9c16b0f9a7a51`.
+  Provider-free replay returned equality against that execution with identical
+  counts and effects.
+- The immutable private receipt is under
+  `~/.local/state/transcribe-audio/plan-0073/consumer-validations/mail-receipts-0.1.14-transcribe-61b44ca-repaired-corpus/`.
+- Provider writes, accepted relationships/roles, Graphiti writes, person
+  merges, speaker assignments, biometric effects, and schema/deployment effects
+  remained zero.
+
+Installed-surface readback: `/api/people` is healthy and returns 228 Contacts
+records, including the existing calendar/provider shadow hypotheses. Its
+current code path does not load the private P5 mail artifacts, so the 120 new
+mail hypotheses are not yet visible in live Contacts.
+
+Validation: the focused Mail Receipts/Plan 0073 suite passes 29 tests, all 57
+query receipts are complete, and offline replay is equal.
+
+Progress classification: `outcome_progress`. The Mail Receipts repair is
+consumer-validated through deterministic discovery. The next useful bounded
+slice is a successor that projects these proposed-only artifacts into Contacts
+and evaluates their P6 utility without accepting graph or speaker effects.
+
 ## Turn 417: Restore non-vacuous Mail Receipts historical reads (2026-08-31)
 
 Summary: Repaired the final Mail Receipts serving and Transcribe query-window
