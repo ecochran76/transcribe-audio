@@ -26,6 +26,7 @@ SUPPORTED_HINDSIGHT_POLICIES = {
     "allow_hindsight",
 }
 ACCEPTED_RELATIONSHIP_STATUSES = {"accepted", "reviewed"}
+ACCEPTED_ACTIVITY_STATUSES = {"accepted", "confirmed", "observed"}
 
 
 def _canonical_json(value: object) -> str:
@@ -122,11 +123,33 @@ class AcceptedRelationship:
 
 
 @dataclass(frozen=True)
+class AcceptedActivity:
+    observation_id: str
+    subject_type: str
+    subject_id: str
+    channel: str
+    occurred_at: str
+    participation_status: str
+    evidence_status: str
+    source_profile_id: str
+    account_id: str
+    tenant_id: str
+    source_record_id: str
+    independence_group_id: str
+    source_locator: dict[str, Any]
+    originating_conversation_id: str
+    accepted_at: str
+    input_watermark: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class EvidenceBundle:
     purpose: str
     conversation_id: str
     provider_snapshots: tuple[EvidenceSnapshotRecord, ...]
     relationships: tuple[AcceptedRelationship, ...]
+    activities: tuple[AcceptedActivity, ...]
     warnings: tuple[str, ...]
     source_failures: tuple[dict[str, str], ...]
     knowledge_watermark: str
@@ -152,8 +175,17 @@ class EvidenceFabric:
         relationships, relationship_warnings, watermark = (
             self._accepted_relationships(request)
         )
+        activities, activity_warnings, activity_watermark = (
+            self._accepted_activities(request)
+        )
+        if watermark == "empty":
+            watermark = activity_watermark
         warnings = tuple(
-            sorted(set(provider_warnings).union(relationship_warnings))
+            sorted(
+                set(provider_warnings)
+                .union(relationship_warnings)
+                .union(activity_warnings)
+            )
         )
         ordered_failures = tuple(
             sorted(
@@ -172,6 +204,7 @@ class EvidenceFabric:
                 asdict(item) for item in provider_snapshots
             ],
             "relationships": [asdict(item) for item in relationships],
+            "activities": [asdict(item) for item in activities],
             "warnings": list(warnings),
             "source_failures": list(ordered_failures),
             "knowledge_watermark": watermark,
@@ -181,6 +214,7 @@ class EvidenceFabric:
             conversation_id=request.conversation_id,
             provider_snapshots=provider_snapshots,
             relationships=relationships,
+            activities=activities,
             warnings=warnings,
             source_failures=ordered_failures,
             knowledge_watermark=watermark,
@@ -464,6 +498,112 @@ class EvidenceFabric:
             frontier = next_frontier
         return (
             tuple(sorted(included, key=lambda item: item.relationship_id)),
+            warnings,
+            watermark,
+        )
+
+    def _accepted_activities(
+        self,
+        request: EvidenceRequest,
+    ) -> tuple[tuple[AcceptedActivity, ...], list[str], str]:
+        if "accepted_activity_history" not in request.capabilities or not request.anchors:
+            return (), [], self._knowledge_watermark()
+        with transcript_store.connect(self.root) as con:
+            table = con.execute(
+                """
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = 'knowledge_identity_activity_projection'
+                """
+            ).fetchone()
+            if table is None:
+                return (), ["accepted_activity_projection_unavailable"], self._knowledge_watermark()
+            rows = con.execute(
+                """
+                SELECT * FROM knowledge_identity_activity_projection
+                ORDER BY occurred_at DESC, observation_id
+                """
+            ).fetchall()
+        watermark = str(rows[0]["input_watermark"]) if rows else self._knowledge_watermark()
+        anchor_keys = {(anchor.anchor_type, anchor.anchor_id) for anchor in request.anchors}
+        scope_keys = {
+            (scope.source_profile_id, scope.account_id, scope.tenant_id)
+            for scope in request.scopes
+        }
+        as_of = _parse_time(request.as_of, field_name="as_of")
+        included: list[AcceptedActivity] = []
+        warnings: list[str] = []
+        consumed_characters = 0
+        for row in rows:
+            if (str(row["subject_type"]), str(row["subject_id"])) not in anchor_keys:
+                continue
+            if str(row["evidence_status"]) not in ACCEPTED_ACTIVITY_STATUSES:
+                continue
+            if (
+                str(row["source_profile_id"]),
+                str(row["account_id"]),
+                str(row["tenant_id"]),
+            ) not in scope_keys:
+                continue
+            if str(row["freshness_state"]) not in request.allowed_freshness_states:
+                continue
+            source_event_at = str(row["source_event_at"] or row["occurred_at"])
+            if _parse_time(source_event_at, field_name="source_event_at") > as_of:
+                warnings.append("activity_after_as_of_excluded")
+                continue
+            valid_from = str(row["valid_from"] or "")
+            valid_to = str(row["valid_to"] or "")
+            if valid_from and _parse_time(valid_from, field_name="valid_from") > as_of:
+                warnings.append("activity_outside_effective_time_excluded")
+                continue
+            if valid_to and _parse_time(valid_to, field_name="valid_to") <= as_of:
+                warnings.append("activity_outside_effective_time_excluded")
+                continue
+            metadata = self._json_object(row["metadata_json"])
+            originating_conversation_id = str(
+                metadata.get("originating_conversation_id") or ""
+            )
+            if originating_conversation_id == request.conversation_id:
+                warnings.append("current_conversation_activity_excluded")
+                continue
+            accepted_at = str(metadata.get("accepted_at") or "")
+            if request.hindsight_policy != "allow_hindsight":
+                if not accepted_at:
+                    warnings.append("activity_acceptance_time_missing")
+                    continue
+                if _parse_time(accepted_at, field_name="accepted_at") > as_of:
+                    warnings.append("activity_after_as_of_excluded")
+                    continue
+            activity = AcceptedActivity(
+                observation_id=str(row["observation_id"]),
+                subject_type=str(row["subject_type"]),
+                subject_id=str(row["subject_id"]),
+                channel=str(row["channel"]),
+                occurred_at=str(row["occurred_at"]),
+                participation_status=str(row["participation_status"]),
+                evidence_status=str(row["evidence_status"]),
+                source_profile_id=str(row["source_profile_id"]),
+                account_id=str(row["account_id"]),
+                tenant_id=str(row["tenant_id"]),
+                source_record_id=str(row["source_record_id"]),
+                independence_group_id=str(row["independence_group_id"]),
+                source_locator=self._json_object(row["source_locator_json"]),
+                originating_conversation_id=originating_conversation_id,
+                accepted_at=accepted_at,
+                input_watermark=str(row["input_watermark"]),
+                metadata=metadata,
+            )
+            activity_size = len(_canonical_json(asdict(activity)))
+            if (
+                len(included) >= request.max_records
+                or consumed_characters + activity_size > request.max_characters
+            ):
+                warnings.append("evidence_budget_exhausted")
+                continue
+            included.append(activity)
+            consumed_characters += activity_size
+        return (
+            tuple(sorted(included, key=lambda item: (item.occurred_at, item.observation_id), reverse=True)),
             warnings,
             watermark,
         )

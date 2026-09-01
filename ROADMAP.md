@@ -296,14 +296,15 @@ graph context, while only accept may enter the identity projection and shared
 evidence fabric. Live visual and API readback establish Level 2 operator-ready
 review, not automatic speaker assignment or Level 3 automation.
 
-Plan 0076 is the planned canonical people, organization, and activity-index
-successor. It replaces the current peer presentation of canonical people,
+Plan 0076 is the open canonical people, organization, and activity-index
+successor. Its provider-free P0-P4 checkpoint now replaces the peer presentation of canonical people,
 provider contacts, and reviewed speaker labels with one resolved-person row or
 an explicit unresolved reconciliation group while preserving every source
-record. It adds first-class organizations and temporal affiliations, then
+record. It adds schema-v9 first-class organizations and temporal affiliations, then
 projects transcript, calendar, and Mail Receipts observations into truthful
 per-channel summaries and one cited timeline. The target is measured Level 2
-canonical/reconciliation usability over the current corpus; name/domain-only
+canonical/reconciliation usability over the current corpus. P5 installed
+rehearsal and P6 contextual-utility measurement remain active; name/domain-only
 merges, automatic acceptance, provider writes, Graphiti writes, biometric
 effects, and speaker-policy changes remain excluded.
 

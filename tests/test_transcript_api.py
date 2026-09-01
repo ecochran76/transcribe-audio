@@ -4063,8 +4063,8 @@ def test_identity_review_and_people_api_are_preview_only_and_stale_safe(
         assert "expected projection version 1" in stale["error"]
 
         people = json.loads(urlopen(f"{base_url}/api/people?limit=10", timeout=5).read())
-        assert people["schema_version"] == "transcribe-audio.people-projection.v1"
-        assert people["relationship_hop_limit"] == 2
+        assert people["schema_version"] == "transcribe-audio.people-organization-activity-index.v1"
+        assert people["default_sort"] == "last_interaction_at:desc"
     finally:
         server.shutdown()
         server.server_close()

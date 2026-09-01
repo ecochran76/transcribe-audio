@@ -741,6 +741,236 @@
   padding: 0.75rem 0;
 }
 
+/* Plan 0076: one dense directory table, not a master/detail panel wall. */
+.directory-surface {
+  gap: 0.35rem;
+}
+
+.directory-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto minmax(10rem, auto);
+  gap: 0.65rem;
+  align-items: end;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.1);
+}
+
+.directory-toolbar label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.directory-toolbar input {
+  width: 100%;
+  min-height: 2.1rem;
+  border: 1px solid rgba(244, 236, 216, 0.14);
+  border-radius: 0.18rem;
+  background: rgba(10, 11, 8, 0.5);
+  color: var(--ink);
+  padding: 0.35rem 0.5rem;
+}
+
+.directory-toolbar nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.16);
+}
+
+.directory-toolbar nav button {
+  min-height: 2.1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.directory-toolbar nav button[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.directory-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.12);
+}
+
+.directory-table {
+  width: 100%;
+  min-width: 68rem;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.directory-table th,
+.directory-table td {
+  position: relative;
+  padding: 0.32rem 0.42rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.075);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.directory-table th {
+  color: var(--muted);
+  font-size: 0.63rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.directory-sort,
+.directory-expand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.directory-sort {
+  justify-content: space-between;
+  width: 100%;
+  min-height: 1.3rem;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.directory-expand {
+  gap: 0.3rem;
+  width: 100%;
+  cursor: pointer;
+}
+
+.directory-expand > span,
+.directory-cell-stack,
+.directory-channel {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.directory-expand strong,
+.directory-cell-stack strong,
+.directory-channel strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-expand small,
+.directory-cell-stack small,
+.directory-channel small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.63rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-resizer {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: -0.3rem;
+  width: 0.6rem;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.directory-resizer::after {
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: rgba(244, 236, 216, 0.22);
+  content: "";
+}
+
+.directory-resizer:hover::after,
+.directory-resizer:focus-visible::after {
+  width: 2px;
+  background: var(--accent);
+}
+
+.directory-row:hover td,
+.directory-row.expanded td {
+  background: rgba(244, 236, 216, 0.035);
+}
+
+.directory-expanded-row > td {
+  padding: 0;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.directory-detail {
+  display: grid;
+  gap: 0;
+  padding-left: 1.3rem;
+  border-bottom: 1px solid rgba(244, 236, 216, 0.12);
+}
+
+.directory-detail section {
+  min-width: 0;
+  padding: 0.38rem 0.5rem 0.48rem;
+  border-top: 1px solid rgba(244, 236, 216, 0.08);
+}
+
+.directory-detail h3 {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.directory-detail h3 span {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.directory-detail-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.directory-detail table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+}
+
+.directory-detail th,
+.directory-detail td {
+  padding: 0.24rem 0.32rem;
+}
+
+.directory-detail th {
+  color: var(--muted);
+  font-size: 0.59rem;
+  text-transform: uppercase;
+}
+
 @media (max-width: 900px) {
   .identity-workspace .view-heading {
     display: grid;
@@ -761,6 +991,27 @@
 
   .identity-toolbar.contacts-toolbar {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .directory-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .directory-toolbar nav {
+    overflow-x: auto;
+  }
+
+  .directory-toolbar nav button {
+    min-height: 2.75rem;
+    white-space: nowrap;
+  }
+
+  .directory-toolbar input {
+    min-height: 2.75rem;
+  }
+
+  .directory-detail {
+    padding-left: 0.5rem;
   }
 
   .identity-master-detail {

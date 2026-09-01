@@ -23,6 +23,14 @@ EVENT_TYPES = {
     "source_record_observed",
     "external_identity_observed",
     "person_created",
+    "organization_created",
+    "organization_alias_added",
+    "organization_corrected",
+    "organization_source_observed",
+    "organizations_merged",
+    "organization_split",
+    "activity_observed",
+    "activity_coverage_observed",
     "source_record_linked",
     "source_record_corrected",
     "alias_added",
@@ -412,6 +420,10 @@ class IdentityLearningLedger:
         roles: dict[str, dict[str, Any]] = {}
         relationships: dict[str, dict[str, Any]] = {}
         reconciliations: dict[str, dict[str, Any]] = {}
+        organizations: dict[str, dict[str, Any]] = {}
+        organization_sources: dict[str, dict[str, Any]] = {}
+        activities: dict[str, dict[str, Any]] = {}
+        activity_coverage: dict[str, dict[str, Any]] = {}
         watermark = str(rows[-1]["id"]) if rows else "empty"
         built_at = str(rows[-1]["occurred_at"]) if rows else "1970-01-01T00:00:00Z"
         for row in active:
@@ -430,6 +442,65 @@ class IdentityLearningLedger:
                     "merged_into_person_id": "",
                     "metadata": dict(payload.get("metadata") or {}),
                 }
+            elif event_type == "organization_created":
+                organization_id = self._required(payload, "organization_id")
+                if organization_id in organizations:
+                    raise ValueError(
+                        f"Organization was created more than once: {organization_id}."
+                    )
+                organizations[organization_id] = self._organization_projection(payload)
+            elif event_type == "organization_source_observed":
+                source_id = self._required(payload, "source_record_id")
+                organization_sources[source_id] = self._organization_source_projection(
+                    payload, event_id
+                )
+                organization_id = organization_sources[source_id]["organization_id"]
+                if organization_id:
+                    self._require_member(
+                        organizations, organization_id, "organization"
+                    )
+            elif event_type == "organization_alias_added":
+                organization_id = self._required(payload, "organization_id")
+                self._require_member(organizations, organization_id, "organization")
+                alias = self._required(payload, "alias")
+                if alias not in organizations[organization_id]["aliases"]:
+                    organizations[organization_id]["aliases"].append(alias)
+            elif event_type == "organization_corrected":
+                organization_id = self._required(payload, "organization_id")
+                self._require_member(organizations, organization_id, "organization")
+                self._apply_correction(
+                    organizations[organization_id],
+                    payload,
+                    allowed={
+                        "status",
+                        "primary_name",
+                        "domains",
+                        "websites",
+                        "organization_type",
+                        "locations",
+                        "parent_organization_id",
+                        "metadata",
+                    },
+                    kind="organization",
+                )
+            elif event_type == "activity_observed":
+                observation_id = self._required(payload, "observation_id")
+                activities[observation_id] = self._activity_projection(payload)
+                subject_type = activities[observation_id]["subject_type"]
+                subject_id = activities[observation_id]["subject_id"]
+                if subject_type == "person":
+                    self._require_member(people, subject_id, "person")
+                else:
+                    self._require_member(organizations, subject_id, "organization")
+            elif event_type == "activity_coverage_observed":
+                coverage = self._activity_coverage_projection(payload)
+                subject_type = coverage["subject_type"]
+                subject_id = coverage["subject_id"]
+                if subject_type == "person":
+                    self._require_member(people, subject_id, "person")
+                else:
+                    self._require_member(organizations, subject_id, "organization")
+                activity_coverage[coverage["coverage_id"]] = coverage
             elif event_type == "source_record_observed":
                 source_id = self._required(payload, "source_record_id")
                 sources[source_id] = self._source_projection(payload, event_id)
@@ -569,6 +640,77 @@ class IdentityLearningLedger:
                         if identity["source_record_id"] == source_id:
                             identity["person_id"] = target_person
                             identity["status"] = "linked"
+            elif event_type == "organizations_merged":
+                target = self._required(payload, "target_organization_id")
+                self._require_member(organizations, target, "organization")
+                for source in map(
+                    _text, _list(payload.get("source_organization_ids"))
+                ):
+                    self._require_member(organizations, source, "organization")
+                    if source == target:
+                        raise ValueError("An organization cannot be merged into itself.")
+                    organizations[source]["merged_into_organization_id"] = target
+                    organizations[source]["status"] = "merged"
+                    for source_record in organization_sources.values():
+                        if source_record["organization_id"] == source:
+                            source_record["organization_id"] = target
+                            source_record["resolution_status"] = "linked"
+                    for role in roles.values():
+                        if role["organization_id"] == source:
+                            role["organization_id"] = target
+                    for activity in activities.values():
+                        if (
+                            activity["subject_type"] == "organization"
+                            and activity["subject_id"] == source
+                        ):
+                            activity["subject_id"] = target
+                    for relationship in relationships.values():
+                        if (
+                            relationship["subject_type"] == "organization"
+                            and relationship["subject_id"] == source
+                        ):
+                            relationship["subject_id"] = target
+                        if (
+                            relationship["object_type"] == "organization"
+                            and relationship["object_id"] == source
+                        ):
+                            relationship["object_id"] = target
+            elif event_type == "organization_split":
+                source = self._required(payload, "source_organization_id")
+                target = self._required(payload, "target_organization_id")
+                self._require_member(organizations, source, "organization")
+                self._require_member(organizations, target, "organization")
+                for source_record_id in map(
+                    _text, _list(payload.get("source_record_ids"))
+                ):
+                    self._require_member(
+                        organization_sources,
+                        source_record_id,
+                        "organization source record",
+                    )
+                    if organization_sources[source_record_id]["organization_id"] != source:
+                        raise ValueError(
+                            "Organization split source record is not linked to its "
+                            "source organization."
+                        )
+                    organization_sources[source_record_id]["organization_id"] = target
+                    organization_sources[source_record_id]["resolution_status"] = "linked"
+                for role_id in map(_text, _list(payload.get("role_ids"))):
+                    self._require_member(roles, role_id, "role")
+                    if roles[role_id]["organization_id"] != source:
+                        raise ValueError("Organization split role has a different owner.")
+                    roles[role_id]["organization_id"] = target
+                for activity_id in map(_text, _list(payload.get("activity_ids"))):
+                    self._require_member(activities, activity_id, "activity")
+                    activity = activities[activity_id]
+                    if not (
+                        activity["subject_type"] == "organization"
+                        and activity["subject_id"] == source
+                    ):
+                        raise ValueError(
+                            "Organization split activity has a different owner."
+                        )
+                    activity["subject_id"] = target
         semantic = {
             "people": people,
             "sources": sources,
@@ -576,6 +718,10 @@ class IdentityLearningLedger:
             "roles": roles,
             "relationships": relationships,
             "reconciliations": reconciliations,
+            "organizations": organizations,
+            "organization_sources": organization_sources,
+            "activities": activities,
+            "activity_coverage": activity_coverage,
             "input_watermark": watermark,
             "projection_schema": PROJECTION_SCHEMA,
         }
@@ -587,6 +733,10 @@ class IdentityLearningLedger:
             roles=roles,
             relationships=relationships,
             reconciliations=reconciliations,
+            organizations=organizations,
+            organization_sources=organization_sources,
+            activities=activities,
+            activity_coverage=activity_coverage,
             watermark=watermark,
             built_at=built_at,
         )
@@ -614,10 +764,35 @@ class IdentityLearningLedger:
                 "knowledge_identity_reconciliation_projection",
                 "proposal_id",
             ),
+            "organizations": (
+                "knowledge_identity_organizations_projection",
+                "organization_id",
+            ),
+            "organization_sources": (
+                "knowledge_identity_organization_source_projection",
+                "source_record_id",
+            ),
+            "activities": (
+                "knowledge_identity_activity_projection",
+                "observation_id",
+            ),
+            "activity_coverage": (
+                "knowledge_identity_activity_coverage_projection",
+                "coverage_id",
+            ),
         }
         snapshot: dict[str, dict[str, dict[str, Any]]] = {}
         with transcript_store.connect(self.root) as con:
+            available_tables = {
+                str(row["name"])
+                for row in con.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            }
             for name, (table, key) in tables.items():
+                if table not in available_tables:
+                    snapshot[name] = {}
+                    continue
                 rows = con.execute(f"SELECT * FROM {table} ORDER BY {key}").fetchall()
                 snapshot[name] = {str(row[key]): dict(row) for row in rows}
         return snapshot
@@ -748,6 +923,34 @@ class IdentityLearningLedger:
         elif event_type == "person_created":
             cls._required(payload, "person_id")
             cls._required(payload, "primary_name")
+        elif event_type == "organization_created":
+            cls._organization_projection(payload)
+        elif event_type == "organization_alias_added":
+            cls._required(payload, "organization_id")
+            cls._required(payload, "alias")
+        elif event_type == "organization_corrected":
+            cls._required(payload, "organization_id")
+            if not isinstance(payload.get("changes"), Mapping) or not payload["changes"]:
+                raise ValueError("Correction events require a non-empty changes object.")
+        elif event_type == "organization_source_observed":
+            cls._organization_source_projection(payload, "validation")
+        elif event_type == "organizations_merged":
+            cls._required(payload, "target_organization_id")
+            if not tuple(
+                filter(_text, _list(payload.get("source_organization_ids")))
+            ):
+                raise ValueError("Organization merge requires source_organization_ids.")
+        elif event_type == "organization_split":
+            cls._required(payload, "source_organization_id")
+            cls._required(payload, "target_organization_id")
+            if not tuple(filter(_text, _list(payload.get("source_record_ids")))):
+                raise ValueError(
+                    "Organization split requires explicit source_record_ids."
+                )
+        elif event_type == "activity_observed":
+            cls._activity_projection(payload)
+        elif event_type == "activity_coverage_observed":
+            cls._activity_coverage_projection(payload)
         elif event_type == "alias_added":
             cls._required(payload, "person_id")
             cls._required(payload, "alias")
@@ -870,6 +1073,156 @@ class IdentityLearningLedger:
             "metadata": dict(payload.get("metadata") or {}),
         }
 
+    @classmethod
+    def _organization_projection(cls, payload: Mapping[str, Any]) -> dict[str, Any]:
+        organization_id = cls._required(payload, "organization_id")
+        primary_name = cls._required(payload, "primary_name")
+        return {
+            "organization_id": organization_id,
+            "status": _text(payload.get("status")) or "provisional",
+            "primary_name": primary_name,
+            "aliases": sorted({_text(value) for value in _list(payload.get("aliases")) if _text(value)}),
+            "domains": sorted({_text(value).casefold() for value in _list(payload.get("domains")) if _text(value)}),
+            "websites": sorted({_text(value) for value in _list(payload.get("websites")) if _text(value)}),
+            "organization_type": _text(payload.get("organization_type")),
+            "locations": sorted({_text(value) for value in _list(payload.get("locations")) if _text(value)}),
+            "parent_organization_id": _text(payload.get("parent_organization_id")),
+            "merged_into_organization_id": "",
+            "valid_from": _text(payload.get("valid_from")),
+            "valid_to": _text(payload.get("valid_to")),
+            "metadata": dict(payload.get("metadata") or {}),
+        }
+
+    @classmethod
+    def _organization_source_projection(
+        cls, payload: Mapping[str, Any], event_id: str
+    ) -> dict[str, Any]:
+        required = (
+            "source_record_id",
+            "source_profile_id",
+            "provider_kind",
+            "record_type",
+            "external_ref",
+            "observed_at",
+            "content_hash",
+        )
+        missing = [field for field in required if not _text(payload.get(field))]
+        if missing:
+            raise ValueError(
+                f"Organization source record event is missing: {', '.join(missing)}."
+            )
+        organization_id = _text(payload.get("organization_id"))
+        return {
+            "source_record_id": _text(payload["source_record_id"]),
+            "organization_id": organization_id,
+            "source_profile_id": _text(payload["source_profile_id"]),
+            "provider_kind": _text(payload["provider_kind"]),
+            "account_id": _text(payload.get("account_id")),
+            "tenant_id": _text(payload.get("tenant_id")),
+            "record_type": _text(payload["record_type"]),
+            "external_ref": _text(payload["external_ref"]),
+            "label": _text(payload.get("label")),
+            "source_event_at": _text(payload.get("source_event_at")),
+            "observed_at": _text(payload["observed_at"]),
+            "retrieved_at": _text(payload.get("retrieved_at")),
+            "valid_from": _text(payload.get("valid_from")),
+            "valid_to": _text(payload.get("valid_to")),
+            "freshness_state": _text(payload.get("freshness_state")) or "current",
+            "content_hash": _text(payload["content_hash"]),
+            "resolution_status": "linked" if organization_id else "unresolved",
+            "metadata": dict(payload.get("metadata") or {}),
+            "source_event_id": event_id,
+        }
+
+    @classmethod
+    def _activity_projection(cls, payload: Mapping[str, Any]) -> dict[str, Any]:
+        required = (
+            "observation_id",
+            "subject_type",
+            "subject_id",
+            "channel",
+            "occurred_at",
+            "participation_status",
+            "evidence_status",
+            "source_profile_id",
+            "source_record_id",
+            "independence_group_id",
+            "content_hash",
+        )
+        missing = [field for field in required if not _text(payload.get(field))]
+        if missing:
+            raise ValueError(f"Activity observation is missing: {', '.join(missing)}.")
+        subject_type = _text(payload["subject_type"])
+        channel = _text(payload["channel"])
+        if subject_type not in {"person", "organization"}:
+            raise ValueError("Activity subject_type must be person or organization.")
+        if channel not in {"transcript", "calendar", "email"}:
+            raise ValueError("Activity channel must be transcript, calendar, or email.")
+        return {
+            "observation_id": _text(payload["observation_id"]),
+            "subject_type": subject_type,
+            "subject_id": _text(payload["subject_id"]),
+            "channel": channel,
+            "occurred_at": _text(payload["occurred_at"]),
+            "source_event_at": _text(payload.get("source_event_at"))
+            or _text(payload["occurred_at"]),
+            "retrieved_at": _text(payload.get("retrieved_at")),
+            "as_of": _text(payload.get("as_of")),
+            "valid_from": _text(payload.get("valid_from")),
+            "valid_to": _text(payload.get("valid_to")),
+            "freshness_state": _text(payload.get("freshness_state")) or "current",
+            "direction": _text(payload.get("direction")),
+            "participation_status": _text(payload["participation_status"]),
+            "evidence_status": _text(payload["evidence_status"]),
+            "source_profile_id": _text(payload["source_profile_id"]),
+            "account_id": _text(payload.get("account_id")),
+            "tenant_id": _text(payload.get("tenant_id")),
+            "source_record_id": _text(payload["source_record_id"]),
+            "independence_group_id": _text(payload["independence_group_id"]),
+            "content_hash": _text(payload["content_hash"]),
+            "source_locator": dict(payload.get("source_locator") or {}),
+            "metadata": dict(payload.get("metadata") or {}),
+        }
+
+    @classmethod
+    def _activity_coverage_projection(
+        cls, payload: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        subject_type = cls._required(payload, "subject_type")
+        subject_id = cls._required(payload, "subject_id")
+        channel = cls._required(payload, "channel")
+        coverage_state = cls._required(payload, "coverage_state")
+        observed_at = cls._required(payload, "observed_at")
+        if subject_type not in {"person", "organization"}:
+            raise ValueError("Activity coverage subject_type must be person or organization.")
+        if channel not in {"transcript", "calendar", "email"}:
+            raise ValueError("Activity coverage channel is invalid.")
+        if coverage_state not in {
+            "complete",
+            "partial",
+            "unavailable",
+            "unauthorized",
+            "stale",
+            "not_queried",
+        }:
+            raise ValueError("Activity coverage state is invalid.")
+        return {
+            "coverage_id": f"{subject_type}:{subject_id}:{channel}",
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "channel": channel,
+            "coverage_state": coverage_state,
+            "observed_at": observed_at,
+            "source_profile_ids": sorted(
+                {
+                    _text(value)
+                    for value in _list(payload.get("source_profile_ids"))
+                    if _text(value)
+                }
+            ),
+            "metadata": dict(payload.get("metadata") or {}),
+        }
+
     @staticmethod
     def _apply_correction(
         projection: dict[str, Any],
@@ -963,13 +1316,27 @@ class IdentityLearningLedger:
         roles: Mapping[str, Mapping[str, Any]],
         relationships: Mapping[str, Mapping[str, Any]],
         reconciliations: Mapping[str, Mapping[str, Any]],
+        organizations: Mapping[str, Mapping[str, Any]],
+        organization_sources: Mapping[str, Mapping[str, Any]],
+        activities: Mapping[str, Mapping[str, Any]],
+        activity_coverage: Mapping[str, Mapping[str, Any]],
         watermark: str,
         built_at: str,
     ) -> None:
         with transcript_store.connect(self.root) as con:
             con.execute("BEGIN IMMEDIATE")
             try:
+                available_tables = {
+                    str(row["name"])
+                    for row in con.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
                 for table in (
+                    "knowledge_identity_activity_coverage_projection",
+                    "knowledge_identity_activity_projection",
+                    "knowledge_identity_organization_source_projection",
+                    "knowledge_identity_organizations_projection",
                     "knowledge_identity_reconciliation_projection",
                     "knowledge_identity_relationship_projection",
                     "knowledge_identity_role_projection",
@@ -977,7 +1344,8 @@ class IdentityLearningLedger:
                     "knowledge_identity_source_projection",
                     "knowledge_identity_people_projection",
                 ):
-                    con.execute(f"DELETE FROM {table}")
+                    if table in available_tables:
+                        con.execute(f"DELETE FROM {table}")
                 for person_id in sorted(people):
                     value = people[person_id]
                     con.execute(
@@ -1046,6 +1414,15 @@ class IdentityLearningLedger:
                 self._insert_roles(con, roles, watermark, built_at)
                 self._insert_relationships(con, relationships, watermark, built_at)
                 self._insert_reconciliations(con, reconciliations, watermark, built_at)
+                if "knowledge_identity_organizations_projection" in available_tables:
+                    self._insert_organizations(con, organizations, watermark, built_at)
+                    self._insert_organization_sources(
+                        con, organization_sources, watermark, built_at
+                    )
+                    self._insert_activities(con, activities, watermark, built_at)
+                    self._insert_activity_coverage(
+                        con, activity_coverage, watermark, built_at
+                    )
                 con.commit()
             except Exception:
                 con.rollback()
@@ -1192,6 +1569,170 @@ class IdentityLearningLedger:
                     value["decision_status"],
                     value["decided_by"],
                     value["decided_at"],
+                    watermark,
+                    _canonical_json(value["metadata"]),
+                    built_at,
+                ),
+            )
+
+    @staticmethod
+    def _insert_organizations(
+        con: sqlite3.Connection,
+        organizations: Mapping[str, Mapping[str, Any]],
+        watermark: str,
+        built_at: str,
+    ) -> None:
+        for organization_id in sorted(organizations):
+            value = organizations[organization_id]
+            con.execute(
+                """
+                INSERT INTO knowledge_identity_organizations_projection (
+                    organization_id, status, primary_name, aliases_json,
+                    domains_json, websites_json, organization_type,
+                    locations_json, parent_organization_id,
+                    merged_into_organization_id, valid_from, valid_to,
+                    input_watermark, metadata_json, built_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    organization_id,
+                    value["status"],
+                    value["primary_name"],
+                    _canonical_json(value["aliases"]),
+                    _canonical_json(value["domains"]),
+                    _canonical_json(value["websites"]),
+                    value["organization_type"],
+                    _canonical_json(value["locations"]),
+                    value["parent_organization_id"],
+                    value["merged_into_organization_id"],
+                    value["valid_from"],
+                    value["valid_to"],
+                    watermark,
+                    _canonical_json(value["metadata"]),
+                    built_at,
+                ),
+            )
+
+    @staticmethod
+    def _insert_organization_sources(
+        con: sqlite3.Connection,
+        sources: Mapping[str, Mapping[str, Any]],
+        watermark: str,
+        built_at: str,
+    ) -> None:
+        for source_id in sorted(sources):
+            value = sources[source_id]
+            con.execute(
+                """
+                INSERT INTO knowledge_identity_organization_source_projection (
+                    source_record_id, organization_id, source_profile_id,
+                    provider_kind, account_id, tenant_id, record_type,
+                    external_ref, label, source_event_at, observed_at,
+                    retrieved_at, valid_from, valid_to, freshness_state,
+                    content_hash, resolution_status, input_watermark,
+                    metadata_json, built_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_id,
+                    value["organization_id"],
+                    value["source_profile_id"],
+                    value["provider_kind"],
+                    value["account_id"],
+                    value["tenant_id"],
+                    value["record_type"],
+                    value["external_ref"],
+                    value["label"],
+                    value["source_event_at"],
+                    value["observed_at"],
+                    value["retrieved_at"],
+                    value["valid_from"],
+                    value["valid_to"],
+                    value["freshness_state"],
+                    value["content_hash"],
+                    value["resolution_status"],
+                    watermark,
+                    _canonical_json(
+                        {**value["metadata"], "source_event_id": value["source_event_id"]}
+                    ),
+                    built_at,
+                ),
+            )
+
+    @staticmethod
+    def _insert_activities(
+        con: sqlite3.Connection,
+        activities: Mapping[str, Mapping[str, Any]],
+        watermark: str,
+        built_at: str,
+    ) -> None:
+        for observation_id in sorted(activities):
+            value = activities[observation_id]
+            con.execute(
+                """
+                INSERT INTO knowledge_identity_activity_projection (
+                    observation_id, subject_type, subject_id, channel,
+                    occurred_at, source_event_at, retrieved_at, as_of,
+                    valid_from, valid_to, freshness_state,
+                    direction, participation_status,
+                    evidence_status, source_profile_id, account_id, tenant_id,
+                    source_record_id, independence_group_id, content_hash,
+                    source_locator_json, input_watermark, metadata_json, built_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    observation_id,
+                    value["subject_type"],
+                    value["subject_id"],
+                    value["channel"],
+                    value["occurred_at"],
+                    value["source_event_at"],
+                    value["retrieved_at"],
+                    value["as_of"],
+                    value["valid_from"],
+                    value["valid_to"],
+                    value["freshness_state"],
+                    value["direction"],
+                    value["participation_status"],
+                    value["evidence_status"],
+                    value["source_profile_id"],
+                    value["account_id"],
+                    value["tenant_id"],
+                    value["source_record_id"],
+                    value["independence_group_id"],
+                    value["content_hash"],
+                    _canonical_json(value["source_locator"]),
+                    watermark,
+                    _canonical_json(value["metadata"]),
+                    built_at,
+                ),
+            )
+
+    @staticmethod
+    def _insert_activity_coverage(
+        con: sqlite3.Connection,
+        coverage: Mapping[str, Mapping[str, Any]],
+        watermark: str,
+        built_at: str,
+    ) -> None:
+        for coverage_id in sorted(coverage):
+            value = coverage[coverage_id]
+            con.execute(
+                """
+                INSERT INTO knowledge_identity_activity_coverage_projection (
+                    coverage_id, subject_type, subject_id, channel,
+                    coverage_state, observed_at, source_profile_ids_json,
+                    input_watermark, metadata_json, built_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    coverage_id,
+                    value["subject_type"],
+                    value["subject_id"],
+                    value["channel"],
+                    value["coverage_state"],
+                    value["observed_at"],
+                    _canonical_json(value["source_profile_ids"]),
                     watermark,
                     _canonical_json(value["metadata"]),
                     built_at,

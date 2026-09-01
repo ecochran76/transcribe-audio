@@ -83,12 +83,12 @@ def workflow(tmp_path: Path) -> IdentityReviewWorkflow:
     )
 
 
-def test_v8_migration_is_additive_and_rolls_back_to_v7(tmp_path: Path) -> None:
+def test_v9_migration_is_additive_and_rolls_back_to_v8(tmp_path: Path) -> None:
     store = ConversationKnowledgeStore(tmp_path)
     receipt = store.migrate(backup=False)
 
-    assert receipt.to_version == 8
-    assert receipt.applied_versions == tuple(range(1, 9))
+    assert receipt.to_version == 9
+    assert receipt.applied_versions == tuple(range(1, 10))
     with transcript_store.connect(tmp_path) as con:
         names = {
             row[0]
@@ -102,9 +102,9 @@ def test_v8_migration_is_additive_and_rolls_back_to_v7(tmp_path: Path) -> None:
         "knowledge_identity_review_effect_previews",
     }.issubset(names)
 
-    rolled_back = store.rollback(target_version=7, backup=False)
-    assert rolled_back.rolled_back_versions == (8,)
-    assert store.schema_status().schema_version == 7
+    rolled_back = store.rollback(target_version=8, backup=False)
+    assert rolled_back.rolled_back_versions == (9,)
+    assert store.schema_status().schema_version == 8
 
 
 def test_queue_projection_preserves_original_filename_and_filters(workflow: IdentityReviewWorkflow) -> None:

@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import transcript_store
-from conversation_knowledge_store import ConversationKnowledgeStore
+from conversation_knowledge_store import ConversationKnowledgeStore, LATEST_SCHEMA_VERSION
 from identity_learning_contracts import ARTIFACT_SCHEMAS, validate_artifact
+from identity_learning_ledger import IdentityLearningLedger
 from mail_hypothesis_review import (
     MailHypothesisProjectionError,
     StaleMailHypothesisReview,
@@ -20,6 +21,7 @@ from mail_hypothesis_review import (
     reviewed_mail_hypotheses,
 )
 from relationship_role_discovery import discover_relationship_roles
+from people_organization_activity import build_directory_index
 
 
 OPERATOR_GOLD_SCHEMA = "transcribe-audio.speaker-evaluation-gold.v1"
@@ -496,9 +498,10 @@ class IdentityReviewWorkflow:
             or Path("~/.local/state/transcribe-audio/speaker-evaluation-campaigns")
         ).expanduser()
         status = ConversationKnowledgeStore(self.root).schema_status()
-        if status.schema_version != 8 or status.dirty:
+        if status.schema_version != LATEST_SCHEMA_VERSION or status.dirty:
             raise IdentityReviewWorkflowError(
-                "Identity review requires clean conversation knowledge schema version 8."
+                "Identity review requires clean conversation knowledge schema "
+                f"version {LATEST_SCHEMA_VERSION}."
             )
 
     def project_queue_item(
@@ -1238,6 +1241,69 @@ class IdentityReviewWorkflow:
                 for key, value in graph_discovery.items()
                 if key not in {"by_contact_id", "mail_hypotheses"}
             },
+        }
+
+    def list_directory_index(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        query: str = "",
+        view: str = "people",
+    ) -> dict[str, Any]:
+        """Return the canonical people/organization activity directory."""
+        if limit < 1 or limit > 500 or offset < 0:
+            raise IdentityReviewWorkflowError(
+                "Directory pagination is outside its bounds."
+            )
+        if view not in {"people", "organizations", "unresolved"}:
+            raise IdentityReviewWorkflowError("Unsupported directory view.")
+        source = self.list_people(limit=500)
+        items = list(source["items"])
+        while len(items) < int(source["total"]):
+            page = self.list_people(limit=500, offset=len(items))
+            if not page["items"]:
+                break
+            items.extend(page["items"])
+        source = {**source, "items": items, "limit": len(items), "offset": 0}
+        index = build_directory_index(
+            source,
+            authority_snapshot=IdentityLearningLedger(self.root).projection_snapshot(),
+        )
+        candidates = (
+            index["organizations"]
+            if view == "organizations"
+            else [
+                item
+                for item in index["people"]
+                if view != "unresolved"
+                or item["entity_kind"] == "unresolved_group"
+            ]
+        )
+        query_text = query.strip().casefold()
+        filtered = [
+            item
+            for item in candidates
+            if not query_text
+            or query_text
+            in " ".join(
+                [
+                    _json(item.get("primary_name") or ""),
+                    _json(item.get("aliases") or []),
+                    _json(item.get("organizations") or []),
+                    _json(item.get("source_records") or []),
+                ]
+            ).casefold()
+        ]
+        return {
+            **index,
+            "items": filtered[offset : offset + limit],
+            "total": len(filtered),
+            "limit": limit,
+            "offset": offset,
+            "view": view,
+            "query": query,
+            "default_sort": "last_interaction_at:desc",
         }
 
     def record_mail_hypothesis_review(

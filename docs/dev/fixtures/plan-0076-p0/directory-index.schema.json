@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transcribe-audio.people-organization-activity-index.v1",
+  "type": "object",
+  "required": ["schema_version", "items", "people", "organizations", "counts", "semantic_hash"],
+  "properties": {
+    "schema_version": {"const": "transcribe-audio.people-organization-activity-index.v1"},
+    "view": {"enum": ["people", "organizations", "unresolved"]},
+    "default_sort": {"const": "last_interaction_at:desc"},
+    "items": {"type": "array"},
+    "people": {"type": "array"},
+    "organizations": {"type": "array"},
+    "counts": {
+      "type": "object",
+      "required": ["people", "unresolved_groups", "source_records", "organizations"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "semantic_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  },
+  "additionalProperties": true
+}

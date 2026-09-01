@@ -5654,7 +5654,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                         gold_root=(
                             self.state_root / "speaker-evaluation-campaigns"
                         ),
-                    ).list_people(
+                    ).list_directory_index(
                         limit=parse_int(
                             first(params, "limit"), 50, minimum=1, maximum=500
                         ),
@@ -5662,8 +5662,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                             first(params, "offset"), 0, minimum=0, maximum=100000
                         ),
                         query=first(params, "q") or first(params, "query"),
-                        status=first(params, "status"),
-                        kind=first(params, "kind"),
+                        view=first(params, "view") or "people",
                     )
                 )
                 return

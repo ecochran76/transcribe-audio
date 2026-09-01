@@ -1,5 +1,39 @@
 # Runbook
 
+## Turn 425: Open Plan 0076 and complete the provider-free index (2026-09-01)
+
+Summary: Opened Plan 0076 and completed its provider-free P0-P4 checkpoint:
+contract fixtures, canonical/unresolved people projection, schema-v9
+organization and activity authority, shared evidence-fabric eligibility, and
+the compact People/Organizations table are implemented. P5 installed rehearsal
+and P6 utility measurement remain active.
+
+Evidence:
+
+- `docs/people-organization-activity-index.md` and the redacted
+  `docs/dev/fixtures/plan-0076-p0/` set freeze the no-name/domain/shared-address
+  merge, duplicate-count, provenance, coverage, and privacy boundaries.
+- The version-9 migration adds organization, organization-source, activity,
+  and activity-coverage projections while preserving the immutable ledger
+  constraint. Downgrade refuses to discard version-9 events.
+- Organization create/alias/correct/merge/split and activity/coverage events
+  rebuild deterministically; reversal restores prior ownership and history.
+- `/api/people` now serves the source-neutral directory schema with people,
+  organizations, unresolved groups, reverse-recency default, bounded timeline
+  citations, and per-channel coverage.
+- The React workspace uses one dense table with visible SVG sort controls,
+  drag-resizable columns, sibling views, and inline activity/source expansion.
+- Accepted history is eligible through the shared evidence fabric only under
+  matching scope, capability, freshness, `as_of`, budget, and
+  anti-self-corroboration constraints.
+- `pytest -q` passed 1,273 tests in 82.73 seconds; the Vite production build
+  passed. No provider, person-merge, organization-acceptance, mailbox,
+  calendar, speaker, biometric, Graphiti, or external write occurred.
+
+Progress classification: `capability_advance`. P0-P4 are implemented and
+provider-free green. P5 is active at the disposable migrate/rollback and
+backed-up local cutover boundary; P6 remains pending.
+
 ## Turn 424: Plan the canonical people, organization, and activity index (2026-09-01)
 
 Summary: Converted the Contacts deduplication, organization, and cross-channel

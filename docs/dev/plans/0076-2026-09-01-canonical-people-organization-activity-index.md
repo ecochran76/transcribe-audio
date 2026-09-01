@@ -1,6 +1,6 @@
 # Plan 0076 | Canonical People, Organization, And Activity Index
 
-State: PLANNED
+State: OPEN
 
 Lane: P09
 

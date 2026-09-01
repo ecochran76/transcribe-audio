@@ -1,0 +1,40 @@
+{
+  "schema_version": "transcribe-audio.plan0076-adversarial-directory.v1",
+  "records": [
+    {
+      "source_record_id": "redacted-contact-1",
+      "display_name": "Alex Example",
+      "address_class": "person_specific",
+      "organization_string": "Acme Research"
+    },
+    {
+      "source_record_id": "redacted-contact-2",
+      "display_name": "Alex Example",
+      "address_class": "person_specific",
+      "organization_string": "ACME RESEARCH"
+    },
+    {
+      "source_record_id": "redacted-shared-1",
+      "display_name": "Support",
+      "address_class": "shared_or_role",
+      "organization_string": "Acme Research"
+    }
+  ],
+  "duplicate_observations": [
+    {
+      "observation_id": "redacted-calendar-1",
+      "independence_group_id": "redacted-event-1"
+    },
+    {
+      "observation_id": "redacted-calendar-1",
+      "independence_group_id": "redacted-event-1"
+    }
+  ],
+  "expected": {
+    "accepted_person_merge_count": 0,
+    "accepted_organization_count": 0,
+    "accepted_affiliation_count": 0,
+    "provider_write_count": 0,
+    "distinct_calendar_count": 1
+  }
+}

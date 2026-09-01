@@ -662,141 +662,171 @@ function identitySummary(item) {
   return `${item.source_records?.length || 0} sources${item.roles?.length ? ` · ${item.roles.length} roles` : ""}`;
 }
 
-function PeopleView() {
-  const [payload, setPayload] = useState(FALLBACK_PEOPLE);
-  const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState("");
-  const [sort, setSort] = useState("name");
-  const [selectedId, setSelectedId] = useState("");
-  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading contacts…" });
-  const [hypothesisDecision, setHypothesisDecision] = useState({ id: "", status: "idle", message: "" });
+const DIRECTORY_COLUMNS = [
+  { key: "name", label: "Person", width: 20 },
+  { key: "organization", label: "Organization and role", width: 20 },
+  { key: "transcript", label: "Transcripts", width: 12 },
+  { key: "calendar", label: "Calendar", width: 12 },
+  { key: "email", label: "Email", width: 12 },
+  { key: "last", label: "Last interaction", width: 13 },
+  { key: "health", label: "Identity health", width: 11 }
+];
 
-  function loadedMessage(next) {
-    const count = Number(next.graph_discovery?.mail_hypothesis_count || 0);
-    return count ? `Local directory · ${count} mail leads` : "Local directory loaded";
+function directoryId(item) {
+  return item.entity_id || item.organization_id || item.person_id;
+}
+
+function channelSummary(item, channel) {
+  const summary = item.activity_summary?.[channel] || {};
+  const counts = [
+    summary.confirmed_count ? `${summary.confirmed_count} confirmed` : "",
+    summary.proposed_count ? `${summary.proposed_count} proposed` : ""
+  ].filter(Boolean).join(" · ") || "No observations";
+  return <span className="directory-channel"><strong>{counts}</strong><small>{summary.last_at ? formatDate(summary.last_at) : label(summary.coverage_state || "not queried")}</small></span>;
+}
+
+function directorySortValue(item, key) {
+  if (key === "name") return item.primary_name || "";
+  if (key === "organization") return item.organizations?.[0]?.primary_name || item.organization_type || "";
+  if (["transcript", "calendar", "email"].includes(key)) {
+    const summary = item.activity_summary?.[key] || {};
+    return Number(summary.confirmed_count || 0) + Number(summary.proposed_count || 0);
   }
+  if (key === "last") return Date.parse(item.last_interaction_at || "") || 0;
+  if (key === "health") return Number(item.identity_health?.requires_review || 0) * 1000 + Number(item.identity_health?.source_record_count || 0);
+  return "";
+}
+
+function PeopleView() {
+  const [payload, setPayload] = useState({ items: [], counts: {} });
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState("people");
+  const [sort, setSort] = useState({ key: "last", direction: "desc" });
+  const [widths, setWidths] = useState(DIRECTORY_COLUMNS.map((column) => column.width));
+  const [expandedId, setExpandedId] = useState("");
+  const [loadState, setLoadState] = useState({ status: "loading", message: "Loading directory…" });
+  const tableRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const params = new URLSearchParams({ limit: "500" });
+      const params = new URLSearchParams({ limit: "500", view });
       if (query.trim()) params.set("q", query.trim());
-      if (kindFilter) params.set("kind", kindFilter);
       try {
         const next = await fetchJson(`/api/people?${params}`);
         if (cancelled) return;
         setPayload(next);
-        setSelectedId((current) => next.items?.some((item) => item.person_id === current) ? current : next.items?.[0]?.person_id || "");
-        setLoadState({ status: "live", message: loadedMessage(next) });
+        setExpandedId((current) => next.items?.some((item) => directoryId(item) === current) ? current : "");
+        setLoadState({ status: "live", message: "Canonical local index" });
       } catch (error) {
         if (cancelled) return;
-        setPayload(FALLBACK_PEOPLE);
-        setSelectedId((current) => current || FALLBACK_PEOPLE.items[0]?.person_id || "");
-        setLoadState({ status: "preview", message: `Redacted preview data: ${error.message}` });
+        setPayload({ items: [], counts: {} });
+        setLoadState({ status: "preview", message: `Directory unavailable: ${error.message}` });
       }
     }, query.trim() ? 180 : 0);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, kindFilter]);
+  }, [query, view]);
 
-  const items = useMemo(() => {
-    const next = [...(payload.items || [])];
-    if (sort === "reviews") {
-      next.sort((left, right) => (right.speaker_review_count || 0) - (left.speaker_review_count || 0) || left.primary_name.localeCompare(right.primary_name));
-    } else if (sort === "type") {
-      next.sort((left, right) => identityKindLabel(left.identity_kind).localeCompare(identityKindLabel(right.identity_kind)) || left.primary_name.localeCompare(right.primary_name));
-    } else {
-      next.sort((left, right) => left.primary_name.localeCompare(right.primary_name));
-    }
-    return next;
-  }, [payload.items, sort]);
-  const selected = items.find((item) => item.person_id === selectedId) || items[0] || null;
-  const counts = payload.counts || {};
+  const items = useMemo(() => [...(payload.items || [])].sort((left, right) => {
+    const leftValue = directorySortValue(left, sort.key);
+    const rightValue = directorySortValue(right, sort.key);
+    const comparison = typeof leftValue === "number"
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue));
+    return (sort.direction === "asc" ? comparison : -comparison)
+      || String(left.primary_name || "").localeCompare(String(right.primary_name || ""));
+  }), [payload.items, sort]);
 
-  async function reviewHypothesis(row, action) {
-    setHypothesisDecision({ id: row.hypothesis_id, status: "loading", message: `Recording ${action}…` });
-    const submission = {
-      schema_version: "transcribe-audio.mail-hypothesis-review-submission.v1",
-      hypothesis_id: row.hypothesis_id,
-      action,
-      expected_projection_version: row.projection_version,
-      source_content_sha256: row.source_content_sha256,
-      reviewer: "operator",
-      decided_at: new Date().toISOString(),
-      idempotency_key: operationId(`mail-hypothesis-${action}`),
-      note: ""
+  function sortBy(key) {
+    setSort((current) => current.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: key === "name" || key === "organization" ? "asc" : "desc" });
+  }
+
+  function resize(index, clientX, startX, startWidths) {
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const delta = ((clientX - startX) / tableWidth) * 100;
+    const pair = startWidths[index] + startWidths[index + 1];
+    const nextLeft = Math.max(7, Math.min(pair - 7, startWidths[index] + delta));
+    const next = [...startWidths];
+    next[index] = nextLeft;
+    next[index + 1] = pair - nextLeft;
+    setWidths(next);
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidths = [...widths];
+    const move = (moveEvent) => resize(index, moveEvent.clientX, startX, startWidths);
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
     };
-    try {
-      await fetchJson(`/api/relationship-hypotheses/${encodeURIComponent(row.hypothesis_id)}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(submission)
-      });
-      const params = new URLSearchParams({ limit: "500" });
-      if (query.trim()) params.set("q", query.trim());
-      if (kindFilter) params.set("kind", kindFilter);
-      const next = await fetchJson(`/api/people?${params}`);
-      setPayload(next);
-      setLoadState({ status: "live", message: loadedMessage(next) });
-      setHypothesisDecision({ id: row.hypothesis_id, status: "recorded", message: `${action === "accept" ? "Accepted" : action === "reject" ? "Rejected" : "Deferred"} relationship lead.` });
-    } catch (error) {
-      setHypothesisDecision({ id: row.hypothesis_id, status: "error", message: `Decision rejected: ${error.message}` });
-    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
   }
 
   return (
-    <section className="identity-surface" aria-label="Contacts">
-      <div className="identity-toolbar contacts-toolbar">
-        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, email, recording, or source" /></label>
-        <label><span>Record type</span><select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}><option value="">All records</option><option value="canonical_person">People ({counts.canonical_person || 0})</option><option value="local_contact">Local contacts ({counts.local_contact || 0})</option><option value="reviewed_speaker">Review names ({counts.reviewed_speaker || 0})</option></select></label>
-        <label><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="name">Name A–Z</option><option value="reviews">Most speaker reviews</option><option value="type">Record type</option></select></label>
+    <section className="identity-surface directory-surface" aria-label="People and organizations">
+      <div className="directory-toolbar">
+        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
+        <nav aria-label="Directory views">
+          {[["people", `People ${payload.counts?.people || 0}`], ["organizations", `Organizations ${payload.counts?.organizations || 0}`], ["unresolved", `Unresolved ${payload.counts?.unresolved_groups || 0}`]].map(([key, text]) => <button aria-current={view === key ? "page" : undefined} key={key} onClick={() => setView(key)} type="button">{text}</button>)}
+        </nav>
         <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{payload.total || 0}</strong><span>{loadState.message}</span></div>
       </div>
-      <div className="identity-master-detail">
-        <label className="identity-mobile-picker"><span>Selected contact</span><select value={selected?.person_id || ""} onChange={(event) => setSelectedId(event.target.value)}>{items.map((item) => <option key={item.person_id} value={item.person_id}>{item.primary_name} · {identityKindLabel(item.identity_kind)}</option>)}</select></label>
-        <div className="identity-list" aria-label="Contacts list">
-          {items.map((item) => (
-            <button className={item.person_id === selected?.person_id ? "active" : ""} key={item.person_id} onClick={() => setSelectedId(item.person_id)} type="button">
-              <span className="identity-list-copy"><strong>{item.primary_name || "Unnamed record"}</strong><small>{identitySummary(item)}</small></span>
-              <span className={`identity-list-kicker ${item.identity_kind}`}>{identityKindLabel(item.identity_kind)}</span>
-            </button>
-          ))}
-        </div>
-        <div className="identity-detail">{selected ? <PeopleDetail hypothesisDecision={hypothesisDecision} onReviewHypothesis={reviewHypothesis} person={selected} /> : <p className="muted contacts-empty">No contacts match these filters.</p>}</div>
+      <div className="directory-table-wrap">
+        <table className="directory-table" ref={tableRef}>
+          <colgroup>{widths.map((width, index) => <col key={DIRECTORY_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
+          <thead><tr>{DIRECTORY_COLUMNS.map((column, index) => {
+            const active = sort.key === column.key;
+            return <th aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"} key={column.key}>
+              <button className="directory-sort" aria-label={`Sort by ${column.label}`} onClick={() => sortBy(column.key)} type="button"><span>{view === "organizations" && column.key === "name" ? "Organization" : column.label}</span><Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={13} /></button>
+              {index < DIRECTORY_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" className="directory-resizer" onDoubleClick={() => setWidths(DIRECTORY_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+            </th>;
+          })}</tr></thead>
+          <tbody>{items.map((item) => {
+            const id = directoryId(item);
+            const expanded = expandedId === id;
+            const affiliation = item.organizations?.[0];
+            const health = item.identity_health || {};
+            return <Fragment key={id}>
+              <tr className={expanded ? "directory-row expanded" : "directory-row"}>
+                <td><button className="directory-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${item.primary_name}`} onClick={() => setExpandedId(expanded ? "" : id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><span><strong>{item.primary_name || "Unnamed"}</strong><small>{item.entity_kind === "unresolved_group" ? `${health.member_count || 0} separate records · unresolved` : label(item.resolution_state)}</small></span></button></td>
+                <td><span className="directory-cell-stack"><strong>{affiliation?.primary_name || (view === "organizations" ? label(item.organization_type) : "—")}</strong><small>{affiliation ? `${label(affiliation.role_type || affiliation.status)}${affiliation.status === "proposed" ? " · proposed" : ""}` : "No accepted affiliation"}</small></span></td>
+                <td>{channelSummary(item, "transcript")}</td>
+                <td>{channelSummary(item, "calendar")}</td>
+                <td>{channelSummary(item, "email")}</td>
+                <td>{item.last_interaction_at ? formatDate(item.last_interaction_at) : "No dated activity"}</td>
+                <td><span className="directory-cell-stack"><strong>{health.requires_review ? "Review needed" : "Resolved"}</strong><small>{health.source_record_count ?? health.source_name_count ?? 0} sources · {health.conflict_count || 0} conflicts</small></span></td>
+              </tr>
+              {expanded && <tr className="directory-expanded-row"><td colSpan={DIRECTORY_COLUMNS.length}><DirectoryDetail item={item} /></td></tr>}
+            </Fragment>;
+          })}</tbody>
+        </table>
+        {!items.length && <p className="muted contacts-empty">No directory rows match this view.</p>}
       </div>
     </section>
   );
 }
 
-function PeopleDetail({ person, onReviewHypothesis, hypothesisDecision }) {
-  const kind = identityKindLabel(person.identity_kind);
-  const boundary = person.identity_kind === "reviewed_speaker"
-    ? "Operator-reviewed speaker name. It is evidence for reconciliation, not yet a canonical contact link."
-    : person.identity_kind === "local_contact"
-      ? person.contact_class === "shared_or_role_address"
-        ? "Shared or role address observed in calendar attendees. It is review-required and is not a person or speaker identity."
-        : "Calendar-attendee contact candidate. Exact email joins source observations, but it remains separate until an explicit reviewed person or speaker link."
-      : "Canonical conversation person assembled from reviewed local knowledge sources.";
-  return (
-    <>
-      <header className="identity-detail-heading"><div><p className="eyebrow">{kind}</p><h2>{person.primary_name || "Unnamed record"}</h2>{!!person.aliases?.length && <p>{person.aliases.join(" · ")}</p>}</div><span className={`identity-state-pill ${person.status}`}>{label(person.status)}</span></header>
-      <p className="people-editing-boundary">{boundary}</p>
-      {!!person.possible_related_records?.length && <PeopleTable title="Possible related records" columns={["Type", "Name", "Why not linked"]} rows={person.possible_related_records.map((row) => [identityKindLabel(row.identity_kind), row.primary_name, "Exact display name only — review required"])} />}
-      {!!person.contact_methods?.length && <PeopleTable title="Contact methods" columns={["Type", "Value"]} rows={person.contact_methods.map((row) => [label(row.kind), row.value])} />}
-      {!!person.organizations?.length && <PeopleTable title="Organizations" columns={["Organization", "Basis"]} rows={person.organizations.map((organization) => [organization, "Exact-email source observation"])} />}
-      {!!person.calendar_occurrences?.length && <PeopleTable title="Calendar appearances" columns={["Recording file", "Date", "Calendar event"]} rows={person.calendar_occurrences.map((row) => [row.recording_filename || row.recording_title || "Untitled recording", formatDate(row.recorded_at), row.event_summary || row.calendar_summary || "—"])} />}
-      {!!person.review_occurrences?.length && <PeopleTable title="Speaker review appearances" columns={["Recording", "File", "Speaker", "Reviewed"]} rows={person.review_occurrences.map((row) => [row.recording_title || "Untitled recording", row.recording_filename, row.speaker_ref, formatDate(row.reviewed_at)])} />}
-      {person.identity_kind !== "reviewed_speaker" && <PeopleTable title="Source records" columns={["Provider", "Type", "Label", "Status"]} rows={(person.source_records || []).map((row) => [row.provider_kind, row.record_type, row.label || row.external_ref, row.resolution_status])} />}
-      {!!person.roles?.length && <PeopleTable title="Roles" columns={["Role", "Organization", "Status", "Evidence"]} rows={person.roles.map((row) => [label(row.role_type), row.organization_id || "—", row.status, (row.evidence_ids || []).length])} />}
-      {!!person.relationships?.length && <PeopleTable title="Relationships" columns={["Relationship", "Subject", "Object", "Status"]} rows={person.relationships.map((row) => [label(row.relationship_type), row.subject_id, row.object_id, row.status])} />}
-      {!!person.role_hypotheses?.length && <HypothesisTable title="Role hypotheses" rows={person.role_hypotheses} role />}
-      {!!person.relationship_hypotheses?.length && <HypothesisTable hypothesisDecision={hypothesisDecision} onReview={onReviewHypothesis} title="Relationship hypotheses" rows={person.relationship_hypotheses} />}
-      {(person.role_hypotheses?.length || person.relationship_hypotheses?.length) ? <p className="people-editing-boundary">Mail leads enter conversation context only after you accept them. Rejected and deferred leads remain outside accepted knowledge.</p> : null}
-      <details className="identity-provenance"><summary>Record provenance</summary><dl className="identity-lineage"><div><dt>Record ID</dt><dd><code>{person.source_identity_id || person.person_id}</code></dd></div><div><dt>Projection watermark</dt><dd><code>{compactHash(person.input_watermark)}</code></dd></div><div><dt>Built</dt><dd>{person.built_at ? formatDate(person.built_at) : "Unavailable"}</dd></div></dl></details>
-    </>
-  );
+function DirectoryDetail({ item }) {
+  const members = item.members || [];
+  const sources = item.source_records || members.flatMap((member) => member.source_records || []);
+  return <div className="directory-detail">
+    <section><h3>Activity timeline <span>{item.activities?.length || 0}</span></h3>
+      <div className="directory-detail-scroll"><table><thead><tr><th>Date</th><th>Channel</th><th>Conversation or evidence</th><th>Participation</th><th>Source</th></tr></thead><tbody>{(item.activities || []).map((activity) => <tr key={`${activity.channel}-${activity.observation_id}`}><td>{activity.occurred_at ? formatDate(activity.occurred_at) : "Undated"}</td><td>{label(activity.channel)}</td><td>{activity.title || "Bounded source evidence"}</td><td>{label(activity.participation_status)} · {label(activity.evidence_status)}</td><td><code>{compactHash(activity.source_record_id)}</code></td></tr>)}</tbody></table></div>
+    </section>
+    <section><h3>Source identities <span>{sources.length}</span></h3>
+      <div className="directory-detail-scroll"><table><thead><tr><th>Member</th><th>Provider</th><th>Type</th><th>Label</th><th>Status</th></tr></thead><tbody>{sources.map((source, index) => <tr key={source.source_record_id || index}><td>{source.person_id || source.organization_id || "—"}</td><td>{label(source.provider_kind)}</td><td>{label(source.record_type)}</td><td>{source.label || source.external_ref || "—"}</td><td>{label(source.resolution_status)}</td></tr>)}</tbody></table></div>
+    </section>
+    {!!item.organizations?.length && <section><h3>Affiliations <span>{item.organizations.length}</span></h3><div className="directory-detail-scroll"><table><thead><tr><th>Organization</th><th>Role</th><th>State</th><th>Valid dates</th><th>Basis</th></tr></thead><tbody>{item.organizations.map((organization) => <tr key={organization.organization_id}><td>{organization.primary_name}</td><td>{label(organization.role_type)}</td><td>{label(organization.status)}</td><td>{organization.starts_at || organization.ends_at ? `${formatDate(organization.starts_at)} – ${formatDate(organization.ends_at)}` : "Not established"}</td><td>{label(organization.basis)}</td></tr>)}</tbody></table></div></section>}
+    {item.entity_kind === "unresolved_group" && <p className="people-editing-boundary">These source records share a display name. They remain separate identities until an explicit reviewed reconciliation decision.</p>}
+  </div>;
 }
 
 function PeopleTable({ title, columns, rows }) {
