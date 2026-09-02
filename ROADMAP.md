@@ -341,11 +341,14 @@ person labels from human presentation, adds derived display, sort, and
 completeness fields, and uses them in compact targets and directory rows.
 Comma-form names now read naturally while incomplete names remain explicit;
 the 15 accepted target IDs and all review state are unchanged.
-Plan 0083 is open to make accepted identity debt directly repairable. It adds a
-typed append-only repair queue, excludes organization labels from person-name
-presentation, requires a safe explicit name for future create-person approvals,
-and exposes accepted relationship/role corrections without hiding them inside
-directory expansion. Installation and QA must create no repair event.
+Plan 0083 is closed with accepted identity debt directly repairable. The live
+compact repair mode defaults to 23 actionable name/duplicate rows, exposes five
+additional ambiguity findings through one filter, and keeps 59 accepted
+organization/role decisions available as flat correction rows. Typed person
+corrections and merges are append-only and stale-safe; organization labels are
+excluded from person-name presentation; future create-person approvals require
+a safe explicit human name. Installation and Agent Browser QA left all 211
+identity events and review-state counts unchanged.
 The v4 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer

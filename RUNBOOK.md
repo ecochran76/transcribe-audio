@@ -1,5 +1,47 @@
 # Runbook
 
+## Turn 440: Close Plan 0083 accepted identity repair queue (2026-09-02)
+
+Summary: Closed
+`docs/dev/plans/0083-2026-09-02-accepted-identity-repair-queue.md` after
+installing a compact, append-only correction workflow for accepted identity
+debt.
+
+Evidence:
+
+- The live Repairs mode defaults to 23 actionable rows: 21 canonical-name
+  corrections and two possible-duplicate decisions. Its compact `Actionable
+  only` checkbox reveals five additional ambiguity findings. Fifty-nine
+  accepted organization/role decisions remain available as flat correction
+  rows below them.
+- Schema 10 adds typed `person_corrected` events. Merge replay now retargets
+  roles, activity subjects and coverage, relationship endpoints, sources, and
+  external identities. Stale and idempotent submissions fail closed.
+- Directory projection v5 excludes exact organization labels from person-name
+  candidates. Company-only contacts display as `Unknown person`; future
+  create-person approvals require an explicit complete human name.
+- Focused backend selections pass 116 tests and the provider-free suite passes
+  1,296 tests in 101.02 seconds. Frontend tests pass eight tests; the production
+  build, Python compile, planning audit, and diff hygiene pass.
+- The live database migrated from schema 9 to 10 after creating backup
+  `/home/ecochran76/.transcripts/backups/transcripts-pre-migrate-v9-61ebbf2ce4b6.sqlite3`.
+  The ledger remains at 211 events and review states remain 59 accepted, one
+  rejected, zero deferred, and two unreviewed. No repair or review action was
+  submitted during installation or QA.
+- Agent Browser inspected the installed view at 1440 by 900 and 390 by 844. The
+  23 repair rows measure about 31 pixels high, use four sortable/resizable
+  columns plus actions, and expose 23 SVG-only action controls. Narrow overflow
+  stays inside both table wrappers; console and page errors are empty. The exact
+  isolated QA session was closed.
+- Checkpoints `c7c1b17` and `7c89472` are pushed. The default managed browser
+  lane failed closed on unproven retained-profile identity; an isolated managed
+  Chromium profile completed the read-only inspection without disturbing it.
+
+Progress classification: `outcome_progress`. Plan 0083 is `CLOSED`; the live
+repair queue is ready for deliberate operator corrections. Unreviewed identity
+ambiguity remains explicitly visible and no name equality alone authorizes a
+merge.
+
 ## Turn 439: Open Plan 0083 accepted identity repair queue (2026-09-02)
 
 Summary: Opened
