@@ -1,6 +1,6 @@
 # Plan 0082 | Person Display-Name Normalization
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -54,11 +54,12 @@ split is appropriate.
 
 ## Current State
 
-The source projection copies accepted `primary_name` directly into
-`review_targets.people[].label`, and React renders that label verbatim. The only
-client normalization trims and lowercases names for exact-match suggestions.
-Live examples show `Gates, Zachary` from Calendar/GWS, `Cienkosz, Basia` with a
-better `Basia Cienkosz` alias, and incomplete `Dr. Stefl` from human review.
+The installed v4 directory projection preserves accepted `primary_name`,
+member labels, aliases, and source records while deriving `display_name`,
+`sort_name`, and `name_completeness`. Both compact and expanded review selectors
+consume that presentation layer. Live examples now display `Zachary Gates` and
+`Basia Cienkosz`; `Dr. Stefl` remains unchanged and is labeled `incomplete
+name` rather than being expanded without evidence.
 
 ## Acceptance Criteria
 
@@ -87,3 +88,30 @@ better `Basia Cienkosz` alias, and incomplete `Dr. Stefl` from human review.
   count/ID preservation.
 - Desktop and narrow Agent Browser inspection with no review action invoked.
 
+## Closeout Evidence
+
+- Public projection and frontend red-to-green tests cover reversible
+  comma-form normalization, whitespace normalization, source-label retention,
+  incomplete-name disclosure, deterministic target ordering, and preservation
+  of raw-name suggestion matching.
+- Focused directory/API tests pass 11 tests; the broader directory and review
+  selection passes 45 tests; frontend tests pass 6 tests; the provider-free
+  suite passes 1,289 tests in 91.82 seconds.
+- The frontend production build, Python compilation, planning audit, and diff
+  hygiene pass. The direct `.venv/bin/pytest` retry was invalid in this repo
+  because it omitted the repository import path; `.venv/bin/python -m pytest`
+  is the passing authoritative invocation. A later frontend retry mistakenly
+  passed Node's unsupported bare `--run` flag; canonical `npm test` passes all
+  6 tests.
+- Installed `/api/people` returns schema v4 with the same 15 accepted target
+  IDs and unchanged review counts: 10 accepted, 1 rejected, and 51 unreviewed.
+  The inspected source/display pairs are `Gates, Zachary` / `Zachary Gates`,
+  `Cienkosz, Basia` / `Basia Cienkosz`, and `Dr. Stefl` / `Dr. Stefl` with
+  `name_completeness=incomplete`.
+- Agent Browser inspected the live Contacts approval table at 1440 by 900 and
+  390 by 844. The person selector contained all three expected display labels,
+  neither comma-form label, no console or page errors, and the narrow table used
+  contained horizontal scrolling. No review action was invoked; the named QA
+  browser was closed.
+- Implementation checkpoint `7160a99` is pushed. `transcripts.service` is
+  active/running at PID 14110 with `NRestarts=0`.

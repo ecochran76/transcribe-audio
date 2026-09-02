@@ -1,5 +1,42 @@
 # Runbook
 
+## Turn 438: Close Plan 0082 person display-name normalization (2026-09-02)
+
+Summary: Closed
+`docs/dev/plans/0082-2026-09-02-person-display-name-normalization.md` after
+installing evidence-preserving display names in the live Contacts workflow.
+
+Evidence:
+
+- The v4 projection preserves accepted and provider-observed names while
+  deriving `display_name`, `sort_name`, and `name_completeness`. Review-target
+  suggestions still match the preserved primary name and aliases.
+- Live targets display `Basia Cienkosz` and `Zachary Gates`. `Dr. Stefl` stays
+  unchanged and receives the concise `incomplete name` cue; no missing name is
+  inferred.
+- Installed API readback retains the exact 15 accepted target IDs and review
+  counts of 10 accepted, 1 rejected, and 51 unreviewed.
+- Focused backend selections pass 11 and 45 tests, frontend tests pass 6, and
+  the provider-free suite passes 1,289 tests in 91.82 seconds. The frontend
+  production build, Python compilation, planning audit, and diff hygiene pass.
+  The first direct `pytest` entrypoint failed collection because it omitted the
+  repository import path; the authoritative `python -m pytest` invocation
+  passed. A post-close frontend retry mistakenly passed Node's unsupported bare
+  `--run` flag; canonical `npm test` passed all 6 tests.
+- Agent Browser inspected the installed approval table at 1440 by 900 and 390
+  by 844. Required normalized labels were present, comma forms were absent,
+  narrow overflow stayed inside the table, and console/page errors were empty.
+  An initial custom-profile continuation failed closed on unproven retained
+  profile identity; a fresh named unauthenticated QA session completed and was
+  closed. No review action was invoked.
+- Checkpoint `7160a99` is pushed. `transcripts.service` is active/running at PID
+  14110 with `NRestarts=0`.
+
+Progress classification: `outcome_progress`. Plan 0082 is `CLOSED`; normalized
+person targets are installed and ready for continued directory review. Duplicate
+accepted people remain separate because display normalization does not authorize
+identity merges.
+
 ## Turn 437: Open Plan 0082 person display-name normalization (2026-09-02)
 
 Summary: Opened

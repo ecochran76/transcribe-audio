@@ -336,11 +336,12 @@ unique accepted-person targets without automatic acceptance, and reconciles
 the already-recorded decisions without replaying them. Final live state is 10
 accepted, 1 rejected, and 51 unreviewed leads; Ecochran is corrected to the
 accepted Eric Cochran identity through immutable events.
-Plan 0082 is open to separate evidence-preserving person names from normalized
-human presentation. It will retain canonical/source labels unchanged while
-adding derived display, sort, and completeness fields for the compact review
-targets and directory.
-The v3 directory restores all 62 current affiliation/role leads inside one
+Plan 0082 is closed. The installed v4 directory separates evidence-preserving
+person labels from human presentation, adds derived display, sort, and
+completeness fields, and uses them in compact targets and directory rows.
+Comma-form names now read naturally while incomplete names remain explicit;
+the 15 accepted target IDs and all review state are unchanged.
+The v4 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer
 decisions through an atomic ledger batch. Accepted roles and affiliations enter
