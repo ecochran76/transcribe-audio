@@ -988,6 +988,31 @@
   text-transform: uppercase;
 }
 
+.person-repairs > h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+}
+
+.person-repair-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+  color: var(--ink);
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.person-repair-scope input {
+  width: 0.78rem;
+  height: 0.78rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .person-repairs > h3 span,
 .accepted-decision-repairs > h3 span {
   margin-left: 0.2rem;

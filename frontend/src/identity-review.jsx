@@ -736,6 +736,7 @@ function PeopleView() {
   const [repairPayload, setRepairPayload] = useState({ items: [], counts: {} });
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("approvals");
+  const [includeNonActionableRepairs, setIncludeNonActionableRepairs] = useState(false);
   const [view, setView] = useState("people");
   const [sort, setSort] = useState({ key: "last", direction: "desc" });
   const [widths, setWidths] = useState(DIRECTORY_COLUMNS.map((column) => column.width));
@@ -776,6 +777,9 @@ function PeopleView() {
 
   const approvalRows = useMemo(() => flattenDirectoryReviewRows(payload.items), [payload.items]);
   const acceptedRows = useMemo(() => flattenDirectoryReviewRows(payload.items, "accepted"), [payload.items]);
+  const repairRows = useMemo(() => (repairPayload.items || []).filter((repair) => (
+    includeNonActionableRepairs || Boolean(repair.allowed_actions?.length)
+  )), [includeNonActionableRepairs, repairPayload.items]);
   const items = useMemo(() => [...payload.items].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
     const rightValue = directorySortValue(right, sort.key);
@@ -829,7 +833,7 @@ function PeopleView() {
       <div className="directory-mode-bar">
         <nav aria-label="Contacts work modes">
           <button aria-current={mode === "approvals" ? "page" : undefined} onClick={() => setMode("approvals")} type="button">Approval rows <span>{approvalRows.length}</span></button>
-          <button aria-current={mode === "repairs" ? "page" : undefined} onClick={() => setMode("repairs")} type="button">Repairs {repairPayload.loaded && <span>{(repairPayload.counts?.all || 0) + acceptedRows.length}</span>}</button>
+          <button aria-current={mode === "repairs" ? "page" : undefined} onClick={() => setMode("repairs")} type="button">Repairs {mode === "repairs" && repairPayload.loaded && <span>{repairRows.length + acceptedRows.length}</span>}</button>
           <button aria-current={mode === "directory" ? "page" : undefined} onClick={() => setMode("directory")} type="button">Directory <span>{directoryCount}</span></button>
         </nav>
       </div>
@@ -842,9 +846,9 @@ function PeopleView() {
       </> : mode === "repairs" ? <>
         <div className="directory-approval-toolbar">
           <label><span>Search repairs</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Person, organization, issue, or source" /></label>
-          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{(repairPayload.counts?.all || 0) + acceptedRows.length}</strong><span>{loadState.message}</span></div>
+          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{repairRows.length + acceptedRows.length}</strong><span>{loadState.message}</span></div>
         </div>
-        <PersonRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairPayload.items || []} />
+        <PersonRepairTable includeNonActionable={includeNonActionableRepairs} onIncludeNonActionableChange={setIncludeNonActionableRepairs} onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairRows} />
         <section className="accepted-decision-repairs">
           <h3>Accepted organization &amp; role decisions <span>{acceptedRows.length}</span></h3>
           <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={acceptedRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
@@ -1129,7 +1133,7 @@ function PersonRepairRow({ repair, onRepaired }) {
   </tr>;
 }
 
-function PersonRepairTable({ repairs, onRepaired }) {
+function PersonRepairTable({ includeNonActionable, onIncludeNonActionableChange, repairs, onRepaired }) {
   const [sort, setSort] = useState({ key: "kind", direction: "asc" });
   const [widths, setWidths] = useState(PERSON_REPAIR_COLUMNS.map((column) => column.width));
   const tableRef = useRef(null);
@@ -1167,7 +1171,7 @@ function PersonRepairTable({ repairs, onRepaired }) {
   }
 
   return <section className="person-repairs">
-    <h3>Identity repairs <span>{repairs.length}</span></h3>
+    <h3>Identity repairs <span>{repairs.length}</span><label className="person-repair-scope"><input checked={!includeNonActionable} onChange={(event) => onIncludeNonActionableChange(!event.target.checked)} type="checkbox" /> Actionable only</label></h3>
     <div className="directory-table-wrap directory-approval-wrap">
       <table className="directory-approval-table" ref={tableRef}>
         <colgroup>{widths.map((width, index) => <col key={PERSON_REPAIR_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>

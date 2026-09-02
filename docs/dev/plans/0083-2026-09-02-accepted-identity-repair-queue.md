@@ -81,8 +81,9 @@ source evidence.
 
 ### P2 | Compact repair UI and future-review guard
 
-- Add a peer `Repairs` work mode containing only repair findings and accepted
-  decision rows.
+- Add a peer `Repairs` work mode that defaults to actionable repair findings
+  and accepted decision rows, with one compact control to reveal unresolved
+  non-actionable issues.
 - Keep rows dense, sortable, resizable, and directly actionable with compact SVG
   controls.
 - Require an explicit evidence-backed person name whenever `Create person` is
