@@ -5,7 +5,8 @@ import {
   createInFlightGate,
   findUniqueAcceptedPersonTarget,
   flattenDirectoryReviewRows,
-  hasDirectoryReviewDecision
+  hasDirectoryReviewDecision,
+  personTargetDisplayLabel
 } from "../src/directory-review-utils.js";
 
 test("approval rows flatten every unreviewed hypothesis without collapsing contacts", () => {
@@ -61,6 +62,34 @@ test("a unique accepted name or alias match is suggested without guessing ambigu
     { accepted_person_id: "person-eric", primary_name: "Anything" },
     targets
   )?.id, "person-eric");
+});
+
+test("person targets show normalized names and disclose incomplete identities", () => {
+  assert.equal(personTargetDisplayLabel({
+    display_name: "Basia Cienkosz",
+    label: "Cienkosz, Basia",
+    name_completeness: "complete"
+  }), "Basia Cienkosz");
+  assert.equal(personTargetDisplayLabel({
+    display_name: "Dr. Stefl",
+    label: "Dr. Stefl",
+    name_completeness: "incomplete"
+  }), "Dr. Stefl — incomplete name");
+  assert.equal(personTargetDisplayLabel({ label: "Legacy Person" }), "Legacy Person");
+});
+
+test("target suggestions still match preserved source names after display normalization", () => {
+  const target = {
+    id: "person-zachary",
+    display_name: "Zachary Gates",
+    label: "Zachary Gates",
+    primary_name: "Gates, Zachary",
+    aliases: ["zgates@example.com"]
+  };
+  assert.equal(findUniqueAcceptedPersonTarget(
+    { primary_name: "Gates, Zachary", aliases: [] },
+    [target]
+  )?.id, "person-zachary");
 });
 
 test("ambiguous response reconciliation requires the exact review idempotency key", () => {

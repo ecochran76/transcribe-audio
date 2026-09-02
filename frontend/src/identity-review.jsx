@@ -4,7 +4,8 @@ import {
   createInFlightGate,
   findUniqueAcceptedPersonTarget,
   flattenDirectoryReviewRows,
-  hasDirectoryReviewDecision
+  hasDirectoryReviewDecision,
+  personTargetDisplayLabel
 } from "./directory-review-utils.js";
 
 const SPEAKER_ACTIONS = [
@@ -697,7 +698,7 @@ function channelSummary(item, channel) {
 }
 
 function directorySortValue(item, key) {
-  if (key === "name") return item.primary_name || "";
+  if (key === "name") return item.sort_name || item.display_name || item.primary_name || "";
   if (key === "organization") {
     if (item.entity_kind === "organization") return item.affiliated_person_ids?.length || 0;
     return item.primary_affiliation?.primary_name || item.organizations?.[0]?.primary_name || item.organization_type || "";
@@ -773,7 +774,7 @@ function PeopleView() {
       ? leftValue - rightValue
       : String(leftValue).localeCompare(String(rightValue));
     return (sort.direction === "asc" ? comparison : -comparison)
-      || String(left.primary_name || "").localeCompare(String(right.primary_name || ""));
+      || String(left.sort_name || left.display_name || left.primary_name || "").localeCompare(String(right.sort_name || right.display_name || right.primary_name || ""));
   }), [payload.items, sort]);
   const directoryCount = (payload.counts?.people || 0) + (payload.counts?.unresolved_groups || 0);
 
@@ -858,7 +859,7 @@ function PeopleView() {
             const health = item.identity_health || {};
             return <Fragment key={id}>
               <tr className={expanded ? "directory-row expanded" : "directory-row"}>
-                <td><button className="directory-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${item.primary_name}`} onClick={() => setExpandedId(expanded ? "" : id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><span><strong>{item.primary_name || "Unnamed"}</strong><small>{item.entity_kind === "unresolved_group" ? `${health.member_count || 0} separate records · unresolved` : label(item.resolution_state)}</small></span></button></td>
+                <td><button className="directory-expand" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${personTargetDisplayLabel(item)}`} onClick={() => setExpandedId(expanded ? "" : id)} type="button"><Icon name={expanded ? "chevronDown" : "chevronRight"} size={14} /><span><strong>{personTargetDisplayLabel(item)}</strong><small>{item.entity_kind === "unresolved_group" ? `${health.member_count || 0} separate records · unresolved` : label(item.resolution_state)}</small></span></button></td>
                 <td>{view === "organizations"
                   ? <span className="directory-cell-stack"><strong>{counted(item.affiliated_person_ids?.length, "linked person")}</strong><small>{label(item.resolution_state)} organization</small></span>
                   : <span className="directory-cell-stack"><strong>{affiliation?.primary_name || "—"}</strong><small>{affiliation ? `${affiliationRoleSummary(affiliation)}${item.additional_organization_count ? ` · +${item.additional_organization_count} ${item.additional_organization_count === 1 ? "organization" : "organizations"}` : ""}` : "No accepted affiliation"}</small></span>}</td>
@@ -901,7 +902,7 @@ function activityCount(item, channel) {
 
 function approvalSortValue(row, key) {
   const { item, lead } = row;
-  if (key === "contact") return item.primary_name || "";
+  if (key === "contact") return item.sort_name || item.display_name || item.primary_name || "";
   if (key === "proposal") return `${lead.hypothesis_kind || ""} ${approvalOrganization(lead)} ${lead.display_value || ""}`;
   if (key === "evidence") {
     const source = lead.source_records?.[0] || {};
@@ -1089,11 +1090,11 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
       ? `Role · ${organizationName}${lead.display_value ? ` · ${lead.display_value}` : ""}`
       : `Affiliation · ${organizationName}`;
     return <tr className="directory-review-row directory-approval-row" data-review-status={decision.status}>
-      <td><span className="directory-approval-text" title={item.primary_name || "Unnamed contact"}>{item.primary_name || "Unnamed contact"}</span></td>
+      <td><span className="directory-approval-text" title={item.primary_name || "Unnamed contact"}>{personTargetDisplayLabel(item)}</span></td>
       <td><span className="directory-approval-text" title={proposal}>{proposal}</span></td>
       <td><span className="directory-approval-text" title={reviewSourceTitle(lead)}>{reviewSourceSummary(lead)}</span></td>
       <td><ActivityHistory item={item} /></td>
-      <td><select aria-label={`Person target for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} title="Choose the canonical person that this approval should update" value={personTarget}><option value="create">Create person</option>{!!reviewTargets.people?.length && <optgroup label={`Accepted people (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
+      <td><select aria-label={`Person target for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} title="Choose the canonical person that this approval should update" value={personTarget}><option value="create">Create person</option>{!!reviewTargets.people?.length && <optgroup label={`Accepted people (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select></td>
       <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} title="Choose the canonical organization that this approval should update" value={organizationTarget}><option value="create">Create {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Accepted organizations (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
       <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} title="Reviewed role title" value={roleTitle} /> : <span className="directory-approval-none" aria-label="No role title required">—</span>}</td>
       <td><div className="directory-review-actions" title={decision.message || "Accept, reject, or defer this hypothesis"}>
@@ -1107,7 +1108,7 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
   return <tr className="directory-review-row">
     <td><strong>{lead.hypothesis_kind === "contextual_role" ? "Role" : "Affiliation"}</strong><small>{lead.basis || "Provider observation"}</small></td>
     <td>{organizationName || "—"}</td>
-    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from reviewed contact</option>{!!reviewTargets.people?.length && <optgroup label={`Use accepted person (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
+    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from reviewed contact</option>{!!reviewTargets.people?.length && <optgroup label={`Use accepted person (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select></td>
     <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} value={organizationTarget}><option value="create">Create from reviewed proposal: {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Use accepted organization (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
     <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} value={roleTitle} /> : <span className="muted">No role asserted</span>}</td>
     <td><span className={`directory-review-state ${decision.status === "error" ? "error" : lead.review_state || "unreviewed"}`} title={decision.message}>{decision.message || (lead.review_state === "accepted" ? "Accepted" : lead.review_state === "rejected" ? "Rejected" : lead.review_state === "deferred" ? "Deferred" : "Needs review")}</span></td>

@@ -336,6 +336,10 @@ unique accepted-person targets without automatic acceptance, and reconciles
 the already-recorded decisions without replaying them. Final live state is 10
 accepted, 1 rejected, and 51 unreviewed leads; Ecochran is corrected to the
 accepted Eric Cochran identity through immutable events.
+Plan 0082 is open to separate evidence-preserving person names from normalized
+human presentation. It will retain canonical/source labels unchanged while
+adding derived display, sort, and completeness fields for the compact review
+targets and directory.
 The v3 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer
@@ -377,6 +381,7 @@ Plans:
 - `docs/dev/plans/0076-2026-09-01-canonical-people-organization-activity-index.md`
 - `docs/dev/plans/0077-2026-09-01-multi-organization-role-affiliations.md`
 - `docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
+- `docs/dev/plans/0082-2026-09-02-person-display-name-normalization.md`
 
 Milestone Focus:
 

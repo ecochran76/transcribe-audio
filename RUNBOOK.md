@@ -1,5 +1,32 @@
 # Runbook
 
+## Turn 437: Open Plan 0082 person display-name normalization (2026-09-02)
+
+Summary: Opened
+`docs/dev/plans/0082-2026-09-02-person-display-name-normalization.md` after
+installed use showed that accepted person targets expose inconsistent provider
+and review labels directly.
+
+Evidence:
+
+- The projection assigns `review_targets.people[].label` directly from
+  `primary_name`; both compact selectors render that label without a display
+  projection.
+- Live `Gates, Zachary` is sourced from Calendar/GWS, `Cienkosz, Basia` retains
+  `Basia Cienkosz` as an alias, and `Dr. Stefl` is an incomplete human-review
+  label with no fuller accepted alias.
+- Existing client normalization only trims and lowercases exact-match names; it
+  does not select a display form, reorder explicitly comma-delimited names, or
+  represent completeness.
+- Graphiti is healthy but returned no useful recall for this recent issue.
+  Current source, live API readback, Plan 0081, and repository authorities are
+  the evidence base.
+- The worktree starts clean at upstream-even checkpoint `24a5383`; no provider,
+  review, speaker, biometric, or corpus mutation is authorized.
+
+Progress classification: `outcome_progress`. Plan 0082 is `OPEN`; P1 begins
+with a failing public directory projection test.
+
 ## Turn 436: Close Plan 0081 atomic directory-review recovery (2026-09-01)
 
 Summary: Closed

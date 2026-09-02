@@ -13,6 +13,82 @@ from conversation_knowledge_evidence import EvidenceScope
 from identity_learning_ledger import IdentityLearningLedger
 
 
+def test_review_targets_normalize_display_names_without_rewriting_evidence() -> None:
+    source_payload = {
+        "schema_version": "transcribe-audio.identity-people.v1",
+        "items": [
+            {
+                "person_id": "person-gates",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Gates, Zachary",
+                "aliases": ["zgates@example.com"],
+                "source_records": [
+                    {
+                        "source_record_id": "gws:gates",
+                        "label": "Gates, Zachary",
+                    }
+                ],
+            },
+            {
+                "person_id": "person-cienkosz",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Cienkosz, Basia",
+                "aliases": ["Basia Cienkosz"],
+                "source_records": [
+                    {
+                        "source_record_id": "gws:cienkosz",
+                        "label": "Cienkosz, Basia",
+                    }
+                ],
+            },
+            {
+                "person_id": "person-stefl",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Dr. Stefl",
+                "aliases": [],
+                "source_records": [
+                    {
+                        "source_record_id": "review:stefl",
+                        "label": "Dr. Stefl",
+                    }
+                ],
+            },
+            {
+                "person_id": "person-forrester",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Michael   Forrester",
+                "aliases": [],
+                "source_records": [],
+            },
+        ],
+    }
+
+    index = build_directory_index(source_payload)
+
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
+    people = {item["accepted_person_id"]: item for item in index["people"]}
+    assert people["person-gates"]["primary_name"] == "Gates, Zachary"
+    assert people["person-gates"]["members"][0]["primary_name"] == "Gates, Zachary"
+    assert people["person-gates"]["source_records"][0]["label"] == "Gates, Zachary"
+    assert people["person-gates"]["display_name"] == "Zachary Gates"
+    assert people["person-cienkosz"]["display_name"] == "Basia Cienkosz"
+    assert people["person-forrester"]["primary_name"] == "Michael   Forrester"
+    assert people["person-forrester"]["display_name"] == "Michael Forrester"
+    assert people["person-stefl"]["display_name"] == "Dr. Stefl"
+    assert people["person-stefl"]["name_completeness"] == "incomplete"
+    assert [target["display_name"] for target in index["review_targets"]["people"]] == [
+        "Basia Cienkosz",
+        "Dr. Stefl",
+        "Michael Forrester",
+        "Zachary Gates",
+    ]
+    assert index["review_targets"]["people"][1]["name_completeness"] == "incomplete"
+
+
 def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> None:
     source_payload = {
         "schema_version": "transcribe-audio.identity-people.v1",
@@ -90,7 +166,7 @@ def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> Non
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v3"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
     assert index["counts"] == {
         "people": 0,
         "unresolved_groups": 1,
@@ -238,7 +314,7 @@ def test_directory_carries_provider_affiliation_and_role_review_leads() -> None:
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v3"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
     assert index["counts"]["review_leads"] == 2
     person = index["people"][0]
     assert [lead["hypothesis_kind"] for lead in person["review_leads"]] == [

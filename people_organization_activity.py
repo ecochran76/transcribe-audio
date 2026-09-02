@@ -15,11 +15,23 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v3"
+SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v4"
 CHANNELS = ("transcript", "calendar", "email")
 MAIL_HYPOTHESIS_KINDS = {"correspondence", "sent_mail", "thread_coparticipation"}
 REVIEWED_ROLE_STATUSES = {"accepted", "reviewed"}
 DIRECTORY_REVIEW_HYPOTHESIS_KINDS = {"affiliation", "contextual_role"}
+HONORIFIC_PREFIXES = {
+    "doctor",
+    "dr",
+    "miss",
+    "mr",
+    "mrs",
+    "ms",
+    "mx",
+    "prof",
+    "professor",
+    "rev",
+}
 
 
 def _text(value: object) -> str:
@@ -30,6 +42,57 @@ def _array(value: object) -> list[Any]:
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         return []
     return list(value)
+
+
+def _name_candidate(value: object) -> tuple[str, str]:
+    """Return a human display form and its completeness without changing evidence."""
+
+    source = _text(value)
+    if not source:
+        return "", "incomplete"
+    if "@" in source and " " not in source:
+        return source, "identifier_only"
+
+    display_name = " ".join(source.split())
+    if display_name.count(",") == 1:
+        family_name, given_names = (
+            " ".join(part.split()) for part in display_name.split(",", maxsplit=1)
+        )
+        if family_name and given_names:
+            display_name = f"{given_names} {family_name}"
+
+    tokens = display_name.split()
+    without_honorific = tokens
+    if tokens and tokens[0].rstrip(".").casefold() in HONORIFIC_PREFIXES:
+        without_honorific = tokens[1:]
+        if len(without_honorific) >= 2:
+            display_name = " ".join(without_honorific)
+
+    completeness = "complete" if len(without_honorific) >= 2 else "incomplete"
+    return display_name, completeness
+
+
+def _person_name_presentation(
+    primary_name: object,
+    aliases: Sequence[object],
+) -> dict[str, str]:
+    display_name, completeness = _name_candidate(primary_name)
+    if completeness != "complete":
+        complete_aliases = sorted(
+            (
+                candidate
+                for candidate in (_name_candidate(alias) for alias in aliases)
+                if candidate[1] == "complete"
+            ),
+            key=lambda candidate: candidate[0].casefold(),
+        )
+        if complete_aliases:
+            display_name, completeness = complete_aliases[0]
+    return {
+        "display_name": display_name,
+        "sort_name": display_name.casefold(),
+        "name_completeness": completeness,
+    }
 
 
 def _canonical_json(value: object) -> str:
@@ -282,6 +345,14 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             _text(item.get("hypothesis_id")),
         )
     )
+    aliases = sorted(
+        {
+            alias
+            for member in members
+            for alias in member["aliases"]
+            if alias and alias.casefold() != primary_name.casefold()
+        }
+    )
     return {
         "entity_id": entity_id,
         "person_id": entity_id,
@@ -289,14 +360,8 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "resolution_state": _text(canonical[0].get("status")) if resolved else "review_required",
         "accepted_person_id": accepted_person_id,
         "primary_name": primary_name,
-        "aliases": sorted(
-            {
-                alias
-                for member in members
-                for alias in member["aliases"]
-                if alias and alias.casefold() != primary_name.casefold()
-            }
-        ),
+        **_person_name_presentation(primary_name, aliases),
+        "aliases": aliases,
         "members": members,
         "source_records": [source_records[key] for key in sorted(source_records)],
         "organizations": [],
@@ -782,15 +847,22 @@ def build_directory_index(
         "people": people,
         "organizations": organizations,
         "review_targets": {
-            "people": [
-                {
-                    "id": item["accepted_person_id"],
-                    "label": item["primary_name"],
-                    "aliases": item.get("aliases") or [],
-                }
-                for item in people
-                if item.get("accepted_person_id")
-            ],
+            "people": sorted(
+                [
+                    {
+                        "id": item["accepted_person_id"],
+                        "label": item["display_name"],
+                        "display_name": item["display_name"],
+                        "sort_name": item["sort_name"],
+                        "name_completeness": item["name_completeness"],
+                        "primary_name": item["primary_name"],
+                        "aliases": item.get("aliases") or [],
+                    }
+                    for item in people
+                    if item.get("accepted_person_id")
+                ],
+                key=lambda item: (item["sort_name"], item["id"]),
+            ),
             "organizations": [
                 {
                     "id": item["accepted_organization_id"],

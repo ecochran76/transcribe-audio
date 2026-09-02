@@ -27,6 +27,15 @@ export function createInFlightGate() {
   };
 }
 
+export function personTargetDisplayLabel(target) {
+  const displayName = String(
+    target?.display_name || target?.label || target?.primary_name || "Unnamed person"
+  ).trim();
+  return target?.name_completeness && target.name_completeness !== "complete"
+    ? `${displayName} — incomplete name`
+    : displayName;
+}
+
 function normalizedNames(values) {
   return new Set((values || []).map((value) => String(value || "").trim().toLocaleLowerCase()).filter(Boolean));
 }
@@ -36,7 +45,12 @@ export function findUniqueAcceptedPersonTarget(item, targets) {
   if (acceptedId) return (targets || []).find((target) => target.id === acceptedId) || null;
   const itemNames = normalizedNames([item?.primary_name, ...(item?.aliases || [])]);
   const matches = (targets || []).filter((target) => {
-    const targetNames = normalizedNames([target.label, ...(target.aliases || [])]);
+    const targetNames = normalizedNames([
+      target.display_name,
+      target.label,
+      target.primary_name,
+      ...(target.aliases || [])
+    ]);
     return [...itemNames].some((name) => targetNames.has(name));
   });
   return matches.length === 1 ? matches[0] : null;
