@@ -85,7 +85,7 @@ def workflow(tmp_path: Path) -> IdentityReviewWorkflow:
 
 def test_v9_migration_is_additive_and_rolls_back_to_v8(tmp_path: Path) -> None:
     store = ConversationKnowledgeStore(tmp_path)
-    receipt = store.migrate(backup=False)
+    receipt = store.migrate(target_version=9, backup=False)
 
     assert receipt.to_version == 9
     assert receipt.applied_versions == tuple(range(1, 10))

@@ -43,7 +43,10 @@ function normalizedNames(values) {
 export function findUniqueAcceptedPersonTarget(item, targets) {
   const acceptedId = String(item?.accepted_person_id || "");
   if (acceptedId) return (targets || []).find((target) => target.id === acceptedId) || null;
-  const itemNames = normalizedNames([item?.primary_name, ...(item?.aliases || [])]);
+  const hasExplicitCandidates = Array.isArray(item?.person_name_candidates);
+  const itemNames = normalizedNames(hasExplicitCandidates
+    ? item.person_name_candidates
+    : [item?.primary_name, ...(item?.aliases || [])]);
   const matches = (targets || []).filter((target) => {
     const targetNames = normalizedNames([
       target.display_name,
@@ -54,6 +57,16 @@ export function findUniqueAcceptedPersonTarget(item, targets) {
     return [...itemNames].some((name) => targetNames.has(name));
   });
   return matches.length === 1 ? matches[0] : null;
+}
+
+export function isCompletePersonName(value, organizationName = "") {
+  const name = String(value || "").trim().replace(/\s+/g, " ");
+  return Boolean(
+    name
+    && !name.includes("@")
+    && name.split(" ").length >= 2
+    && name.toLocaleLowerCase() !== String(organizationName || "").trim().toLocaleLowerCase()
+  );
 }
 
 export function hasDirectoryReviewDecision(rows, hypothesisId, idempotencyKey) {

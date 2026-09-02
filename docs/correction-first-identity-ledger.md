@@ -1,9 +1,11 @@
 # Correction-first identity ledger
 
-Plan 0072 A1 adds a non-live, user-scoped identity/contact ledger to knowledge
-schema v4. The ledger is append-only; current people, source records, external
-identities, roles, relationships, and reconciliation decisions are projections
-that can be discarded and rebuilt from immutable events.
+Plan 0072 A1 added the user-scoped identity/contact ledger to knowledge schema
+v4. Plan 0083 extends that authority at schema v10 with typed person-name
+corrections and a repair queue. The ledger remains append-only; current people,
+source records, external identities, roles, relationships, and reconciliation
+decisions are projections that can be discarded and rebuilt from immutable
+events.
 
 This module performs identification and contact reconciliation. It is not an
 authentication system, provider writer, live-directory synchronizer, or
@@ -23,7 +25,7 @@ operations:
 `projection_snapshot()` is a deterministic test/readback seam. It is not a
 provider export contract.
 
-## Schema v4
+## Schema v4 and v10
 
 `ConversationKnowledgeStore.migrate()` now advances ordinary stores through
 v4. The migration adds immutable ontology and event tables plus rebuildable
@@ -35,10 +37,23 @@ triggers. Corrections append `source_record_corrected`, `role_corrected`, or
 `relationship_corrected` events. Merge, split, and reversal are also events;
 no historical row is rewritten.
 
-Rollback from v4 drops only v4 ledger/projection objects and restores schema
-version 3. Existing transcript and v1-v3 knowledge rows survive the migration
-and rollback. The frozen Plan 0063 private rehearsal explicitly requests v3 so
-that its historical receipt and table-count authority do not change.
+Schema v10 adds `person_corrected`. Its changes are allowlisted to
+`primary_name`, `status`, and bounded metadata. The Plan 0083 repair workflow
+uses it only when an operator chooses a complete human-name candidate retained
+in source evidence and submits the exact current finding hash. Equal display
+names produce a possible-duplicate finding, never an automatic merge.
+
+`people_merged` replay redirects roles, activity subjects, activity coverage,
+and person-to-person relationship endpoints in addition to source records and
+external identities. This keeps the accepted graph internally consistent when
+the operator explicitly merges two people.
+
+Rollback from v10 is allowed only when no `person_corrected` event exists; it
+then restores the v9 event constraint. Rollback from v4 drops only v4
+ledger/projection objects and restores schema version 3. Existing transcript
+and earlier knowledge rows survive. The frozen Plan 0063 private rehearsal
+explicitly requests v3 so its historical receipt and table-count authority do
+not change.
 
 ## Identity and privacy rules
 
@@ -73,9 +88,11 @@ than wall-clock rebuild time. Rebuilding the same event set therefore produces
 the same projection hash and byte-equivalent logical snapshot. A failed replay
 does not replace the last valid projection.
 
-## Current authority boundary
+## Authority boundary
 
-A1 was proved only with pytest temporary directories and synthetic records.
-No live store was migrated; no private baseline directory was read; no
-provider was called or written; no Graphiti memory was written; and no
-dashboard, worker, deployment, or biometric workflow was activated.
+The original A1 milestone was proved only with pytest temporary directories and
+synthetic records. Later plans separately installed the ledger and review
+surfaces. Plan 0083 does not authorize automatic repair: generating or viewing
+the repair queue writes no event, and installation must leave the ledger event
+count unchanged. Provider, mailbox, calendar, CRM, speaker, biometric, and
+Graphiti writes remain outside this repair contract.

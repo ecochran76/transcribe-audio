@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-08-16
+last_updated: 2026-09-02
 applies_to: transcribe-audio.identity-learning-contract-catalog.v1
 ---
 
@@ -167,6 +167,8 @@ A5 reserves these authenticated interfaces. A0 doesn't add routes.
 | `POST /api/identity-review/items/{queue_item_id}/decisions` | Submission plus exact preview authority | Append-only decision and receipt; reject stale projection versions |
 | `GET /api/people` | Bounded search and cursor | Canonical people and separate source records |
 | `GET /api/people/{person_id}` | Person ID | Person, sources, assertions, corrections, clusters, and profile history |
+| `GET /api/person-repairs` | Bounded query, limit, and offset | Derived current name, ambiguity, and duplicate findings; zero mutation |
+| `POST /api/person-repairs/{repair_id}` | Exact finding hash, typed action, reviewer, and idempotency key | Append-only person correction or explicit merge receipt; reject stale findings |
 | `GET /api/identity-media/{handle}` | Authorized opaque handle and range | Bounded media bytes; never a raw path or unrestricted URL |
 
 The existing Authelia-protected dashboard route remains the sole initial

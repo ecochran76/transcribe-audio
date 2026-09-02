@@ -399,6 +399,60 @@ def test_append_only_events_rebuild_merge_split_and_reversal_deterministically(
             )
 
 
+def test_person_correction_and_merge_preserve_relationship_graph(tmp_path: Path) -> None:
+    ledger = _ledger(tmp_path)
+    person_a = "00000000-0000-4000-8000-000000000201"
+    person_b = "00000000-0000-4000-8000-000000000202"
+    _append(
+        ledger,
+        "person_created",
+        {"person_id": person_a, "primary_name": "Rwilliam", "status": "reviewed"},
+        1,
+    )
+    _append(
+        ledger,
+        "person_created",
+        {"person_id": person_b, "primary_name": "Chris Williams", "status": "reviewed"},
+        2,
+    )
+    _append(
+        ledger,
+        "person_corrected",
+        {
+            "person_id": person_a,
+            "changes": {"primary_name": "R. Chris Williams"},
+        },
+        3,
+    )
+    _append(
+        ledger,
+        "relationship_asserted",
+        {
+            "relationship_id": "relationship-person-b",
+            "relationship_type": "AFFILIATED_WITH",
+            "subject_type": "person",
+            "subject_id": person_b,
+            "object_type": "organization",
+            "object_id": "organization-example",
+            "status": "reviewed",
+        },
+        4,
+    )
+    _append(
+        ledger,
+        "people_merged",
+        {"source_person_ids": [person_b], "target_person_id": person_a},
+        5,
+    )
+    ledger.rebuild()
+
+    snapshot = ledger.projection_snapshot()
+
+    assert snapshot["people"][person_a]["primary_name"] == "R. Chris Williams"
+    assert snapshot["people"][person_b]["merged_into_person_id"] == person_a
+    assert snapshot["relationships"]["relationship-person-b"]["subject_id"] == person_a
+
+
 def test_ontology_supports_hierarchy_direction_and_inverse_terms(
     tmp_path: Path,
 ) -> None:

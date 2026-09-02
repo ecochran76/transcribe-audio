@@ -2,7 +2,7 @@
 
 Plans 0076 and 0077 define a source-neutral directory read model over the
 existing append-only identity authority. The current public schema is
-`transcribe-audio.people-organization-activity-index.v2`.
+`transcribe-audio.people-organization-activity-index.v5`.
 
 ## Identity boundaries
 
@@ -16,6 +16,10 @@ existing append-only identity authority. The current public schema is
   creates an accepted person, organization, or affiliation.
 - Merge, split, correction, alias, and reversal decisions are append-only.
   Rebuilding from active events must yield the same semantic hash.
+- `display_name` is presentation only. `person_name_candidates` contains
+  complete human-name candidates retained from source evidence; exact
+  organization labels are excluded from both fields but remain visible in
+  organization/source evidence.
 
 ## Affiliation and role boundary
 
@@ -53,8 +57,12 @@ and secrets.
 `GET /api/people` accepts `view=people|organizations|unresolved`, `q`, `limit`,
 and `offset`. It defaults to people ordered by latest accepted-or-observed
 interaction descending. The response includes compact channel summaries and
-bounded expansion data. The UI must use one sortable, resizable table and one
-inline timeline rather than cards or nested panels.
+bounded expansion data. `GET /api/person-repairs` derives current accepted-name,
+identity-ambiguity, and possible-duplicate findings without mutation. Its POST
+peer accepts only exact stale-safe operator decisions. The UI uses sortable,
+resizable compact tables and inline detail rather than cards or nested panels;
+the Repairs mode contains only repair findings and accepted decisions that can
+be corrected.
 
 The fixtures in `docs/dev/fixtures/plan-0076-p0/` are redacted adversarial
 examples. They freeze the refusal to merge same-name people or shared

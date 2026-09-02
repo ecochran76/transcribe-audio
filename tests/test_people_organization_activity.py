@@ -69,7 +69,7 @@ def test_review_targets_normalize_display_names_without_rewriting_evidence() -> 
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v5"
     people = {item["accepted_person_id"]: item for item in index["people"]}
     assert people["person-gates"]["primary_name"] == "Gates, Zachary"
     assert people["person-gates"]["members"][0]["primary_name"] == "Gates, Zachary"
@@ -87,6 +87,67 @@ def test_review_targets_normalize_display_names_without_rewriting_evidence() -> 
         "Zachary Gates",
     ]
     assert index["review_targets"]["people"][1]["name_completeness"] == "incomplete"
+
+
+def test_person_display_excludes_organization_labels_and_prefers_clean_human_names() -> None:
+    source_payload = {
+        "schema_version": "transcribe-audio.identity-people.v1",
+        "items": [
+            {
+                "person_id": "contact-jason",
+                "identity_kind": "local_contact",
+                "status": "review_required",
+                "primary_name": "Jason",
+                "aliases": ["Duraflex Solutions", "Jason Colbourne"],
+                "source_records": [],
+                "organizations": ["Duraflex Solutions"],
+                "relationship_hypotheses": [],
+            },
+            {
+                "person_id": "person-matthew",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "Matthew Merritt - Mamco",
+                "aliases": ["Matthew Merritt"],
+                "source_records": [],
+                "organizations": ["MAMCO"],
+                "relationship_hypotheses": [],
+            },
+            {
+                "person_id": "person-craig",
+                "identity_kind": "canonical_person",
+                "status": "reviewed",
+                "primary_name": "ALLEN Craig",
+                "aliases": [],
+                "source_records": [],
+                "organizations": ["Arkema"],
+                "relationship_hypotheses": [],
+            },
+            {
+                "person_id": "contact-company-only",
+                "identity_kind": "local_contact",
+                "status": "review_required",
+                "primary_name": "Precision Land Solutions",
+                "aliases": [],
+                "source_records": [],
+                "organizations": ["Precision Land Solutions"],
+                "relationship_hypotheses": [],
+            },
+        ],
+    }
+
+    people = {
+        item["primary_name"]: item for item in build_directory_index(source_payload)["people"]
+    }
+
+    assert people["Jason"]["display_name"] == "Jason Colbourne"
+    assert people["Jason"]["person_name_candidates"] == ["Jason Colbourne"]
+    assert people["Matthew Merritt - Mamco"]["display_name"] == "Matthew Merritt"
+    assert people["Matthew Merritt - Mamco"]["person_name_candidates"] == ["Matthew Merritt"]
+    assert people["ALLEN Craig"]["display_name"] == "Craig Allen"
+    assert people["Precision Land Solutions"]["display_name"] == "Unknown person"
+    assert people["Precision Land Solutions"]["name_completeness"] == "missing"
+    assert people["Precision Land Solutions"]["person_name_candidates"] == []
 
 
 def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> None:
@@ -166,7 +227,7 @@ def test_name_overlap_is_one_unresolved_group_without_becoming_a_person() -> Non
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v5"
     assert index["counts"] == {
         "people": 0,
         "unresolved_groups": 1,
@@ -314,7 +375,7 @@ def test_directory_carries_provider_affiliation_and_role_review_leads() -> None:
 
     index = build_directory_index(source_payload)
 
-    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v4"
+    assert index["schema_version"] == "transcribe-audio.people-organization-activity-index.v5"
     assert index["counts"]["review_leads"] == 2
     person = index["people"][0]
     assert [lead["hypothesis_kind"] for lead in person["review_leads"]] == [
@@ -404,7 +465,7 @@ def test_schema_v9_rebuilds_organization_activity_and_coverage_authority(
 ) -> None:
     store = conversation_knowledge_store.ConversationKnowledgeStore(tmp_path)
     migration = store.migrate(backup=False)
-    assert migration.to_version == 9
+    assert migration.to_version == 10
     ledger = IdentityLearningLedger(tmp_path)
 
     def append(event_type: str, payload: dict[str, object], ordinal: int) -> str:

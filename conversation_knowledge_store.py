@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import transcript_store
 
 
-LATEST_SCHEMA_VERSION = 9
+LATEST_SCHEMA_VERSION = 10
 AUTHORITY_MODE_SIDECAR = "sidecar"
 
 
@@ -403,6 +403,15 @@ class ConversationKnowledgeStore:
                 except Exception:
                     con.rollback()
                     raise
+            if before.schema_version < 10 <= target_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._apply_v10(con)
+                    applied.append(10)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
         return MigrationReceipt(
             from_version=before.schema_version,
             to_version=target_version,
@@ -430,6 +439,15 @@ class ConversationKnowledgeStore:
             )
         rolled_back: list[int] = []
         with transcript_store.connect(self.root) as con:
+            if target_version < 10 <= before.schema_version:
+                con.execute("BEGIN IMMEDIATE")
+                try:
+                    self._rollback_v10(con)
+                    rolled_back.append(10)
+                    con.commit()
+                except Exception:
+                    con.rollback()
+                    raise
             if target_version < 9 <= before.schema_version:
                 con.execute("BEGIN IMMEDIATE")
                 try:
@@ -4085,6 +4103,190 @@ class ConversationKnowledgeStore:
             """
             UPDATE knowledge_store_state
             SET schema_version = 8, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _apply_v10(con: sqlite3.Connection) -> None:
+        """Allow append-only canonical person corrections."""
+        now = _utc_now()
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_ledger_events_v10 (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL CHECK (event_type IN (
+                    'ontology_registered',
+                    'source_record_observed',
+                    'external_identity_observed',
+                    'person_created',
+                    'person_corrected',
+                    'source_record_linked',
+                    'source_record_corrected',
+                    'alias_added',
+                    'role_asserted',
+                    'role_corrected',
+                    'relationship_asserted',
+                    'relationship_corrected',
+                    'reconciliation_proposed',
+                    'reconciliation_decided',
+                    'people_merged',
+                    'person_split',
+                    'organization_created',
+                    'organization_alias_added',
+                    'organization_corrected',
+                    'organization_source_observed',
+                    'organizations_merged',
+                    'organization_split',
+                    'activity_observed',
+                    'activity_coverage_observed',
+                    'event_reversed'
+                )),
+                event_schema TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                subject_type TEXT NOT NULL DEFAULT '',
+                subject_id TEXT NOT NULL DEFAULT '',
+                reverses_event_id TEXT
+                    REFERENCES knowledge_identity_ledger_events_v10(id)
+                    ON DELETE RESTRICT,
+                payload_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "INSERT INTO knowledge_identity_ledger_events_v10 "
+            "SELECT * FROM knowledge_identity_ledger_events"
+        )
+        con.execute("DROP TABLE knowledge_identity_ledger_events")
+        con.execute(
+            "ALTER TABLE knowledge_identity_ledger_events_v10 "
+            "RENAME TO knowledge_identity_ledger_events"
+        )
+        con.execute(
+            "CREATE INDEX idx_knowledge_identity_events_order "
+            "ON knowledge_identity_ledger_events(occurred_at, id)"
+        )
+        con.execute(
+            "CREATE INDEX idx_knowledge_identity_events_subject "
+            "ON knowledge_identity_ledger_events(subject_type, subject_id)"
+        )
+        for operation in ("update", "delete"):
+            con.execute(
+                f"""
+                CREATE TRIGGER knowledge_identity_ledger_events_immutable_{operation}
+                BEFORE {operation.upper()} ON knowledge_identity_ledger_events
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity ledger');
+                END
+                """
+            )
+        con.execute(
+            "INSERT INTO knowledge_schema_migrations (version, applied_at) VALUES (10, ?)",
+            (now,),
+        )
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 10, updated_at = ?
+            WHERE singleton = 1
+            """,
+            (now,),
+        )
+
+    @staticmethod
+    def _rollback_v10(con: sqlite3.Connection) -> None:
+        now = _utc_now()
+        person_correction_count = con.execute(
+            "SELECT COUNT(*) FROM knowledge_identity_ledger_events "
+            "WHERE event_type = 'person_corrected'"
+        ).fetchone()[0]
+        if person_correction_count:
+            raise RuntimeError(
+                "Cannot roll back schema version 10 while person correction "
+                "events exist. Preserve or reverse the evidence first."
+            )
+        con.execute(
+            """
+            CREATE TABLE knowledge_identity_ledger_events_v9_restore (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL CHECK (event_type IN (
+                    'ontology_registered',
+                    'source_record_observed',
+                    'external_identity_observed',
+                    'person_created',
+                    'source_record_linked',
+                    'source_record_corrected',
+                    'alias_added',
+                    'role_asserted',
+                    'role_corrected',
+                    'relationship_asserted',
+                    'relationship_corrected',
+                    'reconciliation_proposed',
+                    'reconciliation_decided',
+                    'people_merged',
+                    'person_split',
+                    'organization_created',
+                    'organization_alias_added',
+                    'organization_corrected',
+                    'organization_source_observed',
+                    'organizations_merged',
+                    'organization_split',
+                    'activity_observed',
+                    'activity_coverage_observed',
+                    'event_reversed'
+                )),
+                event_schema TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                actor_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                subject_type TEXT NOT NULL DEFAULT '',
+                subject_id TEXT NOT NULL DEFAULT '',
+                reverses_event_id TEXT
+                    REFERENCES knowledge_identity_ledger_events_v9_restore(id)
+                    ON DELETE RESTRICT,
+                payload_json TEXT NOT NULL,
+                content_hash TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.execute(
+            "INSERT INTO knowledge_identity_ledger_events_v9_restore "
+            "SELECT * FROM knowledge_identity_ledger_events"
+        )
+        con.execute("DROP TABLE knowledge_identity_ledger_events")
+        con.execute(
+            "ALTER TABLE knowledge_identity_ledger_events_v9_restore "
+            "RENAME TO knowledge_identity_ledger_events"
+        )
+        con.execute(
+            "CREATE INDEX idx_knowledge_identity_events_order "
+            "ON knowledge_identity_ledger_events(occurred_at, id)"
+        )
+        con.execute(
+            "CREATE INDEX idx_knowledge_identity_events_subject "
+            "ON knowledge_identity_ledger_events(subject_type, subject_id)"
+        )
+        for operation in ("update", "delete"):
+            con.execute(
+                f"""
+                CREATE TRIGGER knowledge_identity_ledger_events_immutable_{operation}
+                BEFORE {operation.upper()} ON knowledge_identity_ledger_events
+                BEGIN
+                    SELECT RAISE(ABORT, 'append-only identity ledger');
+                END
+                """
+            )
+        con.execute("DELETE FROM knowledge_schema_migrations WHERE version = 10")
+        con.execute(
+            """
+            UPDATE knowledge_store_state
+            SET schema_version = 9, updated_at = ?
             WHERE singleton = 1
             """,
             (now,),

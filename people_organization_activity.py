@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 
-SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v4"
+SCHEMA_VERSION = "transcribe-audio.people-organization-activity-index.v5"
 CHANNELS = ("transcript", "calendar", "email")
 MAIL_HYPOTHESIS_KINDS = {"correspondence", "sent_mail", "thread_coparticipation"}
 REVIEWED_ROLE_STATUSES = {"accepted", "reviewed"}
@@ -62,6 +62,17 @@ def _name_candidate(value: object) -> tuple[str, str]:
             display_name = f"{given_names} {family_name}"
 
     tokens = display_name.split()
+    if (
+        display_name.count(",") == 0
+        and len(tokens) >= 2
+        and len(tokens[0]) > 1
+        and tokens[0].isalpha()
+        and tokens[0].isupper()
+        and not all(token.isupper() for token in tokens[1:])
+    ):
+        display_name = " ".join([*tokens[1:], tokens[0].title()])
+
+    tokens = display_name.split()
     without_honorific = tokens
     if tokens and tokens[0].rstrip(".").casefold() in HONORIFIC_PREFIXES:
         without_honorific = tokens[1:]
@@ -75,23 +86,52 @@ def _name_candidate(value: object) -> tuple[str, str]:
 def _person_name_presentation(
     primary_name: object,
     aliases: Sequence[object],
-) -> dict[str, str]:
-    display_name, completeness = _name_candidate(primary_name)
-    if completeness != "complete":
-        complete_aliases = sorted(
+    excluded_names: Sequence[object] = (),
+) -> dict[str, Any]:
+    excluded = {_text(value).casefold() for value in excluded_names if _text(value)}
+    ranked: list[tuple[tuple[int, int, int, int, str], str, str]] = []
+    for ordinal, raw in enumerate((primary_name, *aliases)):
+        source = _text(raw)
+        display, completeness = _name_candidate(source)
+        if not display or source.casefold() in excluded or display.casefold() in excluded:
+            continue
+        contaminated = int(" - " in source or "[" in source or "]" in source)
+        identifier = int(completeness == "identifier_only")
+        incomplete = int(completeness != "complete")
+        ranked.append(
             (
-                candidate
-                for candidate in (_name_candidate(alias) for alias in aliases)
-                if candidate[1] == "complete"
-            ),
-            key=lambda candidate: candidate[0].casefold(),
+                (
+                    identifier,
+                    incomplete,
+                    contaminated,
+                    ordinal,
+                    display.casefold(),
+                ),
+                display,
+                completeness,
+            )
         )
-        if complete_aliases:
-            display_name, completeness = complete_aliases[0]
+    ranked.sort(key=lambda item: item[0])
+    if ranked:
+        _rank, display_name, completeness = ranked[0]
+    else:
+        display_name, completeness = _name_candidate(primary_name)
+        if _text(primary_name).casefold() in excluded or display_name.casefold() in excluded:
+            display_name = "Unknown person"
+            completeness = "missing"
+    person_name_candidates = []
+    for _rank, candidate, candidate_completeness in ranked:
+        if (
+            candidate_completeness == "complete"
+            and _rank[2] == 0
+            and candidate not in person_name_candidates
+        ):
+            person_name_candidates.append(candidate)
     return {
         "display_name": display_name,
         "sort_name": display_name.casefold(),
         "name_completeness": completeness,
+        "person_name_candidates": person_name_candidates,
     }
 
 
@@ -353,6 +393,17 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             if alias and alias.casefold() != primary_name.casefold()
         }
     )
+    organization_names = {
+        _text(name)
+        for record in records
+        for name in _array(record.get("organizations"))
+        if _text(name)
+    }
+    organization_names.update(
+        _text(hypothesis.get("organization") or hypothesis.get("counterpart_label"))
+        for hypothesis in review_leads
+        if _text(hypothesis.get("organization") or hypothesis.get("counterpart_label"))
+    )
     return {
         "entity_id": entity_id,
         "person_id": entity_id,
@@ -360,7 +411,7 @@ def _directory_entity(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "resolution_state": _text(canonical[0].get("status")) if resolved else "review_required",
         "accepted_person_id": accepted_person_id,
         "primary_name": primary_name,
-        **_person_name_presentation(primary_name, aliases),
+        **_person_name_presentation(primary_name, aliases, sorted(organization_names)),
         "aliases": aliases,
         "members": members,
         "source_records": [source_records[key] for key in sorted(source_records)],

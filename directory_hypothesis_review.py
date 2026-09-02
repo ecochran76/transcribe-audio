@@ -200,6 +200,19 @@ def _target(
     return mode, target_id
 
 
+def _reviewed_person_name(value: object, organization_name: str) -> str:
+    name = " ".join(_text(value).split())
+    if not name or "@" in name or len(name.split()) < 2:
+        raise DirectoryHypothesisReviewError(
+            "Create person requires an explicit complete human name."
+        )
+    if name.casefold() == organization_name.casefold():
+        raise DirectoryHypothesisReviewError(
+            "Create person name cannot be the proposed organization name."
+        )
+    return name
+
+
 def _contact(root: Path | None, contact_id: str) -> dict[str, str]:
     with transcript_store.connect(root) as con:
         row = con.execute(
@@ -393,6 +406,11 @@ def record_directory_hypothesis_review(
             raise DirectoryHypothesisReviewError(
                 "Directory review lead has no organization name."
             )
+        person_name = (
+            _reviewed_person_name(submission.get("person_name"), organization_name)
+            if person_mode == "create"
+            else ""
+        )
         organization_id = (
             _organization_id(organization_name)
             if organization_mode == "create"
@@ -462,7 +480,7 @@ def record_directory_hypothesis_review(
                     "idempotency_key": f"{idempotency_key}:person",
                     "payload": {
                         "person_id": person_id,
-                        "primary_name": contact["label"],
+                        "primary_name": person_name,
                         "status": "reviewed",
                         "metadata": {"source_hypothesis_id": hypothesis_id},
                     },

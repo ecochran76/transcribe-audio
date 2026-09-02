@@ -950,7 +950,8 @@
 }
 
 .directory-approval-row select,
-.directory-approval-row input {
+.directory-approval-row input,
+.person-repair-row select {
   width: 100%;
   min-width: 0;
   height: 1.55rem;
@@ -960,6 +961,46 @@
   background: rgba(0, 0, 0, 0.18);
   color: var(--ink);
   font: inherit;
+}
+
+.directory-person-target {
+  display: grid;
+  grid-template-columns: minmax(4.7rem, 0.8fr) minmax(6rem, 1.2fr);
+  gap: 0.18rem;
+}
+
+.directory-person-target input[aria-invalid="true"] {
+  border-color: rgba(238, 157, 147, 0.72);
+}
+
+.person-repairs,
+.accepted-decision-repairs {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.person-repairs > h3,
+.accepted-decision-repairs > h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.63rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.person-repairs > h3 span,
+.accepted-decision-repairs > h3 span {
+  margin-left: 0.2rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.person-repair-row:hover td {
+  background: rgba(244, 236, 216, 0.035);
+}
+
+.person-repair-row[data-repair-status="error"] td {
+  border-bottom-color: rgba(238, 157, 147, 0.55);
 }
 
 .directory-approval-history {

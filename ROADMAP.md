@@ -341,6 +341,11 @@ person labels from human presentation, adds derived display, sort, and
 completeness fields, and uses them in compact targets and directory rows.
 Comma-form names now read naturally while incomplete names remain explicit;
 the 15 accepted target IDs and all review state are unchanged.
+Plan 0083 is open to make accepted identity debt directly repairable. It adds a
+typed append-only repair queue, excludes organization labels from person-name
+presentation, requires a safe explicit name for future create-person approvals,
+and exposes accepted relationship/role corrections without hiding them inside
+directory expansion. Installation and QA must create no repair event.
 The v4 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer
@@ -383,6 +388,7 @@ Plans:
 - `docs/dev/plans/0077-2026-09-01-multi-organization-role-affiliations.md`
 - `docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
 - `docs/dev/plans/0082-2026-09-02-person-display-name-normalization.md`
+- `docs/dev/plans/0083-2026-09-02-accepted-identity-repair-queue.md`
 
 Milestone Focus:
 

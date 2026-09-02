@@ -6,6 +6,7 @@ import {
   findUniqueAcceptedPersonTarget,
   flattenDirectoryReviewRows,
   hasDirectoryReviewDecision,
+  isCompletePersonName,
   personTargetDisplayLabel
 } from "../src/directory-review-utils.js";
 
@@ -90,6 +91,27 @@ test("target suggestions still match preserved source names after display normal
     { primary_name: "Gates, Zachary", aliases: [] },
     [target]
   )?.id, "person-zachary");
+});
+
+test("person-name candidates keep organization labels out of target matching", () => {
+  const targets = [{ id: "person-robert", label: "Robert McElmurry", aliases: ["Precision Land Solutions"] }];
+  assert.equal(findUniqueAcceptedPersonTarget({
+    primary_name: "Robert",
+    aliases: ["Precision Land Solutions"],
+    person_name_candidates: []
+  }, targets), null);
+  assert.equal(findUniqueAcceptedPersonTarget({
+    primary_name: "Robert",
+    aliases: ["Precision Land Solutions", "Robert McElmurry"],
+    person_name_candidates: ["Robert McElmurry"]
+  }, targets)?.id, "person-robert");
+});
+
+test("new canonical people require a complete non-organization name", () => {
+  assert.equal(isCompletePersonName("Jason Colbourne", "Duraflex Solutions"), true);
+  assert.equal(isCompletePersonName("Jason", "Duraflex Solutions"), false);
+  assert.equal(isCompletePersonName("jason@example.test", "Duraflex Solutions"), false);
+  assert.equal(isCompletePersonName("Duraflex Solutions", "Duraflex Solutions"), false);
 });
 
 test("ambiguous response reconciliation requires the exact review idempotency key", () => {

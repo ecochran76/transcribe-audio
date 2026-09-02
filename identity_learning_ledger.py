@@ -24,6 +24,7 @@ EVENT_TYPES = {
     "source_record_observed",
     "external_identity_observed",
     "person_created",
+    "person_corrected",
     "organization_created",
     "organization_alias_added",
     "organization_corrected",
@@ -516,6 +517,15 @@ class IdentityLearningLedger:
                     "merged_into_person_id": "",
                     "metadata": dict(payload.get("metadata") or {}),
                 }
+            elif event_type == "person_corrected":
+                person_id = self._required(payload, "person_id")
+                self._require_member(people, person_id, "person")
+                self._apply_correction(
+                    people[person_id],
+                    payload,
+                    allowed={"status", "primary_name", "metadata"},
+                    kind="person",
+                )
             elif event_type == "organization_created":
                 organization_id = self._required(payload, "organization_id")
                 candidate = self._organization_projection(payload)
@@ -710,6 +720,32 @@ class IdentityLearningLedger:
                         if identity["person_id"] == source:
                             identity["person_id"] = target
                             identity["status"] = "linked"
+                    for role in roles.values():
+                        if role["person_id"] == source:
+                            role["person_id"] = target
+                    for activity in activities.values():
+                        if (
+                            activity["subject_type"] == "person"
+                            and activity["subject_id"] == source
+                        ):
+                            activity["subject_id"] = target
+                    for coverage in activity_coverage.values():
+                        if (
+                            coverage["subject_type"] == "person"
+                            and coverage["subject_id"] == source
+                        ):
+                            coverage["subject_id"] = target
+                    for relationship in relationships.values():
+                        if (
+                            relationship["subject_type"] == "person"
+                            and relationship["subject_id"] == source
+                        ):
+                            relationship["subject_id"] = target
+                        if (
+                            relationship["object_type"] == "person"
+                            and relationship["object_id"] == source
+                        ):
+                            relationship["object_id"] = target
             elif event_type == "person_split":
                 source_person = self._required(payload, "source_person_id")
                 target_person = self._required(payload, "target_person_id")
@@ -1027,6 +1063,10 @@ class IdentityLearningLedger:
         elif event_type == "person_created":
             cls._required(payload, "person_id")
             cls._required(payload, "primary_name")
+        elif event_type == "person_corrected":
+            cls._required(payload, "person_id")
+            if not isinstance(payload.get("changes"), Mapping) or not payload["changes"]:
+                raise ValueError("Correction events require a non-empty changes object.")
         elif event_type == "organization_created":
             cls._organization_projection(payload)
         elif event_type == "organization_alias_added":

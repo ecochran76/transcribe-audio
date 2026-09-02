@@ -5,6 +5,7 @@ import {
   findUniqueAcceptedPersonTarget,
   flattenDirectoryReviewRows,
   hasDirectoryReviewDecision,
+  isCompletePersonName,
   personTargetDisplayLabel
 } from "./directory-review-utils.js";
 
@@ -732,6 +733,7 @@ function roleValidity(role) {
 
 function PeopleView() {
   const [payload, setPayload] = useState({ items: [], counts: {} });
+  const [repairPayload, setRepairPayload] = useState({ items: [], counts: {} });
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("approvals");
   const [view, setView] = useState("people");
@@ -741,7 +743,7 @@ function PeopleView() {
   const [loadState, setLoadState] = useState({ status: "loading", message: "Loading directory…" });
   const [refreshToken, setRefreshToken] = useState(0);
   const tableRef = useRef(null);
-  const requestedView = mode === "approvals" ? "people" : view;
+  const requestedView = mode === "directory" ? view : "people";
 
   useEffect(() => {
     let cancelled = false;
@@ -749,9 +751,15 @@ function PeopleView() {
       const params = new URLSearchParams({ limit: "500", view: requestedView });
       if (query.trim()) params.set("q", query.trim());
       try {
-        const next = await fetchJson(`/api/people?${params}`);
+        const [next, repairs] = await Promise.all([
+          fetchJson(`/api/people?${params}`),
+          mode === "repairs"
+            ? fetchJson(`/api/person-repairs?${new URLSearchParams({ limit: "500", ...(query.trim() ? { q: query.trim() } : {}) })}`)
+            : Promise.resolve({ items: [], counts: {} })
+        ]);
         if (cancelled) return;
         setPayload(next);
+        if (mode === "repairs") setRepairPayload({ ...repairs, loaded: true });
         setExpandedId((current) => next.items?.some((item) => directoryId(item) === current) ? current : "");
         setLoadState({ status: "live", message: "Canonical local index" });
       } catch (error) {
@@ -764,9 +772,10 @@ function PeopleView() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, requestedView, refreshToken]);
+  }, [mode, query, requestedView, refreshToken]);
 
   const approvalRows = useMemo(() => flattenDirectoryReviewRows(payload.items), [payload.items]);
+  const acceptedRows = useMemo(() => flattenDirectoryReviewRows(payload.items, "accepted"), [payload.items]);
   const items = useMemo(() => [...payload.items].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
     const rightValue = directorySortValue(right, sort.key);
@@ -820,6 +829,7 @@ function PeopleView() {
       <div className="directory-mode-bar">
         <nav aria-label="Contacts work modes">
           <button aria-current={mode === "approvals" ? "page" : undefined} onClick={() => setMode("approvals")} type="button">Approval rows <span>{approvalRows.length}</span></button>
+          <button aria-current={mode === "repairs" ? "page" : undefined} onClick={() => setMode("repairs")} type="button">Repairs {repairPayload.loaded && <span>{(repairPayload.counts?.all || 0) + acceptedRows.length}</span>}</button>
           <button aria-current={mode === "directory" ? "page" : undefined} onClick={() => setMode("directory")} type="button">Directory <span>{directoryCount}</span></button>
         </nav>
       </div>
@@ -829,6 +839,16 @@ function PeopleView() {
           <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{approvalRows.length}</strong><span>{loadState.message}</span></div>
         </div>
         <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={approvalRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
+      </> : mode === "repairs" ? <>
+        <div className="directory-approval-toolbar">
+          <label><span>Search repairs</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Person, organization, issue, or source" /></label>
+          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{(repairPayload.counts?.all || 0) + acceptedRows.length}</strong><span>{loadState.message}</span></div>
+        </div>
+        <PersonRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairPayload.items || []} />
+        <section className="accepted-decision-repairs">
+          <h3>Accepted organization &amp; role decisions <span>{acceptedRows.length}</span></h3>
+          <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={acceptedRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
+        </section>
       </> : <>
         <div className="directory-toolbar">
           <label><span>Search directory</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
@@ -1006,6 +1026,166 @@ function DirectoryApprovalTable({ onReviewed, reviewRows, reviewTargets }) {
   </div>;
 }
 
+const PERSON_REPAIR_COLUMNS = [
+  { key: "kind", label: "Issue", width: 15 },
+  { key: "person", label: "Current person", width: 22 },
+  { key: "repair", label: "Proposed repair", width: 25 },
+  { key: "evidence", label: "Evidence", width: 29 },
+  { key: "actions", label: "Actions", width: 9, sortable: false }
+];
+
+function personRepairValue(repair, key) {
+  if (key === "kind") return repair.repair_kind || "";
+  if (key === "person") return repair.display_name || repair.current_primary_name || "";
+  if (key === "repair") return repair.suggested_primary_name || repair.display_name || "";
+  if (key === "evidence") return `${repair.evidence?.providers?.join(" ") || ""} ${repair.evidence?.organization_names?.join(" ") || ""}`;
+  return "";
+}
+
+function personRepairLabel(kind) {
+  if (kind === "canonical_name") return "Canonical name";
+  if (kind === "possible_duplicate") return "Possible duplicate";
+  return "Identity ambiguity";
+}
+
+function participantRepairSummary(participant) {
+  const providers = (participant.evidence?.providers || []).map(label).join("/");
+  const organizations = (participant.evidence?.organization_names || []).join("; ");
+  return [
+    participant.display_name,
+    providers,
+    organizations,
+    `${participant.evidence?.source_count || 0} sources`
+  ].filter(Boolean).join(" · ");
+}
+
+function PersonRepairRow({ repair, onRepaired }) {
+  const candidates = repair.candidate_names || [];
+  const participants = repair.participants || [];
+  const [replacement, setReplacement] = useState(repair.suggested_primary_name || candidates[0] || "");
+  const [targetPersonId, setTargetPersonId] = useState(repair.person_ids?.[0] || "");
+  const [decision, setDecision] = useState({ status: "idle", message: "" });
+  const inFlight = useRef(createInFlightGate());
+  const action = repair.repair_kind === "possible_duplicate" ? "merge_people" : "correct_name";
+  const actionable = (repair.allowed_actions || []).includes(action);
+  const evidence = repair.repair_kind === "possible_duplicate"
+    ? participants.map((participant) => [(participant.evidence?.providers || []).map(label).join("/"), (participant.evidence?.organization_names || []).join("; "), `${participant.evidence?.source_count || 0} sources`].filter(Boolean).join(" · ")).join(" / ")
+    : `${repair.evidence?.source_count || 0} sources${repair.evidence?.providers?.length ? ` · ${repair.evidence.providers.map(label).join("/")}` : ""}${repair.evidence?.organization_names?.length ? ` · ${repair.evidence.organization_names.join("; ")}` : ""}`;
+
+  async function applyRepair() {
+    if (!inFlight.current.begin()) return;
+    setDecision({ status: "loading", message: "Saving…" });
+    const submission = {
+      schema_version: "transcribe-audio.person-identity-repair-submission.v1",
+      repair_id: repair.repair_id,
+      repair_kind: repair.repair_kind,
+      action,
+      expected_content_sha256: repair.content_sha256,
+      reviewer: "operator",
+      decided_at: new Date().toISOString(),
+      idempotency_key: operationId(`person-repair-${repair.repair_id}-${action}`),
+      ...(action === "correct_name"
+        ? { person_id: repair.person_id, replacement_primary_name: replacement }
+        : { target_person_id: targetPersonId })
+    };
+    try {
+      await fetchJson(`/api/person-repairs/${encodeURIComponent(repair.repair_id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission)
+      });
+      setDecision({ status: "saved", message: action === "merge_people" ? "Merged" : "Corrected" });
+      onRepaired();
+    } catch (error) {
+      if (error.status === 409) {
+        setDecision({ status: "loading", message: "Refreshing current state…" });
+        onRepaired();
+      } else {
+        setDecision({ status: "error", message: error.message });
+      }
+    } finally {
+      inFlight.current.end();
+    }
+  }
+
+  const current = repair.repair_kind === "possible_duplicate"
+    ? participants.map(participantRepairSummary).join(" / ")
+    : repair.current_primary_name;
+  return <tr className="person-repair-row" data-repair-status={decision.status}>
+    <td><span className="directory-approval-text" title={repair.reason}>{personRepairLabel(repair.repair_kind)}</span></td>
+    <td><span className="directory-approval-text" title={current}>{current}</span></td>
+    <td>{repair.repair_kind === "canonical_name"
+      ? <select aria-label={`Corrected name for ${repair.current_primary_name}`} disabled={decision.status === "loading"} onChange={(event) => setReplacement(event.target.value)} value={replacement}>{candidates.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}</select>
+      : repair.repair_kind === "possible_duplicate"
+        ? <select aria-label={`Person to keep for ${repair.display_name}`} disabled={decision.status === "loading"} onChange={(event) => setTargetPersonId(event.target.value)} value={targetPersonId}>{participants.map((participant) => <option key={participant.person_id} value={participant.person_id}>Keep {participantRepairSummary(participant)}</option>)}</select>
+        : <span className="directory-approval-text" title={repair.reason}>Needs person-versus-mailbox review</span>}</td>
+    <td><span className="directory-approval-text" title={(repair.evidence?.labels || []).join("; ")}>{evidence}</span></td>
+    <td><div className="directory-review-actions" title={decision.message || repair.reason}>
+      {decision.status === "error" && <Icon name="warning" size={14} />}
+      {actionable
+        ? <button aria-label={`${action === "merge_people" ? "Merge" : "Correct"} ${repair.display_name}`} className="accept" disabled={decision.status === "loading" || (action === "correct_name" && !replacement) || (action === "merge_people" && !targetPersonId)} onClick={applyRepair} title={action === "merge_people" ? "Merge into selected person" : "Apply canonical name"} type="button"><Icon name={action === "merge_people" ? "identity" : "reviewed"} size={14} /></button>
+        : <span className="directory-approval-none" aria-label="No safe automatic repair">—</span>}
+    </div></td>
+  </tr>;
+}
+
+function PersonRepairTable({ repairs, onRepaired }) {
+  const [sort, setSort] = useState({ key: "kind", direction: "asc" });
+  const [widths, setWidths] = useState(PERSON_REPAIR_COLUMNS.map((column) => column.width));
+  const tableRef = useRef(null);
+  const ordered = useMemo(() => [...repairs].sort((left, right) => {
+    const comparison = String(personRepairValue(left, sort.key)).localeCompare(String(personRepairValue(right, sort.key)));
+    return (sort.direction === "asc" ? comparison : -comparison) || String(left.repair_id).localeCompare(String(right.repair_id));
+  }), [repairs, sort]);
+
+  function sortBy(column) {
+    if (column.sortable === false) return;
+    setSort((current) => current.key === column.key
+      ? { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key: column.key, direction: "asc" });
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const startX = event.clientX;
+    const start = [...widths];
+    const move = (nextEvent) => {
+      const pair = start[index] + start[index + 1];
+      const left = Math.max(6, Math.min(pair - 6, start[index] + ((nextEvent.clientX - startX) / tableWidth) * 100));
+      const next = [...start];
+      next[index] = left;
+      next[index + 1] = pair - left;
+      setWidths(next);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  return <section className="person-repairs">
+    <h3>Identity repairs <span>{repairs.length}</span></h3>
+    <div className="directory-table-wrap directory-approval-wrap">
+      <table className="directory-approval-table" ref={tableRef}>
+        <colgroup>{widths.map((width, index) => <col key={PERSON_REPAIR_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
+        <thead><tr>{PERSON_REPAIR_COLUMNS.map((column, index) => {
+          const active = sort.key === column.key;
+          const sortable = column.sortable !== false;
+          return <th aria-sort={sortable ? (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined} key={column.key}>
+            <button className="directory-approval-sort" disabled={!sortable} onClick={() => sortBy(column)} type="button"><span>{column.label}</span>{sortable && <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>
+            {index < PERSON_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(PERSON_REPAIR_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+          </th>;
+        })}</tr></thead>
+        <tbody>{ordered.map((repair) => <PersonRepairRow key={repair.repair_id} onRepaired={onRepaired} repair={repair} />)}</tbody>
+      </table>
+      {!ordered.length && <p className="muted contacts-empty">No identity repairs match this search.</p>}
+    </div>
+  </section>;
+}
+
 const DIRECTORY_REVIEW_COLUMNS = [
   { key: "lead", label: "Lead", width: 18 },
   { key: "organization", label: "Organization", width: 17 },
@@ -1029,6 +1209,7 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
   const organizationName = lead.organization || lead.counterpart_label || "";
   const matchingOrganization = reviewTargets.organizations?.find((target) => target.label.trim().toLowerCase() === organizationName.trim().toLowerCase());
   const [personTarget, setPersonTarget] = useState(matchingPerson ? `existing:${matchingPerson.id}` : "create");
+  const [personName, setPersonName] = useState(item.display_name || "");
   const [organizationTarget, setOrganizationTarget] = useState(matchingOrganization ? `existing:${matchingOrganization.id}` : "create");
   const [roleTitle, setRoleTitle] = useState(lead.display_value || "");
   const [decision, setDecision] = useState({ status: "idle", message: "" });
@@ -1051,6 +1232,7 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
       decided_at: new Date().toISOString(),
       idempotency_key: operationId(`directory-${lead.hypothesis_id}-${action}`),
       person_target: { mode: personMode, ...(personId ? { id: personId } : {}) },
+      ...(personMode === "create" ? { person_name: personName.trim() } : {}),
       organization_target: { mode: organizationMode, ...(organizationId ? { id: organizationId } : {}) },
       ...(lead.hypothesis_kind === "contextual_role" ? { role_title: roleTitle.trim() } : {})
     };
@@ -1085,6 +1267,8 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
   }
 
   const disabled = decision.status === "loading";
+  const personMode = personTarget.startsWith("existing:") ? "existing" : "create";
+  const invalidCreateName = personMode === "create" && !isCompletePersonName(personName, organizationName);
   if (approvalMode) {
     const proposal = lead.hypothesis_kind === "contextual_role"
       ? `Role · ${organizationName}${lead.display_value ? ` · ${lead.display_value}` : ""}`
@@ -1094,12 +1278,12 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
       <td><span className="directory-approval-text" title={proposal}>{proposal}</span></td>
       <td><span className="directory-approval-text" title={reviewSourceTitle(lead)}>{reviewSourceSummary(lead)}</span></td>
       <td><ActivityHistory item={item} /></td>
-      <td><select aria-label={`Person target for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} title="Choose the canonical person that this approval should update" value={personTarget}><option value="create">Create person</option>{!!reviewTargets.people?.length && <optgroup label={`Accepted people (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select></td>
+      <td><span className="directory-person-target"><select aria-label={`Person target for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} title="Choose the canonical person that this approval should update" value={personTarget}><option value="create">Create person</option>{!!reviewTargets.people?.length && <optgroup label={`Accepted people (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select>{personMode === "create" && <input aria-invalid={invalidCreateName || undefined} aria-label={`New person name for ${item.primary_name || organizationName}`} disabled={disabled} onChange={(event) => setPersonName(event.target.value)} placeholder="Complete person name" title={invalidCreateName ? "Enter a complete human name, not an email or organization" : "Canonical person name"} value={personName} />}</span></td>
       <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} title="Choose the canonical organization that this approval should update" value={organizationTarget}><option value="create">Create {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Accepted organizations (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
       <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} title="Reviewed role title" value={roleTitle} /> : <span className="directory-approval-none" aria-label="No role title required">—</span>}</td>
       <td><div className="directory-review-actions" title={decision.message || "Accept, reject, or defer this hypothesis"}>
         {decision.status === "error" && <Icon name="warning" size={14} />}
-        <button aria-label={`Accept ${proposal} for ${item.primary_name || "contact"}`} className="accept" disabled={disabled || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title="Accept" type="button"><Icon name="reviewed" size={14} /></button>
+        <button aria-label={`Accept ${proposal} for ${item.primary_name || "contact"}`} className="accept" disabled={disabled || invalidCreateName || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title={invalidCreateName ? "Enter a complete person name" : "Accept"} type="button"><Icon name="reviewed" size={14} /></button>
         <button aria-label={`Reject ${proposal} for ${item.primary_name || "contact"}`} className="reject" disabled={disabled || lead.review_state === "rejected"} onClick={() => review("reject")} title="Reject" type="button"><Icon name="reject" size={14} /></button>
         <button aria-label={`Defer ${proposal} for ${item.primary_name || "contact"}`} className="defer" disabled={disabled || lead.review_state === "deferred"} onClick={() => review("defer")} title="Defer" type="button"><Icon name="defer" size={14} /></button>
       </div></td>
@@ -1108,12 +1292,12 @@ function DirectoryReviewLeadRow({ approvalMode = false, item, lead, onReviewed, 
   return <tr className="directory-review-row">
     <td><strong>{lead.hypothesis_kind === "contextual_role" ? "Role" : "Affiliation"}</strong><small>{lead.basis || "Provider observation"}</small></td>
     <td>{organizationName || "—"}</td>
-    <td><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from reviewed contact</option>{!!reviewTargets.people?.length && <optgroup label={`Use accepted person (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select></td>
+    <td><span className="directory-person-target"><select aria-label={`Person target for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonTarget(event.target.value)} value={personTarget}><option value="create">Create from reviewed contact</option>{!!reviewTargets.people?.length && <optgroup label={`Use accepted person (${reviewTargets.people.length})`}>{reviewTargets.people.map((target) => <option key={target.id} value={`existing:${target.id}`}>{personTargetDisplayLabel(target)}</option>)}</optgroup>}</select>{personMode === "create" && <input aria-invalid={invalidCreateName || undefined} aria-label={`New person name for ${organizationName}`} disabled={disabled} onChange={(event) => setPersonName(event.target.value)} placeholder="Complete person name" value={personName} />}</span></td>
     <td><select aria-label={`Organization target for ${organizationName}`} disabled={disabled} onChange={(event) => setOrganizationTarget(event.target.value)} value={organizationTarget}><option value="create">Create from reviewed proposal: {organizationName}</option>{!!reviewTargets.organizations?.length && <optgroup label={`Use accepted organization (${reviewTargets.organizations.length})`}>{reviewTargets.organizations.map((target) => <option key={target.id} value={`existing:${target.id}`}>{target.label}</option>)}</optgroup>}</select></td>
     <td>{lead.hypothesis_kind === "contextual_role" ? <input aria-label={`Role title for ${organizationName}`} disabled={disabled} onChange={(event) => setRoleTitle(event.target.value)} value={roleTitle} /> : <span className="muted">No role asserted</span>}</td>
     <td><span className={`directory-review-state ${decision.status === "error" ? "error" : lead.review_state || "unreviewed"}`} title={decision.message}>{decision.message || (lead.review_state === "accepted" ? "Accepted" : lead.review_state === "rejected" ? "Rejected" : lead.review_state === "deferred" ? "Deferred" : "Needs review")}</span></td>
     <td><div className="directory-review-actions">
-      <button aria-label="Accept organization or role lead" className="accept" disabled={disabled || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title="Accept" type="button"><Icon name="reviewed" size={14} /></button>
+      <button aria-label="Accept organization or role lead" className="accept" disabled={disabled || invalidCreateName || lead.review_state === "accepted" || (lead.hypothesis_kind === "contextual_role" && !roleTitle.trim())} onClick={() => review("accept")} title={invalidCreateName ? "Enter a complete person name" : "Accept"} type="button"><Icon name="reviewed" size={14} /></button>
       <button aria-label="Reject organization or role lead" className="reject" disabled={disabled || lead.review_state === "rejected"} onClick={() => review("reject")} title="Reject" type="button"><Icon name="reject" size={14} /></button>
       <button aria-label="Defer organization or role lead" className="defer" disabled={disabled || lead.review_state === "deferred"} onClick={() => review("defer")} title="Defer" type="button"><Icon name="defer" size={14} /></button>
     </div></td>

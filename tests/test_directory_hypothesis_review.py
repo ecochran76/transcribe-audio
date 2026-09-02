@@ -83,6 +83,7 @@ def _submission(lead: dict[str, object], *, action: str = "accept") -> dict[str,
         "decided_at": "2026-09-01T12:00:00Z",
         "idempotency_key": f"review-{lead['hypothesis_id']}-{action}",
         "person_target": {"mode": "create"},
+        "person_name": "Alex Example",
         "organization_target": {"mode": "create"},
     }
 
@@ -232,6 +233,23 @@ def test_review_requires_current_hash_version_and_explicit_accept_targets(
     incomplete.pop("person_target")
     with pytest.raises(DirectoryHypothesisReviewError, match="person target"):
         record_directory_hypothesis_review(root, incomplete)
+
+
+def test_create_person_requires_a_complete_non_organization_name(tmp_path: Path) -> None:
+    root = _root_with_contact(tmp_path)
+    lead = project_directory_review_hypotheses(root)["by_contact_id"][
+        "contact-alex"
+    ]["relationship_hypotheses"][0]
+
+    identifier = _submission(lead)
+    identifier["person_name"] = "alex@example.test"
+    with pytest.raises(DirectoryHypothesisReviewError, match="complete human name"):
+        record_directory_hypothesis_review(root, identifier)
+
+    company = _submission(lead)
+    company["person_name"] = "Example Labs"
+    with pytest.raises(DirectoryHypothesisReviewError, match="organization name"):
+        record_directory_hypothesis_review(root, company)
 
 
 def test_directory_hypothesis_review_api_returns_created_receipt(

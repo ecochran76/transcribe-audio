@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 439: Open Plan 0083 accepted identity repair queue (2026-09-02)
+
+Summary: Opened
+`docs/dev/plans/0083-2026-09-02-accepted-identity-repair-queue.md` after a
+read-only audit confirmed that continued live directory review created repair
+debt that the current expanded-directory UI cannot efficiently address.
+
+Evidence:
+
+- Live readback contains 59 accepted decisions and 57 accepted people. Twenty-one
+  accepted people have a better evidence-backed display name than their stored
+  primary name, five remain identity-ambiguous, and two equal-name accepted
+  pairs are merge candidates rather than merge proof.
+- Thirteen accepted rows retain an organization label in the source alias pool;
+  two remaining unreviewed rows currently render their organization as the
+  contact display name.
+- Robert McElmurry was correctly targeted to the existing accepted person; the
+  Precision Land Solutions symptom is presentation contamination, not an
+  incorrectly created replacement person.
+- Existing accepted relationship/role decisions already have append-only
+  reject/defer correction semantics. The ledger lacks a typed person-name
+  correction and the UI lacks a flat accepted-repair surface.
+- Graphiti is healthy but returned no useful recent recall. Current source,
+  closed Plans 0081/0082, and live readback are the evidence base.
+- No repair, review action, provider read, or external write occurred during the
+  audit or plan opening.
+
+Progress classification: `outcome_progress`. Plan 0083 is `OPEN`; P0 begins
+with focused failing correction and create-person safety regressions.
+
 ## Turn 438: Close Plan 0082 person display-name normalization (2026-09-02)
 
 Summary: Closed
