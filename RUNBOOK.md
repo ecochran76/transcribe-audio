@@ -1,5 +1,38 @@
 # Runbook
 
+## Turn 443: Preserve complete recordings across calendar transcript splits (2026-09-04)
+
+Summary: Repaired calendar-aware transcript segmentation so event labels do
+not discard unmatched leading, inter-event, or trailing audio, then installed
+the repair and regenerated one operator-selected truncated artifact set.
+
+Evidence:
+
+- A single matched event now retains the complete recording. Multiple matched
+  events use midpoint transition boundaries with five minutes of overlapping
+  context on each side; the first and last windows remain anchored to the
+  recording boundaries.
+- The focused transcript-artifact suite passed 37 tests, including a red/green
+  single-event regression and an 11:55-17:00 two-event coverage case.
+- Commit `9e0a20e` was pushed to `origin/plan-0037-campaign` before runtime
+  installation.
+- `transcribe-watch.service` restarted from the updated checkout, passed its
+  readiness check for all four watch roots, and reported zero candidates or
+  blocked items after the controlled regeneration.
+- The operator-selected AssemblyAI regeneration replaced the JSON, TXT, and
+  DOCX artifacts while preserving the prior conversation and recording IDs.
+  The replacement artifact covers `0-5432` seconds, contains 189 utterances,
+  and its final utterance ends at `5400.177` seconds; both human-facing exports
+  show the same final timestamp.
+- The user-scoped transcript store updated the existing document in place. Its
+  stored artifact hash matches the replacement source artifact. The previous
+  three outputs remain recoverable in a runtime-local backup beside the source
+  folder; the original audio hash was unchanged.
+
+Progress classification: `outcome_progress`. Future single-event recordings
+retain full audio, multi-event splits cover the entire recording with explicit
+overlap, and the reported truncated artifact is replaced and indexed.
+
 ## Turn 442: Close Plan 0084 person-name and organization reconciliation (2026-09-04)
 
 Summary: Closed
