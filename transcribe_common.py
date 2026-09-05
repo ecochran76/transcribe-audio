@@ -1627,6 +1627,58 @@ def compute_event_window(
     return start_offset, end_offset
 
 
+def compute_calendar_transcript_windows(
+    recording_start: datetime,
+    matching_events: list[dict[str, Any]],
+    duration_seconds: float,
+    overlap_seconds: float,
+) -> list[tuple[float, float]]:
+    """Cover a recording with chronological event-labelled transcript windows."""
+    total_duration = max(duration_seconds, 0.0)
+    if not matching_events:
+        return []
+    if len(matching_events) == 1:
+        return [(0.0, total_duration)]
+
+    overlap = max(overlap_seconds, 0.0)
+
+    def offset(value: datetime) -> float:
+        seconds = (value - recording_start).total_seconds()
+        return min(max(seconds, 0.0), total_duration)
+
+    transitions: list[tuple[float, float]] = []
+    for current, following in zip(matching_events, matching_events[1:]):
+        current_start = current.get("start") or recording_start
+        current_end = current.get("end") or current_start
+        following_start = following.get("start") or current_end
+        if current_end < current_start:
+            current_end = current_start
+
+        transition = current_end + (following_start - current_end) / 2
+        current_window_end = max(
+            transition + timedelta(seconds=overlap),
+            current_end + timedelta(seconds=overlap),
+        )
+        following_window_start = min(
+            transition - timedelta(seconds=overlap),
+            following_start - timedelta(seconds=overlap),
+        )
+        transitions.append(
+            (offset(following_window_start), offset(current_window_end))
+        )
+
+    windows: list[tuple[float, float]] = []
+    for index in range(len(matching_events)):
+        window_start = 0.0 if index == 0 else transitions[index - 1][0]
+        window_end = (
+            total_duration
+            if index == len(matching_events) - 1
+            else transitions[index][1]
+        )
+        windows.append((window_start, max(window_start, window_end)))
+    return windows
+
+
 def select_utterances_for_window(
     utterances: list[dict[str, Any]],
     start_seconds: float,
@@ -2185,21 +2237,19 @@ def process_transcription_outputs(
                 )
 
                 if matching_events:
+                    event_windows = compute_calendar_transcript_windows(
+                        recording_start,
+                        matching_events,
+                        duration_seconds,
+                        EVENT_WINDOW_BUFFER_SECONDS,
+                    )
                     for idx, match in enumerate(matching_events):
                         info = attach_matching_calendars(
                             extract_event_metadata(match["event"]),
                             matching_calendars,
                         )
                         event_start = match.get("start") or recording_start
-                        event_end = match.get("end") or event_start
-                        window_start, window_end = compute_event_window(
-                            recording_start,
-                            recording_end,
-                            event_start,
-                            event_end,
-                            duration_seconds,
-                            EVENT_WINDOW_BUFFER_SECONDS,
-                        )
+                        window_start, window_end = event_windows[idx]
                         base_name = build_event_base_name(
                             event_start,
                             info.get("summary", "Untitled Event"),
@@ -2247,15 +2297,7 @@ def process_transcription_outputs(
                         matching_calendars,
                     )
                     fallback_start = primary_event_info.get("start") or recording_start
-                    fallback_end = primary_event_info.get("end") or fallback_start
-                    window_start, window_end = compute_event_window(
-                        recording_start,
-                        recording_end,
-                        fallback_start,
-                        fallback_end,
-                        duration_seconds,
-                        EVENT_WINDOW_BUFFER_SECONDS,
-                    )
+                    window_start, window_end = 0.0, duration_seconds
                     base_name = build_event_base_name(
                         fallback_start,
                         primary_event_info.get("summary", "Untitled Event"),

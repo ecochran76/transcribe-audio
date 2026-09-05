@@ -5,7 +5,7 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -27,6 +27,7 @@ from transcribe_common import (
     build_gws_calendar_env,
     build_gws_calendar_list_command,
     build_gws_calendar_events_command,
+    compute_calendar_transcript_windows,
     ensure_selected_calendar_context,
     extract_calendars_from_provider_payload,
     parse_calendar_provider_order,
@@ -264,6 +265,94 @@ def test_calendar_window_artifacts_share_one_recording_id(tmp_path: Path, monkey
     assert len(artifacts) == 2
     assert len({item["recording_id"] for item in artifacts}) == 1
     assert len({item["conversation_id"] for item in artifacts}) == 2
+
+
+def test_single_calendar_event_preserves_full_recording(tmp_path: Path, monkeypatch) -> None:
+    audio_path = tmp_path / "meeting.m4a"
+    audio_path.write_bytes(b"placeholder")
+    start = datetime(2026, 9, 3, 9, 0).astimezone()
+    monkeypatch.setattr(
+        transcribe_common,
+        "get_file_modified_time",
+        lambda path: start.replace(hour=11),
+    )
+    monkeypatch.setattr(
+        transcribe_common,
+        "find_matching_events",
+        lambda *args, **kwargs: (
+            [
+                {
+                    "event": {
+                        "id": "event-1",
+                        "summary": "Only meeting",
+                        "start": {"dateTime": start.isoformat()},
+                        "end": {"dateTime": start.replace(hour=10).isoformat()},
+                    },
+                    "start": start,
+                    "end": start.replace(hour=10),
+                }
+            ],
+            None,
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        transcribe_common,
+        "rename_audio_with_event",
+        lambda path, *args, **kwargs: (path, False),
+    )
+    args = base_args(tmp_path)
+    args.use_calendar = True
+    utterances = [
+        {"speaker": "A", "start": 0, "end": 3_600_000, "text": "Meeting."},
+        {"speaker": "B", "start": 4_000_000, "end": 7_200_000, "text": "After."},
+    ]
+
+    assert process_transcription_outputs(
+        audio_path,
+        utterances,
+        7_200,
+        args,
+        object(),
+        docx_title="Test Transcript",
+        backend_name="test_backend",
+    )
+    artifacts = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in tmp_path.glob("*.transcript.json")
+    ]
+
+    assert len(artifacts) == 1
+    assert artifacts[0]["transcript_window_start_seconds"] == 0.0
+    assert artifacts[0]["transcript_window_end_seconds"] == 7_200
+    assert artifacts[0]["utterance_count"] == 2
+
+
+def test_calendar_transcript_windows_cover_gaps_with_overlap() -> None:
+    recording_start = datetime(2026, 9, 3, 11, 55).astimezone()
+    recording_end = recording_start.replace(hour=17, minute=0)
+    first_start = recording_start.replace(hour=13, minute=0)
+    first_end = first_start.replace(hour=14)
+    second_start = first_start.replace(hour=15)
+    second_end = first_start.replace(hour=16)
+
+    windows = compute_calendar_transcript_windows(
+        recording_start,
+        [
+            {"start": first_start, "end": first_end},
+            {"start": second_start, "end": second_end},
+        ],
+        duration_seconds=(recording_end - recording_start).total_seconds(),
+        overlap_seconds=timedelta(minutes=5).total_seconds(),
+    )
+
+    assert windows == [
+        (0.0, timedelta(hours=2, minutes=40).total_seconds()),
+        (
+            timedelta(hours=2, minutes=30).total_seconds(),
+            timedelta(hours=5, minutes=5).total_seconds(),
+        ),
+    ]
 
 
 def test_event_base_name_does_not_duplicate_existing_calendar_prefix() -> None:
