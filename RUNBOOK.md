@@ -1,5 +1,35 @@
 # Runbook
 
+## Turn 441: Open Plan 0084 person-name and organization reconciliation (2026-09-04)
+
+Summary: Opened
+`docs/dev/plans/0084-2026-09-04-person-name-and-organization-reconciliation.md`
+after the operator completed the first duplicate/name repair tranche and
+identified preferred-middle-name and institutional-structure gaps.
+
+Evidence:
+
+- The live ledger contains 224 events. The equal-display duplicate queue is
+  empty; 19 canonical-name repairs and five identity ambiguities remain.
+- One accepted person displays as `Chris Williams` and retains `R. Chris
+  Williams` as an alias. Separate unresolved `R. Chris Williams` and `Chris
+  Williams` clusters remain, proving exact-display grouping is insufficient
+  and a name-only merge would be unsafe.
+- Thirty-eight accepted organizations exist, but none currently project an
+  alias, organization type, parent, merge redirect, or organization-to-
+  organization relationship.
+- Four reviewed Iowa State labels currently represent short/full institution,
+  department, and named-unit forms without reviewed equivalence or hierarchy.
+- Existing ledger primitives cover aliases, corrections, merges,
+  reconciliation decisions, and typed relationships. The missing work is
+  review-only discovery, exact action semantics, and compact presentation.
+- Graphiti is healthy but returned no useful current recall. Current source,
+  closed Plans 0076/0077/0083, and live readback are the evidence base.
+
+Progress classification: `outcome_progress`. Plan 0084 is `OPEN`; P0 begins
+with a public-interface preferred-middle-name red/green tracer. Candidate
+generation and QA authorize no identity mutation.
+
 ## Turn 440: Close Plan 0083 accepted identity repair queue (2026-09-02)
 
 Summary: Closed

@@ -349,6 +349,11 @@ corrections and merges are append-only and stale-safe; organization labels are
 excluded from person-name presentation; future create-person approvals require
 a safe explicit human name. Installation and Agent Browser QA left all 211
 identity events and review-state counts unchanged.
+Plan 0084 is open to extend that repair seam with preferred/middle-name person
+reconciliation and first-class organization reconciliation. It keeps alias,
+unit-of, related, predecessor/successor, and distinct decisions semantically
+separate, uses explicit append-only review actions, and targets the live
+Williams and Iowa State evidence without automatic merging.
 The v4 directory restores all 62 current affiliation/role leads inside one
 compact sortable/resizable inline table, requires explicit create-or-select
 person and organization targets, and records stale-safe accept/reject/defer
@@ -392,6 +397,7 @@ Plans:
 - `docs/dev/plans/0078-2026-09-01-organization-role-review-workflow.md`
 - `docs/dev/plans/0082-2026-09-02-person-display-name-normalization.md`
 - `docs/dev/plans/0083-2026-09-02-accepted-identity-repair-queue.md`
+- `docs/dev/plans/0084-2026-09-04-person-name-and-organization-reconciliation.md`
 
 Milestone Focus:
 
