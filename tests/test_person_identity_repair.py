@@ -93,6 +93,7 @@ def test_queue_separates_actionable_names_ambiguous_names_and_duplicate_candidat
         "canonical_name": 1,
         "identity_ambiguity": 1,
         "possible_duplicate": 1,
+        "name_variant_candidate": 0,
     }
     by_kind = {item["repair_kind"]: item for item in queue["items"]}
     assert by_kind["canonical_name"]["suggested_primary_name"] == "Chris Williams"
@@ -101,6 +102,213 @@ def test_queue_separates_actionable_names_ambiguous_names_and_duplicate_candidat
         "person-ken-a",
         "person-ken-b",
     }
+
+
+def test_queue_surfaces_preferred_middle_name_candidate_without_merging(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    _append(
+        ledger,
+        "person_created",
+        {
+            "person_id": "person-accepted-chris",
+            "primary_name": "Chris Williams",
+            "status": "reviewed",
+        },
+        1,
+    )
+    _append(
+        ledger,
+        "alias_added",
+        {"person_id": "person-accepted-chris", "alias": "R. Chris Williams"},
+        2,
+    )
+    ledger.rebuild()
+    directory = {
+        "items": [
+            {
+                "person_id": "person-accepted-chris",
+                "accepted_person_id": "person-accepted-chris",
+                "primary_name": "Chris Williams",
+                "display_name": "Chris Williams",
+                "aliases": ["R. Chris Williams"],
+                "name_completeness": "complete",
+                "person_name_candidates": ["Chris Williams", "R. Chris Williams"],
+                "organizations": [{"primary_name": "Iowa State University"}],
+                "source_records": [
+                    {
+                        "provider_kind": "gws",
+                        "label": "R. Chris Williams",
+                        "source_record_id": "people/chris",
+                    }
+                ],
+            },
+            {
+                "person_id": "unresolved:chris-gmail",
+                "accepted_person_id": "",
+                "primary_name": "R. Chris Williams",
+                "display_name": "R. Chris Williams",
+                "aliases": ["Chris Williams", "chris.asphalt@example.test"],
+                "name_completeness": "complete",
+                "person_name_candidates": ["R. Chris Williams", "Chris Williams"],
+                "organizations": [],
+                "source_records": [
+                    {
+                        "provider_kind": "calendar_attendee",
+                        "label": "R. Chris Williams",
+                        "source_record_id": "calendar/chris",
+                    }
+                ],
+            },
+        ]
+    }
+
+    queue = build_person_identity_repair_queue(directory, ledger.projection_snapshot())
+
+    candidates = [
+        item for item in queue["items"]
+        if item["repair_kind"] == "name_variant_candidate"
+    ]
+    assert queue["counts"]["name_variant_candidate"] == 1
+    assert len(candidates) == 1
+    assert candidates[0]["person_ids"] == [
+        "person-accepted-chris",
+        "unresolved:chris-gmail",
+    ]
+    assert candidates[0]["allowed_actions"] == ["merge_people", "mark_distinct"]
+    assert ledger.projection_snapshot()["people"]["person-accepted-chris"][
+        "merged_into_person_id"
+    ] == ""
+
+
+def test_queue_accepts_missing_middle_initial_but_rejects_conflicting_initial(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    _append(
+        ledger,
+        "person_created",
+        {
+            "person_id": "person-jordan-a",
+            "primary_name": "Jordan A. Smith",
+            "status": "reviewed",
+        },
+        1,
+    )
+    ledger.rebuild()
+
+    def item(person_id: str, name: str, *, accepted: bool = False) -> dict:
+        return {
+            "person_id": person_id,
+            "accepted_person_id": person_id if accepted else "",
+            "primary_name": name,
+            "display_name": name,
+            "aliases": [],
+            "name_completeness": "complete",
+            "person_name_candidates": [name],
+            "organizations": [{"primary_name": "Example University"}],
+            "source_records": [
+                {
+                    "provider_kind": "gws",
+                    "label": name,
+                    "source_record_id": person_id,
+                }
+            ],
+        }
+
+    directory = {
+        "items": [
+            item("person-jordan-a", "Jordan A. Smith", accepted=True),
+            item("unresolved:jordan-no-middle", "Jordan Smith"),
+            item("unresolved:jordan-b", "Jordan B. Smith"),
+        ]
+    }
+
+    queue = build_person_identity_repair_queue(directory, ledger.projection_snapshot())
+
+    pairs = {
+        tuple(candidate["person_ids"])
+        for candidate in queue["items"]
+        if candidate["repair_kind"] == "name_variant_candidate"
+    }
+    assert pairs == {
+        ("person-jordan-a", "unresolved:jordan-no-middle"),
+    }
+
+
+def test_name_variant_distinct_decision_is_idempotent_and_suppresses_same_evidence(
+    tmp_path: Path,
+) -> None:
+    ledger = _ledger(tmp_path)
+    _append(
+        ledger,
+        "person_created",
+        {
+            "person_id": "person-accepted-chris",
+            "primary_name": "Chris Williams",
+            "status": "reviewed",
+        },
+        1,
+    )
+    ledger.rebuild()
+    directory = {
+        "items": [
+            {
+                "person_id": "person-accepted-chris",
+                "accepted_person_id": "person-accepted-chris",
+                "primary_name": "Chris Williams",
+                "display_name": "Chris Williams",
+                "aliases": ["R. Chris Williams"],
+                "person_name_candidates": ["Chris Williams", "R. Chris Williams"],
+                "organizations": [],
+                "source_records": [{"source_record_id": "accepted", "label": "R. Chris Williams"}],
+            },
+            {
+                "person_id": "unresolved:chris-gmail",
+                "accepted_person_id": "",
+                "primary_name": "R. Chris Williams",
+                "display_name": "R. Chris Williams",
+                "aliases": ["Chris Williams"],
+                "person_name_candidates": ["R. Chris Williams", "Chris Williams"],
+                "organizations": [],
+                "source_records": [{"source_record_id": "gmail", "label": "R. Chris Williams"}],
+            },
+        ]
+    }
+    queue = build_person_identity_repair_queue(directory, ledger.projection_snapshot())
+    repair = next(
+        item for item in queue["items"]
+        if item["repair_kind"] == "name_variant_candidate"
+    )
+    submission = {
+        "schema_version": REPAIR_SUBMISSION_SCHEMA,
+        "repair_id": repair["repair_id"],
+        "repair_kind": repair["repair_kind"],
+        "action": "mark_distinct",
+        "expected_content_sha256": repair["content_sha256"],
+        "reviewer": "operator",
+        "decided_at": "2026-09-04T22:00:00Z",
+        "idempotency_key": "distinct-chris-1",
+    }
+
+    receipt = record_person_identity_repair(tmp_path, submission, queue)
+    replay = record_person_identity_repair(tmp_path, submission, queue)
+    refreshed = build_person_identity_repair_queue(
+        directory, ledger.projection_snapshot()
+    )
+
+    assert receipt["status"] == "inserted"
+    assert replay["idempotent_replay"] is True
+    assert not any(
+        item["repair_kind"] == "name_variant_candidate"
+        for item in refreshed["items"]
+    )
+    assert [event["event_type"] for event in ledger.events()] == [
+        "person_created",
+        "reconciliation_proposed",
+        "reconciliation_decided",
+    ]
 
 
 def test_name_repair_is_append_only_idempotent_and_stale_safe(tmp_path: Path) -> None:

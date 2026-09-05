@@ -74,6 +74,53 @@ def _utc_now() -> str:
     )
 
 
+def _retarget_activity_coverage(
+    coverage_rows: dict[str, dict[str, Any]],
+    *,
+    subject_type: str,
+    source_id: str,
+    target_id: str,
+) -> None:
+    """Move per-channel coverage to a merged identity without duplicate keys."""
+
+    coverage_rank = {
+        "not_queried": 0,
+        "unauthorized": 1,
+        "unavailable": 2,
+        "stale": 3,
+        "partial": 4,
+        "complete": 5,
+    }
+    for old_key, source in list(coverage_rows.items()):
+        if (
+            source["subject_type"] != subject_type
+            or source["subject_id"] != source_id
+        ):
+            continue
+        new_key = f"{subject_type}:{target_id}:{source['channel']}"
+        target = coverage_rows.get(new_key)
+        source["subject_id"] = target_id
+        source["coverage_id"] = new_key
+        if target is not None and target is not source:
+            target["source_profile_ids"] = sorted(
+                {
+                    *target.get("source_profile_ids", []),
+                    *source.get("source_profile_ids", []),
+                }
+            )
+            if coverage_rank.get(source["coverage_state"], -1) > coverage_rank.get(
+                target["coverage_state"], -1
+            ):
+                target["coverage_state"] = source["coverage_state"]
+            target["observed_at"] = max(
+                target.get("observed_at", ""), source.get("observed_at", "")
+            )
+            del coverage_rows[old_key]
+        elif old_key != new_key:
+            del coverage_rows[old_key]
+            coverage_rows[new_key] = source
+
+
 def _text(value: object) -> str:
     return str(value or "").strip()
 
@@ -729,12 +776,12 @@ class IdentityLearningLedger:
                             and activity["subject_id"] == source
                         ):
                             activity["subject_id"] = target
-                    for coverage in activity_coverage.values():
-                        if (
-                            coverage["subject_type"] == "person"
-                            and coverage["subject_id"] == source
-                        ):
-                            coverage["subject_id"] = target
+                    _retarget_activity_coverage(
+                        activity_coverage,
+                        subject_type="person",
+                        source_id=source,
+                        target_id=target,
+                    )
                     for relationship in relationships.values():
                         if (
                             relationship["subject_type"] == "person"
@@ -791,6 +838,15 @@ class IdentityLearningLedger:
                             and activity["subject_id"] == source
                         ):
                             activity["subject_id"] = target
+                    _retarget_activity_coverage(
+                        activity_coverage,
+                        subject_type="organization",
+                        source_id=source,
+                        target_id=target,
+                    )
+                    for organization in organizations.values():
+                        if organization["parent_organization_id"] == source:
+                            organization["parent_organization_id"] = target
                     for relationship in relationships.values():
                         if (
                             relationship["subject_type"] == "organization"

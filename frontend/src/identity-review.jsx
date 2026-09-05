@@ -734,6 +734,7 @@ function roleValidity(role) {
 function PeopleView() {
   const [payload, setPayload] = useState({ items: [], counts: {} });
   const [repairPayload, setRepairPayload] = useState({ items: [], counts: {} });
+  const [organizationRepairPayload, setOrganizationRepairPayload] = useState({ items: [], counts: {} });
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("approvals");
   const [includeNonActionableRepairs, setIncludeNonActionableRepairs] = useState(false);
@@ -752,15 +753,21 @@ function PeopleView() {
       const params = new URLSearchParams({ limit: "500", view: requestedView });
       if (query.trim()) params.set("q", query.trim());
       try {
-        const [next, repairs] = await Promise.all([
+        const [next, repairs, organizationRepairs] = await Promise.all([
           fetchJson(`/api/people?${params}`),
           mode === "repairs"
             ? fetchJson(`/api/person-repairs?${new URLSearchParams({ limit: "500", ...(query.trim() ? { q: query.trim() } : {}) })}`)
+            : Promise.resolve({ items: [], counts: {} }),
+          mode === "repairs"
+            ? fetchJson(`/api/organization-repairs?${new URLSearchParams({ limit: "500", ...(query.trim() ? { q: query.trim() } : {}) })}`)
             : Promise.resolve({ items: [], counts: {} })
         ]);
         if (cancelled) return;
         setPayload(next);
-        if (mode === "repairs") setRepairPayload({ ...repairs, loaded: true });
+        if (mode === "repairs") {
+          setRepairPayload({ ...repairs, loaded: true });
+          setOrganizationRepairPayload({ ...organizationRepairs, loaded: true });
+        }
         setExpandedId((current) => next.items?.some((item) => directoryId(item) === current) ? current : "");
         setLoadState({ status: "live", message: "Canonical local index" });
       } catch (error) {
@@ -780,6 +787,9 @@ function PeopleView() {
   const repairRows = useMemo(() => (repairPayload.items || []).filter((repair) => (
     includeNonActionableRepairs || Boolean(repair.allowed_actions?.length)
   )), [includeNonActionableRepairs, repairPayload.items]);
+  const organizationRepairRows = useMemo(() => (organizationRepairPayload.items || []).filter((repair) => (
+    includeNonActionableRepairs || Boolean(repair.allowed_actions?.length)
+  )), [includeNonActionableRepairs, organizationRepairPayload.items]);
   const items = useMemo(() => [...payload.items].sort((left, right) => {
     const leftValue = directorySortValue(left, sort.key);
     const rightValue = directorySortValue(right, sort.key);
@@ -833,7 +843,7 @@ function PeopleView() {
       <div className="directory-mode-bar">
         <nav aria-label="Contacts work modes">
           <button aria-current={mode === "approvals" ? "page" : undefined} onClick={() => setMode("approvals")} type="button">Approval rows <span>{approvalRows.length}</span></button>
-          <button aria-current={mode === "repairs" ? "page" : undefined} onClick={() => setMode("repairs")} type="button">Repairs {mode === "repairs" && repairPayload.loaded && <span>{repairRows.length + acceptedRows.length}</span>}</button>
+          <button aria-current={mode === "repairs" ? "page" : undefined} onClick={() => setMode("repairs")} type="button">Repairs {mode === "repairs" && repairPayload.loaded && <span>{repairRows.length + organizationRepairRows.length + (includeNonActionableRepairs ? acceptedRows.length : 0)}</span>}</button>
           <button aria-current={mode === "directory" ? "page" : undefined} onClick={() => setMode("directory")} type="button">Directory <span>{directoryCount}</span></button>
         </nav>
       </div>
@@ -846,13 +856,15 @@ function PeopleView() {
       </> : mode === "repairs" ? <>
         <div className="directory-approval-toolbar">
           <label><span>Search repairs</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Person, organization, issue, or source" /></label>
-          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{repairRows.length + acceptedRows.length}</strong><span>{loadState.message}</span></div>
+          <label className="person-repair-scope"><input checked={!includeNonActionableRepairs} onChange={(event) => setIncludeNonActionableRepairs(!event.target.checked)} type="checkbox" /> Actionable only</label>
+          <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{repairRows.length + organizationRepairRows.length + (includeNonActionableRepairs ? acceptedRows.length : 0)}</strong><span>{loadState.message}</span></div>
         </div>
-        <PersonRepairTable includeNonActionable={includeNonActionableRepairs} onIncludeNonActionableChange={setIncludeNonActionableRepairs} onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairRows} />
-        <section className="accepted-decision-repairs">
+        <PersonRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairRows} />
+        <OrganizationRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={organizationRepairRows} />
+        {includeNonActionableRepairs && <section className="accepted-decision-repairs">
           <h3>Accepted organization &amp; role decisions <span>{acceptedRows.length}</span></h3>
           <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={acceptedRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
-        </section>
+        </section>}
       </> : <>
         <div className="directory-toolbar">
           <label><span>Search directory</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, organization, source, or recording" /></label>
@@ -1049,6 +1061,7 @@ function personRepairValue(repair, key) {
 function personRepairLabel(kind) {
   if (kind === "canonical_name") return "Canonical name";
   if (kind === "possible_duplicate") return "Possible duplicate";
+  if (kind === "name_variant_candidate") return "Name variant";
   return "Identity ambiguity";
 }
 
@@ -1070,27 +1083,28 @@ function PersonRepairRow({ repair, onRepaired }) {
   const [targetPersonId, setTargetPersonId] = useState(repair.person_ids?.[0] || "");
   const [decision, setDecision] = useState({ status: "idle", message: "" });
   const inFlight = useRef(createInFlightGate());
-  const action = repair.repair_kind === "possible_duplicate" ? "merge_people" : "correct_name";
+  const pairRepair = ["possible_duplicate", "name_variant_candidate"].includes(repair.repair_kind);
+  const action = pairRepair ? "merge_people" : "correct_name";
   const actionable = (repair.allowed_actions || []).includes(action);
-  const evidence = repair.repair_kind === "possible_duplicate"
+  const evidence = pairRepair
     ? participants.map((participant) => [(participant.evidence?.providers || []).map(label).join("/"), (participant.evidence?.organization_names || []).join("; "), `${participant.evidence?.source_count || 0} sources`].filter(Boolean).join(" · ")).join(" / ")
     : `${repair.evidence?.source_count || 0} sources${repair.evidence?.providers?.length ? ` · ${repair.evidence.providers.map(label).join("/")}` : ""}${repair.evidence?.organization_names?.length ? ` · ${repair.evidence.organization_names.join("; ")}` : ""}`;
 
-  async function applyRepair() {
+  async function applyRepair(requestedAction = action) {
     if (!inFlight.current.begin()) return;
     setDecision({ status: "loading", message: "Saving…" });
     const submission = {
       schema_version: "transcribe-audio.person-identity-repair-submission.v1",
       repair_id: repair.repair_id,
       repair_kind: repair.repair_kind,
-      action,
+      action: requestedAction,
       expected_content_sha256: repair.content_sha256,
       reviewer: "operator",
       decided_at: new Date().toISOString(),
-      idempotency_key: operationId(`person-repair-${repair.repair_id}-${action}`),
-      ...(action === "correct_name"
+      idempotency_key: operationId(`person-repair-${repair.repair_id}-${requestedAction}`),
+      ...(requestedAction === "correct_name"
         ? { person_id: repair.person_id, replacement_primary_name: replacement }
-        : { target_person_id: targetPersonId })
+        : requestedAction === "merge_people" ? { target_person_id: targetPersonId } : {})
     };
     try {
       await fetchJson(`/api/person-repairs/${encodeURIComponent(repair.repair_id)}`, {
@@ -1098,7 +1112,7 @@ function PersonRepairRow({ repair, onRepaired }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submission)
       });
-      setDecision({ status: "saved", message: action === "merge_people" ? "Merged" : "Corrected" });
+      setDecision({ status: "saved", message: requestedAction === "merge_people" ? "Merged" : requestedAction === "mark_distinct" ? "Kept distinct" : "Corrected" });
       onRepaired();
     } catch (error) {
       if (error.status === 409) {
@@ -1112,7 +1126,7 @@ function PersonRepairRow({ repair, onRepaired }) {
     }
   }
 
-  const current = repair.repair_kind === "possible_duplicate"
+  const current = pairRepair
     ? participants.map(participantRepairSummary).join(" / ")
     : repair.current_primary_name;
   return <tr className="person-repair-row" data-repair-status={decision.status}>
@@ -1120,20 +1134,20 @@ function PersonRepairRow({ repair, onRepaired }) {
     <td><span className="directory-approval-text" title={current}>{current}</span></td>
     <td>{repair.repair_kind === "canonical_name"
       ? <select aria-label={`Corrected name for ${repair.current_primary_name}`} disabled={decision.status === "loading"} onChange={(event) => setReplacement(event.target.value)} value={replacement}>{candidates.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}</select>
-      : repair.repair_kind === "possible_duplicate"
+      : pairRepair
         ? <select aria-label={`Person to keep for ${repair.display_name}`} disabled={decision.status === "loading"} onChange={(event) => setTargetPersonId(event.target.value)} value={targetPersonId}>{participants.map((participant) => <option key={participant.person_id} value={participant.person_id}>Keep {participantRepairSummary(participant)}</option>)}</select>
         : <span className="directory-approval-text" title={repair.reason}>Needs person-versus-mailbox review</span>}</td>
     <td><span className="directory-approval-text" title={(repair.evidence?.labels || []).join("; ")}>{evidence}</span></td>
     <td><div className="directory-review-actions" title={decision.message || repair.reason}>
       {decision.status === "error" && <Icon name="warning" size={14} />}
       {actionable
-        ? <button aria-label={`${action === "merge_people" ? "Merge" : "Correct"} ${repair.display_name}`} className="accept" disabled={decision.status === "loading" || (action === "correct_name" && !replacement) || (action === "merge_people" && !targetPersonId)} onClick={applyRepair} title={action === "merge_people" ? "Merge into selected person" : "Apply canonical name"} type="button"><Icon name={action === "merge_people" ? "identity" : "reviewed"} size={14} /></button>
+        ? <><button aria-label={`${action === "merge_people" ? "Merge" : "Correct"} ${repair.display_name || current}`} className="accept" disabled={decision.status === "loading" || (action === "correct_name" && !replacement) || (action === "merge_people" && !targetPersonId)} onClick={() => applyRepair(action)} title={action === "merge_people" ? "Merge into selected person" : "Apply canonical name"} type="button"><Icon name={action === "merge_people" ? "identity" : "reviewed"} size={14} /></button>{repair.repair_kind === "name_variant_candidate" && <button aria-label={`Keep ${current} as distinct people`} className="reject" disabled={decision.status === "loading"} onClick={() => applyRepair("mark_distinct")} title="These are different people" type="button"><Icon name="reject" size={14} /></button>}</>
         : <span className="directory-approval-none" aria-label="No safe automatic repair">—</span>}
     </div></td>
   </tr>;
 }
 
-function PersonRepairTable({ includeNonActionable, onIncludeNonActionableChange, repairs, onRepaired }) {
+function PersonRepairTable({ repairs, onRepaired }) {
   const [sort, setSort] = useState({ key: "kind", direction: "asc" });
   const [widths, setWidths] = useState(PERSON_REPAIR_COLUMNS.map((column) => column.width));
   const tableRef = useRef(null);
@@ -1171,7 +1185,7 @@ function PersonRepairTable({ includeNonActionable, onIncludeNonActionableChange,
   }
 
   return <section className="person-repairs">
-    <h3>Identity repairs <span>{repairs.length}</span><label className="person-repair-scope"><input checked={!includeNonActionable} onChange={(event) => onIncludeNonActionableChange(!event.target.checked)} type="checkbox" /> Actionable only</label></h3>
+    <h3>People <span>{repairs.length}</span></h3>
     <div className="directory-table-wrap directory-approval-wrap">
       <table className="directory-approval-table" ref={tableRef}>
         <colgroup>{widths.map((width, index) => <col key={PERSON_REPAIR_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
@@ -1186,6 +1200,188 @@ function PersonRepairTable({ includeNonActionable, onIncludeNonActionableChange,
         <tbody>{ordered.map((repair) => <PersonRepairRow key={repair.repair_id} onRepaired={onRepaired} repair={repair} />)}</tbody>
       </table>
       {!ordered.length && <p className="muted contacts-empty">No identity repairs match this search.</p>}
+    </div>
+  </section>;
+}
+
+const ORGANIZATION_REPAIR_COLUMNS = [
+  { key: "kind", label: "Issue", width: 14 },
+  { key: "organizations", label: "Organizations", width: 31 },
+  { key: "decision", label: "Decision", width: 34, sortable: false },
+  { key: "evidence", label: "Evidence", width: 13 },
+  { key: "actions", label: "Actions", width: 8, sortable: false }
+];
+
+function organizationRepairLabel(kind) {
+  if (kind === "possible_alias") return "Possible alias";
+  if (kind === "unit_candidate") return "Possible unit";
+  return "Possible relationship";
+}
+
+function organizationParticipantLabel(participant) {
+  const aliases = participant.aliases?.length ? ` · aka ${participant.aliases.join(" / ")}` : "";
+  return `${participant.primary_name}${aliases}`;
+}
+
+function organizationRepairOptions(repair) {
+  const participants = repair.participants || [];
+  const byId = Object.fromEntries(participants.map((participant) => [participant.organization_id, participant]));
+  const name = (organizationId) => byId[organizationId]?.primary_name || organizationId;
+  const ids = repair.organization_ids || [];
+  const options = [];
+  if (repair.allowed_actions?.includes("merge_organizations")) {
+    for (const participant of participants) {
+      options.push({ value: `merge|${participant.organization_id}`, label: `Same organization · keep ${participant.primary_name}` });
+    }
+  }
+  if (repair.allowed_actions?.includes("set_parent")) {
+    const parentId = repair.suggested_parent_id || ids[0];
+    const childId = repair.suggested_child_id || ids[1];
+    options.push({ value: `parent|${parentId}|${childId}`, label: `Unit · ${name(childId)} belongs to ${name(parentId)}` });
+    if (!repair.suggested_parent_id && ids.length === 2) {
+      options.push({ value: `parent|${childId}|${parentId}`, label: `Unit · ${name(parentId)} belongs to ${name(childId)}` });
+    }
+  }
+  if (repair.allowed_actions?.includes("relate_organizations") && ids.length === 2) {
+    options.push({ value: `relate|related_to|${ids[0]}|${ids[1]}`, label: "Related organizations" });
+    options.push({ value: `relate|predecessor_of|${ids[0]}|${ids[1]}`, label: `${name(ids[0])} preceded ${name(ids[1])}` });
+    options.push({ value: `relate|predecessor_of|${ids[1]}|${ids[0]}`, label: `${name(ids[1])} preceded ${name(ids[0])}` });
+  }
+  if (repair.allowed_actions?.includes("mark_distinct")) {
+    options.push({ value: "distinct", label: "Distinct · no relationship" });
+  }
+  return options;
+}
+
+function suggestedOrganizationDecision(repair, options) {
+  let value = "";
+  if (repair.suggested_action === "merge_organizations") value = `merge|${repair.suggested_target_organization_id}`;
+  if (repair.suggested_action === "set_parent") value = `parent|${repair.suggested_parent_id}|${repair.suggested_child_id}`;
+  if (repair.suggested_action === "relate_organizations") value = `relate|related_to|${repair.organization_ids?.[0]}|${repair.organization_ids?.[1]}`;
+  return options.some((option) => option.value === value) ? value : options[0]?.value || "";
+}
+
+function OrganizationRepairRow({ repair, onRepaired }) {
+  const options = useMemo(() => organizationRepairOptions(repair), [repair]);
+  const [selected, setSelected] = useState(() => suggestedOrganizationDecision(repair, options));
+  const [decision, setDecision] = useState({ status: "idle", message: "" });
+  const inFlight = useRef(createInFlightGate());
+  const participants = repair.participants || [];
+  const names = participants.map(organizationParticipantLabel).join(" / ");
+  const evidence = participants.map((participant) => `${participant.source_count || 0}`).join(" + ") + " sources";
+
+  async function applyRepair() {
+    if (!selected || !inFlight.current.begin()) return;
+    setDecision({ status: "loading", message: "Saving…" });
+    const [kind, first, second, third] = selected.split("|");
+    const action = kind === "merge" ? "merge_organizations" : kind === "parent" ? "set_parent" : kind === "relate" ? "relate_organizations" : "mark_distinct";
+    const submission = {
+      schema_version: "transcribe-audio.organization-identity-repair-submission.v1",
+      repair_id: repair.repair_id,
+      repair_kind: repair.repair_kind,
+      action,
+      expected_content_sha256: repair.content_sha256,
+      reviewer: "operator",
+      decided_at: new Date().toISOString(),
+      idempotency_key: operationId(`organization-repair-${repair.repair_id}-${action}`),
+      ...(kind === "merge" ? { target_organization_id: first } : {}),
+      ...(kind === "parent" ? { parent_organization_id: first, child_organization_id: second } : {}),
+      ...(kind === "relate" ? { relationship_type: first, subject_organization_id: second, object_organization_id: third } : {})
+    };
+    try {
+      await fetchJson(`/api/organization-repairs/${encodeURIComponent(repair.repair_id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission)
+      });
+      setDecision({ status: "saved", message: action === "mark_distinct" ? "Kept distinct" : "Recorded" });
+      onRepaired();
+    } catch (error) {
+      if (error.status === 409) {
+        setDecision({ status: "loading", message: "Refreshing current state…" });
+        onRepaired();
+      } else {
+        setDecision({ status: "error", message: error.message });
+      }
+    } finally {
+      inFlight.current.end();
+    }
+  }
+
+  return <tr className="organization-repair-row" data-repair-status={decision.status}>
+    <td><span className="directory-approval-text" title={repair.reason}>{organizationRepairLabel(repair.repair_kind)}</span></td>
+    <td><span className="directory-approval-text" title={names}>{names}</span></td>
+    <td><select aria-label={`Decision for ${names}`} disabled={decision.status === "loading"} onChange={(event) => setSelected(event.target.value)} value={selected}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></td>
+    <td><span className="directory-approval-text" title={participants.map((participant) => `${participant.primary_name}: ${participant.source_count || 0} sources`).join("; ")}>{evidence}</span></td>
+    <td><div className="directory-review-actions" title={decision.message || repair.reason}>
+      {decision.status === "error" && <Icon name="warning" size={14} />}
+      <button aria-label={`Apply organization decision for ${names}`} className="accept" disabled={decision.status === "loading" || !selected} onClick={applyRepair} title="Apply selected organization decision" type="button"><Icon name="reviewed" size={14} /></button>
+    </div></td>
+  </tr>;
+}
+
+function organizationRepairValue(repair, key) {
+  if (key === "kind") return repair.repair_kind || "";
+  if (key === "organizations") return (repair.participants || []).map((participant) => participant.primary_name).join(" ");
+  if (key === "evidence") return (repair.participants || []).reduce((sum, participant) => sum + Number(participant.source_count || 0), 0);
+  return "";
+}
+
+function OrganizationRepairTable({ repairs, onRepaired }) {
+  const [sort, setSort] = useState({ key: "kind", direction: "asc" });
+  const [widths, setWidths] = useState(ORGANIZATION_REPAIR_COLUMNS.map((column) => column.width));
+  const tableRef = useRef(null);
+  const ordered = useMemo(() => [...repairs].sort((left, right) => {
+    const leftValue = organizationRepairValue(left, sort.key);
+    const rightValue = organizationRepairValue(right, sort.key);
+    const comparison = typeof leftValue === "number" ? leftValue - rightValue : String(leftValue).localeCompare(String(rightValue));
+    return (sort.direction === "asc" ? comparison : -comparison) || String(left.repair_id).localeCompare(String(right.repair_id));
+  }), [repairs, sort]);
+
+  function sortBy(column) {
+    if (column.sortable === false) return;
+    setSort((current) => current.key === column.key
+      ? { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key: column.key, direction: column.key === "evidence" ? "desc" : "asc" });
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const startX = event.clientX;
+    const start = [...widths];
+    const move = (nextEvent) => {
+      const pair = start[index] + start[index + 1];
+      const left = Math.max(6, Math.min(pair - 6, start[index] + ((nextEvent.clientX - startX) / tableWidth) * 100));
+      const next = [...start];
+      next[index] = left;
+      next[index + 1] = pair - left;
+      setWidths(next);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop, { once: true });
+  }
+
+  return <section className="organization-repairs">
+    <h3>Organizations <span>{repairs.length}</span></h3>
+    <div className="directory-table-wrap directory-approval-wrap">
+      <table className="directory-approval-table" ref={tableRef}>
+        <colgroup>{widths.map((width, index) => <col key={ORGANIZATION_REPAIR_COLUMNS[index].key} style={{ width: `${width}%` }} />)}</colgroup>
+        <thead><tr>{ORGANIZATION_REPAIR_COLUMNS.map((column, index) => {
+          const active = sort.key === column.key;
+          const sortable = column.sortable !== false;
+          return <th aria-sort={sortable ? (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined} key={column.key}>
+            <button className="directory-approval-sort" disabled={!sortable} onClick={() => sortBy(column)} type="button"><span>{column.label}</span>{sortable && <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>
+            {index < ORGANIZATION_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(ORGANIZATION_REPAIR_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+          </th>;
+        })}</tr></thead>
+        <tbody>{ordered.map((repair) => <OrganizationRepairRow key={repair.repair_id} onRepaired={onRepaired} repair={repair} />)}</tbody>
+      </table>
+      {!ordered.length && <p className="muted contacts-empty">No organization repairs match this search.</p>}
     </div>
   </section>;
 }

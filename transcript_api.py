@@ -5684,6 +5684,24 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                     )
                 )
                 return
+            if parsed.path == "/api/organization-repairs":
+                self.write_json(
+                    identity_review_workflow.IdentityReviewWorkflow(
+                        self.store_root,
+                        gold_root=(
+                            self.state_root / "speaker-evaluation-campaigns"
+                        ),
+                    ).list_organization_identity_repairs(
+                        limit=parse_int(
+                            first(params, "limit"), 100, minimum=1, maximum=500
+                        ),
+                        offset=parse_int(
+                            first(params, "offset"), 0, minimum=0, maximum=100000
+                        ),
+                        query=first(params, "q") or first(params, "query"),
+                    )
+                )
+                return
             if parsed.path.startswith("/api/speaker-evaluation-campaigns/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
                 if len(parts) == 3:
@@ -6016,6 +6034,26 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                                 self.state_root / "speaker-evaluation-campaigns"
                             ),
                         ).record_person_identity_repair(body),
+                        status=HTTPStatus.CREATED,
+                    )
+                    return
+            if parsed.path.startswith("/api/organization-repairs/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 3:
+                    body = self.read_json_body()
+                    if str(body.get("repair_id") or "") != parts[2]:
+                        self.write_error(
+                            HTTPStatus.BAD_REQUEST,
+                            "Request repair_id does not match the route.",
+                        )
+                        return
+                    self.write_json(
+                        identity_review_workflow.IdentityReviewWorkflow(
+                            self.store_root,
+                            gold_root=(
+                                self.state_root / "speaker-evaluation-campaigns"
+                            ),
+                        ).record_organization_identity_repair(body),
                         status=HTTPStatus.CREATED,
                     )
                     return
@@ -6997,6 +7035,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             identity_review_workflow.StaleMailHypothesisReview,
             identity_review_workflow.StaleDirectoryHypothesisReview,
             identity_review_workflow.StalePersonIdentityRepair,
+            identity_review_workflow.StaleOrganizationIdentityRepair,
         ) as exc:
             self.write_error(HTTPStatus.CONFLICT, str(exc))
         except identity_review_workflow.IdempotencyConflict as exc:

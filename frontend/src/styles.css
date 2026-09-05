@@ -791,7 +791,7 @@
 
 .directory-approval-toolbar {
   display: grid;
-  grid-template-columns: minmax(16rem, 1fr) minmax(8rem, auto);
+  grid-template-columns: minmax(16rem, 1fr) auto minmax(8rem, auto);
   gap: 0.65rem;
   align-items: end;
   padding-bottom: 0.35rem;
@@ -951,7 +951,8 @@
 
 .directory-approval-row select,
 .directory-approval-row input,
-.person-repair-row select {
+.person-repair-row select,
+.organization-repair-row select {
   width: 100%;
   min-width: 0;
   height: 1.55rem;
@@ -974,12 +975,14 @@
 }
 
 .person-repairs,
+.organization-repairs,
 .accepted-decision-repairs {
   display: grid;
   gap: 0.18rem;
 }
 
 .person-repairs > h3,
+.organization-repairs > h3,
 .accepted-decision-repairs > h3 {
   margin: 0;
   color: var(--muted);
@@ -988,7 +991,8 @@
   text-transform: uppercase;
 }
 
-.person-repairs > h3 {
+.person-repairs > h3,
+.organization-repairs > h3 {
   display: flex;
   align-items: center;
   gap: 0.22rem;
@@ -1006,6 +1010,13 @@
   text-transform: none;
 }
 
+.directory-approval-toolbar .person-repair-scope {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .person-repair-scope input {
   width: 0.78rem;
   height: 0.78rem;
@@ -1014,17 +1025,20 @@
 }
 
 .person-repairs > h3 span,
+.organization-repairs > h3 span,
 .accepted-decision-repairs > h3 span {
   margin-left: 0.2rem;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.person-repair-row:hover td {
+.person-repair-row:hover td,
+.organization-repair-row:hover td {
   background: rgba(244, 236, 216, 0.035);
 }
 
-.person-repair-row[data-repair-status="error"] td {
+.person-repair-row[data-repair-status="error"] td,
+.organization-repair-row[data-repair-status="error"] td {
   border-bottom-color: rgba(238, 157, 147, 0.55);
 }
 

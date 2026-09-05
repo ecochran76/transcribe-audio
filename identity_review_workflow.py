@@ -32,6 +32,11 @@ from person_identity_repair import (
     build_person_identity_repair_queue,
     record_person_identity_repair,
 )
+from organization_identity_repair import (
+    StaleOrganizationIdentityRepair,
+    build_organization_identity_repair_queue,
+    record_organization_identity_repair,
+)
 
 
 OPERATOR_GOLD_SCHEMA = "transcribe-audio.speaker-evaluation-gold.v1"
@@ -1361,6 +1366,47 @@ class IdentityReviewWorkflow:
             self.root,
             submission,
             self.list_person_identity_repairs(limit=500),
+        )
+
+    def list_organization_identity_repairs(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        query: str = "",
+    ) -> dict[str, Any]:
+        if limit < 1 or limit > 500 or offset < 0:
+            raise IdentityReviewWorkflowError(
+                "Organization repair pagination is outside its bounds."
+            )
+        directory = self.list_directory_index(limit=500, view="organizations")
+        queue = build_organization_identity_repair_queue(
+            directory,
+            IdentityLearningLedger(self.root).projection_snapshot(),
+        )
+        query_text = query.strip().casefold()
+        filtered = [
+            item
+            for item in queue["items"]
+            if not query_text or query_text in _json(item).casefold()
+        ]
+        return {
+            **queue,
+            "items": filtered[offset : offset + limit],
+            "total": len(filtered),
+            "limit": limit,
+            "offset": offset,
+            "query": query,
+        }
+
+    def record_organization_identity_repair(
+        self,
+        submission: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return record_organization_identity_repair(
+            self.root,
+            submission,
+            self.list_organization_identity_repairs(limit=500),
         )
 
     def record_mail_hypothesis_review(

@@ -727,6 +727,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
         (2, "organization-acme", "Acme Research"),
         (3, "organization-acme-labs", "ACME Labs"),
         (4, "organization-independent", "Independent Research"),
+        (5, "organization-labs-unit", "ACME Labs Unit"),
     ):
         append(
             "organization_created",
@@ -735,13 +736,18 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
                 "primary_name": name,
                 "status": "reviewed",
                 "organization_type": "company",
+                "parent_organization_id": (
+                    "organization-acme-labs"
+                    if organization_id == "organization-labs-unit"
+                    else ""
+                ),
             },
             ordinal,
         )
     append(
         "organization_alias_added",
         {"organization_id": "organization-acme", "alias": "Acme"},
-        5,
+        6,
     )
     append(
         "organization_source_observed",
@@ -755,7 +761,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
             "observed_at": "2026-08-01T00:00:00Z",
             "content_hash": "organization-source-labs-hash",
         },
-        6,
+        7,
     )
     append(
         "role_asserted",
@@ -767,7 +773,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
             "status": "reviewed",
             "evidence_ids": ["organization-source-labs"],
         },
-        7,
+        8,
     )
     append(
         "activity_observed",
@@ -784,7 +790,18 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
             "independence_group_id": "event-77",
             "content_hash": "activity-labs-hash",
         },
-        8,
+        9,
+    )
+    append(
+        "activity_coverage_observed",
+        {
+            "subject_type": "organization",
+            "subject_id": "organization-acme-labs",
+            "channel": "calendar",
+            "coverage_state": "complete",
+            "observed_at": "2026-08-10T00:00:00Z",
+        },
+        10,
     )
     merge_id = append(
         "organizations_merged",
@@ -792,7 +809,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
             "source_organization_ids": ["organization-acme-labs"],
             "target_organization_id": "organization-acme",
         },
-        9,
+        11,
     )
 
     first = ledger.rebuild()
@@ -802,12 +819,14 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
     assert snapshot["organization_sources"]["organization-source-labs"]["organization_id"] == "organization-acme"
     assert snapshot["roles"]["role-morgan-labs"]["organization_id"] == "organization-acme"
     assert snapshot["activities"]["activity-labs-calendar"]["subject_id"] == "organization-acme"
+    assert snapshot["activity_coverage"]["organization:organization-acme:calendar"]["subject_id"] == "organization-acme"
+    assert snapshot["organizations"]["organization-labs-unit"]["parent_organization_id"] == "organization-acme"
     assert ledger.rebuild().projection_hash == first.projection_hash
 
     append(
         "event_reversed",
         {"reason": "organizations are distinct"},
-        10,
+        12,
         reverses_event_id=merge_id,
     )
     ledger.rebuild()
@@ -824,7 +843,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
             "role_ids": ["role-morgan-labs"],
             "activity_ids": ["activity-labs-calendar"],
         },
-        11,
+        13,
     )
     ledger.rebuild()
     split = ledger.projection_snapshot()
@@ -835,7 +854,7 @@ def test_organization_alias_merge_split_and_reversal_preserve_history(
     append(
         "event_reversed",
         {"reason": "split was incorrect"},
-        12,
+        14,
         reverses_event_id=split_id,
     )
     ledger.rebuild()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -15,7 +16,7 @@ from identity_learning_ledger import IdentityLearningLedger
 REPAIR_QUEUE_SCHEMA = "transcribe-audio.person-identity-repair-queue.v1"
 REPAIR_SUBMISSION_SCHEMA = "transcribe-audio.person-identity-repair-submission.v1"
 REPAIR_RECEIPT_SCHEMA = "transcribe-audio.person-identity-repair-receipt.v1"
-ALLOWED_ACTIONS = {"correct_name", "merge_people"}
+ALLOWED_ACTIONS = {"correct_name", "merge_people", "mark_distinct"}
 GENERIC_MAILBOX_LOCAL_PARTS = {
     "admin",
     "contact",
@@ -102,8 +103,122 @@ def _has_generic_mailbox(item: Mapping[str, Any]) -> bool:
     return False
 
 
+def _human_name_values(item: Mapping[str, Any]) -> list[str]:
+    values = [
+        item.get("display_name"),
+        item.get("primary_name"),
+        *_array(item.get("aliases")),
+        *_array(item.get("person_name_candidates")),
+    ]
+    values.extend(
+        value.get("label")
+        for value in _array(item.get("source_records"))
+        if isinstance(value, Mapping)
+    )
+    result: list[str] = []
+    for value in values:
+        name = _text(value)
+        if not name or "@" in name or "·" in name:
+            continue
+        tokens = re.findall(r"[A-Za-z][A-Za-z'-]*\.?", name)
+        if len(tokens) < 2:
+            continue
+        normalized = " ".join(tokens)
+        if normalized.casefold() not in {item.casefold() for item in result}:
+            result.append(normalized)
+    return result
+
+
+def _name_shape(value: str) -> tuple[str, str, tuple[str, ...], str] | None:
+    tokens = [token.rstrip(".").casefold() for token in value.split()]
+    if len(tokens) < 2:
+        return None
+    given = tokens[:-1]
+    family = tokens[-1]
+    if len(given) >= 2 and len(given[0]) == 1 and len(given[1]) > 1:
+        return given[0], given[1], tuple(token[0] for token in given[2:]), family
+    return "", given[0], tuple(token[0] for token in given[1:]), family
+
+
+def _preferred_middle_shape(value: str) -> tuple[str, str, tuple[str, ...], str] | None:
+    shape = _name_shape(value)
+    return shape if shape and shape[0] else None
+
+
+def _compatible_name_shapes(
+    left: tuple[str, str, tuple[str, ...], str],
+    right: tuple[str, str, tuple[str, ...], str],
+) -> bool:
+    left_leading, left_preferred, left_middle, left_family = left
+    right_leading, right_preferred, right_middle, right_family = right
+    if (left_preferred, left_family) != (right_preferred, right_family):
+        return False
+    if left_leading and right_leading and left_leading != right_leading:
+        return False
+    return all(
+        left_initial == right_initial
+        for left_initial, right_initial in zip(left_middle, right_middle)
+    )
+
+
+def _shared_organizations(left: Mapping[str, Any], right: Mapping[str, Any]) -> list[str]:
+    left_names = {value.casefold(): value for value in _organization_names(left)}
+    right_names = {value.casefold(): value for value in _organization_names(right)}
+    return sorted(
+        (left_names[key] for key in left_names.keys() & right_names.keys()),
+        key=str.casefold,
+    )
+
+
+def _identity_item_id(item: Mapping[str, Any]) -> str:
+    return _text(item.get("accepted_person_id")) or _text(item.get("person_id"))
+
+
+def _repair_participant(
+    item: Mapping[str, Any], people: Mapping[str, Any]
+) -> dict[str, Any]:
+    person_id = _identity_item_id(item)
+    person = people.get(person_id)
+    return {
+        "person_id": person_id,
+        "primary_name": _text(
+            person.get("primary_name")
+            if isinstance(person, Mapping)
+            else item.get("primary_name")
+        ),
+        "display_name": _text(item.get("display_name")),
+        "candidate_names": list(_array(item.get("person_name_candidates"))),
+        "in_identity_ledger": person_id in people,
+        "evidence": _evidence_summary(item),
+    }
+
+
 def _finding_content(value: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value[key] for key in sorted(value) if key not in {"content_sha256"}}
+
+
+def _finding_was_rejected(
+    authority_snapshot: Mapping[str, Any], content_sha256: str
+) -> bool:
+    reconciliations = authority_snapshot.get("reconciliations") or {}
+    if not isinstance(reconciliations, Mapping):
+        return False
+    for value in reconciliations.values():
+        if not isinstance(value, Mapping) or _text(
+            value.get("decision_status")
+        ) != "rejected":
+            continue
+        metadata = value.get("metadata")
+        if not isinstance(metadata, Mapping):
+            try:
+                metadata = json.loads(_text(value.get("metadata_json")) or "{}")
+            except json.JSONDecodeError:
+                metadata = {}
+        if isinstance(metadata, Mapping) and _text(
+            metadata.get("finding_content_sha256")
+        ) == content_sha256:
+            return True
+    return False
 
 
 def build_person_identity_repair_queue(
@@ -113,17 +228,23 @@ def build_person_identity_repair_queue(
     """Derive repair findings without changing accepted identity authority."""
 
     people = authority_snapshot.get("people") or {}
+    identity_items: list[dict[str, Any]] = []
     accepted_items: list[dict[str, Any]] = []
     for raw in _array(directory_payload.get("items")):
         if not isinstance(raw, Mapping):
             continue
+        item_id = _identity_item_id(raw)
         person_id = _text(raw.get("accepted_person_id"))
         person = people.get(person_id) if isinstance(people, Mapping) else None
-        if not person_id or (
-            isinstance(person, Mapping) and _text(person.get("merged_into_person_id"))
+        if not item_id or (
+            person_id
+            and isinstance(person, Mapping)
+            and _text(person.get("merged_into_person_id"))
         ):
             continue
-        accepted_items.append(dict(raw))
+        identity_items.append(dict(raw))
+        if person_id:
+            accepted_items.append(dict(raw))
 
     findings: list[dict[str, Any]] = []
     by_display_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -197,20 +318,7 @@ def build_person_identity_repair_queue(
         participants = []
         for item in sorted(items, key=lambda value: _text(value.get("accepted_person_id"))):
             person_id = _text(item.get("accepted_person_id"))
-            participants.append(
-                {
-                    "person_id": person_id,
-                    "primary_name": _text(
-                        people[person_id].get("primary_name")
-                        if person_id in people
-                        else item.get("primary_name")
-                    ),
-                    "display_name": _text(item.get("display_name")),
-                    "candidate_names": list(_array(item.get("person_name_candidates"))),
-                    "in_identity_ledger": person_id in people,
-                    "evidence": _evidence_summary(item),
-                }
-            )
+            participants.append(_repair_participant(item, people))
         finding = {
             "repair_kind": "possible_duplicate",
             "display_name": _text(items[0].get("display_name")),
@@ -225,7 +333,86 @@ def build_person_identity_repair_queue(
         finding["content_sha256"] = _hash(_finding_content(finding))
         findings.append(finding)
 
-    order = {"canonical_name": 0, "identity_ambiguity": 1, "possible_duplicate": 2}
+    seen_variant_pairs: set[tuple[str, str]] = set()
+    for left_index, left in enumerate(identity_items):
+        for right in identity_items[left_index + 1 :]:
+            if not (
+                _text(left.get("accepted_person_id"))
+                or _text(right.get("accepted_person_id"))
+            ):
+                continue
+            left_id = _identity_item_id(left)
+            right_id = _identity_item_id(right)
+            pair = tuple(sorted((left_id, right_id)))
+            if pair in seen_variant_pairs:
+                continue
+            left_names = _human_name_values(left)
+            right_names = _human_name_values(right)
+            shared_organizations = _shared_organizations(left, right)
+            shared_preferred_middle = sorted(
+                {
+                    left_name
+                    for left_name in left_names
+                    if _preferred_middle_shape(left_name)
+                    and any(
+                        left_name.casefold() == right_name.casefold()
+                        for right_name in right_names
+                    )
+                },
+                key=str.casefold,
+            )
+            compatibility_basis = ""
+            if shared_preferred_middle:
+                compatibility_basis = "preferred_middle_alias_overlap"
+            elif shared_organizations and any(
+                left_name.casefold() != right_name.casefold()
+                and (left_shape := _name_shape(left_name)) is not None
+                and (right_shape := _name_shape(right_name)) is not None
+                and _compatible_name_shapes(left_shape, right_shape)
+                for left_name in left_names
+                for right_name in right_names
+            ):
+                compatibility_basis = "compatible_initial_with_shared_organization"
+            if not compatibility_basis:
+                continue
+            seen_variant_pairs.add(pair)
+            participants = [
+                _repair_participant(item, people)
+                for item in sorted(
+                    (left, right), key=lambda item: _identity_item_id(item)
+                )
+            ]
+            finding = {
+                "repair_kind": "name_variant_candidate",
+                "display_name": " / ".join(
+                    _text(item.get("display_name")) for item in (left, right)
+                ),
+                "person_ids": list(pair),
+                "participants": participants,
+                "compatibility_basis": compatibility_basis,
+                "shared_name_variants": shared_preferred_middle,
+                "shared_organizations": shared_organizations,
+                "reason": (
+                    "A preferred-middle-name form is shared across otherwise "
+                    "separate identity records; review is required."
+                ),
+                "allowed_actions": ["merge_people", "mark_distinct"],
+            }
+            finding["repair_id"] = _stable_id(
+                "person-repair", "name_variant_candidate", *pair
+            )
+            finding["content_sha256"] = _hash(_finding_content(finding))
+            if not _finding_was_rejected(
+                authority_snapshot, finding["content_sha256"]
+            ):
+                findings.append(finding)
+
+    order = {
+        "canonical_name": 0,
+        "name_variant_candidate": 1,
+        "identity_ambiguity": 2,
+        "possible_duplicate": 3,
+    }
     findings.sort(
         key=lambda item: (
             order.get(_text(item.get("repair_kind")), 99),
@@ -239,6 +426,9 @@ def build_person_identity_repair_queue(
         "canonical_name": sum(item["repair_kind"] == "canonical_name" for item in findings),
         "identity_ambiguity": sum(item["repair_kind"] == "identity_ambiguity" for item in findings),
         "possible_duplicate": sum(item["repair_kind"] == "possible_duplicate" for item in findings),
+        "name_variant_candidate": sum(
+            item["repair_kind"] == "name_variant_candidate" for item in findings
+        ),
     }
     return {
         "schema_version": REPAIR_QUEUE_SCHEMA,
@@ -302,7 +492,9 @@ def record_person_identity_repair(
     idempotency_key = _text(submission.get("idempotency_key"))
     submission_hash = _hash(dict(submission))
     ledger = IdentityLearningLedger(root)
-    for event in ledger.events(event_types=("person_corrected", "people_merged")):
+    for event in ledger.events(
+        event_types=("person_corrected", "people_merged", "reconciliation_decided")
+    ):
         metadata = _event_repair_metadata(event)
         if (
             _text(metadata.get("repair_id")) == repair_id
@@ -365,7 +557,7 @@ def record_person_identity_repair(
             "person_id": person_id,
             "changes": {"primary_name": replacement, "metadata": metadata},
         }
-    else:
+    elif action == "merge_people":
         person_ids = sorted(_text(value) for value in _array(finding.get("person_ids")))
         target_person_id = _text(submission.get("target_person_id"))
         if target_person_id not in person_ids:
@@ -414,6 +606,60 @@ def record_person_identity_repair(
             "metadata": metadata,
         }
         events.append({"event_type": event_type, "payload": payload, **common})
+    else:
+        person_ids = sorted(
+            _text(value) for value in _array(finding.get("person_ids")) if _text(value)
+        )
+        if len(person_ids) != 2:
+            raise PersonIdentityRepairError(
+                "Distinct-person review requires exactly two candidate people."
+            )
+        proposal_id = _stable_id(
+            "person-reconciliation",
+            repair_id,
+            _text(finding.get("content_sha256")),
+        )
+        source_record_ids = sorted(
+            {
+                _text(source.get("source_record_id"))
+                for participant in _array(finding.get("participants"))
+                if isinstance(participant, Mapping)
+                for source in _array(participant.get("evidence", {}).get("source_records"))
+                if isinstance(source, Mapping) and _text(source.get("source_record_id"))
+            }
+        )
+        events = [
+            {
+                "event_type": "reconciliation_proposed",
+                "payload": {
+                    "proposal_id": proposal_id,
+                    "proposal_type": "person_name_variant",
+                    "source_record_ids": source_record_ids,
+                    "candidate_person_ids": person_ids,
+                    "reason_codes": [
+                        _text(finding.get("compatibility_basis"))
+                        or "name_variant_candidate"
+                    ],
+                    "decision_status": "pending",
+                    "metadata": metadata,
+                },
+                **{
+                    **common,
+                    "idempotency_key": f"{idempotency_key}:proposal",
+                },
+            },
+            {
+                "event_type": "reconciliation_decided",
+                "payload": {
+                    "proposal_id": proposal_id,
+                    "decision_status": "rejected",
+                    "decided_by": _text(submission.get("reviewer")),
+                    "decided_at": _text(submission.get("decided_at")),
+                    "metadata": metadata,
+                },
+                **common,
+            },
+        ]
     if action == "correct_name":
         events = [{"event_type": event_type, "payload": payload, **common}]
     receipts = ledger.append_events(
