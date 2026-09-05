@@ -859,8 +859,8 @@ function PeopleView() {
           <label className="person-repair-scope"><input checked={!includeNonActionableRepairs} onChange={(event) => setIncludeNonActionableRepairs(!event.target.checked)} type="checkbox" /> Actionable only</label>
           <div className={`identity-load-state ${loadState.status}`} role="status"><strong>{repairRows.length + organizationRepairRows.length + (includeNonActionableRepairs ? acceptedRows.length : 0)}</strong><span>{loadState.message}</span></div>
         </div>
-        <PersonRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairRows} />
         <OrganizationRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={organizationRepairRows} />
+        <PersonRepairTable onRepaired={() => setRefreshToken((value) => value + 1)} repairs={repairRows} />
         {includeNonActionableRepairs && <section className="accepted-decision-repairs">
           <h3>Accepted organization &amp; role decisions <span>{acceptedRows.length}</span></h3>
           <DirectoryApprovalTable onReviewed={() => setRefreshToken((value) => value + 1)} reviewRows={acceptedRows} reviewTargets={payload.review_targets || { people: [], organizations: [] }} />
@@ -1051,7 +1051,7 @@ const PERSON_REPAIR_COLUMNS = [
 ];
 
 function personRepairValue(repair, key) {
-  if (key === "kind") return repair.repair_kind || "";
+  if (key === "kind") return ({ name_variant_candidate: "0", possible_duplicate: "1", canonical_name: "2", identity_ambiguity: "3" })[repair.repair_kind] || "9";
   if (key === "person") return repair.display_name || repair.current_primary_name || "";
   if (key === "repair") return repair.suggested_primary_name || repair.display_name || "";
   if (key === "evidence") return `${repair.evidence?.providers?.join(" ") || ""} ${repair.evidence?.organization_names?.join(" ") || ""}`;
@@ -1065,15 +1065,8 @@ function personRepairLabel(kind) {
   return "Identity ambiguity";
 }
 
-function participantRepairSummary(participant) {
-  const providers = (participant.evidence?.providers || []).map(label).join("/");
-  const organizations = (participant.evidence?.organization_names || []).join("; ");
-  return [
-    participant.display_name,
-    providers,
-    organizations,
-    `${participant.evidence?.source_count || 0} sources`
-  ].filter(Boolean).join(" · ");
+function participantRepairName(participant) {
+  return participant.display_name || participant.primary_name || participant.person_id;
 }
 
 function PersonRepairRow({ repair, onRepaired }) {
@@ -1127,7 +1120,7 @@ function PersonRepairRow({ repair, onRepaired }) {
   }
 
   const current = pairRepair
-    ? participants.map(participantRepairSummary).join(" / ")
+    ? participants.map(participantRepairName).join(" / ")
     : repair.current_primary_name;
   return <tr className="person-repair-row" data-repair-status={decision.status}>
     <td><span className="directory-approval-text" title={repair.reason}>{personRepairLabel(repair.repair_kind)}</span></td>
@@ -1135,7 +1128,7 @@ function PersonRepairRow({ repair, onRepaired }) {
     <td>{repair.repair_kind === "canonical_name"
       ? <select aria-label={`Corrected name for ${repair.current_primary_name}`} disabled={decision.status === "loading"} onChange={(event) => setReplacement(event.target.value)} value={replacement}>{candidates.map((candidate) => <option key={candidate} value={candidate}>{candidate}</option>)}</select>
       : pairRepair
-        ? <select aria-label={`Person to keep for ${repair.display_name}`} disabled={decision.status === "loading"} onChange={(event) => setTargetPersonId(event.target.value)} value={targetPersonId}>{participants.map((participant) => <option key={participant.person_id} value={participant.person_id}>Keep {participantRepairSummary(participant)}</option>)}</select>
+        ? <select aria-label={`Person to keep for ${repair.display_name || current}`} disabled={decision.status === "loading"} onChange={(event) => setTargetPersonId(event.target.value)} value={targetPersonId}>{participants.map((participant) => <option key={participant.person_id} value={participant.person_id}>Keep {participantRepairName(participant)}</option>)}</select>
         : <span className="directory-approval-text" title={repair.reason}>Needs person-versus-mailbox review</span>}</td>
     <td><span className="directory-approval-text" title={(repair.evidence?.labels || []).join("; ")}>{evidence}</span></td>
     <td><div className="directory-review-actions" title={decision.message || repair.reason}>
@@ -1184,6 +1177,17 @@ function PersonRepairTable({ repairs, onRepaired }) {
     window.addEventListener("pointerup", stop, { once: true });
   }
 
+  function resizeWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const pair = widths[index] + widths[index + 1];
+    const left = Math.max(6, Math.min(pair - 6, widths[index] + (event.key === "ArrowLeft" ? -1.5 : 1.5)));
+    const next = [...widths];
+    next[index] = left;
+    next[index + 1] = pair - left;
+    setWidths(next);
+  }
+
   return <section className="person-repairs">
     <h3>People <span>{repairs.length}</span></h3>
     <div className="directory-table-wrap directory-approval-wrap">
@@ -1194,7 +1198,7 @@ function PersonRepairTable({ repairs, onRepaired }) {
           const sortable = column.sortable !== false;
           return <th aria-sort={sortable ? (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined} key={column.key}>
             <button className="directory-approval-sort" disabled={!sortable} onClick={() => sortBy(column)} type="button"><span>{column.label}</span>{sortable && <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>
-            {index < PERSON_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(PERSON_REPAIR_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+            {index < PERSON_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(PERSON_REPAIR_COLUMNS.map((value) => value.width))} onKeyDown={(event) => resizeWithKeyboard(event, index)} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
           </th>;
         })}</tr></thead>
         <tbody>{ordered.map((repair) => <PersonRepairRow key={repair.repair_id} onRepaired={onRepaired} repair={repair} />)}</tbody>
@@ -1221,6 +1225,14 @@ function organizationRepairLabel(kind) {
 function organizationParticipantLabel(participant) {
   const aliases = participant.aliases?.length ? ` · aka ${participant.aliases.join(" / ")}` : "";
   return `${participant.primary_name}${aliases}`;
+}
+
+function organizationEvidenceLabel(repair, participants) {
+  const sourceCount = participants.reduce((sum, participant) => sum + Number(participant.source_count || 0), 0);
+  if (sourceCount) return `${sourceCount} source${sourceCount === 1 ? "" : "s"}`;
+  if (repair.repair_kind === "possible_alias") return "Formal-name extension";
+  if (repair.repair_kind === "unit_candidate") return "Parent-name prefix";
+  return "Shared institutional acronym";
 }
 
 function organizationRepairOptions(repair) {
@@ -1268,7 +1280,7 @@ function OrganizationRepairRow({ repair, onRepaired }) {
   const inFlight = useRef(createInFlightGate());
   const participants = repair.participants || [];
   const names = participants.map(organizationParticipantLabel).join(" / ");
-  const evidence = participants.map((participant) => `${participant.source_count || 0}`).join(" + ") + " sources";
+  const evidence = organizationEvidenceLabel(repair, participants);
 
   async function applyRepair() {
     if (!selected || !inFlight.current.begin()) return;
@@ -1366,6 +1378,17 @@ function OrganizationRepairTable({ repairs, onRepaired }) {
     window.addEventListener("pointerup", stop, { once: true });
   }
 
+  function resizeWithKeyboard(event, index) {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const pair = widths[index] + widths[index + 1];
+    const left = Math.max(6, Math.min(pair - 6, widths[index] + (event.key === "ArrowLeft" ? -1.5 : 1.5)));
+    const next = [...widths];
+    next[index] = left;
+    next[index + 1] = pair - left;
+    setWidths(next);
+  }
+
   return <section className="organization-repairs">
     <h3>Organizations <span>{repairs.length}</span></h3>
     <div className="directory-table-wrap directory-approval-wrap">
@@ -1376,7 +1399,7 @@ function OrganizationRepairTable({ repairs, onRepaired }) {
           const sortable = column.sortable !== false;
           return <th aria-sort={sortable ? (active ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined} key={column.key}>
             <button className="directory-approval-sort" disabled={!sortable} onClick={() => sortBy(column)} type="button"><span>{column.label}</span>{sortable && <Icon name={active ? (sort.direction === "asc" ? "sortAscending" : "sortDescending") : "sortNone"} size={12} />}</button>
-            {index < ORGANIZATION_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(ORGANIZATION_REPAIR_COLUMNS.map((value) => value.width))} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
+            {index < ORGANIZATION_REPAIR_COLUMNS.length - 1 && <span aria-label={`Resize ${column.label} column`} aria-orientation="vertical" aria-valuenow={Math.round(widths[index])} className="directory-resizer" onDoubleClick={() => setWidths(ORGANIZATION_REPAIR_COLUMNS.map((value) => value.width))} onKeyDown={(event) => resizeWithKeyboard(event, index)} onPointerDown={(event) => beginResize(event, index)} role="separator" tabIndex={0} />}
           </th>;
         })}</tr></thead>
         <tbody>{ordered.map((repair) => <OrganizationRepairRow key={repair.repair_id} onRepaired={onRepaired} repair={repair} />)}</tbody>

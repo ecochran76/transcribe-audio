@@ -48,6 +48,15 @@ and person-to-person relationship endpoints in addition to source records and
 external identities. This keeps the accepted graph internally consistent when
 the operator explicitly merges two people.
 
+Plan 0084 adds review-only preferred/middle-name compatibility and organization
+reconciliation without changing the schema. Explicit distinct-person and
+distinct-organization choices reuse `reconciliation_proposed` and
+`reconciliation_decided`; their finding hashes suppress only unchanged
+candidates. `organizations_merged` replay redirects organization source
+records, roles, activities, activity coverage, relationship endpoints, and
+child-unit parent pointers. The reviewed source name is added to the surviving
+organization as an alias before the merge event.
+
 Rollback from v10 is allowed only when no `person_corrected` event exists; it
 then restores the v9 event constraint. Rollback from v4 drops only v4
 ledger/projection objects and restores schema version 3. Existing transcript
@@ -92,7 +101,7 @@ does not replace the last valid projection.
 
 The original A1 milestone was proved only with pytest temporary directories and
 synthetic records. Later plans separately installed the ledger and review
-surfaces. Plan 0083 does not authorize automatic repair: generating or viewing
+surfaces. Plans 0083 and 0084 do not authorize automatic repair: generating or viewing
 the repair queue writes no event, and installation must leave the ledger event
 count unchanged. Provider, mailbox, calendar, CRM, speaker, biometric, and
 Graphiti writes remain outside this repair contract.

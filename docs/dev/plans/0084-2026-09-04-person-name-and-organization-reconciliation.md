@@ -1,6 +1,6 @@
 # Plan 0084 | Person Name And Organization Reconciliation
 
-State: OPEN
+State: CLOSED
 
 Lane: P09
 
@@ -80,7 +80,7 @@ identity mutation.
   source-link rule. Name, organization, activity, and relationship agreement
   may rank a review candidate but never merge people automatically.
 - A reviewed `distinct` decision must suppress the exact candidate pair until
-  its evidence watermark changes; it must not erase either source cluster.
+  its evidence fingerprint changes; it must not erase either source cluster.
 
 ### Organizations
 
@@ -91,7 +91,7 @@ identity mutation.
 - `related_to`, `predecessor_of`, and `successor_of` are typed, temporal
   organization relationships. They do not imply containment or equivalence.
 - A reviewed `distinct` decision suppresses the exact pair at the current
-  evidence watermark.
+  evidence fingerprint.
 - Acronyms, shared domains, string containment, and institutional prefixes are
   candidate evidence only. Provider strings never become accepted aliases or
   relationships without an operator action.
@@ -192,3 +192,35 @@ rows, every action is an explicit append-only review decision, the Iowa State
 cases can be classified without flattening distinct entities, current review
 state and identity-event accounting are preserved during installation/QA, and
 all bounded validation gates pass.
+
+## Outcome
+
+- The installed live queue contains 20 actionable person repairs and three
+  actionable organization repairs. Its first person row is `Chris Williams /
+  R. Chris Williams`; the unrelated SoyLei Chris cluster is not offered by
+  this evidence. The first organization rows separately offer Iowa State
+  formal-name equivalence, IPRT relatedness, and department containment.
+- Explicit person and organization `distinct` decisions are persisted through
+  immutable reconciliation events and suppress only an unchanged candidate
+  fingerprint. No name or acronym heuristic applies a merge automatically.
+- Organization merge replay now retargets source records, roles, activities,
+  activity coverage, relationships, and child-unit parent pointers while
+  preserving the source name as an alias.
+- `GET` and `POST /api/organization-repairs` expose the same bounded,
+  stale-safe, idempotent contract as person repairs. Installation added no
+  schema migration.
+- The compact installed view puts the three organization decisions and the
+  Williams decision first. Rows are 31 pixels high, headers visibly sort,
+  pointer and keyboard resizing work, actions contain SVGs without text, and
+  `Actionable only` hides 61 historical accepted rows by default.
+- The provider-free suite passed 1,305 tests in 97.67 seconds. The focused
+  backend/API selection passed 96 tests, frontend tests passed eight, the
+  production build and Python compilation passed, and the planning audit and
+  diff hygiene were green.
+- Before restart, the live database was backed up to
+  `/home/ecochran76/.transcripts/backups/transcripts-pre-plan0084.sqlite3`.
+  The installed service is healthy with zero restarts. Desktop and 390-pixel
+  Agent Browser inspection found no console or page errors and no page-level
+  horizontal overflow; narrow table overflow remains locally scrollable.
+- Installation and browser QA left the identity ledger at 224 events. No
+  repair action, provider action, or external write was performed.

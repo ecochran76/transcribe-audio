@@ -90,6 +90,15 @@ A1 must implement three reconciliation levels without provider write-back.
 Shared and role addresses must never auto-link to a person. Reviewed local
 overrides must not overwrite provider fields. Person merges preserve redirects
 and support reversal. Person splits rebind only explicitly reviewed records.
+Compatible preferred-name, middle-name, and initial shapes may create a review
+candidate across accepted and unresolved records. Conflicting supplied initials
+do not. An operator may merge the exact pair or record it as distinct; the
+distinct decision suppresses only the unchanged evidence fingerprint.
+
+Organization reconciliation uses separate decisions for same-organization
+aliases, `unit_of` containment, `related_to`, `predecessor_of`,
+`successor_of`, and distinct identities. Acronyms and name containment are
+candidate evidence only and never authorize an automatic merge or relationship.
 
 ## Transcript correction contract
 
@@ -168,7 +177,9 @@ A5 reserves these authenticated interfaces. A0 doesn't add routes.
 | `GET /api/people` | Bounded search and cursor | Canonical people and separate source records |
 | `GET /api/people/{person_id}` | Person ID | Person, sources, assertions, corrections, clusters, and profile history |
 | `GET /api/person-repairs` | Bounded query, limit, and offset | Derived current name, ambiguity, and duplicate findings; zero mutation |
-| `POST /api/person-repairs/{repair_id}` | Exact finding hash, typed action, reviewer, and idempotency key | Append-only person correction or explicit merge receipt; reject stale findings |
+| `POST /api/person-repairs/{repair_id}` | Exact finding hash, typed action, reviewer, and idempotency key | Append-only person correction, merge, or distinct receipt; reject stale findings |
+| `GET /api/organization-repairs` | Bounded query, limit, and offset | Derived alias, unit, and related candidates; zero mutation |
+| `POST /api/organization-repairs/{repair_id}` | Exact finding hash, typed action, reviewer, and idempotency key | Append-only organization merge, containment, typed relationship, or distinct receipt; reject stale findings |
 | `GET /api/identity-media/{handle}` | Authorized opaque handle and range | Bounded media bytes; never a raw path or unrestricted URL |
 
 The existing Authelia-protected dashboard route remains the sole initial

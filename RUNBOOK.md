@@ -1,5 +1,45 @@
 # Runbook
 
+## Turn 442: Close Plan 0084 person-name and organization reconciliation (2026-09-04)
+
+Summary: Closed
+`docs/dev/plans/0084-2026-09-04-person-name-and-organization-reconciliation.md`
+after installing the preferred/middle-name and organization reconciliation
+workflow without applying a live identity decision.
+
+Evidence:
+
+- The live Repairs mode now shows three organization decisions first, then 20
+  person decisions with `Chris Williams / R. Chris Williams` first. The three
+  organization rows independently offer Iowa State formal-name equivalence,
+  IPRT relatedness, and department containment.
+- Compatible preferred/middle-name and missing-initial shapes create review
+  candidates; conflicting initials do not. Explicit distinct decisions persist
+  through the immutable reconciliation ledger and suppress only an unchanged
+  evidence fingerprint.
+- Organization actions keep merge, unit-of, related, predecessor/successor,
+  and distinct semantics separate. Merge replay preserves aliases and retargets
+  sources, roles, activities, coverage, relationships, and child-unit parents.
+- The focused backend/API selection passed 96 tests; the provider-free suite
+  passed 1,305 tests in 97.67 seconds. Frontend tests passed eight, the
+  production build and Python compilation passed, and the planning audit and
+  diff hygiene were green.
+- The database backup is
+  `/home/ecochran76/.transcripts/backups/transcripts-pre-plan0084.sqlite3`.
+  The installed service is healthy at PID 26196 with `NRestarts=0`.
+- Agent Browser inspected the installed view at 1440 by 900 and 390 by 844.
+  Rows measure 31 pixels, seven headers expose sort state, eight separators
+  resize by pointer or keyboard, all 24 action buttons are SVG-only, and narrow
+  overflow stays inside the tables. The actionable-only toggle revealed 61
+  historical rows and hid them again. Console and page errors were empty, and
+  the isolated session was closed.
+- The identity ledger remained at 224 events across install and QA. No repair,
+  provider, mailbox, calendar, CRM, Graphiti, or other external write occurred.
+
+Progress classification: `outcome_progress`. Plan 0084 is `CLOSED`; the live
+queue is ready for the operator to review person-name and institutional graph
+decisions deliberately.
+
 ## Turn 441: Open Plan 0084 person-name and organization reconciliation (2026-09-04)
 
 Summary: Opened
