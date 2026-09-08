@@ -85,21 +85,22 @@ Read and follow:
 - `docs/dev/policies/0028-codegraph-usage.md`
 - `docs/dev/policies/0029-code-testing-discipline.md`
 - `docs/dev/policies/0030-planning-discipline.md`
-- `docs/dev/policies/0031-goal-execution-governance.md`
-- `docs/dev/policies/0032-parallel-plan-design.md`
-- `docs/dev/policies/0033-git-worktree-hygiene.md`
-- `docs/dev/policies/0034-commit-history-discipline.md`
-- `docs/dev/policies/0035-branch-and-integration-strategy.md`
-- `docs/dev/policies/0036-commit-and-push-cadence.md`
-- `docs/dev/policies/0037-multi-agent-reconciliation.md`
-- `docs/dev/policies/0038-subagent-workflow-optimization.md`
-- `docs/dev/policies/0039-versioning-and-release.md`
-- `docs/dev/policies/0040-turn-closeout.md`
-- `docs/dev/policies/0041-policy-harvest-loop.md`
-- `docs/dev/policies/0042-validation-and-handoff.md`
-- `docs/dev/policies/0043-subagent-runtime-governance.md`
-- `docs/dev/policies/0044-preview-artifact-review.md`
-- `docs/dev/policies/0045-active-lane-coordination.md`
+- `docs/dev/policies/0031-model-selection-and-calibration.md`
+- `docs/dev/policies/0032-goal-execution-governance.md`
+- `docs/dev/policies/0033-parallel-plan-design.md`
+- `docs/dev/policies/0034-git-worktree-hygiene.md`
+- `docs/dev/policies/0035-commit-history-discipline.md`
+- `docs/dev/policies/0036-branch-and-integration-strategy.md`
+- `docs/dev/policies/0037-commit-and-push-cadence.md`
+- `docs/dev/policies/0038-multi-agent-reconciliation.md`
+- `docs/dev/policies/0039-subagent-workflow-optimization.md`
+- `docs/dev/policies/0040-versioning-and-release.md`
+- `docs/dev/policies/0041-turn-closeout.md`
+- `docs/dev/policies/0042-policy-harvest-loop.md`
+- `docs/dev/policies/0043-validation-and-handoff.md`
+- `docs/dev/policies/0044-subagent-runtime-governance.md`
+- `docs/dev/policies/0045-preview-artifact-review.md`
+- `docs/dev/policies/0046-active-lane-coordination.md`
 
 ## Graphiti Memory Discovery
 - Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.
