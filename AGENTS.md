@@ -78,6 +78,30 @@ Read and follow:
 - `docs/dev/policies/0021-preview-artifact-review.md`
 - `docs/dev/policies/0022-code-testing-discipline.md`
 - `docs/dev/policies/0023-model-selection-and-calibration.md`
+- `docs/dev/policies/0024-policy-management.md`
+- `docs/dev/policies/0025-policy-upgrade-management.md`
+- `docs/dev/policies/0026-policy-adoption-feedback-loop.md`
+- `docs/dev/policies/0027-notes-and-memories.md`
+- `docs/dev/policies/0028-graph-backed-memory-usage.md`
+- `docs/dev/policies/0029-codegraph-usage.md`
+- `docs/dev/policies/0030-code-testing-discipline.md`
+- `docs/dev/policies/0031-planning-discipline.md`
+- `docs/dev/policies/0032-model-selection-and-calibration.md`
+- `docs/dev/policies/0033-goal-execution-governance.md`
+- `docs/dev/policies/0034-parallel-plan-design.md`
+- `docs/dev/policies/0035-git-worktree-hygiene.md`
+- `docs/dev/policies/0036-commit-history-discipline.md`
+- `docs/dev/policies/0037-branch-and-integration-strategy.md`
+- `docs/dev/policies/0038-commit-and-push-cadence.md`
+- `docs/dev/policies/0039-multi-agent-reconciliation.md`
+- `docs/dev/policies/0040-subagent-workflow-optimization.md`
+- `docs/dev/policies/0041-versioning-and-release.md`
+- `docs/dev/policies/0042-turn-closeout.md`
+- `docs/dev/policies/0043-policy-harvest-loop.md`
+- `docs/dev/policies/0044-validation-and-handoff.md`
+- `docs/dev/policies/0045-subagent-runtime-governance.md`
+- `docs/dev/policies/0046-preview-artifact-review.md`
+- `docs/dev/policies/0047-active-lane-coordination.md`
 
 ## Graphiti Memory Discovery
 - Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.
