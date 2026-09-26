@@ -79,6 +79,8 @@ Read and follow:
 - `docs/dev/policies/0022-code-testing-discipline.md`
 - `docs/dev/policies/0023-model-selection-and-calibration.md`
 - `docs/dev/policies/0024-work-item-traceability.md`
+- `docs/dev/policies/0025-forge-issue-reporting.md`
+- `docs/dev/policies/0026-github-issue-operations.md`
 
 ## Graphiti Memory Discovery
 - Use the `graphiti-discovery` skill at the start of non-trivial planning, debugging, architecture, routing, memory, or handoff work.
