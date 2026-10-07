@@ -11,6 +11,10 @@ tags:
 
 ## Policy
 
+- Default to one agent. When authorized independent work benefits from
+  delegation, send a small task/evidence packet to a fresh context and request
+  compact results; full-history forks require a concrete continuity need.
+
 - Delegate only concrete, bounded subtasks that materially advance the active slice.
 - At the start of non-trivial work and after material replanning, consider
   whether delegation would create a genuinely useful independent lane. This is

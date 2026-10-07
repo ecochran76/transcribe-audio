@@ -32,6 +32,42 @@ tags:
 - When a suite exceeds its local budget, profile before changing the gate. Prefer cheaper seams, shared-fixture optimization without weakened isolation, case consolidation, tier correction, trustworthy selection, caching on declared inputs, or duration-aware sharding. Raising a budget requires an explicit risk/economics decision and a follow-up date.
 - Record exactly which tier, selection, environment, retries, shards, and exclusions ran. Validation claims must distinguish `focused`, `presubmit`, `comprehensive`, and `live_or_soak`, and must report any budget breach, flake, quarantine, or unexecuted risk.
 
+## Implementation And Diagnosis Workflow
+
+- Prefer the Matt Pocock `tdd` skill for behavior-changing implementation where
+  a stable test seam exists. Name the observable behavior and seam, then work
+  vertically: one failing test, the smallest implementation that passes, then
+  the next behavior. Observe red before green; retain the exact commands and
+  outcomes. Avoid batches of speculative tests followed by bulk implementation.
+- Test behavior through the module's public interface with expectations from
+  the specification, worked examples, or known-good fixtures. Avoid assertions
+  that recompute the implementation, reach through private collaborators, or
+  use side channels that miss the caller's actual behavior. Use the existing
+  harness and consult `codebase-design` when the seam itself needs design.
+- For hard bugs and performance regressions, prefer `diagnosing-bugs`: first
+  build and run a tight feedback loop that detects the reported symptom, then
+  minimize the reproducer before ranking falsifiable hypotheses. Test one
+  prediction at a time; measure performance before changing it. Bound probes
+  and stress to existing budgets and authority. If a trustworthy loop cannot
+  be built, report the tried probes and exact missing evidence instead of
+  treating an untested theory as diagnosis.
+- Convert the minimal reproducer into a regression at a valid seam before the
+  fix, then rerun the original scenario after the fix. Record a missing seam as
+  an unprotected risk; preserve first failures and remove temporary diagnostic
+  instrumentation before closeout. Keep structural refactoring in a separate
+  bounded review/remediation step after green; do not expand the red/green
+  cycle into unrelated cleanup. Trivial reversible edits need no new tests
+  when they introduce no consequential behavior risk.
+
+## Long Runs And Agent Suspension
+
+- For long tests, CI, or builds that need no active intervention, prefer a durable background run and Codex Wake (or an equivalent verified resume mechanism). Once the run and wake are established, save a checkpoint and end the active turn instead of repeatedly polling, sleeping in the foreground, or ingesting full output merely to wait.
+- Before yielding, record the exact command, repository/worktree and revision or dirty-state locator, tier and selection, environment, run/job identity, log and result paths, wake id and trigger, and next action. The job must survive the turn ending and preserve its exit status and full output outside model context. Use a unique completion artifact per run, written only after results are saved, or an exact CI run identity; a stale marker or vanished process is not passing evidence.
+- Verify the actual resume target and persistent monitor/dispatcher readiness using the installed wake skill. Require monitor-backed scheduling for unattended wakes and inspect registration before yielding. Prefer a completion trigger; use a bounded timed status check when completion cannot be observed directly. If reliable delivery is unavailable, retain bounded foreground supervision or report the exact blocker; do not claim an unattended continuation is armed.
+- On wake, first reconcile the checkpoint, current revision, exact run, and whether the task is already complete. Inspect terminal status, exit code, and a compact result summary, then read only relevant failure excerpts or artifact sections. Retain full logs for deeper diagnosis without automatically loading them into context. If the run is still active, re-arm a bounded wake rather than starting a duplicate job.
+- When a useful wake type is missing, verify the gap against the installed skill and command capabilities, then suggest a Codex Wake feature with the concrete waiting workflow, desired trigger and completion evidence, exact run/target identity, and why supported triggers are insufficient or costly. Distinguish a missing feature from an unhealthy monitor or configuration gap. Continue authorized work with the best supported bounded fallback and state its limitation; keep the suggestion actionable in the handoff or closeout. Creating an external issue or implementing the feature follows the task's existing authority and scope.
+- Suspension does not relax test selection, resource budgets, retry discipline, effect authority, or acceptance gates. Report the run as pending until its result is verified; a registered or delivered wake proves neither test completion nor a pass. Keep short feedback checks and jobs requiring active intervention in the foreground.
+
 ## Adoption Notes
 
 Each adopting repo should define a local test-suite contract with concrete values for:
@@ -45,3 +81,5 @@ Each adopting repo should define a local test-suite contract with concrete value
 - `retry_result_mode`
 
 Keep exact commands, marker names, CI job names, hardware assumptions, provider gates, and risk-specific test inventories repo-local.
+Document the local long-run launcher, durable artifact location, supported wake
+transport, and checkpoint/resume procedure when asynchronous validation is used.

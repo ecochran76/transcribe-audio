@@ -11,6 +11,12 @@ tags:
 
 ## Policy
 
+- Return compact tool summaries with status, counts, changed identifiers,
+  failures, and artifact locators; preserve full evidence outside model context.
+  Read excerpts needed for a concrete decision. Reuse verified receipts while
+  their commit/source hashes, configuration, environment, and freshness conditions
+  remain current; recheck invalidated conditions rather than repeat all work.
+
 - Run the relevant validation for the touched surface before commit, handoff, or merge preparation.
 - Prefer targeted verification that matches the changed area, and widen to broader suites when the impact is user-visible or cross-cutting.
 - Include concrete pass/fail evidence in the handoff or closeout note.
@@ -73,6 +79,28 @@ tags:
 - Treat fail-closed gates as successful policy execution when they prevent an
   unsafe or disproven change from integrating. Report the blocked outcome and
   evidence instead of grading effectiveness only by shipped changes.
+
+## Review And Delivery Workflow
+
+- Prefer the Matt Pocock `code-review` workflow when reviewing changes. Pin
+  the comparison ref or exact working-tree patch and name the governing spec
+  and standards before reviewing. Report Standards and Spec independently;
+  say when a spec is unavailable rather than inventing one. Treat code smells
+  as judgment calls subordinate to documented repo standards, and retain
+  primary-agent adjudication and existing review bounds.
+- Separate review-driven structural refactoring from the implementation
+  red/green loop. Remediate accepted findings in a bounded step and rerun the
+  affected behavior checks; optional cleanup must not silently widen scope.
+- Prefer `research` for evidence gaps requiring investigation: define the
+  question, primary-source classes, artifact location, and stopping condition
+  before reading; capture bounded findings and source links in the repo's
+  existing notes convention. Missing delegation authority does not block
+  primary-agent research.
+- Prefer `pr` for reviewer-facing descriptions. Follow the repo template and
+  explain the concrete problem, resulting behavior, observed validation, and
+  material risk. Use captured before/after evidence when available, scale
+  detail to the change, and never substitute a diagram or claimed test result
+  for observed proof. Writing a description does not authorize publishing it.
 
 ## Adoption Notes
 

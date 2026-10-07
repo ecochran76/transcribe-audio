@@ -50,6 +50,16 @@ tags:
   for compact startup guidance, and graph memory useful for source-linked
   temporal facts and relationships. Preserve contradictions and correction
   history rather than silently replacing evidence.
+- Judge admission by durability and future retrieval value, not by whether the
+  outcome already has an authoritative repo record. A canonical source artifact is expected provenance
+  for a source-anchored memory; its existence is not by itself a reason to select `not_durable`.
+  Use `duplicate_noop` only when exact
+  reconciliation proves the same memory effect already exists.
+- Keep semantic qualification separate from effect authority. When an outcome
+  is durable and qualified but the current task or packet explicitly prohibits
+  a memory write, select `forbidden` and name that boundary. Do not relabel the
+  outcome `not_durable`, and do not backfill it later without a new qualified
+  and authorized closeout.
 - At substantive closeout, record exactly one memory disposition: `queued`,
   `duplicate_noop`, `not_durable`, `forbidden`, or `unavailable`. Explain a
   non-write disposition; do not treat silence as a decision.
@@ -58,6 +68,10 @@ tags:
   warnings, and job or episode identity, without copying the memory body.
   Ordinary closeout may proceed after submission. Require terminal persistence
   and readback only when the workflow explicitly needs read-after-write proof.
+- Use the receipt-producing singleton path named by repo-local policy for
+  qualified closeout writes. An unreceipted direct job is an observability failure
+  even when it completes; do not reconstruct synthetic provenance or
+  infer its missing closeout eligibility after the fact.
 - Reconcile queued writes before a related write or when later work needs the
   memory. After an ambiguous submission response, reconcile the recorded job
   or exact source metadata before retrying. Size warnings require smaller

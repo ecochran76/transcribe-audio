@@ -2,6 +2,12 @@
 
 ## Policy
 
+- Give each investigation a discovery-call and returned-byte budget proportional
+  to its question. Start with one focused graph query and one relevant source
+  lookup, expanding for named unresolved questions. Prefer relevant diffs,
+  functions, and failure excerpts; checkpoint when further reading stops changing
+  the decision. Keep required evidence and source-change reread triggers intact.
+
 - Adopt bounded planning discipline in every repo, with ceremony proportional
   to the work. Trivial one-step tasks do not need a plan artifact; substantive,
   multi-file, multi-step, risky, or resumable work does.
@@ -84,6 +90,29 @@
   forced audits, and do not let one accepted finding suppress a new one.
 - Absence of a plans directory is not itself an active-scope defect. Continue
   to require the configured directory during full or forced structural audits.
+
+## Engineering Workflow Routing
+
+- For engineering work, prefer the available `mattpocock-skills` workflows at
+  the matching task stage. Read the relevant skill before using its procedure;
+  load only the skills needed for the current packet. Use the installed or
+  repo-configured equivalent names when catalog names differ.
+- Route behavior-changing implementation and regression work to `tdd`, hard
+  bugs and performance regressions to `diagnosing-bugs`, interface/seam design
+  to `codebase-design`, and changes to domain terms or relationships to
+  `domain-modeling`. Route bounded primary-source investigation to `research`,
+  change review to `code-review`, and PR descriptions to `pr`.
+- Keep policy responsible for outcomes, evidence, budgets, and authority;
+  skills supply the detailed procedure. If a skill is unavailable, use the
+  applicable policy's behavior and evidence contract and record the limitation
+  when it affects the result. Do not make optional installation a blocker.
+- Use the repository's configured domain glossary and decision records. Read
+  existing glossary/context maps before choosing terms; reconcile conflicting
+  authorities instead of creating a competing glossary. Capture resolved terms
+  in that authority and reserve ADRs for consequential, surprising tradeoffs.
+- Skill routing does not authorize delegation, external effects, broader
+  refactoring, or renewed approval gates. Keep routine choices within existing
+  authority and retain proportional ceremony for trivial work.
 
 ## Adoption Notes
 

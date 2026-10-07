@@ -51,6 +51,18 @@ method, prove token savings, or authorize fleet rollout.
   stale, invalid, or out-of-scope result, read the canonical fallback files.
 - Preserve ordinary direct Markdown reading throughout the pilot. The MCP must
   not become the only path to repository governance.
+- On first use or after context loss, request `include_source_text:true` and
+  consume every selected canonical section. A compact decision packet is not
+  proof that the agent knows omitted policy text; saving unread text in a file
+  does not satisfy loading.
+- Reuse an exact consumed packet only while its source hashes, profile, task
+  scope, configuration and action facts remain current. When the installed
+  tool supports `known_decision_digest`, use it for a freshness check only with
+  that packet retained. An unchanged digest cannot restore lost context.
+- Review implementation and investigation profiles separately. Bind the
+  repository entrypoint to the selected source identity, preserve conditional
+  obligations, and load additional canonical policies when scope expands.
+  Never copy another repository's policy ordinals or applicability choices.
 - Refresh hashes only after reviewing the canonical policy change. Treat
   profile scope, section selection, task kinds, and reread triggers as
   reviewable policy decisions rather than mechanical manifest maintenance.
