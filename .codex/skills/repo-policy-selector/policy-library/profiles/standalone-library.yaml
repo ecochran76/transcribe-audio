@@ -7,7 +7,6 @@ modules:
   - policy-adoption-feedback-loop
   - graph-backed-memory-usage
   - planning-discipline
-  - work-item-traceability
   - model-selection-and-calibration
   - codegraph-usage
   - code-testing-discipline

@@ -10,7 +10,6 @@ modules:
   - codegraph-usage
   - code-testing-discipline
   - planning-discipline
-  - work-item-traceability
   - model-selection-and-calibration
   - goal-execution-governance
   - parallel-plan-design
