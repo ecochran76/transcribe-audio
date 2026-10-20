@@ -484,14 +484,15 @@ class SelectPolicyRegressionTests(unittest.TestCase):
             modules = self.select_policy.base_modules_for_profile(profile_id, installed_library)
             self.assertNotIn("active-lane-coordination", modules, profile_id)
 
-    def test_work_item_traceability_defaults_to_complex_profiles(self):
+    def test_work_item_traceability_defaults_to_software_profiles(self):
         installed_library = self.select_policy.enumerate_policy_library(self.policy_root)
-        for profile_id in ["repo-product-engineering", "operations-platform"]:
+        for profile_id in ["repo-product-engineering", "operations-platform",
+                           "standalone-library", "skill-repo-maintainer",
+                           "seminal-workspace", "website-maintenance"]:
             modules = self.select_policy.base_modules_for_profile(profile_id, installed_library)
             self.assertIn("work-item-traceability", modules, profile_id)
-        for profile_id in ["writing-project", "standalone-library"]:
-            modules = self.select_policy.base_modules_for_profile(profile_id, installed_library)
-            self.assertNotIn("work-item-traceability", modules, profile_id)
+        modules = self.select_policy.base_modules_for_profile("writing-project", installed_library)
+        self.assertNotIn("work-item-traceability", modules)
 
     def test_issue_tracking_language_selects_work_item_traceability(self):
         repo_root = self.make_repo(
@@ -890,7 +891,7 @@ class SelectPolicyRegressionTests(unittest.TestCase):
         self.assertTrue(pilot_signals["mentions_policy_context_pilot"])
         self.assertIn("policy-context-pilot", pilot_modules, reasons)
 
-    def test_policy_context_pilot_metadata_is_machine_readable_and_not_default(self):
+    def test_policy_context_standard_metadata_preserves_configured_adoption(self):
         installed_library = self.select_policy.enumerate_policy_library(self.policy_root)
         module = installed_library["parsed_modules"]["policy-context-pilot"]
         catalog_entry = next(
@@ -898,10 +899,10 @@ class SelectPolicyRegressionTests(unittest.TestCase):
             if item["id"] == "policy-context-pilot"
         )
 
-        self.assertEqual(module["category"], "pilots")
-        self.assertEqual(module["status"], "pilot")
-        self.assertEqual(catalog_entry["category"], "pilots")
-        self.assertEqual(catalog_entry["status"], "pilot")
+        self.assertEqual(module["category"], "governance")
+        self.assertEqual(module["status"], "standard")
+        self.assertEqual(catalog_entry["category"], "governance")
+        self.assertEqual(catalog_entry["status"], "standard")
         for profile_id, profile in installed_library["parsed_profiles"].items():
             self.assertNotIn("policy-context-pilot", profile.get("modules", []), profile_id)
 

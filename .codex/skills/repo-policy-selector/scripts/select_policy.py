@@ -2310,7 +2310,7 @@ def choose_profile(signals: dict, installed_library: dict[str, Any]) -> tuple[st
         reasons.append("repo language suggests reusable policy harvesting")
     if signals["mentions_policy_context_pilot"] and "policy-context-pilot" not in modules:
         modules.append("policy-context-pilot")
-        reasons.append("repo has an explicit policy-context manifest or gov_policy pilot wiring")
+        reasons.append("repo has an explicit policy-context manifest or gov_policy wiring")
     if signals["mentions_git_policy"]:
         for module_id in (
             "git-worktree-hygiene",

@@ -18,13 +18,17 @@ The adopted repo-local policy should live under `docs/dev/policies/` and be wire
 Modules may declare optional `category` and `status` fields in both module
 frontmatter and the catalog. The initial lifecycle vocabulary is:
 
-- `category: pilots`
-- `status: pilot`
+- `category: pilots` or `governance`
+- `status: pilot` or `standard`
 
 A pilot module is opt-in and must not appear in a starter profile unless a
 later evidence-backed review promotes it. Selector logic may recommend a pilot
 only from narrow, affirmative repository signals. Pilot policy must define its
 validation, measurement, fallback, and removal conditions.
+
+`policy-context-pilot` is now standard governance; its legacy ID is stable for
+upgrades. Apply it to configured policy-context MCP repositories. Standard
+status does not imply every repository has a configured service.
 
 ## Repo Purpose And Workflow Subtype
 

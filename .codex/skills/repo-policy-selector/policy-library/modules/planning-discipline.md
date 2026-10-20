@@ -11,6 +11,19 @@ tags:
 
 ## Policy
 
+- Start substantive engineering work from a ticket under
+  `work-item-traceability`. Keep outcome and acceptance there; link a bounded
+  execution plan when complexity or continuity requires it. One artifact may
+  serve both roles. Deliver the smallest useful vertical slice before widening
+  scope. Supporting tooling and documentation must advance a named criterion
+  or remove an evidenced blocker.
+
+- Maintain one compact working state with unresolved decisions, current
+  evidence locators, and the next bounded action. Update changes at material
+  boundaries. Reuse settled decisions and unchanged evidence; reopen them only
+  for new evidence, changed scope, or an applicable freshness trigger. Keep
+  detailed history in canonical artifacts and read the needed excerpt.
+
 - Give each investigation a discovery-call and returned-byte budget proportional
   to its question. Start with one focused graph query and one relevant source
   lookup, expanding for named unresolved questions. Prefer relevant diffs,

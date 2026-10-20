@@ -25,8 +25,8 @@ tags:
 - Fail closed when resource separation cannot be proved. Do not inherit
   production credentials, schedules, browser profiles, writable data, or other
   effect-bearing state into a development runtime merely for convenience.
-- Prefer provider-free fixtures and disposable development data for ordinary
-  validation. Treat authenticated provider calls, browser sessions, shared
+- Validate the ticket’s product behavior in an isolated development runtime
+  with minimal disposable data. Treat authenticated provider calls, browser sessions, shared
   hardware, rate limits, and other singleton resources as serialized unless an
   explicit operating contract proves independent identities and effect
   boundaries.

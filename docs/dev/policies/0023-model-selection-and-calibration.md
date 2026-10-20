@@ -2,6 +2,13 @@
 
 ## Policy
 
+- Compare cumulative consumption with accepted milestone progress at the
+  existing checkpoint. If reasoning or context delivery repeats a settled
+  decision without new evidence, retain its conclusion and proceed to the
+  unresolved question. Reduce context and change tactics when consumption
+  grows without progress; further narration is not remediation. Report usage
+  attribution as unknown when the available meter cannot separate causes.
+
 - Select model, reasoning effort, context scope, and delegation topology together to minimize total allocation consumed per accepted milestone while meeting required correctness, safety, and delivery-time constraints. Count orchestration, workers, failed attempts, evaluation, repair, and integration. Treat token counts and API-price estimates as labeled proxies when measured allocation is unavailable.
 - Define the milestone before routing substantial work. It must describe usable behavior at its intended integration boundary and a stable acceptance check. Worker completion, prerequisite repair, passing unrelated tests, and document volume do not establish milestone completion.
 - Keep a dated repo-local mapping from task tiers to available model and reasoning configurations. Start routine work on the calibrated economical default; use a cheaper tier for mechanical, readily verified work; route material policy design, architectural tradeoffs, or difficult consequential reasoning directly to a designated specialist tier when justified. Select reasoning effort separately. Model novelty and task length alone do not justify an upgrade.

@@ -1,114 +1,46 @@
 ---
 id: policy-context-pilot
-title: Policy Context Pilot
-summary: Pilot structured, scoped policy reads through a governance MCP while canonical Markdown remains authoritative and direct reads remain a tested fallback.
-category: pilots
-status: pilot
-tags: [pilots, policy, mcp, context, measurement]
+title: Policy Context MCP
+summary: Load current canonical policy through checked MCP profiles with direct Markdown fallback.
+category: governance
+status: standard
+tags: [policy, mcp, context]
 ---
-
-## Pilot Status
-
-This module governs an opt-in experiment. Selection means the repository is a
-candidate for a bounded pilot; it does not establish a default policy-loading
-method, prove token savings, or authorize fleet rollout.
 
 ## Policy
 
-- Keep canonical repository policy in human-readable Markdown. Treat a policy
-  context manifest, compiled response, cache, capsule, or MCP output as a
-  derived read surface.
-- Start with one repository, one declared policy profile, and a small set of
-  explicit task kinds. Do not infer applicability from free-form task text in
-  the first pilot.
-- Keep a complete inventory of policy-bearing files in the pilot manifest,
-  including the repository policy entrypoint. Record content hashes for the
-  declared canonical sources.
-- For each profile, declare exact source sections, supported task kinds, scope,
-  reread triggers, canonical fallback paths, and a versioned decision packet.
-  The packet must declare cited required gates, prohibited effects, approval
-  requirements, validation requirements, receipt requirements, precedence, and
-  unresolved conflicts. The tool may address document structure internally;
-  agents should request the profile and task kind rather than line numbers.
-- Assemble policy context from current canonical sections at read time. Return
-  source paths, hashes, cited obligations, a stable policy digest, and a
-  decision digest. Keep section text out of the default compact result and
-  hydrate it only on explicit request.
-- Keep current-action facts separate from canonical policy. Accept only bounded
-  caller-supplied facts with an ID, kind, statement, and source; echo them in
-  the packet and never infer user authorization, requested effects, lineage,
-  exclusions, rollback requirements, or runtime observations from static
-  policy.
-- Return unresolved conflicts explicitly. Reject unknown obligation or citation
-  references and any manifest that claims a conflict resolution outside the
-  reviewed precedence declarations.
-- Fail closed without policy text when a source is missing or changed, the
-  inventory differs, a selector is invalid, the profile is unknown, or the
-  task kind is outside the declared scope. Direct the agent to the named
-  canonical fallback paths.
-- Wire `AGENTS.md` with a precise trigger: for a supported task, call
-  `gov_policy` once with the declared profile and task kind; on any unavailable,
-  stale, invalid, or out-of-scope result, read the canonical fallback files.
-- Preserve ordinary direct Markdown reading throughout the pilot. The MCP must
-  not become the only path to repository governance.
-- On first use or after context loss, request `include_source_text:true` and
-  consume every selected canonical section. A compact decision packet is not
-  proof that the agent knows omitted policy text; saving unread text in a file
-  does not satisfy loading.
-- Reuse an exact consumed packet only while its source hashes, profile, task
-  scope, configuration and action facts remain current. When the installed
-  tool supports `known_decision_digest`, use it for a freshness check only with
-  that packet retained. An unchanged digest cannot restore lost context.
-- Review implementation and investigation profiles separately. Bind the
-  repository entrypoint to the selected source identity, preserve conditional
-  obligations, and load additional canonical policies when scope expands.
-  Never copy another repository's policy ordinals or applicability choices.
-- Refresh hashes only after reviewing the canonical policy change. Treat
-  profile scope, section selection, task kinds, and reread triggers as
-  reviewable policy decisions rather than mechanical manifest maintenance.
-
-## Pilot Validation
-
-- Run a fail-closed availability preflight before admitting a repository to a
-  real task. Persist a receipt proving the intended installed version, exact
-  registered root and required includes, fresh-session `gov_policy` discovery,
-  a current profile result, and readable canonical fallback. Selector
-  installation or an `AGENTS.md` pointer alone is not availability evidence.
-- Before real work, exercise four deterministic cases: current profile, changed
-  source, missing or added policy file, and out-of-scope task kind.
-- Run at least one fresh-host task through the MCP path and verify the resulting
-  action or edit against the canonical policy. Record tool calls and whether a
-  canonical fallback occurred.
-- Compare representative ordinary tasks in paired conditions: direct canonical
-  reads and the policy-context path. Hold the task, host configuration, policy
-  revision, and correctness criteria stable where practical.
-- Record total host input, cached input when available, output, tool calls,
-  serialized policy bytes, fallback frequency, latency, and correctness. Do not
-  use response byte count alone as a token-efficiency result.
-- Record startup policy and skill context separately when it dominates total
-  usage. Report inconclusive measurements as inconclusive.
-
-## Adoption And Exit
-
-- Record the installed governance-context version or immutable ref, manifest
-  version, selected profile, task kinds, canonical sources, host-registration
-  and discovery receipt, validation receipt, and pilot owner in a dated
-  repository note.
-- Continue only when the repository shows equal policy correctness and a useful
-  reduction in total context cost or operational friction for its measured
-  tasks. Narrow or revise the pilot when fallback frequency or maintenance cost
-  erases the benefit.
-- Remove the pilot when it produces stale guidance, obscures authority, cannot
-  be measured, or adds more context than direct reads. Removal includes the
-  `AGENTS.md` trigger, MCP configuration, and manifest; canonical policies stay
-  in place and direct reads must still work.
-- Treat wider adoption, default-profile inclusion, and savings claims as later
-  decisions supported by evidence from more than one suitable repository.
+- Use `gov_policy` as the standard policy-loading path when the repository has
+  a reviewed manifest and a working MCP registration. Otherwise read canonical
+  Markdown directly and continue within the same authority.
+- Keep Markdown authoritative. The manifest inventories policy-bearing files,
+  including AGENTS, with source hashes. Each profile declares supported task
+  kinds, exact source sections, scope, reread triggers, fallback paths, and a
+  versioned packet with cited obligations, precedence and unresolved conflicts.
+- On first use and after context loss, pass `include_source_text:true` and
+  consume the selected sections. Saving unread text or reading only a compact
+  packet does not establish policy knowledge.
+- Reuse a consumed packet only while sources, inventory, configuration, scope
+  and action facts remain current. Use `known_decision_digest` only with that
+  exact packet retained; a freshness response cannot restore lost context.
+- On unavailable, stale, invalid, conflicted or out-of-scope results, read the
+  named canonical fallback and any additional task-triggered policies. Never
+  treat a partial packet as complete governance.
+- Keep caller-supplied authorization, requested effects, lineage, exclusions,
+  rollback requirements and runtime facts attributable and separate from policy.
+  The tool must not infer effect authority from static text.
+- Review applicability before rebuilding hashes or changing profile selections.
+  Include every task-triggered obligation; another repository's ordinals are
+  not a portable profile. Source changes invalidate existing admission.
+- Before first use or after registration changes, verify installed identity,
+  root, includes, fresh-session discovery, a current hydrated profile and
+  readable fallback. Check source drift, inventory drift and unsupported tasks
+  fail closed. Preserve the existing validation receipts; do not repeat an
+  experiment on every task.
+- Maintain direct Markdown access. Standard operating status does not establish
+  token savings or downstream adoption; measure those claims separately.
 
 ## Adoption Notes
 
-Use this module as a custom composition when the target repository already has
-or explicitly requests a policy-context MCP pilot, such as a
-`.governance/policy-context.json` manifest or `gov_policy` loading rule. Do not
-add it merely because a repository uses MCP tools, has large policy files, or
-wants general token efficiency.
+The legacy module ID `policy-context-pilot` is retained for upgrade compatibility.
+Adopt this standard wherever reviewed policy-context MCP wiring is configured;
+ordinary MCP use alone does not establish a policy manifest or registration.

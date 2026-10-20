@@ -10,6 +10,11 @@ tags:
 
 ## Policy
 
+- Fund closeout from the goal's reserved resource capacity. Save one concise
+  recoverable checkpoint and reference existing validation and history instead
+  of reproducing them. Report the measured final usage and any ceiling breach;
+  a stop announcement alone does not prove that execution stopped in budget.
+
 - End-of-turn closeout should default to a best recommendation.
 - Alternate closeout modes should be explicit and limited, for example:
   - plan or audit

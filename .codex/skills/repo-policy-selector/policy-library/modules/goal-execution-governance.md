@@ -12,6 +12,19 @@ tags:
 
 ## Policy
 
+- Treat user resource ceilings as cumulative hard limits covering reasoning,
+  tools, workers, validation, documentation, and closeout. Before execution,
+  reserve capacity for a minimal recoverable checkpoint and define an earlier
+  implementation stop threshold. Check the available meter before each bounded
+  work unit and after expensive operations; start a unit only when its bounded
+  cost plus the closeout reserve fits. When usage is unavailable or delayed,
+  use a conservative observable work/time bound and report the uncertainty.
+- At the implementation stop threshold, save the smallest recoverable state
+  and end execution within the user ceiling. Defer optional review, broader
+  tests, publication, and extended handoff writing when they would consume
+  the reserve. Resource exhaustion overrides automatic continuation; resuming
+  or renaming a packet does not renew a user ceiling without user authority.
+
 - Apply this policy when autonomous work is expected to span multiple bounded
   slices, context windows, sessions, or human/runtime gates.
 - Preserve the user-approved objective as the stable goal contract. Do not

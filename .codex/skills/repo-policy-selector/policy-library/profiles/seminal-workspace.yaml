@@ -8,6 +8,7 @@ modules:
   - notes-and-memories
   - graph-backed-memory-usage
   - planning-discipline
+  - work-item-traceability
   - model-selection-and-calibration
   - seminal-workspace-evolution
   - documentation-change-control

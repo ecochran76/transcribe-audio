@@ -12,6 +12,12 @@ tags:
 
 ## Policy
 
+- Product behavior is the goal. Add tests only for a named acceptance criterion
+  or consequential regression risk. Do not create fixture projects, mock
+  frameworks, synthetic coverage, or test-only deliverables as progress.
+  Use minimal test data only as needed to exercise the real public interface.
+  Passing isolated tests does not prove provider or installed-runtime behavior.
+
 - Treat tests as maintained product assets with both protective value and lifecycle cost. Test count, assertion count, and raw coverage percentage are not success metrics by themselves.
 - Name the invariant or failure risk before adding a test. Place it at the cheapest layer that can prove it reliably: prefer a focused unit or contract test, use a narrow integration test for boundary behavior, and reserve end-to-end, live, soak, and exhaustive tests for risks that cheaper layers cannot establish.
 - Before adding a regression test, inspect existing coverage for the invariant. Demonstrate that the new or changed test detects the defect before the fix when practical, then passes after the fix. Consolidate overlapping cases instead of accumulating historical duplicates.
@@ -29,7 +35,7 @@ tags:
 - Quarantine a flaky test only with an owner, reason, issue or locator, quarantine date, expiry or service-level target, and replacement blocking coverage when the risk requires it. Repair, redesign, or remove quarantined tests promptly; quarantine is not permanent storage.
 - Review expensive, redundant, obsolete, and low-yield tests on a recurring cadence. Every retained expensive test should protect a distinct named risk. Consolidation or deletion requires a retained-risk mapping and validation that the surviving suite still proves the intended contract.
 - Use coverage to locate consequential gaps, not to chase a universal percentage. Prefer behavior, branch-risk, contract, and selectively applied mutation evidence over copy-pasted tests that only increase coverage.
-- When a suite exceeds its local budget, profile before changing the gate. Prefer cheaper seams, shared-fixture optimization without weakened isolation, case consolidation, tier correction, trustworthy selection, caching on declared inputs, or duration-aware sharding. Raising a budget requires an explicit risk/economics decision and a follow-up date.
+- When a suite exceeds its local budget, profile before changing the gate. Prefer cheaper seams, reduced setup cost without weakened isolation, case consolidation, tier correction, trustworthy selection, caching on declared inputs, or duration-aware sharding. Raising a budget requires an explicit risk/economics decision and a follow-up date.
 - Record exactly which tier, selection, environment, retries, shards, and exclusions ran. Validation claims must distinguish `focused`, `presubmit`, `comprehensive`, and `live_or_soak`, and must report any budget breach, flake, quarantine, or unexecuted risk.
 
 ## Implementation And Diagnosis Workflow
@@ -40,7 +46,7 @@ tags:
   the next behavior. Observe red before green; retain the exact commands and
   outcomes. Avoid batches of speculative tests followed by bulk implementation.
 - Test behavior through the module's public interface with expectations from
-  the specification, worked examples, or known-good fixtures. Avoid assertions
+  the specification or independently worked examples. Avoid assertions
   that recompute the implementation, reach through private collaborators, or
   use side channels that miss the caller's actual behavior. Use the existing
   harness and consult `codebase-design` when the seam itself needs design.
