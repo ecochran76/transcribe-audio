@@ -1040,3 +1040,12 @@ git checkout legacy-whisper-pipeline
 ```
 
 That tag preserves the diarization + LLM summarization tooling that previously lived in this repository.
+
+### Reviewed speaker enrollment integration
+
+The optional [scoped speaker enrollment process](docs/speaker-enrollment-process.md)
+accepts explicitly reviewed new samples in a dedicated tenant custody directory.
+It reuses pinned verification adapters and private immutable biometric custody;
+process readiness and structural profile checks do not establish calibrated
+recognition quality or installed enrollment authority. Existing campaign grants
+and private corpora are never inherited by this integration.

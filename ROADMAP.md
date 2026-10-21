@@ -1370,3 +1370,13 @@ Definition of Done:
   idempotent, and independently auditable.
 - An unseen evaluation records a terminal decision before the acoustic path
   becomes default or automatic speaker confirmation is reconsidered.
+
+## Scoped speaker enrollment process integration
+
+[Plan 0085](docs/dev/plans/0085-2026-10-21-scoped-speaker-enrollment-process-bridge.md) adds a separate, scoped process boundary for explicitly reviewed newly curated Speech Receipts samples. It reuses private biometric custody and pinned adapters, without reusing campaign authority or changing live stores. Target maturity is Level 1 source integration for vision outcomes 3, 6, 7 and 8; real enrollment, calibrated recognition and installed operation remain separate.
+
+Plan 0085 is source-accepted and closed: 77 joined contract/custody/verification tests pass. Installed model readiness, explicit reviewed enrollment mappings, real enrollment and calibrated recognition remain separate from this Level 1 bridge.
+
+## Scoped speaker comparison source integration
+
+[Plan 0086](docs/dev/plans/0086-2026-10-21-scoped-speaker-comparison-process.md) adds a read-side process boundary for Speech Receipts #37. One hash-bound probe can produce explicitly uncalibrated cosine evidence against exact current reviewed profile heads. Joined comparison/enrollment/custody/verification validation passes 90 tests. This is Level 1 source integration for vision outcomes 3, 6 and 8; no identity assignment, campaign authority reuse, real-model qualification or installed runtime effect is implied.

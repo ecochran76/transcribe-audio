@@ -18030,3 +18030,15 @@ Next:
 - Add read-only API support for review queue manifests under
   `~/.local/state/transcribe-audio/`, then replace the frontend's hard-coded
   queue summary with live review queue data.
+
+## 2026-10-21 | Scoped enrollment bridge source packet
+
+Opened Plan 0085 under the user's Speech Receipts qualification/unblock request. This is additive source work with isolated synthetic validation: dedicated custody, reviewed enrollment authority, pinned adapters and durable operation handling. No campaign authority, private corpus, real enrollment or shared runtime change is included.
+
+### 2026-10-21 | Plan 0085 source acceptance
+
+Closed the additive scoped enrollment process bridge packet. Joined new-contract/custody/verification validation passes 77 tests in 11.60 seconds; metadata-only production CLI reports absent assets truthfully, no models run. Exact authority, actor scope, private retention, cancellation, parent-death guard, interrupted unknown and lost-promotion reconciliation are covered. The source-only result is Level 1; no real enrollment, campaign authority reuse, private recording read, installation or shared runtime effect occurred. Source remains uncommitted. See Plan 0085 and docs/speaker-enrollment-process.md.
+
+### 2026-10-21 | Plan 0086 comparison source acceptance
+
+Added the separate scoped speaker comparison process seam for Speech Receipts #37. Twelve focused tests and joined enrollment/custody/acoustic verification coverage pass: 90 tests in 15.53 seconds. The boundary checks exact current heads, immutable private object hashes, adapter/model pins, person/review/enrollment authority, reference inclusion and post-inference changes; output is explicitly uncalibrated evidence with no identity or enrollment effect. Production CLI rejects deterministic test adapters and reports missing genuine model assets without loading them. Targeted cached/offline Ruff correctness checks, formatting and compile checks pass. The TDD red was a missing new module, followed by green implementation; an invalidation test initially omitted the ledger's required predecessor event and was corrected, while the review-drift test exposed and drove the missing reference-authority check. No model/private recording, campaign, installed service, commit or push effect occurred. Source remains uncommitted; root owns Speech transport/UI acceptance and joint closeout.
