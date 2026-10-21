@@ -249,6 +249,18 @@ class EnrollmentBridge:
                     raise
         return job
 
+    def _reference_blocked(self, sample_id: str, sha256: str) -> bool:
+        exists = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_deletion_fences'"
+        ).fetchone()
+        return bool(
+            exists
+            and self.db.execute(
+                "SELECT 1 FROM sample_deletion_fences WHERE sample=? OR (sha256<>'' AND sha256=?) LIMIT 1",
+                (sample_id, sha256),
+            ).fetchone()
+        )
+
     def _samples(self, request: Mapping[str, Any]):
         samples = request.get("samples")
         if not isinstance(samples, list) or not 1 <= len(samples) <= 8:
@@ -279,6 +291,8 @@ class EnrollmentBridge:
                 or not 500 <= end - start <= 30_000
             ):
                 _fail("sample_limits")
+            if self._reference_blocked(sample["id"], sample["sha256"]):
+                _fail("reference_deleted")
             encoded = sample.get("data_base64")
             if not isinstance(encoded, str) or len(encoded) > 1_300_000:
                 _fail("sample_limits")
@@ -552,6 +566,10 @@ class EnrollmentBridge:
             _fail("invalid_request")
         app = self._authorize(request)
         action = request.get("action")
+        if action in {"deletion_preview", "deletion_apply", "deletion_status"}:
+            from speaker_sample_deletion import SampleDeletionBridge
+
+            return SampleDeletionBridge(self).request(request)
         if action == "readiness":
             try:
                 from acoustic_verification import _verified_model_artifacts

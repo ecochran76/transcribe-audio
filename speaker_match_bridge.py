@@ -100,6 +100,11 @@ class ComparisonBridge:
         sample_states = []
         for sample_id in state["sample_ids"]:
             sample = self.enrollment.custody.load_sample(sample_id)
+            if self.enrollment._reference_blocked(
+                sample["preparation_lineage"].get("source_sample_id", ""),
+                sample["sample_sha256"],
+            ):
+                _fail("profile_sample_unavailable")
             sample_state = self.enrollment.custody.sample_state(sample_id)
             if sample_state["exclusion_state"] != "included":
                 _fail("profile_sample_unavailable")

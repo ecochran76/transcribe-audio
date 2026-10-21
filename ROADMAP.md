@@ -1380,3 +1380,7 @@ Plan 0085 is source-accepted and closed: 77 joined contract/custody/verification
 ## Scoped speaker comparison source integration
 
 [Plan 0086](docs/dev/plans/0086-2026-10-21-scoped-speaker-comparison-process.md) adds a read-side process boundary for Speech Receipts #37. One hash-bound probe can produce explicitly uncalibrated cosine evidence against exact current reviewed profile heads. Joined comparison/enrollment/custody/verification validation passes 90 tests. This is Level 1 source integration for vision outcomes 3, 6 and 8; no identity assignment, campaign authority reuse, real-model qualification or installed runtime effect is implied.
+
+## Scoped biometric sample deletion integration
+
+[Plan 0087](docs/dev/plans/0087-2026-10-21-scoped-biometric-sample-deletion.md) adds the upstream private-custody participant for Speech Receipts #38: selected-sample dependency preview, aggregate A3 cleanup and exact-operation reconciliation. Source qualification is complete at Level 1 (95 joined hermetic tests) for correction/custody integration and vision outcomes 3, 6, 7 and 8; it does not authorize live deletion or change source recordings.
