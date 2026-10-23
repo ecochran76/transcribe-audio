@@ -18085,3 +18085,7 @@ hashes, private quarantine, same-ID restart and source admission fences are
 covered. Missing legacy provenance, unsafe paths and shared originals stay
 unavailable. Source is uncommitted/unpublished, no service/profile or real/private
 erasure was performed, and frozen identity work remains untouched.
+
+## Shared speech owner publication/install | 2026-10-23
+
+Operator requested merge/commit/install. Implementation cba053d fast-forward merged to main, pushed and verified; campaign branch retained. Qualified source manifests had no code drift. Actual joined owner/consumer/affected-API selection19passed28.04s. API and watcher were restarted only after the watcher had no child work; private SQLite backup retained under Speech qualification/2026-10-23-erasure-install/. API PID558655and watcher577711active,NRestarts0; API health200. Original-owner profile remains disabled; no private erasure, person decision, real-model acceptance or frozen identity-pilot execution. Speech plan0049 records corrected installed release5517f82and the readiness timeout/rollback preceding it.

@@ -69,3 +69,7 @@ Meeting context, canonical person decisions, transcript history, Plan0072 and al
 frozen identity/enrollment/calibration corpora remain untouched. Qualified Speech
 integration and ticket closeout are recorded by Speech plan0049. Private evidence
 is under the associated Speech qualification/2026-10-23-erasure-qualification/.
+
+## Authorized merge and installation | 2026-10-23
+
+Implementation cba053d is published and fast-forward merged to main. Running API and watcher restarted on this exact source after idle-child checks and private SQLite backup; health200and both units active,NRestarts0. Actual joined19tests passed28.04s. No original-owner profile enabled and no private erasure performed. Earlier uncommitted/uninstalled statements record the source-qualification phase; RUNBOOK and Speech plan0049 hold installation readback.
