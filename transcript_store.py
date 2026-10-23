@@ -527,6 +527,12 @@ def connect(path: Optional[Path] = None) -> sqlite3.Connection:
 def init_db(con: sqlite3.Connection) -> None:
     con.executescript(
         """
+        CREATE TABLE IF NOT EXISTS recording_original_copies (
+            source_sha256 TEXT NOT NULL,
+            path TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            PRIMARY KEY(source_sha256,path)
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id TEXT PRIMARY KEY,
             kind TEXT NOT NULL,
@@ -650,6 +656,9 @@ def blob_store_path(root: Path, blob_id: str, source_path: Path) -> Path:
     return root / "blobs" / blob_id[:2] / f"{blob_id}{source_path.suffix}"
 
 
+from recording_source_guard import guard_media
+
+@guard_media
 def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recording") -> dict[str, Any]:
     if not source_path_text:
         return {}
@@ -658,6 +667,8 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
         return {}
     resolved = source_path.resolve()
     artifact_hash = sha256_file(resolved)
+    from speech_source_erasure import source_available
+    source_available(root, artifact_hash)
     blob_id = stable_id(role, artifact_hash)
     stored_path = blob_store_path(root, blob_id, resolved)
     blob_root = root / "blobs"
@@ -682,6 +693,8 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
 def upsert_document_blob(con: sqlite3.Connection, document_id: str, blob: dict[str, Any], *, now: str) -> None:
     if not blob:
         return
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='recording_source_erasures'").fetchone() and con.execute("SELECT 1 FROM recording_source_erasures WHERE sha256=?", (blob["sha256"],)).fetchone():
+        raise TranscriptStoreError("Recording source erased")
     con.execute(
         """
         INSERT INTO blobs (id, role, original_path, stored_path, sha256, mime_type, bytes, created_at, updated_at)
@@ -1055,6 +1068,7 @@ def plan_backfill(
     return planned
 
 
+@guard_media
 def ingest_artifact(
     path: Path,
     *,
@@ -1065,6 +1079,16 @@ def ingest_artifact(
     store_root = store_dir(root)
     source_path = path.expanduser().resolve()
     payload = load_json(source_path)
+    with connect(store_root) as admission:
+        has_fences = admission.execute("SELECT 1 FROM sqlite_master WHERE name='recording_source_erasures'").fetchone()
+        fences = {row[0] for row in admission.execute("SELECT sha256 FROM recording_source_erasures")} if has_fences else set()
+    if fences:
+        for field in ("source_media_path", "working_media_path"):
+            submitted = payload.get(field)
+            if isinstance(submitted, str) and submitted:
+                original = Path(submitted).expanduser()
+                if original.is_file() and sha256_file(original) in fences:
+                    raise TranscriptStoreError("Recording source erased")
     raw = source_path.read_bytes()
     artifact_hash = sha256_bytes(raw)
     kind = artifact_kind(source_path, payload)
@@ -1161,6 +1185,16 @@ def ingest_artifact(
             now=now,
         )
         upsert_document_blob(con, doc_id, media_blob, now=now)
+        if media_blob:
+            for field in ("source_media_path", "working_media_path"):
+                submitted = payload.get(field)
+                if isinstance(submitted, str) and submitted:
+                    original = Path(submitted).expanduser().resolve()
+                    if original.is_file():
+                        original_sha = sha256_file(original)
+                        if con.execute("SELECT 1 FROM sqlite_master WHERE name='recording_source_erasures'").fetchone() and con.execute("SELECT 1 FROM recording_source_erasures WHERE sha256=?", (original_sha,)).fetchone():
+                            raise TranscriptStoreError("Recording source erased")
+                        con.execute("INSERT INTO recording_original_copies VALUES(?,?,?) ON CONFLICT(source_sha256,path) DO UPDATE SET sha256=excluded.sha256", (media_blob["sha256"], str(original), original_sha))
         con.commit()
     return IngestResult(doc_id, kind, title, str(source_path), str(stored_path), status)
 

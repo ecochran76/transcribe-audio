@@ -1395,3 +1395,9 @@ person associations. Target maturity is Level 2 deterministic cross-service
 fixtures and meeting review controls for vision outcomes 3, 6, 7 and 8. No frozen
 pilot, private-corpus migration, enrollment, model/provider call or installed
 runtime effect is implied.
+
+[Plan 0089](docs/dev/plans/0089-2026-10-23-recording-source-erasure-owner.md)
+adds the optional recording-owner side of Speech57: exact original/blob/playback
+copy inventory, independent permission, durable fences and partial cleanup.
+Source qualification is synthetic; live erasure and owner-profile installation
+remain separate. Existing meeting/identity/frozen-pilot gates are unchanged.

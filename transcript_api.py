@@ -37,6 +37,8 @@ import speaker_identity_preprocess
 import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
 import speech_harvesting
+import speech_source_erasure
+from recording_source_guard import guard_media, media_access
 import speaker_evaluation_campaign
 import transcript_artifact_access
 from app_intelligence_ledger import (
@@ -3523,6 +3525,8 @@ def get_blob(blob_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
         row = con.execute("SELECT * FROM blobs WHERE id = ?", (blob_id,)).fetchone()
         if row is None:
             raise TranscriptStoreError(f"No blob found with id {blob_id}")
+    from speech_source_erasure import source_available
+    source_available(store_dir(root), row["sha256"])
     path = Path(row["stored_path"])
     if not path.exists() or not path.is_file():
         raise TranscriptStoreError(f"Blob file is missing for id {blob_id}")
@@ -3536,6 +3540,7 @@ def get_blob(blob_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
     }
 
 
+@guard_media
 def get_browser_playback_blob(
     blob_id: str,
     *,
@@ -5591,6 +5596,22 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
 
     def speech_harvest_request(self, method: str, request_path: str) -> bool:
         parts = [unquote(part) for part in request_path.split("/") if part]
+        owner_route = len(parts) == 4 and parts[:3] == ["api", "speech-harvest", "source-erasure"]
+        if owner_route:
+            service = self.server.speech_source_owner
+            if service is None:
+                self.write_json({"error": "speech_owner_unconfigured"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+                return True
+            try:
+                if method != "POST":
+                    raise ValueError("speech_owner_invalid_request")
+                value = service.request(parts[3], self.read_json_body(), self.headers.get("Authorization"))
+                self.write_json(value)
+            except ValueError as error:
+                self.write_json({"error": str(error) if str(error).startswith("speech_owner_") else "speech_owner_unavailable"}, status=HTTPStatus.FORBIDDEN if "forbidden" in str(error) else HTTPStatus.CONFLICT)
+            except (OSError, TranscriptStoreError):
+                self.write_json({"error": "speech_owner_unavailable"}, status=HTTPStatus.CONFLICT)
+            return True
         reference_route = parts == ["api", "speech-harvest", "references"]
         source_route = len(parts) == 4 and parts[:3] == ["api", "speech-harvest", "sources"]
         conversation_route = len(parts) >= 4 and parts[:2] == ["api", "conversations"] and parts[3] == "speech-harvest"
@@ -5608,7 +5629,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             elif source_route:
                 if method != "GET":
                     raise ValueError("speech_invalid_request")
-                value = bridge.export_source(parts[3], self.headers.get("Authorization"))
+                with media_access(self.store_root):
+                    value = bridge.export_source(parts[3], self.headers.get("Authorization"))
+                    self.write_json(value)
+                return True
             elif method == "GET" and len(parts) == 4:
                 value = bridge.context(parts[2])
             elif method == "GET" and len(parts) == 6 and parts[4:] == ["people", "search"]:
@@ -7169,6 +7193,7 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         return True
 
+    @guard_media
     def write_blob(
         self,
         blob_id: str,
@@ -7250,12 +7275,22 @@ class TranscriptApiServer(ThreadingHTTPServer):
         self.quiet = quiet
         self.static_dir = static_dir
         self.speech_harvesting = None
+        self.speech_source_owner = None
         try:
             if speech_harvest_config:
                 config = speech_harvesting.read_consumer_config(speech_harvest_config)
                 owner = config["owner"]
                 self.speech_harvesting = speech_harvesting.configured_consumer(speech_harvest_config, lambda document_id: speech_source_for_conversation(document_id, root=self.store_root, state_root=self.state_root, owner=owner))
+                erasure = config.get("source_owner")
+                if isinstance(erasure, dict) and erasure.get("enabled") is True:
+                    erasure_token = speech_harvesting._private_token(erasure["token_file"])
+                    if erasure_token in {self.speech_harvesting.token, self.speech_harvesting.source_token, self.speech_harvesting.observation_token}:
+                        raise ValueError("speech_owner_independent_token_required")
+                    self.speech_source_owner = speech_source_erasure.RecordingSourceOwner(store_root=self.store_root, directory=Path(config["state_directory"]) / "source-owner", owner=owner, token=erasure_token, principals=erasure["principals"], original_roots=[Path(value) for value in erasure["exclusive_original_roots"]], consumer=self.speech_harvesting)
+                    self.speech_harvesting.source_erasure_check = lambda sha: speech_source_erasure.source_available(self.store_root, sha)
         except Exception:
+            if self.speech_harvesting:
+                self.speech_harvesting.close()
             super().server_close()
             raise
 
@@ -7263,6 +7298,8 @@ class TranscriptApiServer(ThreadingHTTPServer):
         try:
             super().server_close()
         finally:
+            if getattr(self, "speech_source_owner", None):
+                self.speech_source_owner.close()
             if getattr(self, "speech_harvesting", None):
                 self.speech_harvesting.close()
 

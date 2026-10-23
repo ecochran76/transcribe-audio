@@ -22,6 +22,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from recording_source_guard import guard_media
+
 MAX_MEDIA = 32_000_000
 MAX_RESPONSE = 4_000_000
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -147,6 +149,63 @@ class SpeechHarvestConsumer:
             raise
         self.closed = False
 
+    def _source_hashes(self, value):
+        values = [value]
+        seen = set()
+        hashes = set()
+        while values:
+            item = values.pop()
+            sha = (item.get("source") or {}).get("sha256") or item.get("sourceSha256")
+            if sha:
+                hashes.add(sha)
+            for field in ["harvestRequestId", "harvestOperationId"]:
+                parent_id = item.get(field)
+                if parent_id and parent_id not in seen:
+                    seen.add(parent_id)
+                    parent = self.db.execute(
+                        "SELECT value FROM operations WHERE id=?", (parent_id,)
+                    ).fetchone()
+                    if parent:
+                        values.append(json.loads(parent[0]))
+        return hashes
+
+    def _source_allowed(self, value):
+        callback = getattr(self, "source_erasure_check", None)
+        if callback:
+            try:
+                for sha in self._source_hashes(value):
+                    callback(sha)
+            except Exception as error:
+                raise ValueError("speech_source_erased") from error
+        if value.get("state") == "erased":
+            raise ValueError("speech_source_erased")
+
+    def erase_source_journal(self, sha256):
+        """Original-owner callback after shared voice participants have purged."""
+        with self._mutex, self.db:
+            rows = self.db.execute("SELECT id,kind,value FROM operations").fetchall()
+            ids = [
+                (request_id, kind)
+                for request_id, kind, raw in rows
+                if sha256 in self._source_hashes(json.loads(raw))
+            ]
+            for request_id, kind in ids:
+                self.db.execute(
+                    "UPDATE operations SET value=? WHERE id=?",
+                    (
+                        canonical(
+                            {
+                                "requestId": request_id,
+                                "state": "erased",
+                                "kind": kind,
+                                "sourceSha256": sha256,
+                                "owner": self.owner,
+                            }
+                        ),
+                        request_id,
+                    ),
+                )
+
     def close(self):
         with self._mutex:
             if not self.closed:
@@ -199,10 +258,13 @@ class SpeechHarvestConsumer:
             ).fetchone()
         if not row:
             raise ValueError("speech_operation_not_found")
-        return row[0], row[1], json.loads(row[2])
+        value = json.loads(row[2])
+        self._source_allowed(value)
+        return row[0], row[1], value
 
     def _save(self, value):
         with self._mutex, self.db:
+            self._source_allowed(value)
             self.db.execute(
                 "UPDATE operations SET value=? WHERE id=?",
                 (canonical(value), value["requestId"]),
@@ -212,6 +274,7 @@ class SpeechHarvestConsumer:
     def _admit(self, request_id, kind, intent, value):
         identifier(request_id)
         with self._mutex, self.db:
+            self._source_allowed(value)
             row = self.db.execute(
                 "SELECT kind,intent,value FROM operations WHERE id=?", (request_id,)
             ).fetchone()
@@ -395,6 +458,7 @@ class SpeechHarvestConsumer:
     def operation(self, request_id):
         return self._get(request_id)[2]
 
+    @guard_media
     def export_source(self, request_id, authorization):
         if not isinstance(authorization, str) or not hmac.compare_digest(
             authorization, "Bearer " + self.source_token
@@ -494,6 +558,10 @@ class SpeechHarvestConsumer:
         }
         result = []
         for value in retained:
+            try:
+                self._source_allowed(value)
+            except ValueError:
+                continue
             _, _, harvest = self._get(value["harvestRequestId"])
             sample = snapshots.get(value["sampleId"])
             association = (sample or {}).get("association") or {}

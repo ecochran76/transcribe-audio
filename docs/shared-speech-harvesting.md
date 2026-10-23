@@ -119,3 +119,47 @@ boundaries, source drift, cancellation, interrupted journals, lost write respons
 and observer conflict/reconciliation. Source tests and a rendered synthetic panel
 do not establish installed ingress, real media quality or authority for frozen
 speaker pilots, provider inference, enrollment or deployment.
+
+## Optional original-owner erasure
+
+The consumer profile may separately configure `source_owner` with `enabled:true`,
+a protected `token_file`, an explicit `principals` list of `{tenant,app}`, and
+`exclusive_original_roots` of absolute owner-controlled recording directories.
+The owner token must differ from Speech/export/observation tokens and stays
+server-side. Ordinary application bearer credentials and browser cookies do not
+replace it. Owner APIs fail unavailable when the optional profile is absent.
+Do not enable a profile until all processes that own these recording paths are
+accounted for; unregistered external copies are not silently declared erased.
+
+Speech's `transcribeSourceOwner` participant calls authenticated POST
+`/api/speech-harvest/source-erasure/{inventory,fence,purge,status}`. Each request
+binds its configured principal and exact source `{service,account,id,revision,
+sha256}`; effects also require the original requestId and inventory fingerprint.
+Inventory lists opaque copy IDs, not private filesystem paths. The overall Speech
+coordinator separately requires explicit owner approval and all other participant
+fences before any purge. It purges the original owner last.
+
+This owner covers registered blob files, their canonical pre-registration siblings,
+recorded/historical original files and supported browser playback copies. Current
+ingestion records original-container digests, allowing different encodings to be
+bound without guessing from a filename. Unknown legacy original digests or an
+original shared with another canonical source remain unavailable. Symlinks,
+hardlinks, foreign-owned paths, changed content and copies outside explicit roots
+are refused. Current limits are256 copies,32MB/file,128MB total and4096 owner
+operation receipts; these are separate from general transcription media limits.
+
+Durable source and known-copy hash fences block supported blob/export reads and
+new ingestion before media effects. Full streaming/export publication and registered
+ingest paths share a reentrant cross-process SQLite exclusion lock. A pending
+reader/writer prevents a quiescence acknowledgement; a new copy invalidates an old
+preview. Long ingestion may delay a fence; an HTTP timeout never proves cleanup.
+Original-owner POSIX identity checks are unavailable on unsupported platforms;
+ordinary non-owner imports use only portable standard-library dependencies.
+
+Purge journals its phase before moving exact files into private quarantine and
+checking their identity before unlink. Status resumes only that same recorded
+purge after an uncertain acknowledgement or restart; it never performs inference.
+Completed receipts retain hashes/IDs while private file lists and voice observations
+are scrubbed. Original/container byte hashes remain fenced. Ordinary deletion and
+meeting participant decisions retain their existing semantics. No live owner
+profile is installed by adding this source capability.

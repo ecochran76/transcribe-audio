@@ -18073,3 +18073,15 @@ Primary confirmed its prior file-hash manifest without drift, committed1d2b45f
 and verified the exact origin/plan-0037-campaign remote ref. Speech53 source
 acceptance is closed. No main integration, TA service deployment, real media,
 physical original erasure or frozen identity pilot occurred.
+
+## 2026-10-23 | Recording-owner erasure source qualification
+
+Plan0089 closes on optional, independently authenticated original-owner source
+qualification for Speech57. Actual owner/consumer/affected-API selection passes
+19tests in20.72s, with58unrelated API cases deselected; correctness lint and
+compile pass. Supported blob/export/registered-ingest publication shares a
+reentrant cross-process SQLite guard; exact original-container/historical copy
+hashes, private quarantine, same-ID restart and source admission fences are
+covered. Missing legacy provenance, unsafe paths and shared originals stay
+unavailable. Source is uncommitted/unpublished, no service/profile or real/private
+erasure was performed, and frozen identity work remains untouched.
