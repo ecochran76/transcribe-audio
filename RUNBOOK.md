@@ -18048,3 +18048,20 @@ Added the separate scoped speaker comparison process seam for Speech Receipts #3
 Opened Plan 0087 after committing and publishing enrollment/comparison checkpoint 46beba5. The packet adds an aggregate selected-sample resolver over the existing A3 effect protocol; it preserves originals, all operation history and unknown outcomes. Private deletion authority and exact tenant/app intent are required. Source and hermetic fixtures only; no private/live deletion or inference is included.
 
 Plan 0087 source packet closed with five focused deletion fixtures and joined 95/95 enrollment/comparison/A3/acoustic tests (20.74s). Approved exact intents now fence samples before aggregate native custody effects, reconcile native receipt/quarantine cleanup without replay, and clean hash-proven pre-registration orphans under their durable approved intent. Original recordings and history are retained. See docs/speaker-sample-deletion-process.md. This is synthetic source qualification; live/private biometric deletion remains unperformed.
+
+## 2026-10-22 | Shared Speech harvesting consumer source packet
+
+Opened Plan 0088 for approved Speech Receipts #53. Starting custody is clean
+`plan-0037-campaign` at `5a9c14e5939ebd18972bfce40d54cdc58b9a4f31`.
+Current Plan 0072 is OPEN with its existing packet-specific private/live gates;
+this source packet does not enter them. Optional consumer, authenticated bounded
+source references, synthetic cross-service tests and meeting controls are the
+bounded next implementation. Deployment and real media acceptance remain separate.
+
+Plan 0088 source implements the optional configured consumer and meeting panel;
+see [shared Speech contract](docs/shared-speech-harvesting.md). Opt-in actual
+cross-service tests pass 7/7 (latest final rerun recorded in the source manifest); frontend 8/8 and build pass. Rendered
+synthetic playback decoded 7.5s and explicit keep preserved pending meeting
+assignments. Independent observation bearer status denies anonymous/wrong-scope
+and foreign-document access. Default tests remain free of a sibling Speech build.
+Primary acceptance is pending; no deployment, frozen pilot or original purge ran.

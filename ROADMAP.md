@@ -1384,3 +1384,14 @@ Plan 0085 is source-accepted and closed: 77 joined contract/custody/verification
 ## Scoped biometric sample deletion integration
 
 [Plan 0087](docs/dev/plans/0087-2026-10-21-scoped-biometric-sample-deletion.md) adds the upstream private-custody participant for Speech Receipts #38: selected-sample dependency preview, aggregate A3 cleanup and exact-operation reconciliation. Source qualification is complete at Level 1 (95 joined hermetic tests) for correction/custody integration and vision outcomes 3, 6, 7 and 8; it does not authorize live deletion or change source recordings.
+
+## Shared Speech harvesting consumer
+
+[Plan 0088](docs/dev/plans/0088-2026-10-22-shared-speech-harvesting-consumer.md)
+implements Speech Receipts #53 through an optional authenticated service adapter.
+Transcribe Audio remains the authority for meetings, recordings, diarization and
+participant corrections; Speech owns sample selection, retained audio and sample
+person associations. Target maturity is Level 2 deterministic cross-service
+fixtures and meeting review controls for vision outcomes 3, 6, 7 and 8. No frozen
+pilot, private-corpus migration, enrollment, model/provider call or installed
+runtime effect is implied.

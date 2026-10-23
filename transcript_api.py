@@ -36,6 +36,7 @@ import provenance_config
 import speaker_identity_preprocess
 import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
+import speech_harvesting
 import speaker_evaluation_campaign
 import transcript_artifact_access
 from app_intelligence_ledger import (
@@ -5588,9 +5589,69 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             return
         super().log_message(fmt, *args)
 
+    def speech_harvest_request(self, method: str, request_path: str) -> bool:
+        parts = [unquote(part) for part in request_path.split("/") if part]
+        reference_route = parts == ["api", "speech-harvest", "references"]
+        source_route = len(parts) == 4 and parts[:3] == ["api", "speech-harvest", "sources"]
+        conversation_route = len(parts) >= 4 and parts[:2] == ["api", "conversations"] and parts[3] == "speech-harvest"
+        if not source_route and not reference_route and not conversation_route:
+            return False
+        bridge = self.server.speech_harvesting
+        if bridge is None:
+            self.write_json({"configured": False, "error": "speech_unconfigured"}, status=HTTPStatus.SERVICE_UNAVAILABLE)
+            return True
+        try:
+            if reference_route:
+                if method != "GET":
+                    raise ValueError("speech_invalid_request")
+                value = bridge.references(self.headers.get("Authorization"))
+            elif source_route:
+                if method != "GET":
+                    raise ValueError("speech_invalid_request")
+                value = bridge.export_source(parts[3], self.headers.get("Authorization"))
+            elif method == "GET" and len(parts) == 4:
+                value = bridge.context(parts[2])
+            elif method == "GET" and len(parts) == 6 and parts[4:] == ["people", "search"]:
+                bridge.prepare(parts[2])
+                value = bridge.search_people(first(parse_qs(urlparse(self.path).query), "q") or "")
+            elif method == "GET" and len(parts) == 5:
+                operation = bridge.operation(parts[4])
+                value = bridge.observation_status(parts[2], parts[4], self.headers.get("Authorization")) if operation.get("meetingAssignmentChanged") is False else bridge.status(parts[4])
+                if value["documentId"] != parts[2]:
+                    raise ValueError("speech_source_forbidden")
+            elif method == "GET" and len(parts) == 7 and parts[5] == "candidates":
+                operation = bridge.operation(parts[4])
+                if operation["documentId"] != parts[2]:
+                    raise ValueError("speech_source_forbidden")
+                value = bridge.candidate(parts[4], parts[6])
+            elif method == "POST":
+                bridge.check_origin(self.headers.get("Origin"))
+                body = self.read_json_body()
+                if len(parts) == 4:
+                    value = bridge.start({**body, "documentId": parts[2]})
+                else:
+                    operation = bridge.operation(parts[4])
+                    if operation["documentId"] != parts[2]:
+                        raise ValueError("speech_source_forbidden")
+                    action = parts[5] if len(parts) == 6 else ""
+                    handlers = {"cancel": lambda: bridge.cancel(parts[4]), "reconcile": lambda: bridge.observation_status(parts[2], parts[4], self.headers.get("Authorization")) if operation.get("meetingAssignmentChanged") is False else bridge.status(parts[4]), "retain": lambda: bridge.retain(parts[4], body), "propose": lambda: bridge.propose(parts[4], body), "observe": lambda: bridge.observe(parts[2], parts[4], body, self.headers.get("Authorization"))}
+                    if action not in handlers:
+                        raise ValueError("speech_invalid_request")
+                    value = handlers[action]()
+            else:
+                raise ValueError("speech_invalid_request")
+            self.write_json(value)
+        except ValueError as error:
+            code = str(error)
+            statuses = {"speech_source_forbidden": HTTPStatus.FORBIDDEN, "speech_origin_forbidden": HTTPStatus.FORBIDDEN, "speech_observation_forbidden": HTTPStatus.FORBIDDEN, "speech_service_unavailable": HTTPStatus.SERVICE_UNAVAILABLE, "speech_not_authorized": HTTPStatus.FORBIDDEN, "speech_operation_not_found": HTTPStatus.NOT_FOUND}
+            self.write_json({"error": code if code.startswith("speech_") else "speech_unavailable"}, status=statuses.get(code, HTTPStatus.CONFLICT))
+        return True
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
+        if self.speech_harvest_request("GET", parsed.path):
+            return
         try:
             if parsed.path == "/api/health":
                 self.write_json({"status": "ok", "store_dir": str(self.store_root), "db_path": str(db_path(self.store_root))})
@@ -6016,6 +6077,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if self.speech_harvest_request("POST", parsed.path):
+            return
         try:
             if parsed.path.startswith("/api/person-repairs/"):
                 parts = [unquote(part) for part in parsed.path.split("/") if part]
@@ -7146,6 +7209,21 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
                 remaining -= len(chunk)
 
 
+def speech_source_for_conversation(document_id: str, *, root: Path, state_root: Path, owner: dict[str, str]) -> dict[str, Any]:
+    try:
+        detail = get_conversation_detail(document_id, root=root, state_root=state_root)
+    except TranscriptStoreError as error:
+        raise ValueError("speech_recording_unavailable") from error
+    document = detail.get("transcript_document") or {}
+    blob_id = str((detail.get("media_blob") or {}).get("id") or "")
+    if not document or not blob_id:
+        raise ValueError("speech_recording_unavailable")
+    blob = get_blob(blob_id, root=root)
+    diarization = speech_harvesting.normalize_diarization(document.get("json_payload") or {}, document_revision=str(document.get("artifact_sha256") or ""))
+    source = {"id": "ta-recording-" + speech_harvesting.digest([owner["account"], document["id"], blob_id])[:40], "revision": blob["sha256"], "sha256": blob["sha256"], "service": "transcribe-audio", "account": owner["account"], "stream": 0, "channelPolicy": "mix-to-mono"}
+    return {"owner": owner, "source": source, "path": blob["path"], "diarization": diarization}
+
+
 class TranscriptApiServer(ThreadingHTTPServer):
     def __init__(
         self,
@@ -7160,6 +7238,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         codex_bin: str = DEFAULT_CODEX_BIN,
         quiet: bool = False,
         static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
+        speech_harvest_config: Optional[Path] = None,
     ) -> None:
         super().__init__(server_address, handler_class)
         self.store_root = store_root
@@ -7170,6 +7249,22 @@ class TranscriptApiServer(ThreadingHTTPServer):
         self.codex_bin = codex_bin
         self.quiet = quiet
         self.static_dir = static_dir
+        self.speech_harvesting = None
+        try:
+            if speech_harvest_config:
+                config = speech_harvesting.read_consumer_config(speech_harvest_config)
+                owner = config["owner"]
+                self.speech_harvesting = speech_harvesting.configured_consumer(speech_harvest_config, lambda document_id: speech_source_for_conversation(document_id, root=self.store_root, state_root=self.state_root, owner=owner))
+        except Exception:
+            super().server_close()
+            raise
+
+    def server_close(self) -> None:
+        try:
+            super().server_close()
+        finally:
+            if getattr(self, "speech_harvesting", None):
+                self.speech_harvesting.close()
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
@@ -7185,6 +7280,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--static-dir", type=Path, default=DEFAULT_STATIC_DIR)
     parser.add_argument("--no-static", action="store_true")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--speech-harvest-config", type=Path, help="Private optional Speech consumer profile; no inference backend is installed")
     return parser.parse_args(argv)
 
 
@@ -7203,6 +7299,7 @@ def serve(args: argparse.Namespace) -> None:
         codex_bin=args.codex_bin,
         quiet=bool(args.quiet),
         static_dir=None if args.no_static else args.static_dir,
+        speech_harvest_config=getattr(args, "speech_harvest_config", None),
     )
     print(f"Serving transcript API on http://{args.host}:{args.port} using {db_path(root)}")
     server.serve_forever()

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 import { IdentityReviewView } from "./identity-review.jsx";
 import { Icon } from "./icons.jsx";
+import { SpeechHarvestPanel } from "./speech-harvest.jsx";
 
 const NAV_ITEMS = [
   { id: "Library", label: "Library", icon: "library", enabled: true },
@@ -6366,6 +6367,7 @@ function ConversationWorkflowModal({
                     ) : null}
                   </div>
                 </div>
+                <SpeechHarvestPanel key={item.id} documentId={item.id} />
                 <div className="workflow-action-panel speaker-preprocessing-panel">
                   <div className="workflow-prep-card acoustic-shadow-card">
                     <div>
