@@ -62,3 +62,13 @@ production build pass. Rendered synthetic meeting decoded a 7.5-second candidate
 and explicitly kept it; the original pending participant assignment remained.
 Qualification artifacts are user-scoped outside Git. Primary source acceptance was confirmed by the Speech graph owner. Shared integration
 and publication remain separate; no installed/live effect or commit is claimed.
+
+## Publication | 2026-10-23
+
+The operator approved publication. Primary verified unchanged qualified source
+hashes and published commit `1d2b45f4cd3e9a07683c14d46a723b337063d119` to
+`origin/plan-0037-campaign`, with exact remote ref readback. Speech ticket53 is
+closed on source/fixture acceptance. This branch remains separate from main;
+Transcribe Audio service deployment, real media, original-owner purge and frozen
+identity pilots were not performed. Speech's independent installed cutover is
+tracked in its plan0048 and ticket50; it does not install this consumer here.
