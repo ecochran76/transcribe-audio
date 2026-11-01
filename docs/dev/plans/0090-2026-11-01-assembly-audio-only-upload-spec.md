@@ -1,6 +1,6 @@
 # Plan 0090 | Audio-only AssemblyAI uploads
 
-State: OPEN
+State: CLOSED
 Scope: Prepare audio-only uploads for video recordings in the AssemblyAI backend.
 Owner: Primary coordinator
 Integration target: main
@@ -136,7 +136,7 @@ requests before updating agent memory, and this task requests engineering work.
 
 Integration branch: `feat/assembly-audio-only`
 Base: `88b7051599fe458328aaee734859bc1f1393c014`
-Ticket: Plan0091; blockers: none; state: running.
+Ticket: Plan0091; blockers: none; state: validated.
 Worker: primary; sequential execution, no worker branches.
 Owned paths: AssemblyAI backend, focused upload tests, README, CONTEXT,
 Plan0090/0091, ROADMAP and RUNBOOK.
@@ -200,5 +200,12 @@ operational backlog yield and the memory incident remain explicitly unproved.
 ## Delivery State
 
 Ticket0091: implemented and integrated in the feature checkout; validation passed.
-Tracker resolution and final integration-tip receipt follow the source commit.
+Source result SHA: `1dcea2797704827a5c022da972158a1ad1315f79`.
+Ticket dependency graph: one node, no missing blocker IDs or cycles.
+Integration: source commit is on `feat/assembly-audio-only`; source hash matches
+manual smoke receipt. Tracker: local Ticket0091 resolved CLOSED on source acceptance.
+Final tip is the documentation closeout commit containing this ledger; resolve
+`git rev-parse feat/assembly-audio-only`. No worker handle/branch/result applies;
+the primary owns the complete write scope. Validation result remains valid
+because this follow-up changes documentation only.
 No main merge, remote publication, live provider smoke or installed-service change.

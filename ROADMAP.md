@@ -1404,7 +1404,7 @@ remain separate. Existing meeting/identity/frozen-pilot gates are unchanged.
 
 ## Audio-only AssemblyAI upload preparation | 2026-11-01
 
-State: PLANNED
+State: CLOSED (source acceptance; activation pending)
 
 Plan: `docs/dev/plans/0090-2026-11-01-assembly-audio-only-upload-spec.md`.
 Video-upload preparation moves from maturity 0 to 1 through synthetic-media

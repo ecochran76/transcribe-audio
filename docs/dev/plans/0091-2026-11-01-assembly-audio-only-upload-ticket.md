@@ -1,7 +1,7 @@
 # Plan 0091 | Audio-only uploads with original recording provenance
 
-State: OPEN
-Status: ready-for-agent
+State: CLOSED
+Status: resolved (source acceptance)
 Scope: One complete vertical slice implementing Plan0090.
 Blocked by: None (can start immediately).
 Spec: Plan0090 audio-only AssemblyAI upload specification.
@@ -15,17 +15,17 @@ and retain audio-only behavior and the watcher backend fallback contract.
 ## Current State
 
 Operator approved the single-ticket scope and recording-processing test seam.
-Primary coordinator implementing sequentially on the integration branch.
+Primary completed implementation and local validation on the integration branch.
 
 ## Acceptance Criteria
 
-- [ ] Video uploads contain decodable audio only, with lossless preparation.
-- [ ] Original recording content and calendar/export provenance are retained.
-- [ ] Audio-only inputs retain direct upload behavior.
-- [ ] Working files are cleaned on success and failure.
-- [ ] Preparation failures are visible and never upload original video.
-- [ ] Local focused/regression tests and synthetic-media CLI smoke pass.
-- [ ] Standards and Spec review completed with blockers resolved.
+- [x] Video uploads contain decodable audio only, with lossless preparation.
+- [x] Original recording content and calendar/export provenance are retained.
+- [x] Audio-only inputs retain direct upload behavior.
+- [x] Working files are cleaned on success and failure.
+- [x] Preparation failures are visible and never upload original video.
+- [x] Local focused/regression tests and synthetic-media CLI smoke pass.
+- [x] Standards and Spec review completed with blockers resolved.
 
 ## Non-Goals
 
@@ -34,5 +34,8 @@ installed-service changes, remote publication or release.
 
 ## Validation
 
-Pending; commands and results will be recorded in the parent execution ledger.
-Tracker resolution remains separate from implemented/integrated/validated state.
+Plan0090 records commands, outcomes, initial failures and Standards/Spec review.
+Source result: `1dcea2797704827a5c022da972158a1ad1315f79`.
+Implemented: yes. Integrated on feature branch: yes. Validated locally: yes.
+Repo-native tracker: resolved CLOSED for source acceptance. Main integration and
+installed-service activation: not performed.
