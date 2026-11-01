@@ -4,6 +4,14 @@ This context defines the language used to identify anonymous speakers from
 transcript clues and source-attributed information before interpreting the
 conversation as a whole.
 
+## Upload Preparation
+
+**Upload Audio Derivative**:
+A temporary audio-only representation prepared from a video recording for a
+speech provider. It is an upload transport artifact, not a new recording identity.
+Calendar association and transcript provenance refer to the original recording.
+_Avoid_: Original recording, conversation, transcript
+
 ## Conversation Association
 
 **Recording**:

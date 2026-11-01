@@ -18089,3 +18089,29 @@ erasure was performed, and frozen identity work remains untouched.
 ## Shared speech owner publication/install | 2026-10-23
 
 Operator requested merge/commit/install. Implementation cba053d fast-forward merged to main, pushed and verified; campaign branch retained. Qualified source manifests had no code drift. Actual joined owner/consumer/affected-API selection19passed28.04s. API and watcher were restarted only after the watcher had no child work; private SQLite backup retained under Speech qualification/2026-10-23-erasure-install/. API PID558655and watcher577711active,NRestarts0; API health200. Original-owner profile remains disabled; no private erasure, person decision, real-model acceptance or frozen identity-pilot execution. Speech plan0049 records corrected installed release5517f82and the readiness timeout/rollback preceding it.
+
+## 2026-11-01 | Audio-only AssemblyAI upload specification
+
+Drafted Plan0090 from the operator request and invoked to-spec, to-tickets and
+implement-spec workflows. Existing repo-native planning policy supplies tracker
+authority; no docs/agents tracker configuration exists. Clean main base is
+88b7051599fe458328aaee734859bc1f1393c014. Proposed one complete vertical ticket
+at the existing provider-processing seam. Required seam/granularity review is
+pending before ticket publication and implementation. No source/runtime changes,
+provider calls or hosted CI. Memory disposition: forbidden by developer boundary
+on agent-memory updates without an explicit request.
+
+## 2026-11-01 | Audio-only upload implementation and validation
+
+Operator approved Plan0090 seam and one vertical Ticket0091. Primary used an
+isolated integration checkout on `feat/assembly-audio-only` from 88b7051 so the
+running watcher source remained unchanged. Implemented temporary first-stream
+FLAC preparation, cleanup, bounded extraction and existing error/fallback contract.
+Original recording/calendar provenance and output pipeline are preserved.
+Focused plus selected regression62passed2.29s; compile and diff checks passed.
+Manual synthetic MP4 CLI produced DOCX/TXT/sidecar with fake provider responses;
+ffprobe found only audio in the111664-byte upload versus542699-byte original.
+Standards and Spec primary reviews found no blockers. No hosted CI, real-media
+upload, service changes, main merge or remote publication. Plan0090 records the
+initial PATH setup failure and corrected test-authoring assumption.
+Memory disposition: forbidden by developer boundary; no agent-memory write.

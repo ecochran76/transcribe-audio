@@ -23,11 +23,14 @@ import argparse
 import getpass
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import textwrap
 import time
+from contextlib import closing, contextmanager
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Iterator, Optional
 
 import requests
 
@@ -49,6 +52,8 @@ from transcribe_common import (
 
 DEFAULT_BASE_URL = "https://api.assemblyai.com"
 DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
+VIDEO_EXTENSIONS = {".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".webm"}
+AUDIO_EXTRACTION_TIMEOUT_SECONDS = 3600
 CLI_DESCRIPTION = textwrap.dedent(
     """
     Upload one or more audio/video files to AssemblyAI, wait for completion, and export DOCX, TXT,
@@ -334,13 +339,55 @@ def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE):
             yield chunk
 
 
+@contextmanager
+def prepared_upload_path(source_path: Path) -> Iterator[Path]:
+    """Keep a private audio derivative alive only for a video upload."""
+    if source_path.suffix.lower() not in VIDEO_EXTENSIONS:
+        yield source_path
+        return
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="assembly-audio-") as directory:
+            audio_path = Path(directory) / "audio.flac"
+            print(f"Extracting audio from {source_path.name} for upload...", flush=True)
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg", "-nostdin", "-v", "error", "-xerror",
+                        "-i", str(source_path), "-map", "0:a:0", "-vn",
+                        "-map_metadata", "-1", "-c:a", "flac", str(audio_path),
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=AUDIO_EXTRACTION_TIMEOUT_SECONDS,
+                )
+            except FileNotFoundError as exc:
+                raise TranscriptionError(
+                    "ffmpeg is required to extract audio before uploading video."
+                ) from exc
+            except subprocess.TimeoutExpired as exc:
+                raise TranscriptionError("Video audio extraction timed out.") from exc
+            except subprocess.CalledProcessError as exc:
+                detail = (exc.stderr or b"").decode("utf-8", errors="replace")
+                detail = detail[-2000:].strip()
+                raise TranscriptionError(f"Video audio extraction failed: {detail}") from exc
+            if not audio_path.is_file() or audio_path.stat().st_size == 0:
+                raise TranscriptionError("Video audio extraction produced no audio.")
+            yield audio_path
+    except OSError as exc:
+        raise TranscriptionError(f"Cannot prepare or upload video audio: {exc}") from exc
+
+
 def upload_audio(session: requests.Session, audio_path: Path) -> str:
-    response = session.post(f"{DEFAULT_BASE_URL}/v2/upload", data=stream_file(audio_path))
-    raise_for_status_with_details(response, context="Upload")
-    data = response.json()
-    if "upload_url" not in data:
-        raise TranscriptionError(f"Upload response missing 'upload_url': {data}")
-    return data["upload_url"]
+    with prepared_upload_path(audio_path) as upload_path:
+        with closing(stream_file(upload_path)) as chunks:
+            response = session.post(f"{DEFAULT_BASE_URL}/v2/upload", data=chunks)
+        raise_for_status_with_details(response, context="Upload")
+        data = response.json()
+        if "upload_url" not in data:
+            raise TranscriptionError(f"Upload response missing 'upload_url': {data}")
+        return data["upload_url"]
 
 
 def resolve_speech_models(model: str) -> list[str]:

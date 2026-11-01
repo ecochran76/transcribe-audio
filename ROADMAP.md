@@ -1401,3 +1401,14 @@ adds the optional recording-owner side of Speech57: exact original/blob/playback
 copy inventory, independent permission, durable fences and partial cleanup.
 Source qualification is synthetic; live erasure and owner-profile installation
 remain separate. Existing meeting/identity/frozen-pilot gates are unchanged.
+
+## Audio-only AssemblyAI upload preparation | 2026-11-01
+
+State: PLANNED
+
+Plan: `docs/dev/plans/0090-2026-11-01-assembly-audio-only-upload-spec.md`.
+Video-upload preparation moves from maturity 0 to 1 through synthetic-media
+acceptance; original calendar association and transcript provenance must remain
+intact. Operator approved seam and Ticket0091; implementation and 62 selected local
+tests pass on `feat/assembly-audio-only`. Operational yield, installed activation
+and full contextualization are not yet proved.

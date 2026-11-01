@@ -2,7 +2,7 @@
 
 This repository contains two lightweight transcription CLIs and a directory watcher:
 
-- `assembly_transcribe.py` uploads audio or video to AssemblyAI, waits for the transcript, and exports DOCX, plain text, or subtitles.
+- `assembly_transcribe.py` uploads audio to AssemblyAI (extracting audio from videos first), waits for the transcript, and exports DOCX, plain text, or subtitles.
 - `faster_whisper_transcribe.py` runs the same export/calendar workflow locally with `faster-whisper`, which is a good fit for an NVIDIA GPU such as an RTX 5080.
 - `watch_transcriptions.py` scans one or more directories, waits for files to stop changing, and then invokes either transcription backend automatically.
 
@@ -10,12 +10,25 @@ Every successful transcription now also writes a machine-readable `*.transcript.
 
 Optional Google Calendar integration can rename files and embed event metadata. The shared calendar lookup uses an explicit provider order and, when `--use-calendar` is set, also resolves user-scoped provenance sources from `~/.local/state/transcribe-audio/provenance.config.json`. ffmpeg support enables subtitle embedding.
 
+AssemblyAI video inputs (`.avi`, `.m4v`, `.mkv`, `.mov`, `.mp4`, `.mpeg`, `.mpg`,
+and `.webm`, case-insensitive) are prepared locally as temporary FLAC audio.
+Only the first audio stream is uploaded; video is omitted, with no additional
+lossy encoding or forced resampling/downmixing. Temporary audio is streamed from
+disk and removed after upload or failure. The original recording remains the
+source for calendar timing, existing calendar renaming, and transcript outputs.
+Audio-only inputs continue to upload directly. Extraction requires ffmpeg and
+has a one-hour execution timeout. Missing audio, missing ffmpeg, or failed
+extraction fails the AssemblyAI attempt without uploading the original video;
+the watcher can then try its configured local fallback. Temporary disk space
+must accommodate the decoded, losslessly compressed audio, which can exceed the
+size of the original compressed audio track.
+
 The former Whisper-based automation lives in the `legacy-whisper-pipeline` tag.
 
 ## Prerequisites
 
 - **Python 3.9+** – required for postponed annotations and the Google client libraries.
-- **ffmpeg (optional)** – required for `--embed-subtitles` and for burning subtitles.
+- **ffmpeg** – required for AssemblyAI video inputs, `--embed-subtitles`, and burning subtitles; optional for audio-only AssemblyAI inputs.
 - **AssemblyAI account** – required to generate an API key.
 - **CUDA libraries (local GPU path only)** – required when running `faster_whisper_transcribe.py` on NVIDIA hardware.
 
