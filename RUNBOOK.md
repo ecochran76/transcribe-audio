@@ -18122,3 +18122,18 @@ Source commit `1dcea2797704827a5c022da972158a1ad1315f79` is validated on `feat/a
 Plan0090 and local Ticket0091 close on source acceptance. Source hash matches
 the synthetic smoke receipt. Main merge, remote publication and installed
 activation remain unperformed; the live watcher still uses its prior source.
+
+## 2026-11-01 | Audio-only upload reconciliation and deployment
+
+Operator authorized merge/reconciliation/deployment. Fetched origin/main matched
+clean main88b7051; clean feature eead8aa fast-forward merged without conflicts.
+Installed checkout tests62passed4.07s, watcher screen-folder readiness ok with
+zero issues, and synthetic MP4 CLI smoke passed against deployed main code.
+Service parent3825462active with an older backend child in flight; ffmpeg is
+available in its PATH. Watcher starts a fresh backend process for each recording,
+so this code deployment takes effect on subsequent jobs without interrupting the
+current transcription. No restart, backlog reset or duplicate provider smoke.
+Real next-job audio-only upload completion has not yet been observed.
+Primary deployment receipt: user-scoped transcribe-audio/audio-upload-deployment.json.
+Memory disposition: forbidden; engineering/deployment scope does not authorize
+agent-memory updates under developer instructions.

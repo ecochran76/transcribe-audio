@@ -1404,11 +1404,13 @@ remain separate. Existing meeting/identity/frozen-pilot gates are unchanged.
 
 ## Audio-only AssemblyAI upload preparation | 2026-11-01
 
-State: CLOSED (source acceptance; activation pending)
+State: CLOSED (source merged; deployed for subsequent backend launches)
 
 Plan: `docs/dev/plans/0090-2026-11-01-assembly-audio-only-upload-spec.md`.
 Video-upload preparation moves from maturity 0 to 1 through synthetic-media
 acceptance; original calendar association and transcript provenance must remain
 intact. Operator approved seam and Ticket0091; implementation and 62 selected local
-tests pass on `feat/assembly-audio-only`. Operational yield, installed activation
-and full contextualization are not yet proved.
+tests pass. Feature eead8aa merged into main; installed-source checks and
+synthetic CLI smoke pass. Subsequent jobs launch the deployed backend without
+interrupting in-flight work. Live audio-only completion, operational yield and
+full contextualization remain separate evidence gates.

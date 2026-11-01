@@ -209,3 +209,22 @@ Final tip is the documentation closeout commit containing this ledger; resolve
 the primary owns the complete write scope. Validation result remains valid
 because this follow-up changes documentation only.
 No main merge, remote publication, live provider smoke or installed-service change.
+
+## Authorized Integration And Activation | 2026-11-01
+
+Operator subsequently requested merge, reconciliation and deployment, extending
+source-only delivery authority. Both checkouts were clean; fetched origin/main
+matched local main at88b7051. Feature tip eead8aa fast-forward merged into main
+without conflicts or source changes. Installed-source validation on main:
+62 selected tests passed in4.07s; screen-recordings readiness status ok, issues=[];
+synthetic MP4 CLI smoke passed again using main's installed backend source.
+Live provider acceptance remains distinct from this local fake-provider proof.
+
+The active watcher uses this checkout and launches each backend in a fresh
+subprocess. An older transcription was in flight at deployment, so no service
+restart or cancellation was needed: subsequent backend launches read the merged
+source. The watcher parent source/config/state were unchanged. Its service PATH
+resolves ffmpeg successfully. This proves deployed next-job selection, not yet a
+completed real audio-only upload. Deployment receipt and synthetic smoke evidence
+remain in user-scoped transcribe-audio state. Main publication and checkout
+cleanup are recorded in the runbook.
