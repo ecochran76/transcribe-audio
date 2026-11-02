@@ -39,7 +39,6 @@ DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 CALENDAR_PROVIDER_COMMAND_TIMEOUT_SECONDS = 30.0
 CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 SCRIPT_DIR = Path(__file__).resolve().parent
-WILDCARD_PATTERN = re.compile(r"[*?\[\]]")
 EVENT_WINDOW_BUFFER_SECONDS = 5 * 60
 SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
 OTHER_EVENTS_PREFIX_RE = re.compile(r"^and \d+ other\(s\)\s+", re.IGNORECASE)
@@ -1705,13 +1704,10 @@ def expand_audio_inputs(inputs: Iterable[str]) -> list[Path]:
     seen: set[Path] = set()
     for raw in inputs:
         expanded = Path(raw).expanduser()
-        if WILDCARD_PATTERN.search(str(raw)):
-            matches = glob.glob(str(expanded), recursive=True)
+        if expanded.exists():
+            matches = [str(expanded)]
         else:
-            if expanded.exists():
-                matches = [str(expanded)]
-            else:
-                matches = glob.glob(str(expanded), recursive=True)
+            matches = glob.glob(str(expanded), recursive=True)
 
         if not matches:
             print(f"Warning: no files matched '{raw}'", file=sys.stderr)

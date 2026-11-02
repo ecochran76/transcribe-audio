@@ -1414,3 +1414,12 @@ tests pass. Feature eead8aa merged into main; installed-source checks and
 synthetic CLI smoke pass. Subsequent jobs launch the deployed backend without
 interrupting in-flight work. Live audio-only completion, operational yield and
 full contextualization remain separate evidence gates.
+
+## Literal recording input repair | 2026-11-01
+
+State: CLOSED (source acceptance)
+
+Plan: `docs/dev/plans/0092-2026-11-01-literal-recording-input-discovery.md`.
+Restores automatic transcript eligibility for bracketed filenames. Exact-path
+discovery moves from0to1 on local source acceptance; operational evidence is
+tracked separately from broad conversation accuracy.

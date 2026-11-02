@@ -18137,3 +18137,23 @@ Real next-job audio-only upload completion has not yet been observed.
 Primary deployment receipt: user-scoped transcribe-audio/audio-upload-deployment.json.
 Memory disposition: forbidden; engineering/deployment scope does not authorize
 agent-memory updates under developer instructions.
+
+## 2026-11-01 | Bracketed recording path diagnosis
+
+Primary reproduced the no-files-matched symptom locally without provider calls,
+minimized it to `[a]`, ranked three falsifiable hypotheses, and confirmed that
+wildcard expansion ran before exact-path existence checks. Direct reads and
+escaped expansion pass; unescaped glob expansion fails. Regression test observed
+red before exact-path-first repair. Plan0092 governs focused validation and
+installed-source selection without resetting watcher state.
+
+## 2026-11-01 | Literal-path repair source acceptance
+
+Plan0092 closes source acceptance: existing exact paths now precede glob
+expansion in the resolver shared by both speech CLIs. The minimized/original
+feedback loop passes; selected67tests pass in1.79s; synthetic bracketed MKV CLI
+emits DOCX/TXT/JSON with a fake provider and an audio-only upload. All24currently
+failed bracketed paths resolve without provider calls. Primary Standards and
+Spec review found no blockers. No debug logs retained, source recording renames,
+watcher state edits or forced provider retries. Initial warning-channel test
+expectation was corrected and is recorded with the original red evidence.

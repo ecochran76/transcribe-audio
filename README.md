@@ -23,6 +23,11 @@ the watcher can then try its configured local fallback. Temporary disk space
 must accommodate the decoded, losslessly compressed audio, which can exceed the
 size of the original compressed audio track.
 
+Both transcription CLIs treat an existing input path literally, including names
+such as `meeting [raw recording].mp4`. When no exact path exists, they expand
+wildcard patterns (including character classes and recursive patterns). This
+also applies to paths passed automatically by the watcher.
+
 The former Whisper-based automation lives in the `legacy-whisper-pipeline` tag.
 
 ## Prerequisites
