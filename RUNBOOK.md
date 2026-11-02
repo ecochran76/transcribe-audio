@@ -18157,3 +18157,14 @@ failed bracketed paths resolve without provider calls. Primary Standards and
 Spec review found no blockers. No debug logs retained, source recording renames,
 watcher state edits or forced provider retries. Initial warning-channel test
 expectation was corrected and is recorded with the original red evidence.
+
+## 2026-11-01 | Install literal-path recording repair
+
+Fast-forward merged47c841finto clean main after origin/main equality. Installed
+focused5tests passed1.01s; original repro, synthetic bracketed-video CLI and
+watcher readiness pass. Primary source/readback receipts bind the installed
+resolver hash. Parent3825462remains active, zero restarts; fresh backend launches
+load the fix. All24previously checked failing paths resolve; no real provider
+calls for diagnosis, backlog reset, forced retry or state mutation. Next
+scheduled processing is the remaining live outcome check. Memory disposition:
+forbidden by developer boundary; no agent-memory update requested.

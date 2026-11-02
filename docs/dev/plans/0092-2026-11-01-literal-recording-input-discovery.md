@@ -124,3 +124,19 @@ launches fresh backend processes, so the next scheduled attempts load the fixed
 resolver without interrupting the parent or rewriting its state. Existing retry
 history/backoff is preserved. Main reconciliation and installed-source evidence
 will be appended after the coherent source commit.
+
+## Installed Repair | 2026-11-01
+
+Source commit: `47c841fba799fe1360d31939fcb2ac22612b62e7`.
+Clean main and fetched origin/main matched07b0e6b; source fast-forward merged
+without conflicts. Installed5input-discovery tests pass in1.01s. The original
+feedback loop and bracketed-video synthetic CLI smoke pass again from main;
+resolver source hash matches the smoke receipt. Watcher readiness is ok with
+zero issues. Parent PID3825462remains active/running, NRestarts0.
+
+Future scheduled backend subprocesses load the repair automatically. No service
+restart, recorded-history edit or forced provider retry was needed. Last observed
+heartbeat is scanning/settling/retry-backoff; a post-fix real transcription
+completion has not yet been observed. Local deployment evidence is retained in
+user-scoped diagnostics/literal-media-input/deployment.json. Main source
+publication follows the documentation checkpoint; skip hosted CI per policy.

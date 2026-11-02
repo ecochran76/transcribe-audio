@@ -1417,7 +1417,7 @@ full contextualization remain separate evidence gates.
 
 ## Literal recording input repair | 2026-11-01
 
-State: CLOSED (source acceptance)
+State: CLOSED (source merged and installed)
 
 Plan: `docs/dev/plans/0092-2026-11-01-literal-recording-input-discovery.md`.
 Restores automatic transcript eligibility for bracketed filenames. Exact-path
