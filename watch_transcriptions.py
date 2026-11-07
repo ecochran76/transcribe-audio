@@ -1259,7 +1259,6 @@ def process_file(job: WatchJob, media_path: Path, now: float, job_state: JobStat
 def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool, ScanStats]:
     now = time.time()
     changed = False
-    live_keys: set[str] = set()
     stats = ScanStats()
 
     watch_dir_problem_detail = watch_dir_problem(job.watch_dir)
@@ -1283,9 +1282,11 @@ def scan_job(job: WatchJob, job_state: JobState, *, verbose: bool) -> tuple[bool
             )
         return False, stats
 
+    # A scan processes at most one file. Cleanup must use the complete input
+    # set, including files beyond the early break, to preserve stability clocks.
+    live_keys = {file_key(media_path) for media_path in candidates}
     for media_path in candidates:
         key = file_key(media_path)
-        live_keys.add(key)
         try:
             file_stats = media_path.stat()
         except FileNotFoundError:

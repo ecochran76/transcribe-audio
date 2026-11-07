@@ -1,5 +1,28 @@
 # Runbook
 
+## Watcher partial-scan stability repair (2026-11-07)
+
+The operator authorized repair of repeated settling after the provider-free
+investigation. `scan_job` now derives cleanup membership from the complete
+candidate list before processing one file, preserving unvisited stability
+snapshots while removing files absent from the listing. This advances VISION
+outcome 1 (durable transcription): observed repeated wait resets become a
+regression-proven preservation guarantee; broader readout maturity is unchanged.
+
+Validation from base `1c0ed8f`: the new partial-scan regression failed with a
+missing older candidate before the fix; afterward
+`.venv/bin/python -m pytest tests/test_transcript_artifacts.py tests/test_readouts.py -q`
+passed 55 tests. The original provider-free reproduction passed with `seen_at`
+retained at 1000; `git diff --check` passed. Hosted CI was skipped under the
+operator cost policy; these checks ran in the local virtual environment.
+No audio/provider replay ran because transcription and export paths did not
+change. The main watcher restarted between jobs, passed readiness for four
+roots and became active as PID 2704155. Voice worker was left running.
+Runtime backup and validation are user-scoped under
+`~/.local/state/transcribe-audio/diagnostics/settling-investigation/`.
+Deterministic tests prove stability retention; sustained live throughput remains
+to be observed. Existing invalid-media failures are outside this repair.
+
 ## Turn 443: Preserve complete recordings across calendar transcript splits (2026-09-04)
 
 Summary: Repaired calendar-aware transcript segmentation so event labels do

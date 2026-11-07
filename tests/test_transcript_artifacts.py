@@ -635,6 +635,49 @@ def test_scan_job_settling_reason_does_not_create_fake_progress(tmp_path: Path) 
     assert second_stats.blocked_reasons == {"settling": 1}
 
 
+def test_scan_job_preserves_unvisited_candidates_after_processing(tmp_path: Path, monkeypatch) -> None:
+    newer = tmp_path / "newer.m4a"
+    older = tmp_path / "older.m4a"
+    for media in (newer, older):
+        media.write_bytes(b"audio")
+    job = WatchJob(
+        name="recordings", watch_dir=tmp_path, glob="*.m4a",
+        backends=["assembly"], recursive=False, settle_seconds=120,
+        min_age_seconds=0, scan_interval=30, failure_retry_seconds=900,
+        cli_args={"assembly": []}, notify_on_success=False,
+        notify_on_failure=False, slack_channel=None,
+    )
+    state = JobState(processed={}, candidates={})
+    monkeypatch.setattr(watch_transcriptions, "iter_candidates", lambda job: [newer, older])
+    monkeypatch.setattr(watch_transcriptions.time, "time", lambda: 1000.0)
+    scan_job(job, state, verbose=False)
+    older_key = str(older.resolve())
+    original = state.candidates[older_key]
+    removed_key = str(tmp_path / "removed.m4a")
+    state.candidates[removed_key] = original
+    attempts = []
+
+    def process(job, media, now, job_state):
+        attempts.append(media)
+        return True
+
+    monkeypatch.setattr(watch_transcriptions, "probe_media_readiness", lambda path: (True, ""))
+    monkeypatch.setattr(watch_transcriptions, "process_file", process)
+    monkeypatch.setattr(watch_transcriptions.time, "time", lambda: 1200.0)
+    scan_job(job, state, verbose=False)
+
+    assert attempts == [newer]
+    assert state.candidates[older_key] == original
+    assert removed_key not in state.candidates
+
+    # Once the newer file leaves the input set, the older file is immediately
+    # eligible rather than starting a fresh stability wait.
+    monkeypatch.setattr(watch_transcriptions, "iter_candidates", lambda job: [older])
+    monkeypatch.setattr(watch_transcriptions.time, "time", lambda: 1230.0)
+    scan_job(job, state, verbose=False)
+    assert attempts == [newer, older]
+
+
 def test_scan_job_keeps_retry_backoff_visible_as_queued(tmp_path: Path) -> None:
     media_path = tmp_path / "meeting.m4a"
     media_path.write_bytes(b"audio")
