@@ -919,6 +919,10 @@ python watch_transcriptions.py --run-once --verbose
 python watch_transcriptions.py --verbose
 ```
 
+Videos without an audio stream are blocked as `no_audio_stream` before a
+transcription backend is called. Source files remain untouched; replacing a
+file with a version containing audio allows normal readiness checks to resume.
+
 The watcher stores its memory in `.openclaw/watch_transcriptions_state.json` so it can avoid reprocessing the same finished file every time it scans. Candidate entries include `blocked_kind`, `blocked_reason`, and `blocked_since` when a file is waiting on minimum age, stability, media readiness, missing tools, or retry backoff. Successful records also retain `warning_kind` and `warning_reason` when transcription succeeds after calendar metadata lookup fails. Heartbeats summarize blocked reasons as `blocked=kind=count` so a service can be active without hiding why work is queued. If one configured watch directory is temporarily unavailable while another remains usable, readiness reports that job as a warning and the service continues; readiness remains fatal when every watch directory is unavailable.
 
 ### Recommended config for the current Downloads workflow

@@ -200,6 +200,8 @@ def probe_media_readiness(media_path: Path) -> tuple[bool, str]:
     streams = payload.get("streams") or []
     if not any((stream or {}).get("codec_type") in {"audio", "video"} for stream in streams):
         return False, "no audio/video streams detected"
+    if not any((stream or {}).get("codec_type") == "audio" for stream in streams):
+        return False, "no audio stream detected"
 
     raw_duration = ((payload.get("format") or {}).get("duration"))
     try:
@@ -886,6 +888,8 @@ def retry_backoff_reason(record: ProcessedRecord) -> str:
 
 def classify_probe_block(detail: str) -> str:
     lowered = (detail or "").lower()
+    if "no audio stream detected" in lowered:
+        return "no_audio_stream"
     if "ffprobe not found" in lowered:
         return "missing_tool"
     if "no audio/video streams" in lowered or "duration is missing" in lowered or "duration is missing or zero" in lowered:

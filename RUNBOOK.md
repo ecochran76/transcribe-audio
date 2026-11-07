@@ -1,5 +1,23 @@
 # Runbook
 
+## Reject video-only transcription candidates (2026-11-07)
+
+All seven outstanding screen-recording failures were probed with ffprobe:
+six microscopy AVI mirror copies and one MOV contain video only. The watcher
+now requires an audio stream and classifies video-only inputs as
+`no_audio_stream`, avoiding repeated model loads and provider attempts. This
+advances VISION outcome 1 by admitting transcribable sources; video content is
+not converted into invented transcript text. No source media was altered.
+
+The parameterized readiness regression failed for video-only input before the
+fix; audio-only and audiovisual controls passed. Afterward the focused local
+command `.venv/bin/python -m pytest tests/test_transcript_artifacts.py tests/test_readouts.py -q`
+passed 58 tests; live probes of all seven files returned `no audio stream
+detected`, and `git diff --check` passed. Hosted CI was skipped under the
+operator cost policy. This validates readiness, not speech inference or export
+changes. Historical failure records and runtime reconciliation receipts are
+preserved under `~/.local/state/transcribe-audio/diagnostics/media-failures/`.
+
 ## Watcher partial-scan stability repair (2026-11-07)
 
 The operator authorized repair of repeated settling after the provider-free

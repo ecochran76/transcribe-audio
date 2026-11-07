@@ -97,6 +97,23 @@ def test_remap_artifact_paths_rebases_only_path_fields() -> None:
     assert remapped["transcript_text"] == artifact["transcript_text"]
 
 
+@pytest.mark.parametrize("streams,expected", [
+    ([{"codec_type": "video"}], (False, "no audio stream detected")),
+    ([{"codec_type": "audio"}], (True, "")),
+    ([{"codec_type": "video"}, {"codec_type": "audio"}], (True, "")),
+])
+def test_media_readiness_requires_audio(monkeypatch, streams, expected) -> None:
+    monkeypatch.setattr(
+        watch_transcriptions.subprocess, "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, json.dumps({"streams": streams, "format": {"duration": "48"}}), ""
+        ),
+    )
+    assert watch_transcriptions.probe_media_readiness(Path("recording.mp4")) == expected
+    if not expected[0]:
+        assert watch_transcriptions.classify_probe_block(expected[1]) == "no_audio_stream"
+
+
 def test_iter_candidates_ignores_syncthing_stversions(tmp_path: Path) -> None:
     current = tmp_path / "current.m4a"
     versioned = tmp_path / ".stversions" / "current~20260720.m4a"
