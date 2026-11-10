@@ -76,6 +76,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         nargs="+",
         help="Audio/video file(s) or glob patterns to transcribe (quote globs on Windows shells).",
     )
+    parser.add_argument("--managed-config", type=Path, help="Private managed ASR settings; explicit mode never falls back to a local/cloud engine.")
     parser.add_argument(
         "--api-key-file",
         default="api_keys.json",
@@ -773,15 +774,24 @@ def process_audio_file(
             print(f"Diarization failed: {exc}", file=sys.stderr)
             return False
 
-    return process_transcription_outputs(
-        audio_path,
-        utterances,
-        reported_duration,
-        args,
-        calendar_service,
-        docx_title="faster-whisper Transcript",
-        backend_name="faster_whisper",
-    )
+    def commit_outputs():
+        return process_transcription_outputs(
+            audio_path,
+            utterances,
+            reported_duration,
+            args,
+            calendar_service,
+            docx_title="faster-whisper Transcript",
+            backend_name="faster_whisper",
+        )
+    if args.managed_config:
+        try:
+            return runtime.transcriber.commit_outputs(audio_path,commit_outputs)
+        except Exception as exc:
+            print(f"Managed output requires reconciliation: {exc}",file=sys.stderr)
+            return False
+    return commit_outputs()
+
 
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
@@ -808,7 +818,20 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             return 1
 
     try:
-        runtime = load_runtime(args)
+        if args.managed_config:
+            if args.speaker_labels:
+                raise TranscriptionError('managed pilot requires --no-speaker-labels; diarization is outside selected scope')
+            from managed_transcription import ManagedTranscriber, load_config
+            managed_config=load_config(args.managed_config)
+            requested=dict(model=args.model,compute_type=args.compute_type,batched=not args.no_batch)
+            if any(managed_config.get(key)!=value for key,value in requested.items()):
+                raise TranscriptionError('CLI model/compute/batching differ from explicit managed profile')
+            if args.device not in ('auto',managed_config.get('device')):
+                raise TranscriptionError('CLI device differs from explicit managed profile')
+            runtime=FasterWhisperRuntime(ManagedTranscriber(managed_config),managed_config['device'],
+                managed_config['compute_type'],not args.no_batch)
+        else:
+            runtime = load_runtime(args)
     except Exception as exc:
         print(f"Error: failed to initialize faster-whisper ({exc}).", file=sys.stderr)
         return 1

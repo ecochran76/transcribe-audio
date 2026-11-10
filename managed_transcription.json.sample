@@ -1,0 +1,19 @@
+{
+  "endpoint": "https://127.0.0.1:8443",
+  "token_file": "~/.config/localai/tenants/default/secrets/transcribe-token",
+  "ca_file": "~/.config/localai/tenants/default/service-ca.pem",
+  "profile": "faster-whisper-large-v3",
+  "identity": "replace-with-exact-profile-sha256",
+  "model": "large-v3",
+  "device": "cuda",
+  "compute_type": "float16",
+  "batched": true,
+  "max_workers": 2,
+  "spool_root": "~/.local/share/localai/tenants/default/asr-spool",
+  "state_directory": "~/.local/state/transcribe-audio/managed-asr",
+  "max_audio_seconds": 300,
+  "max_audio_bytes": 67108864,
+  "request_timeout_seconds": 10,
+  "poll_seconds": 0.25,
+  "wait_seconds": 3600
+}

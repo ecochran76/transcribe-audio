@@ -1,5 +1,15 @@
 # Runbook
 
+## Managed local ASR consumer source |2026-11-09
+
+Plan0093/LocalAI ticket0158 add explicit private --managed-config with pinned
+profile, staged whole-file audio, durable request/output custody and no automatic
+route fallback. Direct mode remains unchanged. Synthetic public CLI/output tests
+verify TXT/DOCX generation without model initialization; exact targeted commands
+and source receipts are held by LocalAI implementation plan0014. No live route,
+model/provider operation or private media was touched in this source ticket.
+
+
 ## Reject video-only transcription candidates (2026-11-07)
 
 All seven outstanding screen-recording failures were probed with ffprobe:

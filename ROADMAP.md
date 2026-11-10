@@ -1423,3 +1423,10 @@ Plan: `docs/dev/plans/0092-2026-11-01-literal-recording-input-discovery.md`.
 Restores automatic transcript eligibility for bracketed filenames. Exact-path
 discovery moves from0to1 on local source acceptance; operational evidence is
 tracked separately from broad conversation accuracy.
+
+## Managed LocalAI transcription pilot |2026-11-09
+
+Source built under [Plan0093](docs/dev/plans/0093-2026-11-09-managed-localai-pilot-consumer.md).
+VISION durable-transcript/autonomy outcome advances0to1 for managed inference,
+with original output ownership retained. Actual operational/native rollout is
+owned by LocalAI ticket0160, not implied by source acceptance.
