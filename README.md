@@ -1071,3 +1071,49 @@ It reuses pinned verification adapters and private immutable biometric custody;
 process readiness and structural profile checks do not establish calibrated
 recognition quality or installed enrollment authority. Existing campaign grants
 and private corpora are never inherited by this integration.
+
+## Managed local GPU transcription pilot
+
+`faster_whisper_transcribe.py --managed-config /private/managed.json` explicitly
+routes ASR to the shared LocalAI manager while retaining this application's
+original utterance conversion, DOCX/TXT/SRT/artifact exports, calendar handling and
+watcher readout/store flow. It does not initialize a local Whisper model. Direct
+mode is unchanged when the flag is absent. The pilot requires
+`--no-speaker-labels`; managed diarization is outside its selected scope.
+
+Copy `managed_transcription.json.sample` to the private user tenant configuration
+and replace the exact profile fingerprint, endpoint and existing asset selectors.
+Keep the config and token files mode0600 and spool/state directories mode0700.
+Install the shared service's Python client package into this application's runtime
+(or explicitly put its `qualification/` directory on `PYTHONPATH`). Credentials
+are read only from the configured private token file and never passed in URLs or
+arguments. Normal endpoints use verified TLS; `allow_insecure_loopback=true` is
+only for explicit disposable literal-loopback development.
+
+```sh
+python faster_whisper_transcribe.py recording.wav \
+  --managed-config /private/managed.json --no-speaker-labels --text-output
+```
+
+The config's model/compute/batching must match the CLI settings; the profile binds
+the actual existing model assets and CUDA device. Original beam/VAD/context,
+optional language and batch controls pass unchanged to the serving worker. Input
+is a complete recording, normalized to PCM16 mono16kHz (already matching WAV is
+preserved byte-for-byte), privately staged as a SHA256-named immutable artifact.
+No caller path is sent to the service. Longer-than-configured pilot files fail
+explicitly and remain pending; they are never clipped or silently split. Non-WAV
+conversion requires ffmpeg on PATH or an explicit `ffmpeg` executable in settings.
+
+A selected watcher job must use only `backends: ["faster_whisper"]` and include
+`--managed-config` and `--no-speaker-labels` in `cli_args_by_backend.faster_whisper`.
+Mixed fallback configurations are rejected before processing. Managed errors do
+not launch cloud/CPU inference; ordinary busy responses retry the same stable ID.
+Uncertain submissions/worker outcomes are observed, never blindly replayed.
+
+The application persists request intent and completed inference outside Git.
+Canonical export is guarded separately: a pre-export marker prevents duplicate
+side effects after a crash. Completed retries reuse the original receipt; an
+interrupted or failed export remains explicitly unknown and needs reconciliation
+rather than replaying calendar rename/export/store effects. The existing watcher
+still owns its durable completed-file record, readout and store ingestion. No
+change to installed routing or private recordings is implied by source tests.

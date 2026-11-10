@@ -498,6 +498,10 @@ def parse_cli_args_by_backend(raw_job: dict[str, Any], backends: list[str]) -> d
     for backend in backends:
         specific_args = normalize_cli_args(backend_specific.get(backend)) if isinstance(backend_specific, dict) else []
         cli_args[backend] = [*shared_args, *specific_args]
+    managed=any(arg == "--managed-config" or arg.startswith("--managed-config=")
+                for arg in cli_args.get("faster_whisper",[]))
+    if managed and backends != ["faster_whisper"]:
+        raise WatcherError("Managed ASR requires a faster_whisper-only job; automatic route fallback is disabled.")
     return cli_args
 
 

@@ -84,3 +84,6 @@ Thumbs.db
 
 # (Legacy helper, intentionally ignored)
 download_google_doc.pyw
+
+# Explicit managed tenant settings; only the redacted sample is reusable source.
+managed_transcription.json
