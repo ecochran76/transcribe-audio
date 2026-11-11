@@ -76,7 +76,7 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
 - Isolated integration branch `codex/managed-diarized-0095` contains the historical
   precedence/quiet policy, owned stage workers, resumable processor, guarded CLI,
   recording-wide speaker reconciliation and qualification/evidence tooling.
-- LocalAI source regression:340tests OK with49optional/live skips; joined app69
+- LocalAI source regression:352tests OK with49optional/live skips; joined app70
   tests pass. These are source checks, not native acceptance. Later focused
   controller/provider changes have separately retained red/green evidence.
 - Native CPU streaming Phonon and public AMI reference prerequisites are complete.
@@ -93,12 +93,18 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   Assembly-only and screen processing disabled. No existing service/model was
   paused, reconfigured or displaced. Historical negative captures are retained.
 - Canonical ticket frontier and machine ledger live in the LocalAI integration
-  lane: Spec0005, tickets0162–0181, plan0015 execution JSON. Native171/173/178
-  and mixed167/handoff168 remain open. Ticket0180 is complete;0181 repairs normal
-  unload escalation before new native release qualification.
-- Sixth recording-stage attempt returned12turns/3speaker vectors on public AMI,
-  with measured DER0.1530782443. App15s stop and Windows held-handle wait failed.
-  Later process absence is quiescence evidence only; original failures persist.
+  lane: Spec0005, tickets0162–0182, plan0015 execution JSON. Native171/173/178
+  and mixed167/handoff168 remain open. Tickets0180–0182 are complete for their source/diagnosis scopes. Native release
+  remains unqualified after actual bounded follow-ups.
+- Eight cumulative recording-stage attempts are retained. Real public AMI DIA
+  returned12turns/3speaker vectors with measured DER0.1530782443. The latest
+  diagnostic case captured a Z leader with a same-process D thread waiting in
+  dxgvmb_send_sync_msg after signal requests; owned numeric exit remained missing.
+  App15s release and Windows held-handle wait failed. Later absence is quiescence
+  evidence only; original failures persist and host-side cause remains unproved.
+- A proposed <=15minute idle-only Speech maintenance/control/restore window is
+  prepared outside Git. It has NOT been approved or executed; this plan excludes
+  unrelated service pauses. No further GPU run/reset/reboot follows automatically.
 - Requested final broad review and post-review remediation remain0/1 each,
   reserved until the ticket acceptance frontier actually closes.
 

@@ -18291,3 +18291,28 @@ bases. The requested single final broad review and post-review TDD remain unused
 until acceptance tickets close. Plan0095 remains OPEN; no native/full-backlog pass,
 merge, deployment or remote custody is claimed. Graphiti checkpoint was queued as
 jobfa71bf5e-7e46-4c91-9e7c-d9c75d3421f8; queue acceptance is not persistence proof.
+
+
+### Bounded retirement evidence continuation
+
+Integrated LocalAI0181 early unload escalation and0182 private bounded shutdown
+receipts with a post-capture exact-owner guard. Full local source regression:
+352tests OK,49optional/live skips58.725s; joined app70passed12.53s. Source checkpoints
+are LocalAI89e57c02e and appb12518e; later changes are bounded result/ledger docs
+and one unused test import removal. No hosted CI or final review/remediation.
+
+Two further public DIA canaries retained output while failing15s release. Physical
+recording count8 retains all earlier attempts. Exact owned shutdown capture shows
+leaderZ, same-process threadD/dxgvmb_send_sync_msg, null Popen returncode through
+post-KILL waits, no recorded children, correct retained1.5GiB reservation. This is
+an observed WSL GPU communication boundary, not a verified host-driver cause or
+cure. Outer Linux cleanup passed; latest original Windows held-handle proof failed,
+and later exact process absence does not replace that proof.
+
+Prepared, but did not authorize or execute, a15minute idle-only Speech Receipts
+pause/one-DIA-control/restore proposal. Operator approval is pending because the
+approved Plan0095 excludes pausing unrelated services; no GPU reset, WSL shutdown,
+Windows reboot, driver change or other service pause is included. All new GPU
+qualification remains held, AssemblyAI watches remain active, screen processing
+remains disabled. The source work is concrete and locally validated; tickets171,
+173,178,167/168 and the final single review/remediation sequence remain open.
