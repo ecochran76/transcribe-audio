@@ -45,7 +45,7 @@ def test_successor_limits_preserve_old_packets_and_bound_two_new_loads():
                                  'limits': {'case_seconds': 600, 'cleanup_seconds': 15}}) == (4, 600, 15)
     assert module.native_limits({'max_physical_stage_load_attempts': 6,
                                  'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}) == (6, 160, 15)
-    for attempts, seconds, cleanup in [(7, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
+    for attempts, seconds, cleanup in [(8, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
         with pytest.raises(ValueError, match='bounded native'):
             module.native_limits({'max_physical_stage_load_attempts': attempts,
                                   'limits': {'case_seconds': seconds, 'cleanup_seconds': cleanup}})
@@ -64,3 +64,40 @@ def test_prepared_controller_telemetry_file_is_private_and_explicit(tmp_path):
     path.chmod(0o644)
     with pytest.raises(ValueError, match='private'):
         module.packet_telemetry({'telemetry_config_path': str(path)})
+
+
+def test_contract_corrected_case_uses_qualified_five_second_age(tmp_path):
+    module = harness()
+    assert module.native_limits({'max_physical_stage_load_attempts': 7,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (7, 140, 15)
+    token = tmp_path/'token'
+    token.write_text('private-token')
+    token.chmod(0o600)
+    config = dict(endpoint='http://127.0.0.1:18157', host_id='COOPER',
+        gpu_uuid='GPU-6e6ec07d-41b2-f2a4-6ce5-4be996267477',
+        token_path=str(token), expected_source='windows-dxcore')
+    with patch('inference_manager.windows_telemetry.WindowsGpuTelemetry') as factory:
+        factory.return_value.sample.return_value = dict(source='windows-dxcore',
+            age_seconds=3, observed_at=123, gpu=dict(free_bytes=100, used_bytes=200))
+        assert module.gpu(config, max_age_seconds=5)['age_seconds'] == 3
+        assert factory.call_args.kwargs['max_age_seconds'] == 5
+        for age in (0, 5.01, float('nan'), True):
+            with pytest.raises(ValueError, match='age'):
+                module.gpu(config, max_age_seconds=age)
+
+
+def test_rejection_descriptor_excludes_token_and_does_not_supply_capacity(tmp_path):
+    module = harness()
+    token = tmp_path/'token'
+    token.write_text('private-token')
+    token.chmod(0o600)
+    config = dict(endpoint='http://127.0.0.1:18157', host_id='COOPER',
+        gpu_uuid='GPU-6e6ec07d-41b2-f2a4-6ce5-4be996267477',
+        token_path=str(token), expected_source='windows-dxcore')
+    with patch('inference_manager.windows_telemetry.WindowsGpuTelemetry') as factory:
+        factory.return_value.sample.side_effect = RuntimeError('stale')
+        with pytest.raises(RuntimeError) as caught:
+            module.gpu(config, max_age_seconds=5)
+    assert caught.value.capacity_rejection == dict(error_type='RuntimeError',
+        expected_source='windows-dxcore', age_limit_seconds=5,
+        rejected_sample_available=False)
