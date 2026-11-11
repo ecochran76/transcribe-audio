@@ -271,3 +271,14 @@ requires fresh capacity at its declared profile plus the unchanged floor.
 Current gate: LocalAI ticket0181 implements early owned-worker unload escalation.
 A newly pinned isolated DIA canary must prove bounded release before subsequent
 GPU qualification. Production Assembly-only routes and paused screen queue persist.
+## Prepared release-escalation successor
+
+Ticket0181 adds inspection-driven SIGKILL after the existing two-second TERM grace;
+its source/OS checks do not prove the historical GPU exit delay is fixed. A separately
+authorized successor permits cumulative physical loads8 (six outcomes retained,
+two remaining stage proofs), without resetting the ledger. The harness retains
+legacy7/default4 behavior and rejects counts above8; native140second/15second,
+4CPU/12GiB,5second source-age and3.5GiB floor bounds remain unchanged. The strict8
+source seam first rejected8, then all16 focused app checks passed. A fresh cached-
+factory DIA release canary must be prospectively frozen and admitted by the primary;
+source validation and prepared metadata are not model-dispatch authority.
