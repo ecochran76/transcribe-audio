@@ -18328,3 +18328,33 @@ maintenance0182 DIA control is running with unchanged source/model/resource and
 exit gates. Restoration runs in finally regardless of the verdict; model/backend
 readiness must be verified before retiring the backup timer. No general service
 pause, driver change, GPU reset or reboot is authorized. Results remain pending.
+
+
+### Maintenance outcome, source candidates and host gate
+
+The single approved Speech-only window completed in402.534s, below900s. Its public
+DIA control produced output but retained1.5GiB beyond15s. OuterLinux and Windows
+cleanup passed. Speech was restarted; Pocket and Nemotron readiness/owned workers
+were verified before retiring the restore timer. No further pause was reused.
+
+Source183 adds normal TERM/EOF/error engine finalization; source184 adds optional
+owned-stdin closure after TERM, fingerprinted and enabled only for recording
+profiles. Exact custody,2s KILL fallback,15s release proof and resource gates remain.
+LocalCPU359tests OK49optional/live skips76.981s; app70passed22.85s. The initial full
+359test run had one HTTP exit-race fixture failure, retained. A test-only realowned
+Popen wait made the same race boundary independent of writer scheduling; no runtime
+cause was invented. Focused negatives and the passing full run are retained.
+
+Two actual source candidates still failed release; physical history is now11.
+Latest EOF184 output had12turns/3vectors, but no numeric exit, same-process
+D/dxgvmb_send_sync_msg and1.5GiB retained after15.005s. Early EOF events rolled out
+of the16record history, so delivery is not inferred. OuterLinux/Windows cleanup
+passed, and leader/thread/cgroup absence was independently verified afterward.
+
+Application lifecycle variants now stop. Read-only host preparation confirmed the
+exact NVIDIA device, administrator capability, Windows restore command availability
+and correct Ubuntu machine match. A separate15minute NVIDIA-only restart/onecontrol
+proposal is ready outside Git; new scope approval is pending because earlier
+approval excluded GPU resets. No restart, driver change, Windows reboot or WSL
+shutdown occurred. Source tickets closed; native171/173/178/167/168 and final single
+review/remediation remain open. Production AssemblyAI and Speech remain running.
