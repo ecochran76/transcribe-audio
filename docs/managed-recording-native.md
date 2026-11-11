@@ -207,7 +207,67 @@ bound, missing configurable age and missing rejection descriptor, then all15
 focused processor/harness checks passed. New model effects remain gated on the
 corrected source-qualified composite controller and fresh prospective packets.
 
-Current source qualification is separate from hardware admission: Native ASR
+Earlier source qualification was separate from hardware admission: Native ASR
 produced a live canary transcript but capacity publication exceeded its original
-five-second contract. All further GPU proofs are held behind LocalAI ticket0179.
+five-second contract. That result led to LocalAI ticket0179 and the later ticket0180 source repair.
 Existing voice/Sound routes remain Assembly-only; the screen queue remains paused.
+## Cached-factory under-load DIA canary
+
+A new operator-authorized case used the source-qualified ticket0180 cached-factory
+recipe, rather than the superseded per-acquisition factory implementation. Idle
+qualification was treated as a prerequisite, with under-load behavior measured
+separately. The stable app harness matched source `1590585` byte-for-byte; no model,
+existing service, precision, floor or accepted resource limit changed.
+
+The prospective native packet SHA256 was
+`fcbe24bd3d507b3cc37d3836ee5d12a4c0a0f1bd550f31ecf6ff9bbe1bc795de`;
+composite controller plan SHA256 was
+`81d793c96cf9717f2925506fd94e188e30e80645dd0463e27cb2bc85b430bdcf`.
+The case retained the1.5GiB Pyannote cap, both batch sizes1,4CPU/12GiB,
+140second native case plus15second cleanup,5second strict acquisition bound and
+3.5GiB free-memory floor. It consumed physical load6 of cumulative maximum7;
+all five earlier physical outcomes and setup-only failures remain retained.
+
+The real public59second AMI job succeeded after85.591seconds, returning12turns
+and three anonymous local labels with full finite256-dimensional vectors. Its
+profile identity was
+`7f4f54348dd7278fb1d8046f44895e8eae05729e00cfad45c532b7613b35f5e1`.
+All72 retained strict capacity observations stayed within the source/floor gates:
+maximum effective acquisition age0.456072seconds; minimum free5,418,995,712bytes.
+A pinned private wrapper captured97 additional nonce-bound diagnostic HTTP rows,
+inside the same owned unit. Every row was explicitly non-admission evidence.
+All97 sequences were unique within one generation, sampled iterations16..506
+with observed phase `sleep_enter`. Maximum raw sample age was218.952ms and query
+duration2.0481ms. The diagnostic thread stopped and joined. These observations
+support live publication during this case; HTTP progress never refreshed capacity
+age or substituted for a rejected strict sample.
+
+Actual DIA quality was measured against human AMI transcriber segment evidence:
+overlap-inclusive zero-collar DER was0.1530782443, comprising6.018625seconds missed
+and1.879906seconds confusion over51.598reference speaker-seconds. Three model
+labels mapped to three of four reference speakers. Complete timestamp MAE was
+unavailable because two reference activity boundaries had no mapped speaker.
+ASR was not run and no ASR WER is claimed. The retained raw scorer's empty-word
+placeholder is not an observed ASR result. These are measured DIA outcomes, not
+full mixed-load or useful-work acceptance.
+
+**The overall native canary failed bounded cleanup.** After15seconds the Manager
+still retained the1.5GiB model in `stopping`; adapter close also exceeded its
+second2second wait after SIGKILL. The independent unit subsequently proved its cgroup empty. Windows
+source teardown reported an empty job and absent guardian, but the exact held
+payload handle was not signalled within its wait (`wait_result=258`), so its
+original cleanup receipt remained unproved. A later bounded read-only check found
+that exact payload PID and guardian absent; it did not recover a held numeric exit
+or retroactively pass the original release budget. No uncertain owner was signalled
+and no Manager reservation record was rewritten by this agent.
+
+Private evidence is under `native0173/factory180-dia2-controller/` and adjacent
+`factory180-dia2-*` artifacts. Full stage output/vectors remain in
+`packet-factory180-dia2-result.json`; quality, publication and adjudication JSON
+keep output, acquisition, quality, bounded release and later absence separate.
+Further native dispatch remains held for primary cleanup reconciliation. ASR also
+requires fresh capacity at its declared profile plus the unchanged floor.
+
+Current gate: LocalAI ticket0181 implements early owned-worker unload escalation.
+A newly pinned isolated DIA canary must prove bounded release before subsequent
+GPU qualification. Production Assembly-only routes and paused screen queue persist.
