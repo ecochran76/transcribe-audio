@@ -129,3 +129,18 @@ source optimization and CPUrestore source tests can integrate independently.
 The source closeout uses local checks; hosted CI and the reserved final broad
 review remain unconsumed. Integrated memory disposition belongs to the coordinator;
 this worker did not write a separate Graphiti outcome.
+
+## Explicit capacity source for successors
+
+A new prospective packet may supply `telemetry` with exactly `endpoint`,
+`host_id`, `gpu_uuid`, `token_path` and `expected_source`. The harness uses the
+existing strict WindowsGpuTelemetry client, reads a private owned token in the
+process, and retains source acquisition age using a monotonic clock. Selection
+is explicit: there is no automatic source fallback or cached-good capacity.
+Legacy packets without this field retain their direct NVIDIA acquisition path.
+Both isolated stages and full recording traversal enforce the loaded headroom
+floor. This source change alone does not qualify DXCore or any native model.
+
+Public capacity-selection test red (missing provider argument), then11focused
+source tests pass; invalid/private-token and unavailable samples fail closed.
+No successor native effect occurred as part of this harness adaptation.
