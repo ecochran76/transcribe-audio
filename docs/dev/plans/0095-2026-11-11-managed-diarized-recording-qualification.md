@@ -110,10 +110,16 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
 - Graceful worker cleanup and EOF-assisted stop are source-validated, but actual
   native release still failed. Early EOF records rolled out of the bounded
   diagnostic history, so EOF delivery is not claimed from registration alone.
-- Application lifecycle variants are stopped. An exact NVIDIA-only device restart
-  and one-control proposal awaits new operator scope approval; it may interrupt
-  Windows graphics/GPU clients. No reset, reboot, driver update or additional
-  service pause has occurred. Native acceptance and final review remain open.
+- The operator approved one NVIDIA-only restart window. An independent Windows
+  Speech restore task was armed before pausing Speech. The single restart task
+  hit its 120-second limit without a terminal operation receipt: reset outcome
+  remains unknown and no retry occurred. Device status subsequently read OK,
+  but the UUID query and recovery-task readback timed out. Speech is active and
+  Pocket ready; Nemotron is stopped/blocked by unavailable GPU telemetry.
+  AssemblyAI watchers remain active. The restore task is retained; its scheduled
+  trigger has passed but completion is unverified. No qualification control ran.
+  WSL shutdown, Windows reboot and driver updates remain outside approved scope.
+  Native acceptance and final review remain open; application variants are held.
 - Requested final broad review and post-review remediation remain0/1 each,
   reserved until the ticket acceptance frontier actually closes.
 
