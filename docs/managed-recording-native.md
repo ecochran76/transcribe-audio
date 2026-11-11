@@ -144,3 +144,35 @@ floor. This source change alone does not qualify DXCore or any native model.
 Public capacity-selection test red (missing provider argument), then11focused
 source tests pass; invalid/private-token and unavailable samples fail closed.
 No successor native effect occurred as part of this harness adaptation.
+
+## Independent DXCore successor
+
+The exhausted four-load packet remains unchanged. A separately authorized
+successor permits two additional physical loads, cumulative limit6, after the
+independent Windows DXCore sampler qualification. This changes acquisition and
+ASR restore custody; it does not replay or erase the failed NVIDIA-reader cases.
+
+The harness accepts `max_physical_stage_load_attempts: 6` only with
+`limits.case_seconds` at most160 and cleanup at most15seconds. The deadline covers
+the entire case, including setup and all stage transitions; it is not reset when
+a model changes. Legacy packets retain their original four-load/600second bounds.
+Each successor contains one native stage. The independent composite controller
+owns a fresh bounded Windows guardian/tunnel and WSL unit for each case, and its
+remaining-lifetime gate must pass before native argv is released. No180/186second
+Windows guardian fuse is increased.
+
+Successor packets select `telemetry_config_path` pointing to the composite
+controller's prepared private `telemetry.json`. The configuration carries only
+the loopback endpoint, pinned host/GPU/source and private bearer-file path; bearer
+contents never appear in argv or packet JSON. It is exclusive with inline
+`telemetry`, must be a private owned regular singly linked file, and is included
+in the frozen source/input hash map. Its source is explicitly `windows-dxcore`.
+The capacity client retains validated acquisition age, generation, sequence and
+source time; failures never fall back to Linux NVIDIA telemetry. Load and inference
+continue to enforce the3.5GiB headroom floor against fresh strict samples.
+
+Public source tests first failed on the missing successor-limit seam, then on a
+161second successor wrongly accepted, on lost source age, and on missing private
+configuration-file selection. The resulting focused lane passes13tests. These
+source results authorize no model effects before the composite controller is
+source-validated and the new prospective native packets are frozen.

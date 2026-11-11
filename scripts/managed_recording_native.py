@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import stat
 import sys
 import time
 
@@ -19,6 +20,22 @@ import time
 def save(path, value):
     path.write_text(json.dumps(value, sort_keys=True, indent=2, allow_nan=False))
     path.chmod(0o600)
+
+
+def packet_telemetry(packet):
+    """Select the prepared controller's private configuration without fallback."""
+    if 'telemetry_config_path' not in packet:
+        return packet.get('telemetry')
+    path = Path(packet['telemetry_config_path'])
+    if not path.is_absolute() or 'telemetry' in packet:
+        raise ValueError('one explicit private telemetry configuration required')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > 65536):
+            raise ValueError('private owned bounded telemetry configuration required')
+        return json.loads(stream.read(65537))
 
 
 def gpu(telemetry=None):
@@ -40,25 +57,40 @@ def gpu(telemetry=None):
         sample = client.sample()
         return dict(free_bytes=sample['gpu']['free_bytes'],
                     used_bytes=sample['gpu']['used_bytes'],
-                    observed_at=sample['observed_at'], source=sample['source'])
+                    observed_at=sample['observed_at'], source=sample['source'],
+                    age_seconds=sample['age_seconds'], generation=sample.get('generation'),
+                    sequence=sample.get('sequence'), sampled_at_utc=sample.get('sampled_at_utc'))
     raw = subprocess.check_output(['/usr/lib/wsl/lib/nvidia-smi', '--query-gpu=memory.free,memory.used',
                                    '--format=csv,noheader,nounits'], text=True, timeout=5)
     free, used = [int(value.strip()) * 1024 ** 2 for value in raw.strip().split(',')]
     return dict(free_bytes=free, used_bytes=used, observed_at=time.monotonic())
 
 
+def native_limits(packet):
+    """Retain original receipts while bounding the explicit two-load successor."""
+    attempts = packet.get('max_physical_stage_load_attempts', 4)
+    seconds = packet.get('limits', {}).get('case_seconds', 600)
+    cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
+    if (type(attempts) is not int or not 1 <= attempts <= 6
+            or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
+            or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
+        raise ValueError('bounded native attempt/runtime/cleanup limits required')
+    return attempts, seconds, cleanup
+
+
 def worker_exec(packet_path, command):
     packet = json.loads(packet_path.read_text())
     sys.path.insert(0, packet['localai_qualification'])
+    attempt_limit, _, _ = native_limits(packet)
     stage = command[command.index('--stage') + 1]
     root = packet_path.parent
     with (root/'attempts.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         ledger = root/'attempts.json'
         attempts = json.loads(ledger.read_text()) if ledger.exists() else []
-        if len(attempts) >= 4:
+        if len(attempts) >= attempt_limit:
             raise RuntimeError('physical stage-load allowance exhausted')
-        sample = gpu(packet.get('telemetry'))
+        sample = gpu(packet_telemetry(packet))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:
             raise RuntimeError('fresh native headroom gate failed')
@@ -76,6 +108,8 @@ def worker_exec(packet_path, command):
 def run(packet_path):
     packet = json.loads(packet_path.read_text())
     root = packet_path.parent
+    _, case_seconds, cleanup_seconds = native_limits(packet)
+    case_deadline = time.monotonic()+case_seconds
     # The launcher must impose actual RAM/CPU bounds, not CUDA-incompatible AS limits.
     relative = next(line.split(':', 2)[2] for line in Path('/proc/self/cgroup').read_text().splitlines()
                     if line.startswith('0::'))
@@ -101,12 +135,12 @@ def run(packet_path):
     from managed_recording import RecordingProcessor
     operator, consumer = Principal('native0173', 'operator'), Principal('native0173', 'recording')
     def capacity():
-        sample = gpu(packet.get('telemetry'))
+        sample = gpu(packet_telemetry(packet))
         return Capacity(max(0, sample['free_bytes']-packet['headroom_bytes']), sample['observed_at'])
     service = SharedService(root/packet_path.stem/'manager', budget_bytes=4*1024**3,
         capacity=capacity, clock=time.monotonic,
         operator=operator, consumers=[ConsumerPolicy(consumer, ('native-asr','native-diarization'), ('historical',))],
-        workloads=[WorkloadPolicy('historical', 3, 'background', wait_seconds=600, max_run_seconds=600)])
+        workloads=[WorkloadPolicy('historical', 3, 'background', wait_seconds=case_seconds, max_run_seconds=case_seconds)])
     adapters = []
     def adapter_factory(command, directory, **kwargs):
         adapter = ProcessAdapter([sys.executable, str(Path(__file__).resolve()), '--exec-worker',
@@ -125,7 +159,7 @@ def run(packet_path):
         if packet.get('only_stage'):
             stage = packet['only_stage']
             config = packet['registration']['stages'][stage]
-            sample = gpu(packet.get('telemetry'))
+            sample = gpu(packet_telemetry(packet))
             report['pre_admission_gpu'] = sample
             if sample['free_bytes'] < config['reserved_bytes'] + packet['headroom_bytes']:
                 raise RuntimeError('fresh native headroom admission refusal')
@@ -133,13 +167,13 @@ def run(packet_path):
                 payload=dict(artifact_id=Path(packet['input_wav']).name,
                              sha256=packet['input_sha256'], options={}))
             service.submit(consumer, request)
-            deadline = time.monotonic()+600
+            deadline = case_deadline
             sampled_at = 0
             while time.monotonic() < deadline:
                 service.tick()
                 view = service.observe(consumer, request['id'])
                 if time.monotonic()-sampled_at >= 1:
-                    sample = gpu(packet.get('telemetry'))
+                    sample = gpu(packet_telemetry(packet))
                     report['gpu_samples'] = report.get('gpu_samples', [])+[sample]
                     sampled_at = time.monotonic()
                     if sample['free_bytes'] < packet['headroom_bytes']:
@@ -154,7 +188,7 @@ def run(packet_path):
                 if view['state'] in ('failed','cancelled','unknown','unavailable'):
                     raise RuntimeError('native stage '+view['state']+': '+str(view.get('reason')))
                 time.sleep(.2)
-            raise RuntimeError('600second stage bound exceeded')
+            raise RuntimeError('native stage runtime bound exceeded')
         config = dict(packet['processor'], profiles=bindings)
         processor = RecordingProcessor(config, client=Client())
         key = processor.prepare(packet['input_wav'], recording_id='native0173-smoke',
@@ -170,16 +204,16 @@ def run(packet_path):
             if current != previous:
                 if previous is not None:
                     report['timings'].append(dict(stage=previous, elapsed_seconds=time.monotonic()-stage_start))
-                    cleanup = service.stop_owned(timeout_seconds=15)
+                    cleanup = service.stop_owned(timeout_seconds=cleanup_seconds)
                     report['observations'].append(dict(at=time.time(), cleanup=cleanup))
                     if cleanup['models'] or cleanup['reserved_bytes']:
                         raise RuntimeError('stage release unproved')
                 previous, stage_start = current, time.monotonic()
-            if time.monotonic()-stage_start > 600:
-                raise RuntimeError('600second stage bound exceeded')
+            if time.monotonic() > case_deadline:
+                raise RuntimeError('native stage runtime bound exceeded')
             service.tick()
             if time.monotonic()-sample_time >= 1:
-                sample = gpu(packet.get('telemetry'))
+                sample = gpu(packet_telemetry(packet))
                 if sample['free_bytes'] < packet['headroom_bytes']:
                     raise RuntimeError('loaded GPU headroom floor violated')
                 report['observations'].append(dict(at=time.time(), gpu=sample, resources=service.manager.resources(operator)))
@@ -198,12 +232,12 @@ def run(packet_path):
         report['error'] = repr(error)
         raise
     finally:
-        report['cleanup'] = service.stop_owned(timeout_seconds=15)
+        report['cleanup'] = service.stop_owned(timeout_seconds=cleanup_seconds)
         report['cleanup_proved'] = not report['cleanup']['models'] and report['cleanup']['reserved_bytes'] == 0
         if not report['cleanup_proved']:
             report['verdict'] = 'cleanup_unproved'
         try:
-            report['final_gpu'] = gpu(packet.get('telemetry'))
+            report['final_gpu'] = gpu(packet_telemetry(packet))
         except Exception as error:
             report['final_gpu_error'] = repr(error)
         ledger = root/'attempts.json'
