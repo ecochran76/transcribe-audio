@@ -344,3 +344,42 @@ focused processor/harness16tests passed in1.75s afterward. Counts above9 are
 rejected, legacy4/7/8 packets remain valid, and the successor runtime<=160s,
 cleanup<=15s,4CPU/12GiB, strict5s age and3.5GiB floor remain unchanged. These normal
 feature tests do not consume the reserved final review/remediation counters.
+## Ticket0182 shutdown-boundary result
+
+The separately admitted diagnostic case used LocalAI `89e57c02e`, app `b12518e`,
+native packet SHA256 `7fa33c796f0de4eee949714bd28372bb20e7a456347147cf57118c4d498822c1`
+and controller plan SHA256
+`6f806175fa53ad073085d100bf262b083ae0bc30f4b0d1ecdd793ac97102a0dc`.
+No signal, deadline, model math or resource limit changed. This consumed physical
+load8 of cumulative maximum9 and stopped at its first failure; no next model ran.
+
+Real output again contained12turns and3x256D vectors, with measured DIA DER0.1530782443.
+Timestamp MAE remained unavailable for two missing boundaries; ASR was not run.
+All72 retained strict source samples passed (maximum effective age0.307245seconds,
+minimum free5,611,892,736bytes). The diagnostic-only HTTP capture retained95nonce-
+bound unique publications, with94`sleep_enter` and one`list_enter` observation.
+
+The new generation-bound records capture the release boundary: before TERM the
+leader was sleeping in `anon_pipe_read`; its first wait snapshot then showed
+leader state`Z`, shared pending mask`0x4000`, no blocked signals and `returncode=None`.
+A thread in that same thread group remained state`D` in `dxgvmb_send_sync_msg`.
+SIGKILL requests returned at approximately2.043,4.056 and17.110seconds after stop
+began; subsequent waits still captured that thread and no numeric reap. Custody
+recorded no descendant processes. The optional PGID/SID snapshot matched the leader
+while loading; no shutdown PGID snapshot was available. Underlying driver cause
+remains unproved.
+
+`stop_owned` recorded a4.028second closer timeout,988pumps and15.002seconds total,
+retaining the1.5GiB stopping reservation. The overall bounded-release verdict failed.
+The independent Linux unit subsequently proved an empty cgroup. Windows original
+held-handle cleanup was unproved; a later exact read-only check found its payload
+and guardian absent without reconstructing an exit signal/code. No original failure
+or Manager state was rewritten, and no extra OS signal, GPU control, service change
+or model/collector start followed the failure.
+
+Private `native0173/diag182-dia-adjudication.json` SHA256
+`ca8de6974892f76ab61a7dcf9e3772464d2809b8afa3bd2650a180e5c92a040d`
+links the retirement-generation file, stop timing, raw stage/vectors, quality,
+publication and original/late cleanup records. Further effects remain held pending
+new primary authority and a prospectively frozen packet. Memory disposition:
+`forbidden` by the delegated task's explicit no-memory-write boundary.
