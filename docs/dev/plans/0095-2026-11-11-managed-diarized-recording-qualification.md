@@ -3,7 +3,7 @@
 State: OPEN
 Owner: primary integration coordinator
 Scope: qualify a bounded resumable local transcription-and-diarization pilot
-Execution: source implementation validated; native acceptance blocked on under-load capacity acquisition
+Execution: source implementation validated; native acceptance blocked on bounded owned release and remaining native cohorts
 Source baseline: Transcribe Audio main, 61471db; LocalAI codex/0157-transcribe-pilot, f4bcf138967f570c7bd0c9646800be28b338aa62
 Decision provenance: [interview](../notes/0062-2026-11-10-managed-transcription-design-interview.md), Q1-Q18
 Architecture: [ADR0005](../../adr/0005-resume-recordings-across-managed-inference-units.md)
@@ -84,16 +84,21 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   target; GPU embedding candidate remains unmeasured after one interrupted load.
 - Real Nemotron3GiB canary produced an incremental transcript, but original5s
   capacity acquisition contract failed under load before a20warm paired cohort.
-  Public diarization and combined useful-output acceptance remain open.
+  Full paired ASR and combined useful-output acceptance remain open.
 - Diagnostic sampler progress has CPU/provider proof that fresh diagnostic data
   cannot refresh stale GPU counters. An isolated model-free source qualification
-  precedes any new controlled native observation. No freshness/headroom bypass.
+  qualified cached-factory0180 source achieved240unique valid idle samples. Its
+  subsequent DIA run maintained fresh acquisition; no freshness/headroom bypass.
 - Production voice/main watchers were freshly verified active, selected jobs
   Assembly-only and screen processing disabled. No existing service/model was
   paused, reconfigured or displaced. Historical negative captures are retained.
 - Canonical ticket frontier and machine ledger live in the LocalAI integration
-  lane: Spec0005, tickets0162–0179, plan0015 execution JSON. Native171/173/178
-  and mixed167/handoff168 remain open;179 owns the acquisition diagnosis.
+  lane: Spec0005, tickets0162–0181, plan0015 execution JSON. Native171/173/178
+  and mixed167/handoff168 remain open. Ticket0180 is complete;0181 repairs normal
+  unload escalation before new native release qualification.
+- Sixth recording-stage attempt returned12turns/3speaker vectors on public AMI,
+  with measured DER0.1530782443. App15s stop and Windows held-handle wait failed.
+  Later process absence is quiescence evidence only; original failures persist.
 - Requested final broad review and post-review remediation remain0/1 each,
   reserved until the ticket acceptance frontier actually closes.
 

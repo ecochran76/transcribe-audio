@@ -18264,3 +18264,30 @@ coverage and whitespace. No implementation, model trial, service mutation, runti
 activation, historical batch or remote publication occurred in this design slice.
 Voice AssemblyAI remains enabled and the screen-recording job remains disabled.
 Final shared-understanding confirmation remains pending under the invoked skill.
+
+
+## Turn 0096 | 2026-11-11 | Implement managed recording qualification
+
+Standing operator authority covers source implementation, delegated unblocked
+prerequisites and isolated bounded native qualification. Source policy, workers,
+processor, guarded CLI, references, evaluator and service registration are built
+in separate integration worktrees; production watcher routes remain Assembly-only
+and the historical screen queue remains disabled. LocalAI340tests/49optional skips
+and joined app69tests passed at the recorded source checkpoints; later focused
+changes have their own evidence. No hosted CI or production Speech mutation.
+
+Native streaming Phonon passed; CPU embeddings retained semantic compatibility
+but failed500ms latency. Four live-ASR physical loads and six recording-stage loads
+are retained. Cached-factory0180 qualified idle acquisition and the sixth DIA run
+produced12turns/3vectors with DER0.1530782443. Its15s app release and Windows held
+payload wait failed; late process absence does not rewrite those failures.
+
+Current blocker reduction: delegated0181 adds exact-owner unload escalation after
+the existing2s grace, with real OS red/green regression and changed-identity
+negative checks. Primary owns integration and171; workers retain one active ticket
+each. Newly pinned DIA bounded-release proof precedes held171/178 successors.
+Machine ledger in LocalAI plan0015 retains cumulative physical counters and review
+bases. The requested single final broad review and post-review TDD remain unused
+until acceptance tickets close. Plan0095 remains OPEN; no native/full-backlog pass,
+merge, deployment or remote custody is claimed. Graphiti checkpoint was queued as
+jobfa71bf5e-7e46-4c91-9e7c-d9c75d3421f8; queue acceptance is not persistence proof.
