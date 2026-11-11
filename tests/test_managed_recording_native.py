@@ -45,7 +45,7 @@ def test_successor_limits_preserve_old_packets_and_bound_two_new_loads():
                                  'limits': {'case_seconds': 600, 'cleanup_seconds': 15}}) == (4, 600, 15)
     assert module.native_limits({'max_physical_stage_load_attempts': 6,
                                  'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}) == (6, 160, 15)
-    for attempts, seconds, cleanup in [(8, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
+    for attempts, seconds, cleanup in [(9, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
         with pytest.raises(ValueError, match='bounded native'):
             module.native_limits({'max_physical_stage_load_attempts': attempts,
                                   'limits': {'case_seconds': seconds, 'cleanup_seconds': cleanup}})
@@ -101,3 +101,14 @@ def test_rejection_descriptor_excludes_token_and_does_not_supply_capacity(tmp_pa
     assert caught.value.capacity_rejection == dict(error_type='RuntimeError',
         expected_source='windows-dxcore', age_limit_seconds=5,
         rejected_sample_available=False)
+
+
+def test_explicit_release_successor_allows_eight_without_resetting_legacy_limits():
+    module = harness()
+    assert module.native_limits({'max_physical_stage_load_attempts': 7,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (7, 140, 15)
+    assert module.native_limits({'max_physical_stage_load_attempts': 8,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (8, 140, 15)
+    with pytest.raises(ValueError, match='bounded native'):
+        module.native_limits({'max_physical_stage_load_attempts': 9,
+            'limits': {'case_seconds': 140, 'cleanup_seconds': 15}})
