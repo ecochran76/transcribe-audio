@@ -383,3 +383,30 @@ links the retirement-generation file, stop timing, raw stage/vectors, quality,
 publication and original/late cleanup records. Further effects remain held pending
 new primary authority and a prospectively frozen packet. Memory disposition:
 `forbidden` by the delegated task's explicit no-memory-write boundary.
+
+The operator-approved maintenance0182 control consumed physical attempt9. With
+Speech temporarily paused, real DIA again succeeded (12 turns and three speaker
+vectors), but the same 15-second application release gate failed. The retained
+retirement receipt shows the matched leader949024 in Z, same-process thread952279
+in D at `dxgvmb_send_sync_msg`, and no numeric return code after returned SIGKILL
+requests and timed waits. `stop_owned` recorded a4.055second closer timeout,
+978pumps and15.007seconds total; the1.5GiB stopping reservation remained. This
+reproduces the observed release failure under the maintenance condition; it does
+not establish a driver cause or a verified remedy. Independent outer Linux and
+Windows cleanup both proved true. The coordinator's restoration receipts record
+Speech and both model workers ready before retiring the backup restore timer.
+
+Private evidence remains under `native0173/maintenance0182-dia-controller`,
+`packet-maintenance0182-dia-result.json`,
+`workers-maintenance0182-dia/diarization/retirement-33a476ff826954e2.json`, and
+`packet-maintenance0182-dia/manager/stop-owned-diagnostics.json`; maintenance and
+restoration receipts remain in `host-release-diagnosis`. Previous failed-release
+receipts and all nine physical starts remain immutable.
+
+The harness now accepts an explicit cumulative maximum11, preserving prior9 plus
+at most two prospective DIA/ASR proofs. Legacy4/7/8/9 packets remain valid;12 is
+rejected. The single whole-case successor ceiling160seconds and cleanup ceiling
+15seconds are unchanged. This source change authorizes no execution: a successor
+must bind the new183 worker source and receive exact prospective admission. No new
+native packet was frozen or executed in this unit. Memory disposition: `forbidden`
+by the delegated no-memory-write boundary.

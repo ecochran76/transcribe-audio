@@ -45,7 +45,7 @@ def test_successor_limits_preserve_old_packets_and_bound_two_new_loads():
                                  'limits': {'case_seconds': 600, 'cleanup_seconds': 15}}) == (4, 600, 15)
     assert module.native_limits({'max_physical_stage_load_attempts': 6,
                                  'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}) == (6, 160, 15)
-    for attempts, seconds, cleanup in [(10, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
+    for attempts, seconds, cleanup in [(12, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
         with pytest.raises(ValueError, match='bounded native'):
             module.native_limits({'max_physical_stage_load_attempts': attempts,
                                   'limits': {'case_seconds': seconds, 'cleanup_seconds': cleanup}})
@@ -111,6 +111,8 @@ def test_explicit_release_successor_preserves_history_and_two_stage_proof():
         'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (8, 140, 15)
     assert module.native_limits({'max_physical_stage_load_attempts': 9,
         'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (9, 140, 15)
+    assert module.native_limits({'max_physical_stage_load_attempts': 11,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (11, 140, 15)
     with pytest.raises(ValueError, match='bounded native'):
-        module.native_limits({'max_physical_stage_load_attempts': 10,
+        module.native_limits({'max_physical_stage_load_attempts': 12,
             'limits': {'case_seconds': 140, 'cleanup_seconds': 15}})

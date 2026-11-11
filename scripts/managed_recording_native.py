@@ -81,7 +81,7 @@ def native_limits(packet):
     attempts = packet.get('max_physical_stage_load_attempts', 4)
     seconds = packet.get('limits', {}).get('case_seconds', 600)
     cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
-    if (type(attempts) is not int or not 1 <= attempts <= 9
+    if (type(attempts) is not int or not 1 <= attempts <= 11
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
         raise ValueError('bounded native attempt/runtime/cleanup limits required')
