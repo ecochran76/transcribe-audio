@@ -180,3 +180,18 @@ def test_missing_stage_provenance_never_accepts_result(tmp_path, field):
     with pytest.raises(RecordingProcessingError, match='identity conflict'):
         processor.advance(key)
     assert 'result' not in processor.snapshot(key)['units'][0]['stages']['asr']
+
+
+def test_restart_finishes_asr_cohort_before_loading_diarization(tmp_path):
+    client = Client()
+    client.lost = False
+    processor = RecordingProcessor(config(tmp_path), client=client)
+    key = processor.prepare(audio(tmp_path/'source.wav'), recording_id='r', conversation_id='c')
+    first = processor.advance(key)
+    first_asr = first['units'][0]['stages']['asr'].copy()
+    processor = RecordingProcessor(config(tmp_path), client=client)
+    for _ in range(4):
+        final = processor.advance(key)
+    assert [request['profile'] for request in client.requests] == ['asr', 'asr', 'diar', 'diar']
+    assert final['units'][0]['stages']['asr'] == first_asr
+    assert final['state'] == 'ready'
