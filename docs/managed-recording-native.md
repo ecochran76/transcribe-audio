@@ -282,3 +282,48 @@ legacy7/default4 behavior and rejects counts above8; native140second/15second,
 source seam first rejected8, then all16 focused app checks passed. A fresh cached-
 factory DIA release canary must be prospectively frozen and admitted by the primary;
 source validation and prepared metadata are not model-dispatch authority.
+
+## Admitted ticket0181 release canary
+
+The new stopping-inspection escalation passed source/OS tests and was integrated
+before a separately admitted DIA canary. Original packets and the six preceding
+physical outcomes were retained. The new native packet SHA256 was
+`a691673ac947900bb3a9c6c8815b3cc0746f9fc5f17e25a2664451b960ef15ff`;
+controller plan SHA256 was
+`dd0429cddf89dd0597f7883c5c72a0e9d3dc70697ec1e3145c1399888695b2fa`.
+It used integrated app `bd28f5d` and LocalAI adapter code `5105d9c19`, with the
+cached0180 recipe, unchanged1.5GiB/batch1 model profile,5second freshness and3.5GiB
+floor,4CPU/12GiB,140second native case and15second app cleanup. This was physical
+load7 of cumulative maximum8; no next model or retry followed its failure.
+
+Real DIA completed after59.578seconds with12turns and three finite256D speaker
+vectors. Reference scoring again measured DER0.1530782443; complete timestamp MAE
+remained unavailable because two reference boundaries lacked a mapped speaker.
+ASR was not run. All53 retained strict capacity samples stayed fresh and above the
+floor (maximum effective age0.369067seconds, minimum free6,380,339,200bytes).
+The separate diagnostic-only lane retained75 nonce-bound HTTP200 rows with75unique
+sequences, all observed phase `sleep_enter`; it did not supply capacity decisions.
+
+**Bounded app release failed again.** After15seconds, Manager still retained the
+1.5GiB `stopping` model and the result's exit readback recorded its leader present.
+The known custody contained only that leader/group and no recorded descendants.
+The later explicit close reached its second two-second wait after requesting
+SIGKILL and timed out. No shutdown-state/kernel-wait snapshot or numeric model
+exit was captured, so this does not prove a driver cause, ignored signal, or a
+leader-reaped/child-alive scenario. The earlier actual OS observation was a running
+leader during loading; it is not shutdown evidence.
+
+Independent owned-unit cleanup subsequently proved an empty Linux cgroup and the
+leader was absent on current readback. Windows source teardown succeeded on this
+case: the exact held payload handle signalled with numeric exit1, its job was empty,
+guardian/payload were absent and the owned tunnel was absent. This later cleanup
+does not retroactively pass the failed app15second release budget. No historical
+receipt or Manager journal was rewritten.
+
+The compact private adjudication is `native0173/release181-dia-v2-adjudication.json`
+(SHA256 `344be6e7417dfd593d827605a4ce4ad6245fe7b195aef4145257af29dbcd8870`).
+Raw stage output/full vectors, strict observations, diagnostic rows, custody and
+independent cleanup remain adjacent to `release181-dia-v2-controller/`. The overall
+verdict is native-output success with bounded-release failure. Further dispatch is
+held; ticket0182 is gathering shutdown-boundary diagnostics without changing signal
+or deadline policy. Source0181 validation is not a verified native behavior cure.
