@@ -57,3 +57,75 @@ its forced-aligned word timestamps are not human-reviewed word boundaries.
 Native public-cohort results and any explicitly repaired ASR candidate are pending
 at this source checkpoint. Full quality/mixed-load acceptance remains ticket0167;
 this source change does not activate recording ingestion or publish transcripts.
+
+The public59second DIA profile with upstream segmentation/embedding batch sizes32
+failed its1.5GiB Torch allocator cap during speaker embedding (312MiB requested).
+This is retained negative evidence, with confirmed release. A separately frozen
+batchsize1 profile retains identical model files, dtype, cap and headroom floor;
+its native result is recorded separately rather than replacing that failure.
+
+The source Parakeet repair stages the checkpoint on CPU before CUDA transfer.
+Installed NeMo otherwise moves the constructed model and the checkpoint state
+onto CUDA together during restore. A focused model-boundary TDD test covers the
+new load path; this source result does not qualify the repaired native ASR path.
+No additional ASR native load is authorized within the four-load0173 allowance.
+
+## Native closeout
+
+Four physical model-load attempts were consumed; no additional native attempt is
+permitted by this packet. The setup failure and4GiB admission refusal consumed
+zero physical loads. All cases used the native lock and bounded owned cgroups.
+
+| Physical load | Profile/input | Result | Process/reservation cleanup |
+| --- | --- | --- | --- |
+| 1 | Pyannote1.5GiB, batch32, retained synthetic3.435s speech | Native stage succeeded; one turn,256D vector | Proven |
+| 2 | Parakeet3.5GiB, public AMI59s | Loaded headroom floor violated during restore; no ASR output | Proven |
+| 3 | Pyannote1.5GiB, batch32, public AMI59s | Actual CUDA allocator OOM during embedding; no stage output | Proven |
+| 4 | Pyannote1.5GiB, batch1, public AMI59s | External `nvidia-smi` read timed out after5s during loading; stopped without stage output | Proven |
+
+The last case retained a minimum observed free GPU sample of8,204,058,624bytes
+before telemetry failed; this does not establish uninterrupted capacity during
+the missing observation. Its final fresh GPU read was8,716,812,288bytes free.
+The owned worker PID was absent, all four recorded worker PIDs were absent, and
+Manager reported no models and zero reserved bytes. The cgroup recorded
+2,757,255,168bytes peak RAM and zero OOM events. Service runtime was85.748seconds.
+No public-cohort speaker/word/timing quality metric is available because neither
+public stage completed. No transcript, canonical output, routing or activation
+was published.
+
+The final batch1 packet SHA256 is
+`36fe2f546d6bf4e7c7363672c8f18c153058564a400b0b75b9da46142f995d08`;
+its manifest SHA256 is
+`37394c5c114aab0fbf313b68e810ecc1c131127872f74339aed5c0a144d7de41`.
+The private root retains every packet, original batch32 bundle/manifest,
+separate batch1 bundle/manifest, physical-attempt ledger, per-worker diagnostic
+logs, resource-control receipts, progress and final result JSON. Failed samples
+remain failed; batch1 is an unqualified repair candidate.
+
+The optional explicit harness is [managed_recording_native.py](../scripts/managed_recording_native.py).
+It imports model/service code only on explicit execution and verifies cgroup
+controls and frozen source hashes before admission. Run it only with a new
+qualified packet and resource authority; ordinary source checks never invoke it.
+The actual launcher shape used here was:
+
+```sh
+flock /tmp/plan0095-native.lock systemd-run --user --wait --collect --pipe \
+ --unit=EXACT_FROZEN_CASE --property=MemoryMax=12G --property=CPUQuota=400% \
+ --property=RuntimeMaxSec=600 --property=TimeoutStopSec=15 \
+ /absolute/transcribe-venv/bin/python scripts/managed_recording_native.py \
+ /absolute/private/packet.json
+```
+
+The harness currently uses the WSL executable `/usr/lib/wsl/lib/nvidia-smi`.
+Its allocator cap and local GPU telemetry do not by themselves establish
+Windows host capacity, global allocation enforcement or mixed-service acceptance.
+The prospective packets pin interpreters, local model assets/packages, actual
+worker source hashes, registered profile fingerprints, inputs and verdict bounds.
+
+Remaining gates are repaired-Parakeet native execution under a separately
+authorized allowance, reliable host GPU telemetry, completed public multi-speaker
+DIA/ASR evidence and ticket0167 full managed useful-work acceptance. The processor
+source optimization and CPUrestore source tests can integrate independently.
+The source closeout uses local checks; hosted CI and the reserved final broad
+review remain unconsumed. Integrated memory disposition belongs to the coordinator;
+this worker did not write a separate Graphiti outcome.
