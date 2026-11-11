@@ -175,8 +175,10 @@ class RecordingProcessor:
         """Submit once or observe one unfinished stage; never replay unknown custody."""
         with self._locked(key):
             record = self._load(key)
-            for unit in record['units']:
-                for stage in ('asr', 'diarization'):
+            # Finish each model cohort before changing residency. Checkpoints and
+            # uncertain requests retain their original IDs and observation rules.
+            for stage in ('asr', 'diarization'):
+                for unit in record['units']:
                     entry = unit['stages'][stage]
                     if 'result' in entry:
                         continue
