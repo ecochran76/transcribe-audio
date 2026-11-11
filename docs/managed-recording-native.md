@@ -327,3 +327,20 @@ independent cleanup remain adjacent to `release181-dia-v2-controller/`. The over
 verdict is native-output success with bounded-release failure. Further dispatch is
 held; ticket0182 is gathering shutdown-boundary diagnostics without changing signal
 or deadline policy. Source0181 validation is not a verified native behavior cure.
+
+
+## Prospective diagnostic successor after physical load7
+
+The seventh attempt retained real DIA output but failed bounded app release. A
+shutdown diagnostic source change is tracked in LocalAI0182; it changes no signal
+policy or exit proof. Before any next effect, the successor allowance is reframed
+as cumulative9=seven retained physical outcomes+at most two new stage proofs. One
+new DIA diagnostic/release case must run first and stop on its first failure;
+only a passing release could unlock the remaining ASR proof. No source change
+alone admits either run. All prior frozen packets and attempt history remain.
+
+The public native_limits seam rejected9 before the one-line limit update; the
+focused processor/harness16tests passed in1.75s afterward. Counts above9 are
+rejected, legacy4/7/8 packets remain valid, and the successor runtime<=160s,
+cleanup<=15s,4CPU/12GiB, strict5s age and3.5GiB floor remain unchanged. These normal
+feature tests do not consume the reserved final review/remediation counters.
