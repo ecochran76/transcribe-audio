@@ -9,6 +9,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -38,7 +39,10 @@ def packet_telemetry(packet):
         return json.loads(stream.read(65537))
 
 
-def gpu(telemetry=None):
+def gpu(telemetry=None, *, max_age_seconds=2):
+    if (type(max_age_seconds) not in (int, float) or not math.isfinite(max_age_seconds)
+            or not 0 < max_age_seconds <= 5):
+        raise ValueError('telemetry age must be finite and in (0,5]')
     if telemetry is not None:
         from inference_manager.windows_telemetry import WindowsGpuTelemetry
         expected = {'endpoint', 'host_id', 'gpu_uuid', 'token_path', 'expected_source'}
@@ -53,8 +57,14 @@ def gpu(telemetry=None):
         client = WindowsGpuTelemetry(telemetry['endpoint'],
             host_id=telemetry['host_id'], gpu_uuid=telemetry['gpu_uuid'],
             expected_source=telemetry['expected_source'],
-            token=token_path.read_text().strip(), max_age_seconds=2)
-        sample = client.sample()
+            token=token_path.read_text().strip(), max_age_seconds=max_age_seconds)
+        try:
+            sample = client.sample()
+        except Exception as error:
+            error.capacity_rejection = dict(error_type=type(error).__name__,
+                expected_source=telemetry['expected_source'], age_limit_seconds=max_age_seconds,
+                rejected_sample_available=False)
+            raise
         return dict(free_bytes=sample['gpu']['free_bytes'],
                     used_bytes=sample['gpu']['used_bytes'],
                     observed_at=sample['observed_at'], source=sample['source'],
@@ -71,7 +81,7 @@ def native_limits(packet):
     attempts = packet.get('max_physical_stage_load_attempts', 4)
     seconds = packet.get('limits', {}).get('case_seconds', 600)
     cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
-    if (type(attempts) is not int or not 1 <= attempts <= 6
+    if (type(attempts) is not int or not 1 <= attempts <= 7
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
         raise ValueError('bounded native attempt/runtime/cleanup limits required')
@@ -90,7 +100,7 @@ def worker_exec(packet_path, command):
         attempts = json.loads(ledger.read_text()) if ledger.exists() else []
         if len(attempts) >= attempt_limit:
             raise RuntimeError('physical stage-load allowance exhausted')
-        sample = gpu(packet_telemetry(packet))
+        sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:
             raise RuntimeError('fresh native headroom gate failed')
@@ -135,7 +145,7 @@ def run(packet_path):
     from managed_recording import RecordingProcessor
     operator, consumer = Principal('native0173', 'operator'), Principal('native0173', 'recording')
     def capacity():
-        sample = gpu(packet_telemetry(packet))
+        sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         return Capacity(max(0, sample['free_bytes']-packet['headroom_bytes']), sample['observed_at'])
     service = SharedService(root/packet_path.stem/'manager', budget_bytes=4*1024**3,
         capacity=capacity, clock=time.monotonic,
@@ -159,7 +169,7 @@ def run(packet_path):
         if packet.get('only_stage'):
             stage = packet['only_stage']
             config = packet['registration']['stages'][stage]
-            sample = gpu(packet_telemetry(packet))
+            sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
             report['pre_admission_gpu'] = sample
             if sample['free_bytes'] < config['reserved_bytes'] + packet['headroom_bytes']:
                 raise RuntimeError('fresh native headroom admission refusal')
@@ -173,7 +183,7 @@ def run(packet_path):
                 service.tick()
                 view = service.observe(consumer, request['id'])
                 if time.monotonic()-sampled_at >= 1:
-                    sample = gpu(packet_telemetry(packet))
+                    sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
                     report['gpu_samples'] = report.get('gpu_samples', [])+[sample]
                     sampled_at = time.monotonic()
                     if sample['free_bytes'] < packet['headroom_bytes']:
@@ -213,7 +223,7 @@ def run(packet_path):
                 raise RuntimeError('native stage runtime bound exceeded')
             service.tick()
             if time.monotonic()-sample_time >= 1:
-                sample = gpu(packet_telemetry(packet))
+                sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
                 if sample['free_bytes'] < packet['headroom_bytes']:
                     raise RuntimeError('loaded GPU headroom floor violated')
                 report['observations'].append(dict(at=time.time(), gpu=sample, resources=service.manager.resources(operator)))
@@ -230,6 +240,9 @@ def run(packet_path):
     except BaseException as error:
         report['verdict'] = 'failed'
         report['error'] = repr(error)
+        if hasattr(error, 'capacity_rejection'):
+            report['capacity_rejection'] = dict(error.capacity_rejection,
+                last_accepted=report.get('gpu_samples', [])[-1:] or [report.get('pre_admission_gpu')])
         raise
     finally:
         report['cleanup'] = service.stop_owned(timeout_seconds=cleanup_seconds)
@@ -237,7 +250,7 @@ def run(packet_path):
         if not report['cleanup_proved']:
             report['verdict'] = 'cleanup_unproved'
         try:
-            report['final_gpu'] = gpu(packet_telemetry(packet))
+            report['final_gpu'] = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         except Exception as error:
             report['final_gpu_error'] = repr(error)
         ledger = root/'attempts.json'

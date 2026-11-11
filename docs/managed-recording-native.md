@@ -176,3 +176,33 @@ Public source tests first failed on the missing successor-limit seam, then on a
 configuration-file selection. The resulting focused lane passes13tests. These
 source results authorize no model effects before the composite controller is
 source-validated and the new prospective native packets are frozen.
+
+## Freshness-contract reconciliation
+
+The first independent-DXCore successor retained a stricter2second candidate cutoff
+introduced by the native harness. The accepted sampler recipe and Manager contract
+allow a maximum validated acquisition age of5seconds. Public-cohort DIA reached
+real inference but was stopped when the extra2second constraint failed; it remains
+a failed sample. Its rejected raw age was unavailable from the public client API,
+so this record does not claim that the sample would have passed a5second limit.
+The unused4GiB ASR case was refused on fresh byte-based capacity, and its distinct
+3.5GiB CPU-staged replacement stopped before model loading on the controller's
+TIME_WAIT transport defect. All failed/setup-only roots and cleanup receipts remain.
+
+A newly authorized contract-corrected pair permits cumulative physical loads7
+(prior5 retained, two new stages). Packets explicitly set
+`telemetry_max_age_seconds: 5`, validated finite and in `(0,5]`. Legacy packets
+continue to default to2seconds. No rejected sample supplies capacity, no Linux
+fallback is introduced, and no old failure is reclassified. This restores the
+already qualified source contract for the new cases; it does not increase the
+accepted age beyond5seconds. Native140second whole-case/15second cleanup bounds,
+model caps,4CPU/12GiB resources and the3.5GiB headroom floor stay explicit.
+
+Future strict-client failures retain a sanitized rejection descriptor (error type,
+expected source, configured age limit and `rejected_sample_available: false`) plus
+last accepted metadata. The public telemetry API does not expose rejected raw
+responses, so the harness does not intercept private provider methods or log
+bearer data to fabricate that evidence. Source tests first failed on the new load
+bound, missing configurable age and missing rejection descriptor, then all15
+focused processor/harness checks passed. New model effects remain gated on the
+corrected source-qualified composite controller and fresh prospective packets.
