@@ -481,3 +481,27 @@ An evidence-bearing estimate of which person spoke in a conversation. It is
 not identity authentication and must not authorize access, transactions, or
 legal attestation.
 _Avoid_: Speaker authentication, voice authentication
+
+## Recording Processing Workloads
+
+**Historical Recording Reprocessing**:
+Transcription or diarization performed on an existing recording collection to
+create missing outputs or improve earlier derived outputs. It remains distinct
+from processing newly captured conversations.
+_Avoid_: Recent recording transcription, live transcription
+
+**Live Speech Workload**:
+Transcription or speech generation serving an ongoing interaction whose
+usefulness depends on timely, continuous output.
+_Avoid_: Historical recording reprocessing, offline speech batch
+
+**Recent Voice Recording Transcription**:
+Processing newly captured voice conversations in the incoming recording workflow.
+Discovering or syncing an old recording does not make it a recent recording.
+_Avoid_: Historical recording reprocessing, newly discovered recording
+
+**Recording-wide Speaker Continuity**:
+A consistent anonymous speaker attribution across the parts and derived transcript
+of one recording. It does not establish a named person or equate independently
+numbered labels from different recording parts.
+_Avoid_: Speaker identification, matching chunk label numbers
