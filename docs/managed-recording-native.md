@@ -434,3 +434,27 @@ plus at most two prospective DIA/ASR proofs. Public tests accept12 and reject13,
 preserving legacy4/7/8/9/11 and the unchanged160s successor/15s cleanup ceilings.
 No new native packet was prepared pending source184. No GPU, collector, service or
 signal effects occurred in this follow-up; memory disposition remains `forbidden`.
+
+EOF184 consumed physical11/12 with production Speech running. Real DIA succeeded
+(12turns,3speaker vectors), but application release failed again:15.005seconds,
+998pumps, closer4.023seconds TimeoutExpired,1.5GiB stopping reservation retained.
+After the2second wait, fallback SIGKILL returned; matched leader1328272 becameZ
+while same-process thread1329365 remainedD at `dxgvmb_send_sync_msg`, with pending
+KILL and no numeric exit. No143 or exit-observed proof was retained. The rolling
+16record diagnostic bound omitted early TERM/EOF records, so the pinned
+`eof_on_stop=True` policy cannot establish observed EOF delivery from that receipt.
+This is output-positive/release-failed, not a verified lifecycle remedy.
+
+Independent outer Linux and Windows cleanup both proved true. The coordinator's
+later exact read-only receipt found leader1328272, blockedTID1329365 and the original
+cgroup absent; this does not revise the failed15second Manager release. Strict
+53samples had maximum age0.306030seconds and minimum free7415619584bytes. All
+lifecycle variants remain held at the host gate; no further model, collector,
+service, reset or restart effect is authorized by this result.
+
+Private `native0173/eof184-dia-adjudication.json` SHA256
+`a96e538be6c75ccd0d1f519b5278aecc6099bbb3ad00fe59750350cecada6b44`
+links the frozen packet, real output, controller cleanup, generation retirement,
+stop timing and `eof184-dia-controller/independent-thread-cgroup-readback.json`.
+All11physical starts and prior failures remain immutable. This closeout made no
+native preparation or runtime change. Memory disposition: `forbidden` by task.
