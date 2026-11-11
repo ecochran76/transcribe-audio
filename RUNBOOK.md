@@ -18219,3 +18219,25 @@ load the fix. All24previously checked failing paths resolve; no real provider
 calls for diagnosis, backlog reset, forced retry or state mutation. Next
 scheduled processing is the remaining live outcome check. Memory disposition:
 forbidden by developer boundary; no agent-memory update requested.
+
+## Turn 0094 | 2026-11-10 | Restore diarized transcription routes
+
+Operator requested AssemblyAI primary with the designated group credential and
+GPU fallback, without faster-whisper. Added explicit fail-closed environment-key
+selection and a CUDA Parakeet TDT v3 plus Pyannote Community-1 backend. Both
+active watcher configurations select AssemblyAI then Parakeet. The Downloads
+partition moved out of the now-disabled managed pilot watcher, preserving all
+160 processed records. Private configuration backups precede changes. Existing
+successful transcripts and originals were retained; source artifacts do not
+contain account credentials or private transcript content.
+
+Plan0094 records scope and evidence. Selected local key/routing/alignment,
+AssemblyAI upload, watcher/export and managed-regression tests passed 58/58
+with the documented external qualification PYTHONPATH. Real AssemblyAI selected
+account and CUDA public speech smokes produced readable DOCX/TXT/JSON. The
+corrected recent private 120-second excerpt produced 391 timed words, 13
+utterances, three anonymous labels and UNKNOWN gaps. Negative no-timed-speech
+and initial missing-test-environment evidence were retained and explained in
+the plan. Both watchers are active; obsolete pilot watcher is disabled; fresh
+process/GPU readback showed test workers exited and VRAM returned to baseline.
+No hosted CI, paid CI changes, historical retranscription, push or release.

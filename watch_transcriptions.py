@@ -164,7 +164,11 @@ class ScanStats:
 
 
 def backend_script_path(backend: str) -> Path:
-    script_name = "assembly_transcribe.py" if backend == "assembly" else "faster_whisper_transcribe.py"
+    script_name = {
+        "assembly": "assembly_transcribe.py",
+        "faster_whisper": "faster_whisper_transcribe.py",
+        "parakeet": "parakeet_transcribe.py",
+    }[backend]
     return SCRIPT_DIR / script_name
 
 
@@ -479,9 +483,9 @@ def parse_backends(raw_job: dict[str, Any]) -> list[str]:
 
     normalized: list[str] = []
     for backend in backends:
-        if backend not in {"assembly", "faster_whisper"}:
+        if backend not in {"assembly", "faster_whisper", "parakeet"}:
             raise WatcherError(
-                f"Unsupported backend '{backend}'. Use 'assembly' or 'faster_whisper'."
+                f"Unsupported backend '{backend}'. Use 'assembly', 'parakeet', or 'faster_whisper'."
             )
         if backend not in normalized:
             normalized.append(backend)

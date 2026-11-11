@@ -100,6 +100,10 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
     api_key_group = parser.add_mutually_exclusive_group()
     api_key_group.add_argument(
+        "--api-key-env",
+        help="Read the key from this exact environment variable; fail if absent.",
+    )
+    api_key_group.add_argument(
         "--api-key",
         dest="api_key",
         help="AssemblyAI API key. Overrides environment variables and api_keys.json.",
@@ -283,6 +287,14 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
 
 def resolve_api_key(args: argparse.Namespace) -> tuple[str, str]:
+    if getattr(args, "api_key_env", None):
+        key = os.getenv(args.api_key_env, "").strip()
+        if not key:
+            raise TranscriptionError(
+                f"Required API key environment variable {args.api_key_env} "
+                "is empty or absent."
+            )
+        return key, args.api_key_env
     if args.api_key:
         return args.api_key, "--api-key"
 

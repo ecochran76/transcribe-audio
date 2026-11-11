@@ -1430,3 +1430,11 @@ Source built under [Plan0093](docs/dev/plans/0093-2026-11-09-managed-localai-pil
 VISION durable-transcript/autonomy outcome advances0to1 for managed inference,
 with original output ownership retained. Actual operational/native rollout is
 owned by LocalAI ticket0160, not implied by source acceptance.
+
+## AssemblyAI restoration and diarized CUDA fallback | 2026-11-10
+
+[Plan0094](docs/dev/plans/0094-2026-11-10-diarized-gpu-fallback.md) restores
+AssemblyAI primary and replaces active non-diarized faster-whisper fallback
+with Parakeet v3 plus Pyannote Community-1. Closed: 58 selected local tests,
+real AssemblyAI smoke and diarized CUDA excerpt passed; runtime routes restored.
+Measured ongoing yield and speaker accuracy remain separate.

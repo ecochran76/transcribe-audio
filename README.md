@@ -1117,3 +1117,41 @@ interrupted or failed export remains explicitly unknown and needs reconciliation
 rather than replaying calendar rename/export/store effects. The existing watcher
 still owns its durable completed-file record, readout and store ingestion. No
 change to installed routing or private recordings is implied by source tests.
+
+### AssemblyAI primary with diarized CUDA fallback
+
+Use `backends: ["assembly", "parakeet"]` in a watcher job. Set its
+`cli_args_by_backend.assembly` to `["--speaker-labels", "--api-key-env",
+"GROUP_ASSEMBLYAI_KEY"]` to select an exact environment variable. The service
+must load that variable from its private environment file. An absent selected
+variable fails closed; JSON credentials and other account variables cannot
+silently override this selection. Existing key resolution remains unchanged
+when `--api-key-env` is omitted.
+
+Set `cli_args_by_backend.parakeet` to `["--speaker-labels", "--gpu-config",
+"/absolute/private/path/parakeet.config.json"]`. Copy
+`parakeet.config.json.sample` outside the repository and fill in the existing
+NeMo interpreter, checkpoint path and SHA-256, reviewed diarization revision,
+and a shared writable lock path. The NeMo interpreter needs `nemo_toolkit[asr]`,
+CUDA PyTorch and soundfile. The main interpreter needs CUDA PyTorch,
+`pyannote.audio` 4 and soundfile. Accept the Pyannote Community-1 model terms
+and provide its Hugging Face token through the named environment variable.
+
+The following command uses Parakeet TDT 0.6B v3 word timestamps and
+Pyannote Community-1 speaker turns:
+
+```bash
+python parakeet_transcribe.py recording.wav \
+  --gpu-config /path/to/config.json --speaker-labels --text-output
+```
+
+It runs through the existing calendar/export pipeline. Both stages require CUDA.
+
+ASR uses padded 45-second windows; the ASR process
+exits before diarization loads. A shared lock serializes fallback jobs, waiting
+at most 120 seconds before returning failure for the watcher's normal retry.
+An ASR child exits if its owner dies. Missing diarization or missing word timing
+fails the job instead of exporting a plain transcript. Words outside detected
+speaker turns remain `UNKNOWN`; labels do not establish personal identity.
+Existing successful watcher records are retained and are not automatically
+reprocessed by this configuration change.

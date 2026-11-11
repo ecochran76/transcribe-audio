@@ -1,0 +1,9 @@
+{
+  "asr_python": "/path/to/isolated-nemo-venv/bin/python",
+  "model_path": "/path/to/parakeet-tdt-0.6b-v3.nemo",
+  "model_sha256": "REPLACE_WITH_REVIEWED_CHECKPOINT_SHA256",
+  "diarization_model": "pyannote/speaker-diarization-community-1",
+  "diarization_revision": "REPLACE_WITH_REVIEWED_MODEL_COMMIT",
+  "hf_token_env": "HUGGING_FACE_TOKEN",
+  "lock_path": "~/.local/state/transcribe-audio/watchers/parakeet-gpu.lock"
+}

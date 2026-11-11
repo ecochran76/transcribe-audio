@@ -5,7 +5,6 @@
       "enabled": true,
       "watch_dir": "~/Downloads",
       "glob": "*.m4a",
-      "backend": "assembly",
       "recursive": false,
       "settle_seconds": 120,
       "min_age_seconds": 20,
@@ -13,7 +12,11 @@
       "failure_retry_seconds": 900,
       "calendar": {
         "enabled": true,
-        "providers": ["gog", "gws", "google-api"],
+        "providers": [
+          "gog",
+          "gws",
+          "google-api"
+        ],
         "calendar_id": "primary",
         "provenance_profile": "default",
         "window_hours": 24,
@@ -40,6 +43,22 @@
         "store_dir": "~/.transcripts",
         "embedding_provider": "ollama",
         "embedding_model": "ollama/nomic-embed-text"
+      },
+      "backends": [
+        "assembly",
+        "parakeet"
+      ],
+      "cli_args_by_backend": {
+        "assembly": [
+          "--speaker-labels",
+          "--api-key-env",
+          "GROUP_ASSEMBLYAI_KEY"
+        ],
+        "parakeet": [
+          "--speaker-labels",
+          "--gpu-config",
+          "/path/to/private/parakeet.config.json"
+        ]
       }
     },
     {
@@ -55,7 +74,11 @@
       "failure_retry_seconds": 900,
       "calendar": {
         "enabled": true,
-        "providers": ["gog", "gws", "google-api"],
+        "providers": [
+          "gog",
+          "gws",
+          "google-api"
+        ],
         "calendar_id": "primary",
         "provenance_profile": "default",
         "window_hours": 24
