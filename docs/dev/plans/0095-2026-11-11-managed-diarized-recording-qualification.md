@@ -1,9 +1,9 @@
 # Managed diarized recording qualification and integration
 
-State: PLANNED
+State: OPEN
 Owner: primary integration coordinator
 Scope: qualify a bounded resumable local transcription-and-diarization pilot
-Execution: NOT STARTED; final shared-understanding review pending
+Execution: source tickets implemented and validated; native acceptance blocked on protected-profile prerequisites
 Source baseline: Transcribe Audio main, 61471db; LocalAI codex/0157-transcribe-pilot, f4bcf138967f570c7bd0c9646800be28b338aa62
 Decision provenance: [interview](../notes/0062-2026-11-10-managed-transcription-design-interview.md), Q1-Q18
 Architecture: [ADR0005](../../adr/0005-resume-recordings-across-managed-inference-units.md)
@@ -243,3 +243,27 @@ consistency/links/whitespace only, not software/model qualification.
 
 Preserve LocalAI's reserved final broad review and TDD remediation sequence; this
 interview's read-only fact checks do not consume or substitute for that acceptance.
+
+## Implementation checkpoint |2026-11-11
+
+Operator confirmed shared understanding and invoked to-spec/to-tickets/implement-spec
+with delegated frontier execution. Canonical implementation tracker is LocalAI
+qualification spec0005 and tickets0162-0169; execution ledger is
+qualification/docs/dev/plans/0015-2026-11-11-managed-diarized-execution.json.
+One integration lane spans the two independent Git repositories on branches named
+codex/managed-diarized-0095; production source checkouts remain unchanged.
+
+Source tickets0162/0163/0164/0165/0166/0169 are closed from integrated public checks.
+The managed CLI performs CPU staging, real authenticated client calls, durable
+recording checkpoints and guarded versioned exports; source tests use scripted
+external engines and do not qualify CUDA or model quality. The existing AssemblyAI
+route and paused screen watcher remain unchanged. Native0167 and handoff0168 remain
+blocked: a qualified native streaming-TTS cohort is not established, the retained
+live-ASR reservation/headroom exceeds current free capacity, and a reviewed
+multi-speaker/timing cohort remains to be frozen. A scope choice on upstream
+prerequisite qualification was asked asynchronously; silence is not authorization.
+
+Requested final broad review and post-review TDD counters remain0/1 and0/1, pending
+closure of the requested ticket set. Feature-level red/green tests are implementation
+evidence and do not consume that final sequence. Hosted CI and model execution were
+not used for source acceptance. No deployment or broader backlog activation occurred.
