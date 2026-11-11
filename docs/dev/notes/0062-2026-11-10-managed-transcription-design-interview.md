@@ -99,22 +99,51 @@ The operator answered yes to Q7-Q10:
 See ADR0005 for the accepted resumable-recording boundary. This ADR records design,
 not implementation or deployment authority.
 
-## Round5 frontier (unanswered)
+## Round5 accepted decisions
 
-- Definition of protection: active sessions versus idle warm-readiness preferences.
-- Quiet-mode entry: observed service activity/session state versus fixed schedule;
-  exact inactivity interval and manual override.
-- Historical access to idle model residency during quiet mode.
-- Foreground-return behavior and a separately bounded cold-start experience.
+The operator accepted Q15 with a refinement, and Q16-Q17:
 
-After these settle, remaining branches are concrete pilot/quality thresholds,
-error and retry limits, rollout/stop criteria and final shared-understanding review.
-No runtime/model effects have occurred in this interview.
+15. Default protection should be automatic with explicit overrides. Protect active
+    sessions and pending interactive demand; idle cached models may become
+    reclaimable in quiet periods. This is not unconditional permanent residency.
+    The design should borrow lessons from HPC queue systems.
+16. Quiet mode is eligible after15minutes without interactive service activity,
+    provided no protected session remains active. Manual overrides are supported.
+    An overnight schedule is an opportunity, not proof of inactivity or authority
+    to displace actual human-facing work. This signal describes service activity,
+    not proof of human absence.
+17. Returning interactive demand immediately takes priority over historical work.
+    If its model was evicted, report cold loading explicitly; prewarm when advance
+    notice is available. Cold-return limits need profile evidence and separate
+    prospective acceptance before trials; the warm targets remain unchanged.
+
+## Round6 accepted decision
+
+18. Temporary operator overrides have a visible expiry that is unchanged by service
+    restart. Persistent overrides require explicit selection. Audit actor, scope,
+    reason and expiry; scheduling controls cannot bypass resource-safety checks.
+
+## Consolidated design
+
+All identified user policy questions Q1-Q18 are settled, including the conditional
+quiet-time refinement of Q11. Existing trusted-operator authority, no consumer
+escalation, stable request IDs, known-busy backoff, unknown-outcome reconciliation,
+fault isolation and no unmanaged fallback remain invariants. API shape, bounded
+retry tuning and checkpoint formats are engineering choices implementing these
+outcomes, not additional interview questions.
+
+[Plan0095](../plans/0095-2026-11-11-managed-diarized-recording-qualification.md)
+consolidates scope, cross-repository ownership, qualification sequence, evidence,
+recovery and activation boundaries. It is PLANNED. Final shared-understanding
+confirmation remains required by the invoked grilling skill before implementation
+or model trials. Exact pilot inputs and prospective metric thresholds are packet
+preparation work; prior receipts or exhausted trial allowances are not renewed.
 
 ## Verified LocalAI contract and qualification readback
 
-The LocalAI source readback is main f4bcf1389, with an existing untracked0161
-foreground diagnosis retained untouched. Existing shared-service ownership is
+The verified LocalAI checkout is codex/0157-transcribe-pilot at f4bcf1389, with an
+existing untracked0161 foreground diagnosis retained untouched. Earlier interview
+wording calling that checkout main was corrected after exact Git readback. Existing shared-service ownership is
 already specified in qualification/docs/specs/0003-shared-consumer-integration.md:
 application owns work units/checkpoints/canonical outputs; shared service owns
 admission and GPU residency/lifecycle. It is not an unanswered interview decision.
@@ -171,3 +200,21 @@ one-shot complete-WAV Qwen evidence do not establish a common cold-return budget
 Quiet eligibility and the first interactive request after eviction therefore
 need separate decisions. No activity collection, idle policy or new memory
 reservation has been implemented during this discussion.
+
+## HPC scheduling lessons (reference patterns, not adoption authority)
+
+- Use explicit workload classes, resource requests, bounded walltime and visible
+  pending reasons. Backfill lower-priority work only when it will not delay
+  protected/higher-priority demand; credible runtime estimates matter.
+- Treat queue priority, permission to preempt, residency protection and hard
+  resource limits as separate controls. Priority alone does not implement preemption.
+- Requeue/checkpoint unfinished historical work under stable application identity.
+  Suspending a process is not proof that GPU memory or its reservation was released;
+  preserve actual quiescence/exit evidence before re-admission.
+- Borrow these patterns inside the existing Shared GPU service. No Slurm
+  installation or competing application scheduler is proposed.
+
+Primary references: [Slurm scheduling](https://slurm.schedmd.com/sched_config.html),
+[preemption](https://slurm.schedmd.com/preempt.html) and
+[QOS](https://slurm.schedmd.com/qos.html). These are external design references;
+current LocalAI source remains the evidence for implemented capability.

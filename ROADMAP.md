@@ -1438,3 +1438,20 @@ AssemblyAI primary and replaces active non-diarized faster-whisper fallback
 with Parakeet v3 plus Pyannote Community-1. Closed: 58 selected local tests,
 real AssemblyAI smoke and diarized CUDA excerpt passed; runtime routes restored.
 Measured ongoing yield and speaker accuracy remain separate.
+
+## Managed diarized historical recordings | 2026-11-11
+
+State: PLANNED; design interview consolidated, final shared-understanding review pending.
+
+[Plan0095](docs/dev/plans/0095-2026-11-11-managed-diarized-recording-qualification.md)
+advances durable diarized transcript and autonomy outcomes from combined managed
+route level0 to a bounded level2 pilot. Shared GPU authority owns all inference
+stages; Transcribe Audio owns recording progress, speaker continuity and canonical
+artifacts. Priority/protection/quiet-time decisions and expiring audited overrides
+are captured in the plan. Native/model, management and useful-consumer evidence
+remain separate acceptance axes. Full backlog activation is outside this milestone.
+
+Operational follow-up to Plan0094: subsequent operator direction retained the
+AssemblyAI voice route, disabled direct local-GPU fallback and paused historical
+screen processing pending managed qualification. The earlier source/smoke results
+remain historical evidence, not current GPU-route activation.

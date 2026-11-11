@@ -505,3 +505,9 @@ A consistent anonymous speaker attribution across the parts and derived transcri
 of one recording. It does not establish a named person or equate independently
 numbered labels from different recording parts.
 _Avoid_: Speaker identification, matching chunk label numbers
+
+**Recording Work Unit**:
+A bounded portion of transcription or diarization work for one recording. Multiple
+work units can contribute to the same recording's final transcript without becoming
+new recordings or conversations.
+_Avoid_: Recording, conversation, independent speaker identity

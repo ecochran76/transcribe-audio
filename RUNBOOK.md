@@ -18241,3 +18241,26 @@ and initial missing-test-environment evidence were retained and explained in
 the plan. Both watchers are active; obsolete pilot watcher is disabled; fresh
 process/GPU readback showed test workers exited and VRAM returned to baseline.
 No hosted CI, paid CI changes, historical retranscription, push or release.
+
+## Turn 0095 | 2026-11-11 | Consolidate managed recording design interview
+
+Operator resolved Q1-Q18 through the invoked grill-with-docs interview. Recorded
+strict human-facing workload precedence, no historical aging promotion, activity-
+based quiet eligibility, reclaimable idle residency and centrally authorized
+expiring overrides. Long recordings use resumable bounded units and recording-wide
+speaker reconciliation before final publication. A small reviewed useful-work pilot
+must qualify the candidate Parakeet/Pyannote composition through the shared manager;
+component or previous faster-whisper receipts do not transfer acceptance.
+
+Created Plan0095 as PLANNED, linked the roadmap and ADR0005, and updated existing
+CONTEXT vocabulary and the interview record. Verified LocalAI source custody is
+codex/0157-transcribe-pilot at f4bcf1389, with its untracked0161 diagnosis untouched;
+corrected earlier interview wording that called that checkout main. Its reserved
+review/TDD sequence and consumed native allowances are unchanged. Referenced official
+Slurm scheduling/preemption/QoS patterns without proposing a Slurm installation.
+
+Documentation-only validation checks paths, required plan sections, decision
+coverage and whitespace. No implementation, model trial, service mutation, runtime
+activation, historical batch or remote publication occurred in this design slice.
+Voice AssemblyAI remains enabled and the screen-recording job remains disabled.
+Final shared-understanding confirmation remains pending under the invoked skill.
