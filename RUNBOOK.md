@@ -18316,3 +18316,15 @@ Windows reboot, driver change or other service pause is included. All new GPU
 qualification remains held, AssemblyAI watches remain active, screen processing
 remains disabled. The source work is concrete and locally validated; tickets171,
 173,178,167/168 and the final single review/remediation sequence remain open.
+
+
+## Turn 0097 | 2026-11-11 | Approved idle-only maintenance control
+
+Operator answered yes to the prepared <=15minute Speechpause/oneDIAcontrol/restore
+proposal. Fresh operator readbacks showed no work, active warm leases or affected
+operations. Verified mainPID1841 and the independent900s restore timer before
+pausing Speech Receipts. Both AssemblyAI watchers remain active. Exactly one pinned
+maintenance0182 DIA control is running with unchanged source/model/resource and
+exit gates. Restoration runs in finally regardless of the verdict; model/backend
+readiness must be verified before retiring the backup timer. No general service
+pause, driver change, GPU reset or reboot is authorized. Results remain pending.

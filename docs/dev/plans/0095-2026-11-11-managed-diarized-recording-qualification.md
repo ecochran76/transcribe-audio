@@ -103,8 +103,9 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   App15s release and Windows held-handle wait failed. Later absence is quiescence
   evidence only; original failures persist and host-side cause remains unproved.
 - A proposed <=15minute idle-only Speech maintenance/control/restore window is
-  prepared outside Git. It has NOT been approved or executed; this plan excludes
-  unrelated service pauses. No further GPU run/reset/reboot follows automatically.
+  prepared outside Git. The operator subsequently approved this ONE idle-only control/restore window;
+  its independent restore timer was armed before the pause. Broader service pauses,
+  GPU reset/reboot and automatic follow-up cases remain excluded.
 - Requested final broad review and post-review remediation remain0/1 each,
   reserved until the ticket acceptance frontier actually closes.
 
