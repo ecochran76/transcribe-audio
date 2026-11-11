@@ -410,3 +410,27 @@ rejected. The single whole-case successor ceiling160seconds and cleanup ceiling
 must bind the new183 worker source and receive exact prospective admission. No new
 native packet was frozen or executed in this unit. Memory disposition: `forbidden`
 by the delegated no-memory-write boundary.
+
+Graceful183 DIA v2 consumed physical10 with production Speech running. Real DIA
+succeeded with12turns and3vectors; strict DXCore54samples had maximum age0.265383s
+and minimum free6266793984bytes. Application release still failed: no numeric143
+exit was observed, the initial2s graceful wait expired, and SIGKILL fallback returned.
+The matched leader1069267 becameZ while same-process thread1069979 remainedD in
+`dxgvmb_send_sync_msg`, with pendingKILL and returncodeNone. `stop_owned` retained
+1.5GiB after15.002s (closer4.023s TimeoutExpired,953pumps). Normal-close source
+capability therefore did not establish native release. Driver cause remains unproved.
+
+The outer Linux cgroup cleanup proved true. Original Windows cleanup remained false
+(wait258, held payload not signalled). One later read-only reconciliation found exact
+payload49620/FILETIME134389023685060165 and guardian absent, and Linux
+leader1069267/start9620833 absent. It did not reconstruct numeric exit or revise the
+failed15s release. Private original evidence remains under
+`native0173/graceful183-dia-v2-controller`, including late-readonly Windows/Linux
+receipts, plus `workers-graceful183-dia-v2/diarization/retirement-43fef582b36d37d8.json`
+and `packet-graceful183-dia-v2/manager/stop-owned-diagnostics.json`.
+
+The next explicit source allowance is cumulative12: ten immutable physical starts
+plus at most two prospective DIA/ASR proofs. Public tests accept12 and reject13,
+preserving legacy4/7/8/9/11 and the unchanged160s successor/15s cleanup ceilings.
+No new native packet was prepared pending source184. No GPU, collector, service or
+signal effects occurred in this follow-up; memory disposition remains `forbidden`.
