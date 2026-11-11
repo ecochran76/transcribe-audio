@@ -3,7 +3,7 @@
 State: OPEN
 Owner: primary integration coordinator
 Scope: qualify a bounded resumable local transcription-and-diarization pilot
-Execution: source tickets implemented and validated; native acceptance blocked on protected-profile prerequisites
+Execution: source implementation validated; native acceptance blocked on under-load capacity acquisition
 Source baseline: Transcribe Audio main, 61471db; LocalAI codex/0157-transcribe-pilot, f4bcf138967f570c7bd0c9646800be28b338aa62
 Decision provenance: [interview](../notes/0062-2026-11-10-managed-transcription-design-interview.md), Q1-Q18
 Architecture: [ADR0005](../../adr/0005-resume-recordings-across-managed-inference-units.md)
@@ -14,8 +14,8 @@ Produce durable, useful diarized transcripts from historical screen recordings o
 local hardware through the existing Shared GPU service, preserving responsiveness
 for current human-facing work. Advance VISION outcome 1 (durable transcript and
 diarized utterances), evidence integrity and autonomy: the combined managed route
-is currently level 0, while component ASR/client implementations are level 1 and the
-direct combined pipeline has level 2 smoke evidence. Target level 2 for this bounded
+is currently level 1 (built and tested), while component native ASR/diarization
+have bounded partial shadow evidence; full managed native acceptance remains open. Target level 2 for this bounded
 managed pilot, with level 3 requiring subsequent measured automatic operation.
 
 Measure canonical output yield, transcription/speaker/timing quality, recording-wide
@@ -49,7 +49,7 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   native trial allowances, pausing unrelated services, raising resource ceilings,
   resetting the GPU, or paid hosted CI.
 
-## Current State and authority
+## Initial source state and authority (preserved)
 
 - Voice/Sound Recordings routes use AssemblyAI with diarization and an explicit
   private environment credential selector. The requested three recent voice
@@ -70,6 +70,32 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
 - LocalAI qualification specs0001/0003, its GLOSSARY, existing plan0014 and tickets
   own service semantics and portfolio acceptance. This document owns this consumer
   milestone; it does not override those authorities or rewrite their historical gates.
+
+## Current State
+
+- Isolated integration branch `codex/managed-diarized-0095` contains the historical
+  precedence/quiet policy, owned stage workers, resumable processor, guarded CLI,
+  recording-wide speaker reconciliation and qualification/evidence tooling.
+- LocalAI source regression:340tests OK with49optional/live skips; joined app69
+  tests pass. These are source checks, not native acceptance. Later focused
+  controller/provider changes have separately retained red/green evidence.
+- Native CPU streaming Phonon and public AMI reference prerequisites are complete.
+  Optional CPU BGE strategy was measured and rejected for the unchanged500ms
+  target; GPU embedding candidate remains unmeasured after one interrupted load.
+- Real Nemotron3GiB canary produced an incremental transcript, but original5s
+  capacity acquisition contract failed under load before a20warm paired cohort.
+  Public diarization and combined useful-output acceptance remain open.
+- Diagnostic sampler progress has CPU/provider proof that fresh diagnostic data
+  cannot refresh stale GPU counters. An isolated model-free source qualification
+  precedes any new controlled native observation. No freshness/headroom bypass.
+- Production voice/main watchers were freshly verified active, selected jobs
+  Assembly-only and screen processing disabled. No existing service/model was
+  paused, reconfigured or displaced. Historical negative captures are retained.
+- Canonical ticket frontier and machine ledger live in the LocalAI integration
+  lane: Spec0005, tickets0162–0179, plan0015 execution JSON. Native171/173/178
+  and mixed167/handoff168 remain open;179 owns the acquisition diagnosis.
+- Requested final broad review and post-review remediation remain0/1 each,
+  reserved until the ticket acceptance frontier actually closes.
 
 ## Accepted scheduling and residency policy
 

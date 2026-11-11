@@ -206,3 +206,8 @@ bearer data to fabricate that evidence. Source tests first failed on the new loa
 bound, missing configurable age and missing rejection descriptor, then all15
 focused processor/harness checks passed. New model effects remain gated on the
 corrected source-qualified composite controller and fresh prospective packets.
+
+Current source qualification is separate from hardware admission: Native ASR
+produced a live canary transcript but capacity publication exceeded its original
+five-second contract. All further GPU proofs are held behind LocalAI ticket0179.
+Existing voice/Sound routes remain Assembly-only; the screen queue remains paused.
