@@ -86,12 +86,12 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   capacity acquisition contract failed under load before a20warm paired cohort.
   Full paired ASR and combined useful-output acceptance remain open.
 - Diagnostic sampler progress has CPU/provider proof that fresh diagnostic data
-  cannot refresh stale GPU counters. An isolated model-free source qualification
-  qualified cached-factory0180 source achieved240unique valid idle samples. Its
-  subsequent DIA run maintained fresh acquisition; no freshness/headroom bypass.
+  cannot refresh stale GPU counters. Isolated cached-factory0180 qualification
+  achieved240unique valid idle samples. Subsequent DIA runs maintained fresh
+  acquisition under the accepted age/headroom gates.
 - Production voice/main watchers were freshly verified active, selected jobs
-  Assembly-only and screen processing disabled. No existing service/model was
-  paused, reconfigured or displaced. Historical negative captures are retained.
+  Assembly-only and screen processing disabled. The approved Speech maintenance
+  window completed and was restored as noted below. Historical negatives remain.
 - Canonical ticket frontier and machine ledger live in the LocalAI integration
   lane: Spec0005, tickets0162–0184, plan0015 execution JSON. Native171/173/178
   and mixed167/handoff168 remain open. Tickets0180–0184 are complete for their source/diagnosis scopes. Native release
@@ -100,8 +100,9 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   returned12turns/3speaker vectors with measured DER0.1530782443. The latest
   diagnostic case captured a Z leader with a same-process D thread waiting in
   dxgvmb_send_sync_msg after signal requests; owned numeric exit remained missing.
-  App15s release and Windows held-handle wait failed. Later absence is quiescence
-  evidence only; original failures persist and host-side cause remains unproved.
+  App15s release failed; latest outer Linux and Windows cleanup passed. Earlier
+  failed held-handle waits remain retained. Later absence is quiescence evidence
+  only; original failures persist and host-side cause remains unproved.
 - The approved idle-only Speech maintenance/control/restore window completed in
   402.534s of its900s allowance. The same release failure persisted with Speech
   paused. Speech and both previously ready backends were restored and verified
