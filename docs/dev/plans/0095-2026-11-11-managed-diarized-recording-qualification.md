@@ -431,3 +431,28 @@ resume827d-cpu-preflight/receipt.json. No model or collector started by this che
 This continues the level2 bounded shadow objective; target is trustworthy useful
 artifacts under managed priority, measured by real output/parity and resource
 release evidence. Production automatic processing remains outside this packet.
+
+## Prospective DIA-only recovery after observed V2 cancellation
+
+The failed160s whole-CLI case remains failed. Its ASR checkpoint contains121
+words; saved service-state and job database independently retain DIA cancelled
+and no resident models. Existing public retry can explicitly advance the cancelled
+DIA attempt while preserving ASR. This is the planned restart/recovery milestone,
+not another full-pipeline replacement or an automatic retry of the old packet.
+
+Define ONE prospective cumulative recording start16, DIA-only. Preserve the full
+15-entry ledger and immutable snapshots of original checkpoint/service evidence
+before application state updates. Original max15 packet stays exhausted; max16
+is accepted only with `allowed_stages=['diarization']` and exactly15 retained
+entries. ASR is rejected before ledger mutation or capacity query. No source case
+or GPU load follows until CPU recovery proof, exact packet/pins, demand/capacity,
+owned cleanup and primary admission pass. Existing160/170/15/4CPU12GiB and strict
+5s/3.5GiBfloor constraints remain; no whole-window extension or model change.
+
+Seams tested: public `native_limits` prospective scope and `worker_exec` custody
+refusal. Red rejected16; green permits scopedDIA16 but rejectsASR and consumed
+old15. A second red caught an external capacity-query boundary before validating
+retained15history (external process mocked; no NVIDIA call); green refuses there
+first. All9 targeted harness tests pass0.09s. Red/green receipts are private
+`native0167/preparation/recovery-{custody,history}-*`. This is ordinary implementation
+TDD; reserved final review/post-review counts remain0/0.

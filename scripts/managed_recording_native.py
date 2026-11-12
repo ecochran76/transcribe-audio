@@ -77,11 +77,16 @@ def gpu(telemetry=None, *, max_age_seconds=2):
 
 
 def native_limits(packet):
-    """Retain original packet budgets while bounding ASR and pilot successors."""
+    """Retain packet budgets; a sixteenth start is diarization recovery only."""
     attempts = packet.get('max_physical_stage_load_attempts', 4)
     seconds = packet.get('limits', {}).get('case_seconds', 600)
     cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
-    if (type(attempts) is not int or not 1 <= attempts <= 15
+    allowed = packet.get('allowed_stages', ['asr', 'diarization'])
+    if (not isinstance(allowed, list) or not allowed
+            or any(stage not in ('asr', 'diarization') for stage in allowed)
+            or len(set(allowed)) != len(allowed)
+            or type(attempts) is not int or not 1 <= attempts <= 16
+            or attempts == 16 and allowed != ['diarization']
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
         raise ValueError('bounded native attempt/runtime/cleanup limits required')
@@ -93,6 +98,8 @@ def worker_exec(packet_path, command):
     sys.path.insert(0, packet['localai_qualification'])
     attempt_limit, _, _ = native_limits(packet)
     stage = command[command.index('--stage') + 1]
+    if stage not in packet.get('allowed_stages', ['asr', 'diarization']):
+        raise ValueError('stage not allowed by native packet')
     root = packet_path.parent
     with (root/'attempts.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -100,6 +107,8 @@ def worker_exec(packet_path, command):
         attempts = json.loads(ledger.read_text()) if ledger.exists() else []
         if len(attempts) >= attempt_limit:
             raise RuntimeError('physical stage-load allowance exhausted')
+        if attempt_limit == 16 and len(attempts) != 15:
+            raise RuntimeError('DIA recovery requires retained fifteen-load history')
         sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:

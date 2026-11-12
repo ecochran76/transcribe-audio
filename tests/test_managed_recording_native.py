@@ -136,3 +136,42 @@ def test_new_asr_packet_does_not_replenish_consumed_recording_budget(tmp_path):
     with pytest.raises(RuntimeError, match='allowance exhausted'):
         module.worker_exec(packet, ['/bin/false', '--stage', 'asr'])
     assert ledger.read_text() == history
+
+
+def test_diarization_recovery_keeps_consumed_pilot_budget_and_forbids_asr(tmp_path):
+    """A scoped sixteenth start never replenishes the original pilot or ASR."""
+    import json
+    module = harness()
+    config = {'localai_qualification': str(tmp_path),
+              'max_physical_stage_load_attempts': 16,
+              'allowed_stages': ['diarization'],
+              'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}
+    assert module.native_limits(config) == (16, 160, 15)
+    ledger = tmp_path/'attempts.json'
+    history = json.dumps([{'stage': 'diarization', 'attempt': n} for n in range(15)])
+    ledger.write_text(history)
+    successor = tmp_path/'successor.json'
+    successor.write_text(json.dumps(config))
+    with pytest.raises(ValueError, match='stage not allowed'):
+        module.worker_exec(successor, ['/bin/false', '--stage', 'asr'])
+    original = tmp_path/'original-pilot.json'
+    original.write_text(json.dumps({**config, 'max_physical_stage_load_attempts': 15}))
+    with pytest.raises(RuntimeError, match='allowance exhausted'):
+        module.worker_exec(original, ['/bin/false', '--stage', 'diarization'])
+    assert ledger.read_text() == history
+
+
+def test_sixteenth_start_requires_retained_fifteen_attempt_history(tmp_path):
+    import json
+    module = harness()
+    ledger = tmp_path/'attempts.json'
+    history = json.dumps([{'stage': 'diarization', 'attempt': n} for n in range(14)])
+    ledger.write_text(history)
+    packet = tmp_path/'recovery.json'
+    packet.write_text(json.dumps({'localai_qualification': str(tmp_path),
+        'max_physical_stage_load_attempts': 16, 'allowed_stages': ['diarization'],
+        'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}))
+    with patch('subprocess.check_output', side_effect=AssertionError('external capacity query reached')):
+        with pytest.raises(RuntimeError, match='retained fifteen-load history'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+    assert ledger.read_text() == history
