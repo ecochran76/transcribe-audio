@@ -250,3 +250,60 @@ def test_prepared_mixed_digest_roundtrips_guard_before_capacity_or_effects(tmp_p
     assert module.mixed_retained_history_sha256(history + [{'stage': 'diarization'}]) == pin
     with pytest.raises(ValueError, match='sixteen'):
         module.mixed_retained_history_sha256(history[:15])
+
+
+def test_v3_cohort_retains_nineteen_starts_without_renewing_old_budget(tmp_path):
+    import json
+    module = harness()
+    history = [{'stage': 'diarization', 'attempt': n} for n in range(19)]
+    pin = module.independent_receivers_history_sha256(history)
+    config = {'localai_qualification': str(tmp_path),
+              'max_physical_stage_load_attempts': 22,
+              'allowed_stages': ['diarization'],
+              'budget_contract': 'independent-clients-v3-mixed-v1',
+              'measurement_layout': 'INDEPENDENT_CLIENT_RECEIVERS_V3',
+              'retained_physical_starts': 19, 'retained_history_sha256': pin,
+              'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}
+    assert module.native_limits(config) == (22, 160, 15)
+    for invalid in ({'retained_physical_starts': 19.0},
+                    {'measurement_layout': 'QUEUED_OFFERS_V2'}):
+        with pytest.raises(ValueError, match='bounded native'):
+            module.native_limits({**config, **invalid})
+    assert module.independent_receivers_history_sha256(history + [{'stage': 'diarization'}]) == pin
+    with pytest.raises(ValueError, match='nineteen'):
+        module.independent_receivers_history_sha256(history[:18])
+    for field in ('budget_contract', 'measurement_layout', 'retained_physical_starts',
+                  'retained_history_sha256'):
+        with pytest.raises(ValueError, match='bounded native'):
+            module.native_limits({k: v for k, v in config.items() if k != field})
+    for attempts in (20, 21):
+        with pytest.raises(ValueError, match='bounded native'):
+            module.native_limits({**config, 'max_physical_stage_load_attempts': attempts})
+    ledger = tmp_path/'attempts.json'
+    original = json.dumps(history, indent=2)
+    ledger.write_text(original)
+    packet = tmp_path/'v3.json'
+    packet.write_text(json.dumps(config))
+    class CapacityReached(Exception):
+        pass
+    with patch.object(module, 'gpu', side_effect=CapacityReached) as capacity:
+        with pytest.raises(ValueError, match='stage not allowed'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'asr'])
+        capacity.assert_not_called()
+        with pytest.raises(CapacityReached):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        assert capacity.call_count == 1
+        history[18]['attempt'] = 'changed'
+        ledger.write_text(json.dumps(history))
+        capacity.reset_mock()
+        with pytest.raises(RuntimeError, match='retained nineteen-load history'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        capacity.assert_not_called()
+    ledger.write_text(original)
+    old = {**config, 'max_physical_stage_load_attempts': 19,
+           'budget_contract': 'staged-mixed-dia-v1', 'retained_physical_starts': 16,
+           'retained_history_sha256': module.mixed_retained_history_sha256(history)}
+    packet.write_text(json.dumps(old))
+    with pytest.raises(RuntimeError, match='allowance exhausted'):
+        module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+    assert ledger.read_text() == original

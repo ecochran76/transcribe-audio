@@ -85,7 +85,7 @@ def native_limits(packet):
     if (not isinstance(allowed, list) or not allowed
             or any(stage not in ('asr', 'diarization') for stage in allowed)
             or len(set(allowed)) != len(allowed)
-            or type(attempts) is not int or attempts not in (*range(1, 17), 19)
+            or type(attempts) is not int or attempts not in (*range(1, 17), 19, 22)
             or attempts == 16 and allowed != ['diarization']
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
@@ -98,6 +98,16 @@ def native_limits(packet):
                 or not isinstance(pin, str) or len(pin) != 64
                 or any(c not in '0123456789abcdef' for c in pin)):
             raise ValueError('bounded native mixed DIA history/scope required')
+    if attempts == 22:
+        pin = packet.get('retained_history_sha256')
+        if (allowed != ['diarization']
+                or packet.get('budget_contract') != 'independent-clients-v3-mixed-v1'
+                or packet.get('measurement_layout') != 'INDEPENDENT_CLIENT_RECEIVERS_V3'
+                or type(packet.get('retained_physical_starts')) is not int
+                or packet.get('retained_physical_starts') != 19
+                or not isinstance(pin, str) or len(pin) != 64
+                or any(c not in '0123456789abcdef' for c in pin)):
+            raise ValueError('bounded native V3 DIA history/scope required')
     return attempts, seconds, cleanup
 
 
@@ -110,6 +120,15 @@ def mixed_retained_history_sha256(attempts):
     if not isinstance(attempts, list) or len(attempts) < 16:
         raise ValueError('retained sixteen-load history required')
     prefix = json.dumps(attempts[:16], sort_keys=True, separators=(',', ':'),
+                        allow_nan=False).encode()
+    return hashlib.sha256(prefix).hexdigest()
+
+
+def independent_receivers_history_sha256(attempts):
+    """Bind all19 consumed starts for the explicit three-case V3 successor."""
+    if not isinstance(attempts, list) or len(attempts) < 19:
+        raise ValueError('retained nineteen-load history required')
+    prefix = json.dumps(attempts[:19], sort_keys=True, separators=(',', ':'),
                         allow_nan=False).encode()
     return hashlib.sha256(prefix).hexdigest()
 
@@ -134,6 +153,10 @@ def worker_exec(packet_path, command):
             if (len(attempts) < 16 or mixed_retained_history_sha256(attempts)
                     != packet['retained_history_sha256']):
                 raise RuntimeError('mixed DIA requires exact retained sixteen-load history')
+        if attempt_limit == 22:
+            if (len(attempts) < 19 or independent_receivers_history_sha256(attempts)
+                    != packet['retained_history_sha256']):
+                raise RuntimeError('V3 DIA requires exact retained nineteen-load history')
         sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:

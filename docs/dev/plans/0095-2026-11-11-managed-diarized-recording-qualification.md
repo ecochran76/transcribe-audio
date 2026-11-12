@@ -575,3 +575,33 @@ replay. TTS control-source identity must be recomputed; oldf149 acceptance does
 not transfer automatically. PairedB2/M3/performance limits remain held pending
 operator input; onlyone remaining load/role after that singlecase cannot cover
 both paired routes. No new budget, route activation or final review occurs here.
+
+## Independent client measurement successor |2026-11-12
+
+Source197's last bounded diagnostic consumed19/7/5 and closed with complete trace
+and owned cleanup. It retained failed metrics, never qualified a neural SLO.
+The trace proved that one receiver spent4.935s handling unrelated HTTP requests
+before another result GET. Source198 replaces that coupling prospectively with
+INDEPENDENT_CLIENT_RECEIVERS_V3: at most40independent request receivers, unchanged
+fixed20offers/role/1Hz/300ms tolerance and one physical worker/slot. Direct FIFO
+retains actual per-job output before reuse; actual client delivery uses NOW.
+Incremental cursors preserve every frame. Old V2 failures are not rescored.
+
+Primary full core394testsOK49optional/live skips271.866s at e2a39138d. The new
+V3 source is validated, while native V3 is not run. Under the existing approved
+implementation/qualification goal, a new bounded successor is being prepared:
+fixed M1,B2,M3, stopfirstfailure, at most3new DIA/BGE/CPU-TTS starts, cumulative
+22/10/8 with all19/7/5spent histories retained. Old exhausted packets stay held.
+No source change alone admits a native effect; exact packet/pins/demand/capacity/
+individual primary admission remain mandatory. ASR/live0, unchanged assets,
+160/170/15,4CPU12GiB, strict5/floor3.5 and original500ms/1s targets remain.
+
+Source199 prepares only scoped22: explicit V3 layout/contract, DIAonly, exact
+canonicalfirst19 history via the shared preparation helper. Unscoped20/21 and
+missing/wrong controls reject; ASR rejects; changed retained19 stops before an
+external capacity call; correct prefix reaches a raising CPU capacity fence
+without mutation. Original19packet stays exhausted. Primary12guardtestsPASS.16s
+and joined76application testsPASS11.02s. This is explicit prospective allowance
+preparation after the evidenced benchmark fix, not a reset or automatic retry.
+Native cohort remains held until final source/history/pin checks and admission.
+Full0167/0168 and missing recording-performance/word-timing decisions remain open.
