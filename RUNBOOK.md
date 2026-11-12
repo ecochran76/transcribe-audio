@@ -18681,3 +18681,17 @@ proof overlap is retained; no isolated/nativeperformance acceptance claim.
 AllCPUworkers-15/Manager0/PIDs+cgroupabsent. Native24/12/10held/B2M3unexecuted;
 voiceAssemblyAI/screensdisabled unchanged. Full0167/0168 and finalreview/TDD0/0
 remain open; wordtiming/overhead/coldyield criteria unresolved.
+
+
+## Stream-frame description corrected | 2026-11-12
+
+233pure source/raw reconciliation falsifies the missing-tail premise. All20
+expected literal chunk lists match replay client events, Manager store and
+original228 outputs exactly. Three inputs specify10chunks, the other17 specify
+11; every row totals257280bytes/5.36saudio. Earlieruniform11description was
+incorrect. Raw inputs/results and earlier mistaken metadata remain retained
+with correction28a4da5151e290d378bffc7785f6cc5f5d531a11c1fd895520d023b37e7ea52c.
+NoCPUattempt/sourcefix needed.232queue timings remain diagnostic evidence.
+234sourceaudit identifies25msservice maintenancecadence as one component,
+not the whole62.63ms redispatchgap.235ONE4requestCPUmatched25ms/5mscomparison
+is in progress; no production/native change or stablethroughput claim.
