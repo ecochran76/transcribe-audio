@@ -18397,3 +18397,24 @@ V2 admitted once: ASR14 thenDIA15 maximum15,160controller/170unit/15stop,4CPU12G
 private receipts live in userstate Plan0095, not Git. No production/backlog
 activation or model downloads occurred.0167/0168 stay open; final review/remediation
 counters remain0/0 until the requested acceptance frontier closes.
+
+### Observed V2 result and source repair
+
+OneclipV2 failed the original160s deadline. ASR14 completed121words and its
+committed checkpoint survived: independently recomputedWER15/127=0.1181102362,
+matching frozenbaseline. DIA15 remainedloading/noresult atstop; no turns/final
+publication/artifactagreement or fullparity is claimed. ASRload→DIAload107.237441s
+is an observed combined interval, not a causal cold/overhead split. Both stage
+workers stopped actual-9; Manager models empty/reserved0; primary independently
+checked four ownedPIDs and cgroup absence. Sourcecleanup passed and capacityfloor
+held. Recordingledger15 is consumed; no replacement was admitted.
+
+The original driver failed to retain actual CLIchildnumericexit; originalV2exit
+staysUNAVAILABLE. Source0188 (a2540a9bc) records future CLI PID/startidentity,
+actualexit and stop/wait chronology without changing deadlines. Primary14targeted
+CPUtests passed10.389s, including realCLI/HTTP/ownedworker timeout/reap and artifact/
+replay cases. This ordinary featureTDD leaves finalreview/remediation0/0. No new
+native attempt followed the sourcefix. Remaining work: actual useful milestone,
+managedliveASR warmcohort, mixed/fourclip/recovery and qualifiedhandoff. Read-only
+startup investigation is assessing repeatedNeMoarchiveextraction/caches without
+claiming the cause of timingvariation or admitting further GPU work.
