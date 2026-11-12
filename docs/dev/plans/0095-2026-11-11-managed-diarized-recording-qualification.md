@@ -120,6 +120,13 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   trigger has passed but completion is unverified. No qualification control ran.
   WSL shutdown, Windows reboot and driver updates remain outside approved scope.
   Native acceptance and final review remain open; application variants are held.
+- Continuation readback verified Speech/Pocket/Nemotron ready and both AssemblyAI
+  watchers active. The Windows restore task returned0. The current host epoch
+  differs from the failed window; exact GPU and driver match, with a fresh DXCore
+  binding. Earlier reset completion remains unknown. Missing temporary integration
+  checkouts were restored from retained commits, and runtime pins match. One new
+  model-free source qualification precedes the unchanged bounded DIA control;
+  the recording ledger retains11 physical starts with a12-start ceiling.
 - Requested final broad review and post-review remediation remain0/1 each,
   reserved until the ticket acceptance frontier actually closes.
 
