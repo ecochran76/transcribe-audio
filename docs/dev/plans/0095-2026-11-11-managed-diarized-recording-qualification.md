@@ -617,3 +617,23 @@ Root protectedmonitor54polls finished without demand/abort. No production switch
 backlog activation or qualification claim. Bounded public CPU delivery diagnosis
 0201 follows observed high service/client intervals; it grants no native budget.
 Recording acceptance inputs remain pending; finalreview/remediation0/0.
+
+
+## Missing native boundary timing | prospective diagnostic204
+
+CPU201 complete20.857s/40rows/.372sBGE/.357sTTS did not reproduce native delay;
+no source fix or second CPU capture. Raw trace complete45,527rows/7,057,566bytes,
+actual4CPU/12GiB/child-15/cgroupabsence, analysisf31a5771... retained privately.
+Native/CPU vector serialization sizes differ; no causal claim follows.
+
+Under the standing implementation/qualification goal,202/203 prepare missing
+per-request parent-pipe/service-reply timing and exact one-shot custody for204.
+This is a NEW diagnostic purpose, prospective baseline20recording/8BGE/6TTS to
+ceilings21/9/7/maxone per role, oneM1only, no replay/replacement/B2/M3 or sample
+transfer. It is never authorized merely by unused old22/10/8headroom. OldV3
+cohort remains STOP. Native HELD until exact source/trace/custody proof/pins,
+currentboot/capacity/protected-demand and individualprimary admission. Original
+160/170/15/4CPU12GiB/strict5/floor3.5/20offers1Hz/.300 bounds remain. Instrumented
+results NEVER qualify neural SLOs even if measuredtargets pass; terminalsuccess
+is attributable missing timing+actualcleanup, not another acceptance attempt.
+NoASR/live/prodroute/backlog/download/reset/pause. Finalreview/remediation0/0.
