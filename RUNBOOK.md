@@ -18601,3 +18601,22 @@ they grant no native execution or freeze authority. Actual consumed native
 starts remain22/10/8; old210FAIL/cohortSTOP is retained. Primary application
 script stays11c3fc8c for historical validation; installed services unchanged.
 Full0167/0168 acceptance and final broadreview/remediation0/0 remain open.
+
+
+## Source gates validated | 2026-11-12
+
+Primarycore402testsOK/49optional-live skips302.747s, actualexit0 at
+testcommitd9a138487/production8d4204aea. Initial402-test failure is retained: an
+old test expected terminal reobservation. Corrected fixture holds11frames active,
+checks metadata-only observation, then verifies terminal output/cursor/replay
+without further observation;21focused checks pass. ExistingResourceWarning
+remains documented. Newguardchilddda47b83ff54f385af775c67326e3d0dba13acbd
+passes85joinedappchecks16.65s against currentcore; old primaryapp11c3fc8c remains
+available for historical evidence. Tickets219/221 close as source components.
+
+Before native comparison,223 adds B2's actual document vectors and retained
+owned-worker snapshots to its exported evidence after measurement.222 binds
+independent verification to those artifacts;220 closes prospective source pins
+against the resulting harness. No new native freeze or admission has occurred.
+Actual native22/10/8, old210FAIL_STOP and finalreview/remediation0/0 persist.
+Human word-timing scope is pending operator preference; full0167/0168 remain open.
