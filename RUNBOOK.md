@@ -18660,3 +18660,24 @@ wall-clock watchdog source/CPU proof. Future native held for supervision proof
 and separate prospective admission. Fresh OS/Windows custody is in progress.
 Voice AssemblyAI and disabled screen batch remain unchanged. Full0167/0168
 quality/relative overhead/cold-yield/word timing stay open; finalreview/TDD0/0.
+
+
+## Protection repaired and CPU queue reproduced | 2026-11-12
+
+228fresh independent custody d8ff7848cea37e6931698d27f6f7e669cd4e4642be073d53df6b9ddb8a8a1cbc
+proves all owned Linux/Windows resources released. Coref0f40c3f2 introduces
+optional case/boot/invocation-bound demand heartbeat at release and in the
+independent gate.14controllerchecksPASS1.259s;4privateproducerchecksPASS.
+Actualsystemd gate-death and blockedcaller expiry proofs remove child/cgroup.
+Query START time defines freshness; a stalled caller cannot keep work alive.
+230/231sourcecloseout does not retrospectively repair228supervision coverage.
+
+232CPUreplay diagnoses queue buildup(TTSp951.497881s, queuep951.378142s) with
+mean1.009659s streamoccupancy plus.062630s redispatchgap. Firstsetupfailure
+beforeworkers remains preserved; v2followedzeroeffectcodecpreflight. Three
+synthetic rows retain10ofexpected11frames, so233investigates integrity before
+performance repair.234read-onlycadenceaudit is parallel. BriefCPUheartbeat
+proof overlap is retained; no isolated/nativeperformance acceptance claim.
+AllCPUworkers-15/Manager0/PIDs+cgroupabsent. Native24/12/10held/B2M3unexecuted;
+voiceAssemblyAI/screensdisabled unchanged. Full0167/0168 and finalreview/TDD0/0
+remain open; wordtiming/overhead/coldyield criteria unresolved.
