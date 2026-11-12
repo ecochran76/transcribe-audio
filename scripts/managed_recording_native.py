@@ -85,7 +85,7 @@ def native_limits(packet):
     if (not isinstance(allowed, list) or not allowed
             or any(stage not in ('asr', 'diarization') for stage in allowed)
             or len(set(allowed)) != len(allowed)
-            or type(attempts) is not int or attempts not in (*range(1, 17), 19, 22)
+            or type(attempts) is not int or attempts not in (*range(1, 17), 19, 22, 24)
             or attempts == 16 and allowed != ['diarization']
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
@@ -108,6 +108,17 @@ def native_limits(packet):
                 or not isinstance(pin, str) or len(pin) != 64
                 or any(c not in '0123456789abcdef' for c in pin)):
             raise ValueError('bounded native V3 DIA history/scope required')
+    if attempts == 24:
+        pin = packet.get('retained_history_sha256')
+        if (allowed != ['diarization']
+                or packet.get('budget_contract') != 'independent-clients-v4-role-data-v1'
+                or packet.get('measurement_layout') != 'INDEPENDENT_CLIENT_RECEIVERS_V4'
+                or packet.get('client_observation_protocol') != 'ROLE_DATA_ENDPOINTS_V1'
+                or type(packet.get('retained_physical_starts')) is not int
+                or packet.get('retained_physical_starts') != 21
+                or not isinstance(pin, str) or len(pin) != 64
+                or any(c not in '0123456789abcdef' for c in pin)):
+            raise ValueError('bounded native V4 DIA history/scope required')
     return attempts, seconds, cleanup
 
 
@@ -129,6 +140,15 @@ def independent_receivers_history_sha256(attempts):
     if not isinstance(attempts, list) or len(attempts) < 19:
         raise ValueError('retained nineteen-load history required')
     prefix = json.dumps(attempts[:19], sort_keys=True, separators=(',', ':'),
+                        allow_nan=False).encode()
+    return hashlib.sha256(prefix).hexdigest()
+
+
+def foreground_cohort_history_sha256(attempts):
+    """Bind all21 consumed starts for the explicit V4 role-data successor."""
+    if not isinstance(attempts, list) or len(attempts) < 21:
+        raise ValueError('retained twenty-one-load history required')
+    prefix = json.dumps(attempts[:21], sort_keys=True, separators=(',', ':'),
                         allow_nan=False).encode()
     return hashlib.sha256(prefix).hexdigest()
 
@@ -157,6 +177,10 @@ def worker_exec(packet_path, command):
             if (len(attempts) < 19 or independent_receivers_history_sha256(attempts)
                     != packet['retained_history_sha256']):
                 raise RuntimeError('V3 DIA requires exact retained nineteen-load history')
+        if attempt_limit == 24:
+            if (len(attempts) < 21 or foreground_cohort_history_sha256(attempts)
+                    != packet['retained_history_sha256']):
+                raise RuntimeError('V4 DIA requires exact retained twenty-one-load history')
         sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:

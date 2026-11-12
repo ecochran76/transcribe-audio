@@ -677,3 +677,46 @@ primaryfreeze/admission/currentboot/capacity/protected-demand gate. NoASR/live,
 no tracer forqualification, sameassets/math/16017015/4CPU12G/strict5/floor3.5.
 No production/backlog/pause/reset/download. Full0167/0168/recordingperformance/
 humanwordtimingremainopen; finalreview/remediation0/0.
+
+## 208 child application guard source | no native authority
+
+Isolated child base9124ca8, branchcodex/0208-v4-recording-guard at
+/tmp/transcribe-ticket0208. This advances durable recording ownership/provenance
+from source-built level1 toward separately evidenced level2. The historical
+primary application path and its11c3 guard bytes remain unchanged; future callers
+must explicitly pin this child's new executable/control identity. No activation,
+model/GPU/provider/cloud, actual ledger mutation, freeze or native allowance occurs.
+
+The new public foreground_cohort_history_sha256(attempts) requires a list with
+at least21entries and SHA256s only the first21 canonical JSON entries, sorted keys,
+compact separators and allow_nanFalse. A raw file hash is separate provenance;
+future appends cannot change this prefix identity. worker_exec max24 checks that
+exact prefix BEFORE capacity, ledger append, affinity/log changes or exec.
+
+24 is accepted ONLY for DIAonly, typed retained_physical_starts21,
+measurement_layout INDEPENDENT_CLIENT_RECEIVERS_V4,
+client_observation_protocol ROLE_DATA_ENDPOINTS_V1 and budget_contract
+independent-clients-v4-role-data-v1, with<=160s case/<=15s cleanup. All legacy
+16/19/22 paths remain unchanged; unscoped23 and old22at22 remain rejected/exhausted.
+No old budget is renewed by adding this source capability.
+
+Public actual-TEMP-worker_exec RED: correct prospective24 reached the old bounded
+limits rejection instead of the raising capacity sentinel (1failure.11s). GREEN:
+1passed.08s. Targeted guard suite17passed.13s with portable public fixtures and
+17passed.11s using an immutable private copy of the actual21-entry counter. Tests
+cover raw21hash, changed21st entry, missing/wrong layout/protocol/contract, bool/
+float retained count/ceiling, ASR, runtime/cleanup limits, short/nonfinite history,
+future append stability and legacy22exhaustion BEFORE external capacity. Correct
+canonical scope reaches only the raising gpu boundary; TEMP ledger bytes and
+worker logs remain unchanged. No model/process effect is allowed by the sentinel.
+
+Joined local managed-app checks passed40tests10.86s: native guard, recording
+processor, managed recording CLI and managed transcription. Existing app venv,
+PATH including Linuxbrew, PYTHONPATH pointing to current LocalAI qualification,
+flock /tmp/plan0095-tests.lock; actual fixture path is supplied privately through
+TRANSCRIBE_V4_HISTORY_FIXTURE. No private counter/media content is committed.
+Local checks replace hosted CI; no new environment or hosted run.
+
+Only child script/test/this note changed. Coordinator owns parent core208/index/
+ledger/spec and all source209 preparation/210 admission decisions. No final broad
+review or reserved remediation ran; counters0/0. Memory disposition: forbidden.
