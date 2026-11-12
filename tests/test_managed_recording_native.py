@@ -175,3 +175,43 @@ def test_sixteenth_start_requires_retained_fifteen_attempt_history(tmp_path):
         with pytest.raises(RuntimeError, match='retained fifteen-load history'):
             module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
     assert ledger.read_text() == history
+
+
+def test_mixed_dia_cohort_retains_sixteen_starts_and_rejects_asr(tmp_path):
+    import hashlib
+    import json
+    module = harness()
+    history = [{'stage': 'diarization', 'attempt': n} for n in range(16)]
+    pin = hashlib.sha256(json.dumps(history, sort_keys=True, separators=(',', ':'),
+                                   allow_nan=False).encode()).hexdigest()
+    config = {'localai_qualification': str(tmp_path),
+              'max_physical_stage_load_attempts': 19,
+              'allowed_stages': ['diarization'],
+              'budget_contract': 'staged-mixed-dia-v1',
+              'retained_physical_starts': 16, 'retained_history_sha256': pin,
+              'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}
+    assert module.native_limits(config) == (19, 160, 15)
+    for field in ('budget_contract', 'retained_physical_starts', 'retained_history_sha256'):
+        with pytest.raises(ValueError, match='bounded native'):
+            module.native_limits({k: v for k, v in config.items() if k != field})
+    ledger = tmp_path/'attempts.json'
+    original = json.dumps(history)
+    ledger.write_text(original)
+    packet = tmp_path/'mixed.json'
+    packet.write_text(json.dumps(config))
+    with pytest.raises(ValueError, match='stage not allowed'):
+        module.worker_exec(packet, ['/bin/false', '--stage', 'asr'])
+    # A changed retained prefix must fail before any external capacity query.
+    history[0]['attempt'] = 'changed'
+    ledger.write_text(json.dumps(history))
+    changed = ledger.read_text()
+    with patch('subprocess.check_output', side_effect=AssertionError('external capacity query reached')):
+        with pytest.raises(RuntimeError, match='retained sixteen-load history'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+    assert ledger.read_text() == changed
+    ledger.write_text(original)
+    old = tmp_path/'recovery16.json'
+    old.write_text(json.dumps({**config, 'max_physical_stage_load_attempts': 16}))
+    with pytest.raises(RuntimeError, match='allowance exhausted'):
+        module.worker_exec(old, ['/bin/false', '--stage', 'diarization'])
+    assert ledger.read_text() == original

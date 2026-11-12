@@ -456,3 +456,33 @@ retained15history (external process mocked; no NVIDIA call); green refuses there
 first. All9 targeted harness tests pass0.09s. Red/green receipts are private
 `native0167/preparation/recovery-{custody,history}-*`. This is ordinary implementation
 TDD; reserved final review/post-review counts remain0/0.
+
+## Prospective staged mixed custody — source preparation only
+
+The next independently useful mixed batch is M1 historicalDIA preemption/cold
+interactive return, B2 matched direct interference and M3 managed recent-voiceDIA
+interference. Currentpolicy vetoes historicalwork on any activeinteractive demand;
+M3 must therefore state recent-voice scope. The exact frozen offeredorder is
+DIAcoldprobe first, then BGE/TTS coldprobes, then two furtherDIA jobs spanning the
+20fixed1Hz warm arrivals. No all-order/co-residency orkernel-overlap claim follows.
+Live-ASR/fourclip remain separate. CurrentTTS sourceconfig is the actual170
+Phonon CPUq8 profile (defaultvoice/threads2); stale private paths are repinned
+explicitly with unchangedengine/assets/math, producing a truthfulnewidentity.
+
+A NEW prospective DIA-only cohort may retain16originalrecordingstarts and allow
+at most3new starts, cumulative19. This does not renew the consumed max16recovery.
+The harness accepts19 only with `allowed_stages=['diarization']`,
+`budget_contract='staged-mixed-dia-v1'`, `retained_physical_starts=16` and the exact
+canonical JSON SHA256 of all16retainedentries. Before capacity/effects it verifies
+that prefix on every load; ASR, missingcontrols, modifiedhistory and exhausted
+oldbudgets refuse. The percase one-load gate and independently frozen three-case
+order remain mandatory. Corresponding proposed BGE/TTS modelstart ceilings7/5
+retain their original4/2intent histories. No nativecase is admitted by this source
+change; source191currently has a retainedlate-arrival CPUfailure under diagnosis.
+All160/170/15,4CPU12GiB,5sfreshness and3.5GiBfloor limits stayunchanged.
+
+Publiccustody red rejectedscoped19; green10harness tests pass0.15s. The new test
+also proves changedretainedhistory stopsbeforeanexternalcapacityquery, ASR is
+refused and the original16packet stays exhausted withoutledgerchanges. Receipts:
+private `native0191/preparation/mixed-custody-{red,green}.txt`. Ordinary featureTDD
+leaves finalreview/postreview0/0.

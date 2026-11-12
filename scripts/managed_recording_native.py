@@ -77,7 +77,7 @@ def gpu(telemetry=None, *, max_age_seconds=2):
 
 
 def native_limits(packet):
-    """Retain packet budgets; a sixteenth start is diarization recovery only."""
+    """Retain old budgets; explicit DIA-only successors bind retained history."""
     attempts = packet.get('max_physical_stage_load_attempts', 4)
     seconds = packet.get('limits', {}).get('case_seconds', 600)
     cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
@@ -85,11 +85,19 @@ def native_limits(packet):
     if (not isinstance(allowed, list) or not allowed
             or any(stage not in ('asr', 'diarization') for stage in allowed)
             or len(set(allowed)) != len(allowed)
-            or type(attempts) is not int or not 1 <= attempts <= 16
+            or type(attempts) is not int or attempts not in (*range(1, 17), 19)
             or attempts == 16 and allowed != ['diarization']
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
         raise ValueError('bounded native attempt/runtime/cleanup limits required')
+    if attempts == 19:
+        pin = packet.get('retained_history_sha256')
+        if (allowed != ['diarization']
+                or packet.get('budget_contract') != 'staged-mixed-dia-v1'
+                or packet.get('retained_physical_starts') != 16
+                or not isinstance(pin, str) or len(pin) != 64
+                or any(c not in '0123456789abcdef' for c in pin)):
+            raise ValueError('bounded native mixed DIA history/scope required')
     return attempts, seconds, cleanup
 
 
@@ -109,6 +117,12 @@ def worker_exec(packet_path, command):
             raise RuntimeError('physical stage-load allowance exhausted')
         if attempt_limit == 16 and len(attempts) != 15:
             raise RuntimeError('DIA recovery requires retained fifteen-load history')
+        if attempt_limit == 19:
+            prefix = json.dumps(attempts[:16], sort_keys=True, separators=(',', ':'),
+                                allow_nan=False).encode()
+            if (len(attempts) < 16 or hashlib.sha256(prefix).hexdigest()
+                    != packet['retained_history_sha256']):
+                raise RuntimeError('mixed DIA requires exact retained sixteen-load history')
         sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))
         required = packet['registration']['stages'][stage]['reserved_bytes']
         if sample['free_bytes'] < required + packet['headroom_bytes']:
