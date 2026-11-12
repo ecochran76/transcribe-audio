@@ -637,3 +637,20 @@ currentboot/capacity/protected-demand and individualprimary admission. Original
 results NEVER qualify neural SLOs even if measuredtargets pass; terminalsuccess
 is attributable missing timing+actualcleanup, not another acceptance attempt.
 NoASR/live/prodroute/backlog/download/reset/pause. Finalreview/remediation0/0.
+
+
+Source204 diagnostic completed97.018s/40warm/actual21recording9BGE7TTS; numeric
+DIA-9/BGE-15/TTS-15/42actors/Manager0 plus fullsource/cgroup/knownPIDcleanupPASS.
+Root protectedmonitor49polls finished/no demand. TraceINCOMPLETE: actualBGE/DIA
+codecNone missed by the all-codec CPUproof; onlyTTS parentreceipt/perPIDCPU mapped.
+Used artifacts remain immutable; no retry or neural/SLO promotion. Instrumented
+3.228sBGE/3.642sTTS values are diagnostic only. Source205 repairsprivatecoverage
+with actualunloadedfactoryNone/None/TimedSpeechCodec inventory beforemixedCPUproof.
+
+Partial204 evidence identifies accept-loop maintenance as a candidate:312ticks
+occupied21.8/24s while responsewrites were milliseconds/pre-servicemethod waits
+.755–.877s. Native TTS frames span.934s versusCPU201burst.0055s. Source206 is
+CPUONLY: one matchedstreaming pre-fixcapture and publicHTTPcausalRED, then only
+ifproved a bounded service_http maintenance-isolation fix + ordinaryfeatureTDD.
+No nativepacket/budget/production/backlog/pause/reset/download. Full0167/0168 and
+recordinglimits/wordtimingdecisions remain open; finalreview/remediation0/0.
