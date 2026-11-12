@@ -782,3 +782,22 @@ for freeze/admission.148current model/source/executable/history pins match,
 and actual unloaded builders prove no model effects. New prospective limits
 26/14/12 do not reuse224's stopped cohort. Voice AssemblyAI and disabled screen
 batch remain unchanged; full0167/0168 and final broadreview/TDD0/0 remain open.
+
+
+## Lifecycle-fixed measurement stopped | 2026-11-12
+
+228M1 completed102.787945318s/controllerexit0, all40warm outputs valid.
+Independent222v3 evaluation f27ac3ff673ed3bc297342e179d46dbf653ac832d56f1ca281c84f73d11b7e75:
+BGEp95 .4634348589970614s PASS .5s; TTSp95 1.828246584002045s FAIL1s.
+Payload/source/capacity/retainedcleanup pass separately; all3 historical
+lifecycle markers are present. Actual native24/12/10; cohort228STOP and
+B2/M3 unexecuted/unfrozen. No retry or unused headroom authority.
+
+Root protection coverage is unproven: only2 observations at .282/196.236s.
+No protected demand was reported at those observations; continuous absence
+and timely intervention cannot be inferred. Preserve measurements separately
+from acceptance.229 owns bounded read-only TTS queue diagnosis;230 owns private
+wall-clock watchdog source/CPU proof. Future native held for supervision proof
+and separate prospective admission. Fresh OS/Windows custody is in progress.
+Voice AssemblyAI and disabled screen batch remain unchanged. Full0167/0168
+quality/relative overhead/cold-yield/word timing stay open; finalreview/TDD0/0.
