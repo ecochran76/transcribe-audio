@@ -18495,3 +18495,15 @@ protected-demand monitoring, plan da185aeb8b0a483f1b689d38ad35463f4f7c388238ff2b
 B2/M3 remain unfrozen/held. Existing500msBGE/1sTTS and all resource bounds remain.
 No ASR, production switch or screen backlog. Recording limits/human-word timing
 remain pending operator input. Final broadreview/remediation remain0/0.
+
+
+Independent-client V3 M1 subsequently completed107.231s; all40warmrequests
+succeeded, but primary recomputed BGEp952.208080383s/TTS2.144715370s both FAIL.
+Ticket0200 cohort STOP: B2/M3unexecuted, no replay/replacement despite unused
+ceiling headroom. Actual starts20recording/8BGE/6TTS; old histories unchanged.
+All42actors stopped, actualDIA-9/BGE-15/TTS-15, Manager0/models{}, outer source
+heldexit1/jobempty/tunnelabsent and nativecgroup absent; primary freshread agrees.
+Root protectedmonitor54polls finished without demand/abort. No production switch,
+backlog activation or qualification claim. Bounded public CPU delivery diagnosis
+0201 follows observed high service/client intervals; it grants no native budget.
+Recording acceptance inputs remain pending; finalreview/remediation0/0.

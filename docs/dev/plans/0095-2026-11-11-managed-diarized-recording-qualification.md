@@ -605,3 +605,15 @@ and joined76application testsPASS11.02s. This is explicit prospective allowance
 preparation after the evidenced benchmark fix, not a reset or automatic retry.
 Native cohort remains held until final source/history/pin checks and admission.
 Full0167/0168 and missing recording-performance/word-timing decisions remain open.
+
+
+Independent-client V3 M1 subsequently completed107.231s; all40warmrequests
+succeeded, but primary recomputed BGEp952.208080383s/TTS2.144715370s both FAIL.
+Ticket0200 cohort STOP: B2/M3unexecuted, no replay/replacement despite unused
+ceiling headroom. Actual starts20recording/8BGE/6TTS; old histories unchanged.
+All42actors stopped, actualDIA-9/BGE-15/TTS-15, Manager0/models{}, outer source
+heldexit1/jobempty/tunnelabsent and nativecgroup absent; primary freshread agrees.
+Root protectedmonitor54polls finished without demand/abort. No production switch,
+backlog activation or qualification claim. Bounded public CPU delivery diagnosis
+0201 follows observed high service/client intervals; it grants no native budget.
+Recording acceptance inputs remain pending; finalreview/remediation0/0.
