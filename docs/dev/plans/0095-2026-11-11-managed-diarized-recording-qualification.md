@@ -407,3 +407,27 @@ Linuxbrew PATH. Initial missingffmpeg PATH failure was environmental and retaine
 no product workaround or model changes were made. Hosted CI was not run.
 Production Speech and both Assembly watchers remain active; the screen backlog
 was not activated. Earlier NVIDIA reset outcome remains unknown.
+
+## Authorized continuation — 2026-11-12 morning
+
+Operator `ok go` accepts the proposed same-model parity quality gate and fresh
+bounded live-ASR cohort preparation/execution within unchanged resource/deadline
+limits. Absolute word/speaker errors and unresolved timing gaps remain separate;
+parity is not representative quality or a fabricated numeric timing pass.
+Preserve all ten live-ASR starts and their failures; freeze new cumulative limits
+and baseline comparability before effects. No production interruption, reset,
+model download, routing or historical-backlog activation follows from this.
+
+Linux boot changed to827d9db9; both temporary integration checkouts disappeared.
+Restored existing registered worktrees from retained app4ca52a7/core375ce3a72;
+no main changes or pruning. Current-epoch capacity source requalification must
+precede model admission. Root owns native serialization/admission; delegated
+tracks are source preparation, cohort preparation and quality-policy source work.
+
+CPU-only public `prepare_media` preflight at the exact retained commits reproduced
+source/decoded/unit SHA256b56bd92600d2a6047a0967c0b064e873f0cecde005fbd413d322b1549aa910fc
+and59s duration. Private receipt: user-state Plan0095/native0167/preparation/
+resume827d-cpu-preflight/receipt.json. No model or collector started by this check.
+This continues the level2 bounded shadow objective; target is trustworthy useful
+artifacts under managed priority, measured by real output/parity and resource
+release evidence. Production automatic processing remains outside this packet.
