@@ -18536,3 +18536,28 @@ CPUONLY: one matchedstreaming pre-fixcapture and publicHTTPcausalRED, then only
 ifproved a bounded service_http maintenance-isolation fix + ordinaryfeatureTDD.
 No nativepacket/budget/production/backlog/pause/reset/download. Full0167/0168 and
 recordinglimits/wordtimingdecisions remain open; finalreview/remediation0/0.
+
+
+## V4 terminal evidence | 2026-11-12
+
+Core source9007125a7 passes401 local unittest checks with49 optional/live skips
+in284.481s; application guard child2d9ecce065 passes81 selected pytest checks
+in11.47s against that core. Primary application script remains11c3fc8c for
+historical evidence validation. No installed runtime change follows these checks.
+
+Uninstrumented native0210 M1 completed40 correct warm requests in104.049s,
+but BGE p95 1.065290438s exceeds0.5s and TTS firstaudio1.068572772s exceeds1s.
+Verdict FAIL_STOP; B2/M3 remain unexecuted and unfrozen. Actual cumulative
+recording/BGE/TTS starts22/10/8. No unused allowance authorizes a retry.
+Independent evaluation43dd283118564e6533602a494fd663303a82c381ad457c9da2147aa8d0ee9fcf
+and custody e2fb90d80dc0b1d1b9e4ad473c5fbdf0005f7c709bdbcfccd76950e1c8074993
+are retained under user-scoped plan0095/native0210. All known owned processes,
+groups, cgroup, tunnel and source exited; Manager0 and42 actors closed. Root
+protected-demand monitor finished56 polls without protected demand.
+
+Core ticket0211 audits native/CPU fidelity read-only;0212 prepares private
+all-role/HTTP boundary markers with small CPU proofs. Neither permits another
+native run. Full0167/0168 acceptance remains open, including recording performance
+and human word-timing criteria. Reserved final broad review/TDD remain0/0.
+These steps advance trustworthy diarized processing from built toward shadow
+maturity; foreground timing is still unqualified. No production/backlog activation.
