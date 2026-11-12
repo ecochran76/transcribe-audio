@@ -3,7 +3,7 @@
 State: OPEN
 Owner: primary integration coordinator
 Scope: qualify a bounded resumable local transcription-and-diarization pilot
-Execution: source implementation validated; native acceptance blocked on bounded owned release and remaining native cohorts
+Execution: bounded recording stages accepted; remaining live-ASR, managed embedding and mixed-workload acceptance open
 Source baseline: Transcribe Audio main, 61471db; LocalAI codex/0157-transcribe-pilot, f4bcf138967f570c7bd0c9646800be28b338aa62
 Decision provenance: [interview](../notes/0062-2026-11-10-managed-transcription-design-interview.md), Q1-Q18
 Architecture: [ADR0005](../../adr/0005-resume-recordings-across-managed-inference-units.md)
@@ -72,6 +72,37 @@ conversation-intelligence loop; this plan does not claim to realize that whole l
   milestone; it does not override those authorities or rewrite their historical gates.
 
 ## Current State
+
+- Ticket0173 is complete for bounded native recording stages: cumulative13
+  recording attempts retain all historical failures. DIA12 returned12turns and
+  three256D vectors; ASR13 returned121timestamped words on the same59s public
+  AMI clip. Stop-owned completed in2.748s/2.741s with actual numeric KILL exit-9,
+  reservation0, model/process/cgroup absence and both outer cleanup proofs.
+- Independent measurements are WER11.81% and DER15.31%; timestamp MAE remains
+  undefined with two missing reference boundaries. These are measured-only
+  short-cohort results, not full mixed-pipeline or human word-timing acceptance.
+- Ticket0171 remains open. A direct20warm live-ASR cohort passed p95.990s;
+  managed readiness hit its80s bound before streams. A separate bounded diagnostic
+  retained the failure without locating its phase. A CPU-masked import probe
+  completed, but cannot establish the original native delay's cause.
+- Ticket0178 remains open. Direct BGE-M3 passed20/20 retrieval matches and warm
+  p95.0678s at its2GiB cap. Managed work stayed queued without a worker because
+  the qualification helper compared monotonic capacity with wall-clock time.
+  The narrow clock-domain fix passed a real-worker/HTTP red-green regression and
+  eleven focused checks. A newly pinned managed-only candidate awaits admission;
+  the old incomplete pair and conservative three attempt intents are retained.
+- Current-epoch capacity qualification retained260 unique strict-valid samples
+  with120s minima on Windows monotonic, acquisition UTC and Linux clocks, and
+  exact cleanup. The previous Linux-only-duration cohort remains rejected.
+- Source baseline359checks/49optional-live skips and70joined app checks remain
+  historical evidence. The bounded ASR/pilot harness update passed7focused tests;
+  the consumed twelve-start packet still refuses execution. Real local ASR CLI
+  output exported to matching DOCX/TXT (eight paragraphs), without publication.
+- Mixed167 and handoff168 remain open. Final broad review and subsequent TDD are
+  still0/1 each. AssemblyAI routing stays active and the historical backlog stays
+  disabled. No new Speech pause, GPU reset, host reboot or driver change occurred.
+
+## Earlier implementation and recovery checkpoints (preserved)
 
 - Isolated integration branch `codex/managed-diarized-0095` contains the historical
   precedence/quiet policy, owned stage workers, resumable processor, guarded CLI,
