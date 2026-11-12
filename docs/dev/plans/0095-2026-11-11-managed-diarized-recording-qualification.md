@@ -723,3 +723,22 @@ causality remainsunproved.216ownsONEboundedpublicCPUcausalrepro, thenonly
 provedminimalrepairwithordinaryfeatureTDD. Installedwatchersunchanged, voice
 AssemblyAIactive/screenbatchdisabled. Full0167/0168 andhumancriteriaremainopen;
 reservedfinalbroadreview/remediation0/0.
+
+
+## Terminal-history repair | 2026-11-12
+
+Integrated core8d4204aea (workerbe9b96df35670e365ff4d3d41c0e192f595d7e58):
+maintenance skips reobserving immutable terminal requests while retaining the
+initial manager pump and every nonterminal lifecycle path. Public real-worker
+regression first failed at22 inspections, then passed;38 focused tests plus16
+subtests pass. One matched fullCPU feedback: searchp95.212728581s and first
+audio.240870962s versus earlier.751007146/.775913622. All40 rows correct,
+11frame cursors preserved,42actors stopped,Manager0,workers-15/PIDs and cgroup
+absent. Source handoffde24f72c77bf3a4af3d0308da76b87d7c4b079ab13cd9b833e21ebf973148038.
+Primary full core regression is RUNNING, not yet passing evidence.
+
+Private220/child221 prepare a separately scoped history22 successor guard;
+they grant no native execution or freeze authority. Actual consumed native
+starts remain22/10/8; old210FAIL/cohortSTOP is retained. Primary application
+script stays11c3fc8c for historical validation; installed services unchanged.
+Full0167/0168 acceptance and final broadreview/remediation0/0 remain open.
