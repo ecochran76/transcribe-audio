@@ -18620,3 +18620,24 @@ independent verification to those artifacts;220 closes prospective source pins
 against the resulting harness. No new native freeze or admission has occurred.
 Actual native22/10/8, old210FAIL_STOP and finalreview/remediation0/0 persist.
 Human word-timing scope is pending operator preference; full0167/0168 remain open.
+
+
+## Lifecycle wait repaired | 2026-11-12
+
+Native224 stopped at its unchanged timeout before warm arrivals. Both cold
+probes succeeded; all40 warm rows remain not offered. Independent cold payload
+checks pass, and fresh Linux/Windows custody proves all owned work released.
+Actual counts are23/11/9. The failed unit bookkeeping remains with MainPID0;
+no failed-unit reset or runtime retry occurred. Source225 reproduced the exact
+missing-cancellation-observation race through real HTTP and an owned CPU worker.
+The minimal fix keeps observing until cancellation, exit and reservation release
+are all recorded: red26.579s, green21.426s,15affected checksPASS108.124s.
+Integrated corefccd46f86/staged3f3a; thresholds and deadlines are unchanged.
+
+Newguard227d1bf3890/ef92 binds only the scoped history23 contract;89joined
+application checks pass15.30s.226custody preparation and222v3 evaluator are
+complete.228 is a separately prepared lifecycle-fixed cohort, currently held
+for freeze/admission.148current model/source/executable/history pins match,
+and actual unloaded builders prove no model effects. New prospective limits
+26/14/12 do not reuse224's stopped cohort. Voice AssemblyAI and disabled screen
+batch remain unchanged; full0167/0168 and final broadreview/TDD0/0 remain open.
