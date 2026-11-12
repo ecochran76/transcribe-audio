@@ -18695,3 +18695,24 @@ NoCPUattempt/sourcefix needed.232queue timings remain diagnostic evidence.
 234sourceaudit identifies25msservice maintenancecadence as one component,
 not the whole62.63ms redispatchgap.235ONE4requestCPUmatched25ms/5mscomparison
 is in progress; no production/native change or stablethroughput claim.
+
+
+## Cadence hypothesis rejected | 2026-11-12
+
+235ONEpublicCPUmatchedpair25ms/5ms polling did not show useful dispatchgap
+reduction(mean42.2→47.6ms), and CPUusage rose2.649→3.079coresec. Both4request
+cases returned exactpayloads/exit0 and released allworkers/cgroups. These
+maxima are not20samplep95 or modelacceptance. No productioncadence change.
+Pair9f23d2a9324b4f5e30cddfdd20eb1f49bc6098a5967418fe1792a4bc94f9b511.
+Allbounded228–235tickets nowclose with explicitfailed/diagnostic/source/read-only
+outcomes. Source231protectedheartbeat remains f0f40c3f2/controller9450b13e;
+14controllerchecks and actualsystemd blockedcaller/deathcleanup proofs pass.
+
+Qualification remains OPEN: actual228 TTS p951.828247>1s; BGE.463435<.5s.
+B2/M3 unexecuted/unfrozen, physicalcounts24/12/10, no native retry/admission.
+No evidence-backed productionthroughputfix established by these diagnostics.
+Further TTSprofile/concurrency work requires a distinct falsifiable bounded
+proposal with unchangedlimits, not repetition or relaxedacceptance. Full
+0167/0168 quality/overhead/coldyield/wordtiming gates and reserved final broad
+review/post-reviewTDD0/0 remainopen. Assemblyvoicewatchactive/screensdisabled;
+localfeaturecommits only/no push/deployment/sharedservicechanges.
