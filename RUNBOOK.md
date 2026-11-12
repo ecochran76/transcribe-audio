@@ -18507,3 +18507,15 @@ Root protectedmonitor54polls finished without demand/abort. No production switch
 backlog activation or qualification claim. Bounded public CPU delivery diagnosis
 0201 follows observed high service/client intervals; it grants no native budget.
 Recording acceptance inputs remain pending; finalreview/remediation0/0.
+
+
+One separate source204 native-delivery diagnostic is now individually admitted
+and running after202actualproxy-boundary proof/203strictone-shot history proof,
+primary6guardtestsPASS5.016s/all73pinsmatch/currentboot/actual20/protectedclear.
+Frozen plan211cc4ec2a331aaeb504ae2a9872750ae6dc8fb435d24054e33ed10e19d096df,
+packet d314012e00d5e6b700470c9ba9eb960e4d266d736940bcaa5b727425d7bd9d9b.
+NEWbaseline20/8/6 to21/9/7/maxone per role, no retry/B2/M3/sampletransfer; oldV3
+cohort stays STOP. Root strict protected-demand monitor active. Instrumented
+results NEVER neural/SLO acceptance. Original limits/models/nativeaffinity remain.
+Initial freeze rejected missingexecutablepin beforeeffects; corrected evidence
+retained. No production route/backlog/pause/reset/download; finalreview/TDD0/0.
