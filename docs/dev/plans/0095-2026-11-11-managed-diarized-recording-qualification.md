@@ -380,3 +380,30 @@ receipt caught the old13-load rejection; the first green attempt exposed a
 missing required path in the new test fixture, corrected without further runtime
 changes. All receipts remain under private `plan0095/native0173/asr-successor-*`.
 This ordinary implementation TDD does not consume the reserved post-review pass.
+
+## Current continuation checkpoint — 2026-11-12
+
+This section supersedes earlier open-prerequisite descriptions above. LocalAI
+0173 recording stages,0178 standalone CUDA embedding,0186 controller observation
+and0187 prospective controlled-stop evidence are complete within their documented
+scope. Real recording ASR13 and DIA12 emitted independently scored outputs and
+released owned resources. They do not establish representative quality or mixed
+acceptance. Missing timing boundaries remain unresolved.
+
+LocalAI integration `1f4f730a3` adds the one-clip public CLI composition: actual
+CLI, authenticated service, stage exit/checkpoint handoff, DOCX/TXT/JSON library
+readback and replay are CPU-validated. The native packet template is explicitly
+non-executable pending bindings and admission; no pilot starts14/15 occurred.
+
+0171 remains blocked:10/10 bounded starts consumed. The final diagnostic reached
+readiness in65.484s but submitted no audio; the managed warm cohort remains absent.
+Previous80/90s cold failures remain negative evidence. No further load is admitted.
+0167 still requires that cohort, reviewed quality/timing criteria, paired recording
+baseline, mixed scenarios and four-clip/recovery coverage.0168 stays open. Final
+review and post-review remediation counters remain0/0; no final sequence was run.
+
+Primary joined source checks at LocalAI1f4f730a3:12 tests passed17.318s using
+Linuxbrew PATH. Initial missingffmpeg PATH failure was environmental and retained;
+no product workaround or model changes were made. Hosted CI was not run.
+Production Speech and both Assembly watchers remain active; the screen backlog
+was not activated. Earlier NVIDIA reset outcome remains unknown.
