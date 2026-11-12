@@ -702,3 +702,24 @@ native run. Full0167/0168 acceptance remains open, including recording performan
 and human word-timing criteria. Reserved final broad review/TDD remain0/0.
 These steps advance trustworthy diarized processing from built toward shadow
 maturity; foreground timing is still unqualified. No production/backlog activation.
+
+
+## CPU isolation frontier | 2026-11-12
+
+Read-only211 audit closed: retained native/CPU job stores both44jobs/~7.79MB;
+gross payloadgrowth unsupported. Small213sleep/CPU pair verifiedrealCPUdemand
+withoutreproducing nativefailure; originalzero-start setuperror retained.
+Full214ONE20perrole pair reproducedsearchp95.751007146/.750849972FAIL.5
+whilefirstaudio.775913622/.750400032PASS1. Both40correct/44jobs/11frames,
+42actorsclosed/Manager0/allworkers-15/cgroupsabsent/zerothrottle. Primary
+evaluation503cab9dd2a59024adc462c9ccd661e59098ded70513bc9aac389d01143761d1.
+CPUdemand~1.54-1.64equivalents changedlittle; searchlatency growswithhistory.
+TheseCPUfindings do not qualifyneuralmodels or erase210FAIL_STOP22/10/8.
+
+212private tracingpreparationclosedafteractualcodec/GETPOST/portordinalproofs,
+exactrestoration andprimary12pinreadback; no nativecapture. 215sourceaudit
+foundretainedterminaljobs reobservedoneachservicetick, eachinvokingglobalpump;
+causality remainsunproved.216ownsONEboundedpublicCPUcausalrepro, thenonly
+provedminimalrepairwithordinaryfeatureTDD. Installedwatchersunchanged, voice
+AssemblyAIactive/screenbatchdisabled. Full0167/0168 andhumancriteriaremainopen;
+reservedfinalbroadreview/remediation0/0.
