@@ -458,3 +458,27 @@ links the frozen packet, real output, controller cleanup, generation retirement,
 stop timing and `eof184-dia-controller/independent-thread-cgroup-readback.json`.
 All11physical starts and prior failures remain immutable. This closeout made no
 native preparation or runtime change. Memory disposition: `forbidden` by task.
+
+Ticket0221 adds a source-only prospective V4 recording guard for exactly22
+retained physical starts and at most3 further fixed cohort cases (M1, B2, M3),
+with stop on first failure. It advances bounded, reproducible qualification;
+source preparation does not change native acceptance maturity or admit execution.
+The explicit max25 packet requires `budget_contract` equal to
+`independent-clients-v4-role-data-v2-history22`, layout
+`INDEPENDENT_CLIENT_RECEIVERS_V4`, observation protocol
+`ROLE_DATA_ENDPOINTS_V1`, integer `retained_physical_starts: 22`, and
+`allowed_stages: [diarization]`. Its `retained_history_sha256` comes from
+`foreground_cohort_history22_sha256`: canonical compact sorted JSON of the first22
+ledger entries, rejecting short/non-list/nonfinite history. Raw file hashes and
+first21 digests do not satisfy this contract. Future appends preserve the prefix;
+changes to entry22 invalidate it before capacity acquisition or worker execution.
+
+Legacy16/19/22/24 guard branches and the first21 helper remain unchanged. Max25
+requires the new scope; max26 is rejected. Successor runtime remains at most160s
+and cleanup at most15s. The companion220 custody contract owns the exact fixed
+case order and embedding/TTS ceilings13/11; this recording guard binds recording
+history and ceiling25 only. TEMP public tests reach a sentinel capacity boundary,
+never a worker, while negative tests refuse before that boundary. A read-only
+actualfirst22 fixture can be supplied using `TRANSCRIBE_V4_HISTORY22_FIXTURE`;
+only its TEMP copy is passed to the guard. Historical ledgers, keys, installed
+services and native allowances are not modified. Memory disposition: `forbidden`.

@@ -454,3 +454,131 @@ def test_old_v3_twenty_two_at_twenty_two_stays_exhausted(tmp_path):
             module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
         capacity.assert_not_called()
     assert ledger.read_bytes() == original
+
+
+def v4_history22_fixture():
+    import json
+    import os
+    source = os.environ.get('TRANSCRIBE_V4_HISTORY22_FIXTURE')
+    history = json.loads(Path(source).read_text()) if source else [
+        {'stage': 'diarization', 'public_fixture_attempt': n} for n in range(22)]
+    assert isinstance(history, list) and len(history) >= 22
+    return history[:22]
+
+
+def v4_history22_config(tmp_path, pin):
+    config = v4_config(tmp_path, pin)
+    config.update(max_physical_stage_load_attempts=25,
+        budget_contract='independent-clients-v4-role-data-v2-history22',
+        retained_physical_starts=22)
+    return config
+
+
+def test_v4_history22_packet_and_worker_reach_capacity_without_effects(tmp_path):
+    import hashlib
+    import json
+    module = harness()
+    history = v4_history22_fixture()
+    canonical = hashlib.sha256(json.dumps(history, sort_keys=True,
+        separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    config = v4_history22_config(tmp_path, canonical)
+    assert module.native_limits(config) == (25, 160, 15)
+    ledger = tmp_path/'attempts.json'
+    ledger.write_text(json.dumps(history, indent=2))
+    original = ledger.read_bytes()
+    packet = tmp_path/'v4-history22.json'
+    packet.write_text(json.dumps(config))
+    class CapacityReached(Exception):
+        pass
+    with patch.object(module, 'gpu', side_effect=CapacityReached) as capacity:
+        with pytest.raises(CapacityReached):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        assert capacity.call_count == 1
+    assert ledger.read_bytes() == original
+    assert not list(tmp_path.glob('worker-*.log'))
+
+
+def test_v4_history22_helper_preserves_legacy_prefix_and_future_appends():
+    import copy
+    module = harness()
+    history = v4_history22_fixture()
+    pin = module.foreground_cohort_history22_sha256(history)
+    legacy = module.foreground_cohort_history_sha256(history)
+    assert pin != legacy
+    assert module.foreground_cohort_history22_sha256(history + [{'future': 23}]) == pin
+    altered = copy.deepcopy(history)
+    altered[21]['changed_twenty_second'] = True
+    assert module.foreground_cohort_history22_sha256(altered) != pin
+    assert module.foreground_cohort_history_sha256(altered) == legacy
+    for short in (history[:21], tuple(history)):
+        with pytest.raises(ValueError, match='twenty-two'):
+            module.foreground_cohort_history22_sha256(short)
+    altered[21]['nonfinite'] = float('nan')
+    with pytest.raises(ValueError):
+        module.foreground_cohort_history22_sha256(altered)
+
+
+def test_v4_history22_wrong_scope_digest_or_role_refuses_before_capacity(tmp_path):
+    import copy
+    import hashlib
+    import json
+    module = harness()
+    history = v4_history22_fixture()
+    ledger = tmp_path/'attempts.json'
+    ledger.write_text(json.dumps(history, indent=2))
+    original = ledger.read_bytes()
+    config = v4_history22_config(tmp_path, module.foreground_cohort_history22_sha256(history))
+    packet = tmp_path/'v4-history22.json'
+    changes = [
+        {'max_physical_stage_load_attempts': 26},
+        {'max_physical_stage_load_attempts': 25.0},
+        {'budget_contract': 'independent-clients-v4-role-data-v1'},
+        {'measurement_layout': 'INDEPENDENT_CLIENT_RECEIVERS_V3'},
+        {'client_observation_protocol': 'STATUS_POLLING'},
+        {'retained_physical_starts': 21}, {'retained_physical_starts': 22.0},
+        {'allowed_stages': ['asr', 'diarization']},
+        {'limits': {'case_seconds': 161, 'cleanup_seconds': 15}},
+        {'limits': {'case_seconds': 160, 'cleanup_seconds': 16}}]
+    variants = [dict(config, **change) for change in changes]
+    variants.extend({k: v for k, v in config.items() if k != missing}
+        for missing in ('budget_contract', 'measurement_layout', 'client_observation_protocol',
+                        'retained_physical_starts', 'retained_history_sha256'))
+    with patch.object(module, 'gpu', side_effect=AssertionError('no capacity effect')) as capacity:
+        for variant in variants:
+            packet.write_text(json.dumps(variant))
+            with pytest.raises(ValueError, match='bounded native'):
+                module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        for pin in ('0'*64, hashlib.sha256(original).hexdigest(),
+                    module.foreground_cohort_history_sha256(history)):
+            packet.write_text(json.dumps(dict(config, retained_history_sha256=pin)))
+            with pytest.raises(RuntimeError, match='twenty-two-load history'):
+                module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        packet.write_text(json.dumps(config))
+        with pytest.raises(ValueError, match='stage not allowed'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'asr'])
+        altered = copy.deepcopy(history)
+        altered[21]['tampered'] = True
+        ledger.write_text(json.dumps(altered))
+        with pytest.raises(RuntimeError, match='twenty-two-load history'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        ledger.write_bytes(original)
+        capacity.assert_not_called()
+    assert ledger.read_bytes() == original
+    assert not list(tmp_path.glob('worker-*.log'))
+
+
+def test_v4_history22_exhausted_twenty_five_never_reaches_capacity(tmp_path):
+    import json
+    module = harness()
+    history = v4_history22_fixture()
+    config = v4_history22_config(tmp_path, module.foreground_cohort_history22_sha256(history))
+    ledger = tmp_path/'attempts.json'
+    ledger.write_text(json.dumps(history + [{'future': n} for n in (23, 24, 25)]))
+    original = ledger.read_bytes()
+    packet = tmp_path/'v4-history22.json'
+    packet.write_text(json.dumps(config))
+    with patch.object(module, 'gpu', side_effect=AssertionError('no capacity effect')) as capacity:
+        with pytest.raises(RuntimeError, match='allowance exhausted'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        capacity.assert_not_called()
+    assert ledger.read_bytes() == original
