@@ -18479,3 +18479,19 @@ Source0195 removes reproduced retained-audio status-copy cost; primary392coreOK
 truthfulnewTTSidentity/historyguard/pins/admission; no retrospective nativepass.
 Voice watchers remainactive andactualselectedbackendsAssembly-only; screenjob
 disabled. Finalreview/remediation0/0; recordinglimits/wordtimingscopeawaitoperator.
+
+
+Source195 singleM1 and diagnostic197 subsequently failed their measured response
+targets; all40warm rows and cleanup are retained. Old phase exhausted19recording/
+7BGE/5TTS. Diagnostic197 proved serial client receive occupancy, not model-ready
+time. Source198 introduces bounded independent client receivers (schema3), and
+app199 retains canonical first19 history for an explicit new cohort. Primary
+394coretestsOK49skips/76appPASS; no native acceptance follows those CPU checks.
+
+Ticket0200 is a NEW prospective V3 fixed M1/B2/M3 cohort under the standing
+qualification goal: max3new starts/role, cumulative22/10/8, no replay, firstfailure
+stops. Only M1 is frozen/individually admitted and currently running under root
+protected-demand monitoring, plan da185aeb8b0a483f1b689d38ad35463f4f7c388238ff2bbd0b0d49079697f951.
+B2/M3 remain unfrozen/held. Existing500msBGE/1sTTS and all resource bounds remain.
+No ASR, production switch or screen backlog. Recording limits/human-word timing
+remain pending operator input. Final broadreview/remediation remain0/0.
