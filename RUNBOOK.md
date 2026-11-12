@@ -18358,3 +18358,42 @@ proposal is ready outside Git; new scope approval is pending because earlier
 approval excluded GPU resets. No restart, driver change, Windows reboot or WSL
 shutdown occurred. Source tickets closed; native171/173/178/167/168 and final single
 review/remediation remain open. Production AssemblyAI and Speech remain running.
+
+## Turn | 2026-11-12 | Current-boot qualification continuation
+
+Integration worktrees restored from retained refs after two externally changed
+boot epochs; main checkouts remained unchanged. Earlier NVIDIA-only restart
+completion is unknown; no automatic reset, reboot, shutdown or pause was repeated.
+The later285bepoch qualified real bounded recording stages0173 and standalone
+CUDAembedding0178; source0186 repaired native completion observation and0187
+added optional prospectively matched owned-signal evidence. Actual TERM/KILL
+numeric exits remain visible rather than being reported as graceful exit0.
+Primary current-source local regression:369tests OK49optional/live skips75.169s;
+joined evaluator/CLI source12tests pass17.318s with Linuxbrew PATH. These local
+checks replace hosted CI; skips and CPU fixtures do not establish native quality.
+
+Morning827depoch required another fresh capacity binding. Source-only case
+retained262unique valid rows, all three120s horizons and maximumage0.335094s;
+primary verified raw hashes, currentbinding and exact cleanup. No models or
+additional NVIDIAqueries ran in that sourcecase. FreshrecipeSHA12ce4721d47593ec940602c95e0705fbd254952f65f9e985f44631f99c6a38bd.
+
+Operator authorized recommended same-model parity and fresh bounded live-ASR
+cohort. A prospectively matched direct2x10/managed2x10 envelope retained all ten
+old starts and allowed at most four new starts. First directcase11 failed90.009692s
+coldstartup with zeroaudio/warm samples; numeric-15/stopped,1.331770s cleanup and
+source/native/leader/knownchild/cgroup absence passed. The remaining three cases
+stay held under stop-first-failure. This also occurred withoutManager and does
+not establish its overhead as the cause.0171 remains blocked; no further load
+from that cohort is admitted.
+
+Independent0167oneclip milestone prepared a frozen rawstage parity baseline from
+real ASR13/DIA12 captures, with absoluteerrors reported and timestampnull remaining
+UNRESOLVED. Final reconciliation parity and fullmixed acceptance are not claimed.
+The public CLI composition already passed realownedCPU stage handoff/export/library/
+replay checks. V1 nativepacket stayed unused after a PATH preflight finding. V2
+pins env+ffmpeg/ffprobe and explicitcommandPATH without globalenvironment changes.
+V2 admitted once: ASR14 thenDIA15 maximum15,160controller/170unit/15stop,4CPU12GiB,
+3.5GiB maxstagebudget+3.5GiBfloor/5sfreshness; actualoutcome pending. Ledger and raw
+private receipts live in userstate Plan0095, not Git. No production/backlog
+activation or model downloads occurred.0167/0168 stay open; final review/remediation
+counters remain0/0 until the requested acceptance frontier closes.
