@@ -101,6 +101,19 @@ def native_limits(packet):
     return attempts, seconds, cleanup
 
 
+def mixed_retained_history_sha256(attempts):
+    """Prepare the exact immutable prefix identity required by mixed custody.
+
+    The file-byte hash remains separate evidence custody. Formatting changes and
+    future appends do not alter this canonical identity of the first16 entries.
+    """
+    if not isinstance(attempts, list) or len(attempts) < 16:
+        raise ValueError('retained sixteen-load history required')
+    prefix = json.dumps(attempts[:16], sort_keys=True, separators=(',', ':'),
+                        allow_nan=False).encode()
+    return hashlib.sha256(prefix).hexdigest()
+
+
 def worker_exec(packet_path, command):
     packet = json.loads(packet_path.read_text())
     sys.path.insert(0, packet['localai_qualification'])
@@ -118,9 +131,7 @@ def worker_exec(packet_path, command):
         if attempt_limit == 16 and len(attempts) != 15:
             raise RuntimeError('DIA recovery requires retained fifteen-load history')
         if attempt_limit == 19:
-            prefix = json.dumps(attempts[:16], sort_keys=True, separators=(',', ':'),
-                                allow_nan=False).encode()
-            if (len(attempts) < 16 or hashlib.sha256(prefix).hexdigest()
+            if (len(attempts) < 16 or mixed_retained_history_sha256(attempts)
                     != packet['retained_history_sha256']):
                 raise RuntimeError('mixed DIA requires exact retained sixteen-load history')
         sample = gpu(packet_telemetry(packet), max_age_seconds=packet.get('telemetry_max_age_seconds', 2))

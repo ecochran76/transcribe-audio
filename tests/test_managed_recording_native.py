@@ -215,3 +215,38 @@ def test_mixed_dia_cohort_retains_sixteen_starts_and_rejects_asr(tmp_path):
     with pytest.raises(RuntimeError, match='allowance exhausted'):
         module.worker_exec(old, ['/bin/false', '--stage', 'diarization'])
     assert ledger.read_text() == original
+
+
+def test_prepared_mixed_digest_roundtrips_guard_before_capacity_or_effects(tmp_path):
+    import hashlib
+    import json
+    module = harness()
+    history = [{'stage': 'diarization', 'attempt': n} for n in range(16)]
+    ledger = tmp_path/'attempts.json'
+    ledger.write_text(json.dumps(history, indent=2))
+    original = ledger.read_bytes()
+    pin = module.mixed_retained_history_sha256(history)
+    raw_pin = hashlib.sha256(original).hexdigest()
+    assert pin != raw_pin
+    config = {'localai_qualification': str(tmp_path),
+              'max_physical_stage_load_attempts': 19,
+              'allowed_stages': ['diarization'],
+              'budget_contract': 'staged-mixed-dia-v1',
+              'retained_physical_starts': 16, 'retained_history_sha256': pin,
+              'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}
+    packet = tmp_path/'mixed.json'
+    class CapacityReached(Exception):
+        pass
+    packet.write_text(json.dumps({**config, 'retained_history_sha256': raw_pin}))
+    with patch.object(module, 'gpu', side_effect=CapacityReached) as capacity:
+        with pytest.raises(RuntimeError, match='retained sixteen-load history'):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        capacity.assert_not_called()
+        packet.write_text(json.dumps(config))
+        with pytest.raises(CapacityReached):
+            module.worker_exec(packet, ['/bin/false', '--stage', 'diarization'])
+        assert capacity.call_count == 1
+    assert ledger.read_bytes() == original
+    assert module.mixed_retained_history_sha256(history + [{'stage': 'diarization'}]) == pin
+    with pytest.raises(ValueError, match='sixteen'):
+        module.mixed_retained_history_sha256(history[:15])

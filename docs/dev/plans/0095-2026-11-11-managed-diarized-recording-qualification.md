@@ -522,3 +522,26 @@ independent actualfourclip report remainsBLOCKED withonehistoricalscoped milesto
 3missingcaptures andlongclipminimumfourunits. Ledgercheckpoint core2ee79272c.
 The operator has been asked for missing recording performance limits and human
 word-timing scope; those dependent gates stay open. 0167/0168 and final0/0 remain.
+
+## Retained M1 pre-execution failure and canonical custody repair
+
+The first frozen mixed M1 v3 failed before a model exec: its preparation supplied
+raw ledger SHA958e981a... where the guard requires canonicalfirst16 SHA56415edf....
+Actual owned wrapper exited1; the harness waited until its original160s deadline.
+No physical exec counter advanced: recording16/BGE4/TTS2 remain unchanged. Manager0,
+worker/unit/cgroup and Windows/source/tunnel cleanup passed; parent independently
+checked knownPIDs/cgroup absence and unchanged ledger bytes. B2/M3 v3 stay held
+and will never execute. Failed packets/reports remain intact; existing Gitrefa134905
+and a pinned-identical private copy retain original appsource bytes after edits.
+
+Source0194 exposes `mixed_retained_history_sha256(attempts)` and uses that same
+helper in the existing guard. Its public roundtrip test proves raw-byte hash
+rejection before capacity, correct prefix reaching a raising capacity fence before
+mutation, unchanged temporary ledger and stable first16 identity after appends.
+Primary joined75testsPASS14.69s with documentedLinuxbrewPATH/qualificationPYTHONPATH.
+An initial command withoutPYTHONPATH had3importerrors/8passes and is retained;
+it is not a product failure. Private preparation also calls the actual shared
+helper; no duplicate digest algorithm or GPU retry occurs in source validation.
+Source0193 separately addresses cold worker exit observability. Any corrected
+successor needs new frozen hashes and individual admission, with originalphysical
+ceilings19/7/5 unchanged. No previous failed packet is promoted; final0/0 remains.

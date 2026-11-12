@@ -18463,3 +18463,10 @@ Source191 queued-offers V2 integratedf2f70365a, primary384testsOK49skips249.608s
 source192 primary22joinedtestsPASS1.105s and actualfourclipreport correctlyBLOCKED.
 native mixed cases remain held. VoiceAssemblyAI continues unchanged; full
 screen backlog is not activated. Final broadreview/remediation remain0/0.
+
+Mixed M1 v3 subsequently failed pre-execution: wrong raw/canonical retainedhistory
+hash, actualwrapperexit1, originaldeadline reached; allcleanup passed. Original
+recording16/BGE4/TTS2 counters unchanged; B2/M3 unexecuted. Source0194 adds one
+shared canonical-prefix helper and realguard roundtrip proof;75joinedtestsPASS14.69s.
+See Plan0095 for preserved failed evidence, source193 cold-exit repair and successor
+admission boundaries. No GPU model retry or new physical allowance occurred here.
