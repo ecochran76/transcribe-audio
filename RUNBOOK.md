@@ -18716,3 +18716,14 @@ proposal with unchangedlimits, not repetition or relaxedacceptance. Full
 0167/0168 quality/overhead/coldyield/wordtiming gates and reserved final broad
 review/post-reviewTDD0/0 remainopen. Assemblyvoicewatchactive/screensdisabled;
 localfeaturecommits only/no push/deployment/sharedservicechanges.
+
+
+## Retrospective findings adopted as actionable work | 2026-11-12
+
+Operator requested durable/actionable findings. Archived sanitized report and
+evidence in LocalAI qualification/docs/research/2026-11-12-qualification-
+environment-retrospective.md; created canonical tickets0236–0242 and Plan0016.
+Each ticket has owner, priority, state, dependencies, acceptance and bounded
+verification. AppPlan0096/ROADMAP route to that authority. No remediation code,
+model/production effects or finalreview/TDD consumption; native24/12/10 and
+parent0167/0168 remain open. Project memory queued separately after source commit.

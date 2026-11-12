@@ -1455,3 +1455,12 @@ Operational follow-up to Plan0094: subsequent operator direction retained the
 AssemblyAI voice route, disabled direct local-GPU fallback and paused historical
 screen processing pending managed qualification. The earlier source/smoke results
 remain historical evidence, not current GPU-route activation.
+
+
+## Qualification environment actions | 2026-11-12
+
+[Plan0096](docs/dev/plans/0096-2026-11-12-qualification-environment-actions.md)
+routes the adopted retrospective to canonical LocalAI qualification tickets
+0236–0242. Prioritize protected admission and CPU fixture exclusion; policy
+pointers/preflight precede local-check integration. Tracking is established,
+remediation not delivered; Plan0095 qualification and runtime gates persist.
