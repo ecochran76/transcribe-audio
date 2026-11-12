@@ -654,3 +654,26 @@ CPUONLY: one matchedstreaming pre-fixcapture and publicHTTPcausalRED, then only
 ifproved a bounded service_http maintenance-isolation fix + ordinaryfeatureTDD.
 No nativepacket/budget/production/backlog/pause/reset/download. Full0167/0168 and
 recordinglimits/wordtimingdecisions remain open; finalreview/remediation0/0.
+
+
+## V4 source preparation | no native admission
+
+Source206 isolates maintenance in oneownednonoverlapactor from HTTPacceptance;
+publiccausalRED/GREEN and19localchecks pass. MatchedCPU connectionadmission p95
+.245s→.0015s, BGE.8088→.5144 STILLFAIL.5, TTS.8497→.5219PASS1 (notneuralproof).
+Source207 publicHTTP503metadataRED1.930s→healthydataGREEN2tests21.148s removes
+unrelated status polls: result/state forBGE, output/state plus terminal result
+forTTS. ExplicitINDEPENDENT_CLIENT_RECEIVERS_V4/schema4/ROLE_DATA_ENDPOINTS_V1;
+oldV3packetsrejectbeforefactory. Arrivals/queues/frames/modelmath/targets unchanged.
+One matchedCPUfeedback and finalcombinedcore/appchecks remain; no nativepass.
+
+208preparesONLYscoped24recordingguard withactualfirst21canonicalhelper, V4/data
+protocol andDIAonly in a NEWapplicationchildworktree. Primaryapp11scriptpath
+stays unchanged for oldhistory validation. 209prepares NEWfixedM1/B2/M3 proposal
+fromactual21/9/7 to24/12/10, max3newstarts/role, stopfirstfailure/no replay;
+alloldfailedcohorts andconsumed204diagnosticremainclosed. 210isPLANNED/HELD,
+notadmitted bythis plan: needsallsourceproofs/feedback/fullchecks andeach exact
+primaryfreeze/admission/currentboot/capacity/protected-demand gate. NoASR/live,
+no tracer forqualification, sameassets/math/16017015/4CPU12G/strict5/floor3.5.
+No production/backlog/pause/reset/download. Full0167/0168/recordingperformance/
+humanwordtimingremainopen; finalreview/remediation0/0.
