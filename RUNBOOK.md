@@ -18418,3 +18418,33 @@ native attempt followed the sourcefix. Remaining work: actual useful milestone,
 managedliveASR warmcohort, mixed/fourclip/recovery and qualifiedhandoff. Read-only
 startup investigation is assessing repeatedNeMoarchiveextraction/caches without
 claiming the cause of timingvariation or admitting further GPU work.
+
+### Explicit DIA-only recovery accepted as a scoped milestone
+
+Source0189 composes existing durableSharedService, actual cancelled HTTP
+observation, public retry_stage and the unchanged originalCLI/max1 configuration.
+Primary15joinedCPUtests passed68.371s, including59.936s naturalexclusiveportrelease.
+App0e09958 permits exactlyoneprospectiveDIA16 only with retained15history and
+explicitDIA-onlyscope; ASR remainsforbidden andold15packet exhausted.
+
+NativeDIA16 completed49.593767s. OriginalASR121words/stagesubtree stayedunchanged;
+DIAreturned12turns/three256Dvectors. PrimaryindependentWER0.1181102362 and
+DER0.1530782443 exactlymatchfrozenstagebaselines. Two missinghumansegmentboundaries
+keep timestampnull/UNRESOLVED; finalreconciliationparity staysNOT_QUALIFIED.
+ActualDOCX/TXT/JSON/publicreader agreeon21utterances; twoCLIidentities exited0,
+and same-IDreplay added0loads/submissions. Modelactual-9/stopped,Manager0 and
+ownedPIDs/cgroup/Windowsheldexit1/jobempty/guardian/payload/tunnelcleanup passed.
+All44readonlysnapshots andconsistentSQLitebackup preserveoldmutableevidence;
+oldfailedreport/outerreceipt/ASRcomplete/configstayunchanged. OriginalV2stillFAIL.
+
+Scopeaccepted: oneclipuseful-output/restart/recovery andrawstagequalityparity.
+Full0167/mixed/fourclip/performance/timing and0171managedwarmcohort remainopen,
+0168blocked, finalreview/remediation0/0. Ledger16retainsalloldstarts; no additional
+model retry isadmitted. Nativeartifacts: privatePlan0095/native0167/
+epoch827d-dia-recovery16-independent-evaluation.json andprimary-recovery16-*.json.
+
+OneCPU-onlyNemotronarchiveextraction copiedfivefiles/2.473GB: sourcehash6.836s,
+untar+inlinehash15.571s,total22.414s,numericunit0/cleanup. This measuressetupwork,
+not thecauseofnativecoldvariation ormodelparity. Source-only0190 opt-inasset
+reuse andanactualboundedCPUconfig-APIproof areinpreparation; no production
+worker/modelrouting/backlogactivation changed.
