@@ -486,3 +486,39 @@ also proves changedretainedhistory stopsbeforeanexternalcapacityquery, ASR is
 refused and the original16packet stays exhausted withoutledgerchanges. Receipts:
 private `native0191/preparation/mixed-custody-{red,green}.txt`. Ordinary featureTDD
 leaves finalreview/postreview0/0.
+
+## New190 live-ASR prerequisite accepted |2026-11-12
+
+0171 is now complete for the explicitly new fingerprint
+a0b458f771ee539f2c4e678d19af870e6cd912e1b9c72f55da06d12be46e1a02:
+verified preextracted CPU staging, unchanged model/math/PCM/context/cadence/3GiB,
+and deny-python-network-v1. Source0190 is complete; its installed-SDK config-only
+probe passed without model construction. This advances the existing level2
+bounded useful-work qualification target; production activation remains separate.
+
+All four prospectively frozen DIRECT1,DIRECT2,MANAGED1,MANAGED2 cases passed.
+Retained physical liveASR15/15;40warm streams plus four probes succeeded withWER.1.
+Nearest-rank pooled20 p95: direct.981272771s, managed1.067927542s. Delta.086654771s
+passes the frozen.098127277s budget; absolute2s passes. Separate cold times were
+61.132/53.571/63.936/54.852s; yields.845/.955/.849/.970s. Numeric exits-15/stopped,
+managedreservation0/models{}, allocatorpeak2,663,251,456B<3GiB, strictages<.294s,
+loadedfloor>3.5GiB, exactknownprocess/cgroup/Windows/source/tunnelcleanup pass.
+Parent independently recomputed rawframes/ACKs/partials/p95/delta and checked
+fresh process absence. ProtectedSpeech demand remained empty throughout allfour.
+
+Private aggregate `native0171/newvariant190-paired-comparison.json` SHA256
+790536996ffd6ba181738269dcec2fc9838903ffed154edec8e3354e6470e1a1;
+parent readback `newvariant190-primary-paired-readback.json`. This is a two-
+generation-per-route syntheticstreaming qualification, not a singleworker20
+claim or causal cold-speed improvement. All old failures stay retained.
+
+0191 source queued-offers V2 fixes are integrated at coref2f70365a; primaryfull
+local suite passed384tests with49optional/live skips in249.608s. Its retained
+ResourceWarnings are not a warning-free claim. NativeM1/B2/M3 and19/7/5 custody remain held pending exact
+source/pin/individual admission. Source0192 prepares fourclip paired quality
+reporting, preserving missing captures, null timing and final-reconciliation gaps.
+0192 source/evidence is complete at core7a5cd6e07: primary22joinedtestsPASS1.105s;
+independent actualfourclip report remainsBLOCKED withonehistoricalscoped milestone,
+3missingcaptures andlongclipminimumfourunits. Ledgercheckpoint core2ee79272c.
+The operator has been asked for missing recording performance limits and human
+word-timing scope; those dependent gates stay open. 0167/0168 and final0/0 remain.

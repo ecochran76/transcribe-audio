@@ -18448,3 +18448,18 @@ untar+inlinehash15.571s,total22.414s,numericunit0/cleanup. This measuressetupwor
 not thecauseofnativecoldvariation ormodelparity. Source-only0190 opt-inasset
 reuse andanactualboundedCPUconfig-APIproof areinpreparation; no production
 worker/modelrouting/backlogactivation changed.
+
+### Plan0095 new190 live-ASR acceptance |2026-11-12
+
+0171 passed the newly pinned preextracted two-generation-per-route profile.
+All40warm+4probe streams succeeded; directpooled20p95.981272771s,
+managed1.067927542s, delta.086654771<=.098127277s. Physical15/15 exhausted;
+allnumericworkerexits-15/stopped, managedreservation0/models{}, knownprocess/
+cgroup/Windows/source/tunnelcleanup independently checked. No protectedSpeech
+demand arrived during root monitoring. AggregateprivateSHA:
+790536996ffd6ba181738269dcec2fc9838903ffed154edec8e3354e6470e1a1.
+See Plan0095 current acceptance section for exact scope and remaining gates.
+Source191 queued-offers V2 integratedf2f70365a, primary384testsOK49skips249.608s;
+source192 primary22joinedtestsPASS1.105s and actualfourclipreport correctlyBLOCKED.
+native mixed cases remain held. VoiceAssemblyAI continues unchanged; full
+screen backlog is not activated. Final broadreview/remediation remain0/0.
