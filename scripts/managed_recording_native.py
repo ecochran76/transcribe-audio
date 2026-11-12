@@ -77,11 +77,11 @@ def gpu(telemetry=None, *, max_age_seconds=2):
 
 
 def native_limits(packet):
-    """Retain original receipts while bounding the explicit two-load successor."""
+    """Retain original packet budgets while bounding ASR and pilot successors."""
     attempts = packet.get('max_physical_stage_load_attempts', 4)
     seconds = packet.get('limits', {}).get('case_seconds', 600)
     cleanup = packet.get('limits', {}).get('cleanup_seconds', 15)
-    if (type(attempts) is not int or not 1 <= attempts <= 12
+    if (type(attempts) is not int or not 1 <= attempts <= 15
             or type(seconds) not in (int, float) or not 0 < seconds <= (160 if attempts > 4 else 600)
             or type(cleanup) not in (int, float) or not 0 < cleanup <= 15):
         raise ValueError('bounded native attempt/runtime/cleanup limits required')

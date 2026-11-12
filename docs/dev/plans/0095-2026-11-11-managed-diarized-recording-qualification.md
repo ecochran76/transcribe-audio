@@ -326,3 +326,26 @@ Requested final broad review and post-review TDD counters remain0/1 and0/1, pend
 closure of the requested ticket set. Feature-level red/green tests are implementation
 evidence and do not consume that final sequence. Hosted CI and model execution were
 not used for source acceptance. No deployment or broader backlog activation occurred.
+
+## Prospective recording continuation after the recovered DIA gate
+
+The twelfth recording-stage start passed real DIA output and bounded release.
+The original twelve-start packet is consumed and remains immutable. The next
+prospective packet permits one ASR-only start, cumulative13, retaining all12
+prior entries. A later separately admitted two-stage pilot may use cumulative15
+only after predecessor acceptance. The harness validator supports this bounded
+ceiling; it does not replenish any old packet or authorize automatic retries.
+The native runtime, cleanup deadline, allocator caps, model math and freshness/
+headroom gates remain unchanged. A CPU regression check proves the consumed
+original packet still refuses execution without changing its ledger.
+
+This advances trustworthy transcript/diarization from isolated implementation
+toward bounded real-artifact shadow evidence. It does not establish automatic
+production processing, representative quality, named identity or knowledge reuse.
+
+Local harness validation: `PYTHONPATH=/tmp/localai-plan0095-integration/qualification
+python -m pytest -q tests/test_managed_recording_native.py` passed7 tests. Red
+receipt caught the old13-load rejection; the first green attempt exposed a
+missing required path in the new test fixture, corrected without further runtime
+changes. All receipts remain under private `plan0095/native0173/asr-successor-*`.
+This ordinary implementation TDD does not consume the reserved post-review pass.

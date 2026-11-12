@@ -45,7 +45,7 @@ def test_successor_limits_preserve_old_packets_and_bound_two_new_loads():
                                  'limits': {'case_seconds': 600, 'cleanup_seconds': 15}}) == (4, 600, 15)
     assert module.native_limits({'max_physical_stage_load_attempts': 6,
                                  'limits': {'case_seconds': 160, 'cleanup_seconds': 15}}) == (6, 160, 15)
-    for attempts, seconds, cleanup in [(13, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
+    for attempts, seconds, cleanup in [(16, 160, 15), (6, 161, 15), (6, 160, 16), (6, 0, 15)]:
         with pytest.raises(ValueError, match='bounded native'):
             module.native_limits({'max_physical_stage_load_attempts': attempts,
                                   'limits': {'case_seconds': seconds, 'cleanup_seconds': cleanup}})
@@ -116,5 +116,23 @@ def test_explicit_release_successor_preserves_history_and_two_stage_proof():
     assert module.native_limits({'max_physical_stage_load_attempts': 12,
         'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (12, 140, 15)
     with pytest.raises(ValueError, match='bounded native'):
-        module.native_limits({'max_physical_stage_load_attempts': 13,
+        module.native_limits({'max_physical_stage_load_attempts': 16,
             'limits': {'case_seconds': 140, 'cleanup_seconds': 15}})
+
+
+def test_new_asr_packet_does_not_replenish_consumed_recording_budget(tmp_path):
+    """A new bounded packet may continue; the original twelve-load packet cannot."""
+    import json
+    module = harness()
+    assert module.native_limits({'max_physical_stage_load_attempts': 13,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}) == (13, 140, 15)
+    ledger = tmp_path/'attempts.json'
+    history = json.dumps([{'stage': 'diarization', 'attempt': n} for n in range(12)])
+    ledger.write_text(history)
+    packet = tmp_path/'original.json'
+    packet.write_text(json.dumps({'localai_qualification': str(tmp_path),
+        'max_physical_stage_load_attempts': 12,
+        'limits': {'case_seconds': 140, 'cleanup_seconds': 15}}))
+    with pytest.raises(RuntimeError, match='allowance exhausted'):
+        module.worker_exec(packet, ['/bin/false', '--stage', 'asr'])
+    assert ledger.read_text() == history
