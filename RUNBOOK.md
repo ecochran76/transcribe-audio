@@ -18470,3 +18470,12 @@ recording16/BGE4/TTS2 counters unchanged; B2/M3 unexecuted. Source0194 adds one
 shared canonical-prefix helper and realguard roundtrip proof;75joinedtestsPASS14.69s.
 See Plan0095 for preserved failed evidence, source193 cold-exit repair and successor
 admission boundaries. No GPU model retry or new physical allowance occurred here.
+
+CorrectedV4M1 thencompleted40warmrequests butfailedcallerresponse targets:
+BGEp953.296s/TTSfirstaudio2.985s. HistoricalDIA yielded/released2.769s, counters
+17/5/3, actualDIA-9/BGE-15/TTS-15 andallownedcleanup passed. B2/M3 stopped.
+Source0195 removes reproduced retained-audio status-copy cost; primary392coreOK
+49skips251.200s and75appPASS15.71s. Singlechanged-sourceM1 remainsheld until
+truthfulnewTTSidentity/historyguard/pins/admission; no retrospective nativepass.
+Voice watchers remainactive andactualselectedbackendsAssembly-only; screenjob
+disabled. Finalreview/remediation0/0; recordinglimits/wordtimingscopeawaitoperator.

@@ -545,3 +545,33 @@ helper; no duplicate digest algorithm or GPU retry occurs in source validation.
 Source0193 separately addresses cold worker exit observability. Any corrected
 successor needs new frozen hashes and individual admission, with originalphysical
 ceilings19/7/5 unchanged. No previous failed packet is promoted; final0/0 remains.
+
+## V4 response failure and status-copy source repair
+
+Corrected V4 M1 completed all40warm requests in121.625s and proved historical
+DIA cancellation/release in2.769s. It still failed caller-visible targets:
+BGEp953.29632646s>.5, firstTTSaudio2.984742031s>1. All20offers/role were within
+9ms of their fixed1Hz schedule; no failed or late sample was discarded. Pipe
+first-audio timestamps and caller observation remain distinct; no retrospective
+SLO pass follows from earlier pipe arrival. B2/M3 V4 are stopped/unexecuted.
+
+Counters are recording17/BGE5/TTS3, preserving first16 canonical recording
+history and original BGE/TTS evidence. Actual exits DIA-9/BGE-15/TTS-15; Manager0,
+allknownPIDs/recordedPGIDs/cgroup and Windows/source/tunnel cleanup pass. Parent
+independently recomputed p95 and checked fresh absence. Private evaluation SHA
+39e0aafec163792783107bd8b6637e58c6c2402cdd156313c07b930b181639ed.
+
+Source0195 reproduced one avoidable cost with public CPU process/HTTP boundaries:
+20retained audio results caused171MB of payload copying during status cycles.
+Opt-in metadata observation now supplies event count without copying events;
+default event/output/result/cursor/replay/history behavior remains. CPU after-case
+copied audio only for explicit output; this does not attribute the entire native
+failure or prove native speed. Core40b0eecba primary full392testsOK49optional/live
+skips251.200s; application75PASS15.71s. Known fixture ResourceWarning retained.
+
+A source195 SINGLEM1 proposal may use17/5/3->18/6/4 under unchanged19/7/5 ceilings,
+with an explicit one-case guard binding actual consumed V4 history and refusing
+replay. TTS control-source identity must be recomputed; oldf149 acceptance does
+not transfer automatically. PairedB2/M3/performance limits remain held pending
+operator input; onlyone remaining load/role after that singlecase cannot cover
+both paired routes. No new budget, route activation or final review occurs here.
