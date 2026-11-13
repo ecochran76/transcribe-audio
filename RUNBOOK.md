@@ -18743,3 +18743,17 @@ qualificationcheckout/testpackageimportfailures preserved thenfixed. Bothfast
 lanespass; exactlegacyRuffbaselines19core/56app andexistingResourceWarning
 disclosed. No newmodel/provider/nativeeffects, hostedCI orfinalreview/TDD.
 Plan0096/core0016closed; Plan0095/0167/0168 remainOPEN, screenbatchdisabled.
+
+## TTS queue-capacity diagnosis | 2026-11-12
+
+LocalAI ticket0243 and research/2026-11-12-tts-queue-capacity-diagnosis.md at
+db590cc69 retain a sub-second public-clock reproducer. Original20durations at
+1Hz produce1.230s p95; two logicalslots .070s,20%shorteroccupancy .090s. Seven
+requests are deletion-minimal at1.030s; removing any one passes. Serialoccupancy
+is sufficient to explain a queuefailure; no pureengine/rootcause, productioncode
+fix or actualtwo-worker capacity claim. Native228 remains1.828sFAIL.
+
+Ticket0244 prepares a separately source-bound realTTS1-versus2headroom comparison
+under unchanged4CPU/12GiB/1Hz/1sgate; no execution/admission or oldheadroom reuse.
+Actual native24/12/10, ASR15 and finalreview/TDD0/0 persist. No model loads or
+production changes from this diagnosis. Private source/proofs: diagnosis0243.
