@@ -1,0 +1,399 @@
+{
+  "schema_version": 1,
+  "scope": "Existing legacy RuffF diagnostics at ticket0238 adoption; no suppression for new diagnostics. Review when touched, remove resolved entries.",
+  "ruff_version": "0.17.3",
+  "findings": [
+    [
+      ".codex/skills/repo-policy-selector/scripts/check_policy_upgrades.py",
+      "F401",
+      "`select_policy.adopted_policy_id` imported but unused",
+      14,
+      5
+    ],
+    [
+      ".codex/skills/repo-policy-selector/scripts/check_policy_upgrades.py",
+      "F401",
+      "`select_policy.read_text` imported but unused",
+      20,
+      5
+    ],
+    [
+      ".codex/skills/repo-policy-selector/scripts/select_policy.py",
+      "F841",
+      "Local variable `current_dict_key` is assigned to but never used",
+      83,
+      13
+    ],
+    [
+      ".codex/skills/repo-policy-selector/scripts/select_policy.py",
+      "F841",
+      "Local variable `current_list_key` is assigned to but never used",
+      82,
+      13
+    ],
+    [
+      "acoustic_evaluation_corpus.py",
+      "F401",
+      "`sqlite3` imported but unused",
+      11,
+      8
+    ],
+    [
+      "acoustic_generation2_authority.py",
+      "F401",
+      "`typing.Sequence` imported but unused",
+      17,
+      34
+    ],
+    [
+      "acoustic_generation3_authority.py",
+      "F841",
+      "Local variable `source_sha` is assigned to but never used",
+      579,
+      9
+    ],
+    [
+      "acoustic_generation3_gold.py",
+      "F401",
+      "`acoustic_audio_derivatives` imported but unused",
+      13,
+      38
+    ],
+    [
+      "acoustic_generation5_e2.py",
+      "F401",
+      "`re` imported but unused",
+      9,
+      8
+    ],
+    [
+      "acoustic_generation5_e3_scoring.py",
+      "F401",
+      "`re` imported but unused",
+      7,
+      8
+    ],
+    [
+      "acoustic_source_device_metadata.py",
+      "F401",
+      "`acoustic_audio_derivatives.read_private_object` imported but unused",
+      14,
+      5
+    ],
+    [
+      "acoustic_speech_preparation.py",
+      "F401",
+      "`torchaudio.backend.common` imported but unused; consider using `importlib.util.find_spec` to test for availability",
+      275,
+      16
+    ],
+    [
+      "acoustic_successor_conditions.py",
+      "F401",
+      "`os` imported but unused",
+      9,
+      8
+    ],
+    [
+      "acoustic_verification.py",
+      "F841",
+      "Local variable `application` is assigned to but never used",
+      3507,
+      5
+    ],
+    [
+      "conversation_identity_retrieval.py",
+      "F401",
+      "`conversation_evidence_fabric.ProviderRetrievalRequest` imported but unused",
+      16,
+      5
+    ],
+    [
+      "conversation_identity_retrieval.py",
+      "F401",
+      "`conversation_evidence_fabric.ProviderRetrievalResult` imported but unused",
+      17,
+      5
+    ],
+    [
+      "conversation_identity_retrieval.py",
+      "F401",
+      "`dataclasses.field` imported but unused",
+      5,
+      36
+    ],
+    [
+      "identity_review_workflow.py",
+      "F401",
+      "`directory_hypothesis_review.StaleDirectoryHypothesisReview` imported but unused",
+      17,
+      5
+    ],
+    [
+      "identity_review_workflow.py",
+      "F401",
+      "`mail_hypothesis_review.StaleMailHypothesisReview` imported but unused",
+      23,
+      5
+    ],
+    [
+      "identity_review_workflow.py",
+      "F401",
+      "`organization_identity_repair.StaleOrganizationIdentityRepair` imported but unused",
+      36,
+      5
+    ],
+    [
+      "identity_review_workflow.py",
+      "F401",
+      "`person_identity_repair.StalePersonIdentityRepair` imported but unused",
+      31,
+      5
+    ],
+    [
+      "repair_calendar_metadata.py",
+      "F401",
+      "`datetime.timedelta` imported but unused",
+      12,
+      32
+    ],
+    [
+      "repair_calendar_metadata.py",
+      "F401",
+      "`transcribe_common.format_utterance` imported but unused",
+      25,
+      5
+    ],
+    [
+      "scripts/cleanup_app_smokes.py",
+      "F401",
+      "`sys` imported but unused",
+      10,
+      8
+    ],
+    [
+      "scripts/evaluate_provenance_calibration.py",
+      "F401",
+      "`context_sources.SOURCE_QUALITY_PROFILE_ID` imported but unused",
+      20,
+      5
+    ],
+    [
+      "speaker_identity_evidence_execution.py",
+      "F401",
+      "`sqlite3` imported but unused",
+      7,
+      8
+    ],
+    [
+      "speaker_identity_orchestration.py",
+      "F401",
+      "`transcript_store` imported but unused",
+      21,
+      8
+    ],
+    [
+      "speaker_identity_plan0062_human_comparison.py",
+      "F841",
+      "Local variable `exc` is assigned to but never used",
+      458,
+      64
+    ],
+    [
+      "speaker_identity_plan0063_human_review.py",
+      "F401",
+      "`hashlib` imported but unused",
+      6,
+      8
+    ],
+    [
+      "speaker_identity_plan0063_private_rehearsal.py",
+      "F401",
+      "`hashlib` imported but unused",
+      12,
+      8
+    ],
+    [
+      "speaker_identity_plan0064_p0.py",
+      "F401",
+      "`os` imported but unused",
+      6,
+      8
+    ],
+    [
+      "speaker_identity_plan0064_p0.py",
+      "F401",
+      "`stat` imported but unused",
+      9,
+      8
+    ],
+    [
+      "speaker_identity_plan0064_p1.py",
+      "F401",
+      "`collections.defaultdict` imported but unused",
+      13,
+      34
+    ],
+    [
+      "speaker_identity_plan0065_reconciliation.py",
+      "F401",
+      "`shutil` imported but unused",
+      10,
+      8
+    ],
+    [
+      "speaker_identity_plan0068_terminal.py",
+      "F401",
+      "`hashlib` imported but unused",
+      5,
+      8
+    ],
+    [
+      "speaker_identity_plan0070_d0.py",
+      "F401",
+      "`speaker_identity_plan0065_d2` imported but unused",
+      13,
+      40
+    ],
+    [
+      "speaker_identity_plan0070_d0.py",
+      "F401",
+      "`speaker_identity_plan0069_a2` imported but unused",
+      15,
+      40
+    ],
+    [
+      "speaker_identity_plan0071_d2_predictions.py",
+      "F401",
+      "`app_intelligence_ledger` imported but unused",
+      17,
+      8
+    ],
+    [
+      "tests/test_acoustic_generation5_evaluation_gold.py",
+      "F401",
+      "`pathlib.Path` imported but unused",
+      2,
+      21
+    ],
+    [
+      "tests/test_acoustic_generation5_review_repair.py",
+      "F401",
+      "`pathlib.Path` imported but unused",
+      1,
+      21
+    ],
+    [
+      "tests/test_acoustic_generation5_review_repair.py",
+      "F541",
+      "f-string without any placeholders",
+      19,
+      21
+    ],
+    [
+      "tests/test_acoustic_verification.py",
+      "F401",
+      "`acoustic_verification.build_development_trial_authority` imported but unused",
+      21,
+      5
+    ],
+    [
+      "tests/test_biometric_custody_ledger.py",
+      "F841",
+      "Local variable `cluster` is assigned to but never used",
+      811,
+      5
+    ],
+    [
+      "tests/test_identity_review_workflow.py",
+      "F401",
+      "`sqlite3` imported but unused",
+      4,
+      8
+    ],
+    [
+      "tests/test_managed_transcription.py",
+      "F401",
+      "`pathlib.Path` imported but unused",
+      3,
+      21
+    ],
+    [
+      "tests/test_managed_transcription.py",
+      "F401",
+      "`tempfile` imported but unused",
+      4,
+      8
+    ],
+    [
+      "tests/test_readouts.py",
+      "F401",
+      "`argparse` imported but unused",
+      3,
+      8
+    ],
+    [
+      "tests/test_speaker_enrollment_bridge.py",
+      "F401",
+      "`sqlite3` imported but unused",
+      8,
+      8
+    ],
+    [
+      "tests/test_speaker_match_bridge.py",
+      "F401",
+      "`hashlib` imported but unused",
+      3,
+      8
+    ],
+    [
+      "tests/test_speaker_sample_deletion.py",
+      "F401",
+      "`acoustic_verification.FakeVerificationAdapter` imported but unused",
+      12,
+      35
+    ],
+    [
+      "tests/test_speaker_sample_deletion.py",
+      "F401",
+      "`json` imported but unused",
+      5,
+      8
+    ],
+    [
+      "tests/test_speaker_sample_deletion.py",
+      "F401",
+      "`speaker_enrollment_bridge.EnrollmentBridge` imported but unused",
+      13,
+      39
+    ],
+    [
+      "tests/test_speaker_sample_deletion.py",
+      "F401",
+      "`speaker_match_bridge.ComparisonBridge` imported but unused",
+      16,
+      34
+    ],
+    [
+      "tests/test_speech_harvesting.py",
+      "F841",
+      "Local variable `live` is assigned to but never used",
+      384,
+      9
+    ],
+    [
+      "tests/test_speech_source_erasure.py",
+      "F401",
+      "`contextlib.closing` imported but unused",
+      163,
+      28
+    ],
+    [
+      "watch_transcriptions.py",
+      "F401",
+      "`os` imported but unused",
+      12,
+      8
+    ]
+  ]
+}

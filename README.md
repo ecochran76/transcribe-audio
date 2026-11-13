@@ -1155,3 +1155,26 @@ fails the job instead of exporting a plain transcript. Words outside detected
 speaker turns remain `UNKNOWN`; labels do not establish personal identity.
 Existing successful watcher records are retained and are not automatically
 reprocessed by this configuration change.
+
+## Local validation for qualification changes
+
+Run the repository-local guardrail with Python 3.12+:
+
+```sh
+python scripts/check_local.py --fast
+python scripts/check_local.py --full --receipt /private/new-validation.json
+python scripts/check_local.py --install-hook
+```
+
+`--fast` checks pinned Ruff 0.17.3, repository policy pointers and fast local
+regressions. `--full` runs the existing pytest suite; provider/live acceptance
+remains separate. Use the existing venv and `LOCAL_CHECK_PYTHON` for the hook.
+Ruff resolves from PATH or an already cached `uvx --offline`; it never downloads
+CI capacity or starts model qualification. Missing tools fail explicitly.
+The hook installer refuses to replace an existing hook or change hooksPath.
+
+`local-check-baseline.json` lists exact pre-existing Ruff diagnostics found when
+adopting the guardrail. New diagnostics fail; resolved entries are reported as
+unused and should be removed when touched. This baseline is not a clean-lint
+claim. Validation receipts include command, commit, interpreter and material
+local/hosted differences. Hosted Actions are not required or purchased.
