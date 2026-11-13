@@ -149,3 +149,40 @@ Implementation receipt (base source `b6caeb83013daa43d35cde886e450a6b79c1fee0`):
   retry lineage, word gap/overlap handling and uncertain side-effect suppression.
 - `git diff --check`: passed. No hosted CI, model/GPU/private-media operation,
   installed service mutation or native acceptance occurred.
+
+## Resumable stage-result budget
+
+Use `--max-stage-results N` (integer1..10000), or the public
+`run(..., max_stage_results=N)` keyword, to return after at mostN newly durable
+unit-stage results in that invocation. Omit it for the existing completion path.
+For a large recording inside an independently bounded case:
+
+```sh
+python managed_recording_cli.py /private/full-recording.wav \
+  --config /private/managed-recording.json \
+  --recording-id EXISTING_RECORDING_ID \
+  --conversation-id EXISTING_CONVERSATION_ID --max-stage-results 1
+```
+
+A budget return is successful resumable progress (exit0), with a receipt shaped as:
+
+```json
+{"state":"partial","published":false,"resumable":true,
+ "reason":"max_stage_results","processor_key":"EXISTING_KEY",
+ "checkpoint_path":"/private/state/EXISTING_KEY.json",
+ "cli_manifest_path":"/private/state/cli/CLI_KEY.json",
+ "recording_id":"EXISTING_RECORDING_ID","conversation_id":"EXISTING_CONVERSATION_ID",
+ "new_stage_results":1,
+ "completed_stage_results":[{"unit_index":0,"stage":"asr","request_id":"EXISTING_REQUEST_ID","attempt":0}]}
+```
+
+Resume using exactly the same source, configuration, metadata and IDs. Completed
+results and request IDs are reused; the new budget counts only results completed
+since this invocation began. The execution budget is a flag/keyword, not an
+immutable configuration field, and does not change source/profile/checkpoint
+identity. All source units remain in the checkpoint. Partial receipts contain no
+published output paths and never authorize publication or a stage retry.
+When the final stage result reaches the budget, offline reconciliation and normal
+DOCX/TXT/JSON publication finish in that invocation; an extra empty run is not
+required. Existing case deadlines and external resource/admission controls remain
+in force. An interrupted or failed operation retains its ordinary recovery rules.

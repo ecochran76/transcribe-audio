@@ -188,8 +188,11 @@ def _publish(output, key, source, config, old):
     return receipt
 
 
-def run(source, config, *, recording_id=None, conversation_id=None, existing_transcript=None):
+def run(source, config, *, recording_id=None, conversation_id=None, existing_transcript=None,
+        max_stage_results=None):
     """Execute explicit media through actual ManagedClient; return guarded receipt."""
+    if max_stage_results is not None and (type(max_stage_results) is not int or not 1 <= max_stage_results <= 10000):
+        raise ValueError('max_stage_results must be an integer1..10000')
     from inference_manager.service_client import ManagedClient
 
     source = Path(source).expanduser().resolve(strict=True)
@@ -262,6 +265,12 @@ def run(source, config, *, recording_id=None, conversation_id=None, existing_tra
             raise RecordingProcessingError('processor generation conflict')
         manifest['processor_key'] = processor_key
         _save(manifest_path, manifest)
+        def durable_results(checkpoint):
+            return [dict(unit_index=index, stage=stage, request_id=entry['request']['id'],
+                         attempt=entry['attempt'])
+                    for index, unit in enumerate(checkpoint['units'])
+                    for stage, entry in unit['stages'].items() if 'result' in entry]
+        initial_results = len(durable_results(processor.snapshot(processor_key)))
         deadline = time.monotonic()+wait
         while time.monotonic() < deadline:
             try:
@@ -281,6 +290,21 @@ def run(source, config, *, recording_id=None, conversation_id=None, existing_tra
                     raise
                 time.sleep(min(poll, max(0, deadline-time.monotonic())))
                 continue
+            completed = durable_results(checkpoint)
+            new_results = len(completed)-initial_results
+            all_complete = all('result' in entry for unit in checkpoint['units']
+                               for entry in unit['stages'].values())
+            if max_stage_results is not None and new_results >= max_stage_results:
+                if all_complete and checkpoint['state'] != 'ready':
+                    # advance now only reconciles durable results; no new work.
+                    checkpoint = processor.advance(processor_key)
+                elif not all_complete:
+                    return dict(state='partial', published=False, resumable=True,
+                                reason='max_stage_results', recording_id=recording_id,
+                                conversation_id=conversation_id, processor_key=processor_key,
+                                checkpoint_path=str(processor.state/(processor_key+'.json')),
+                                cli_manifest_path=str(manifest_path), new_stage_results=new_results,
+                                completed_stage_results=completed)
             if checkpoint['state'] == 'ready':
                 if _hash_file(source) != source_hash:
                     raise RecordingProcessingError('original source changed before publication')
@@ -296,11 +320,13 @@ def main(argv=None):
     parser.add_argument('--recording-id')
     parser.add_argument('--conversation-id')
     parser.add_argument('--existing-transcript', type=Path)
+    parser.add_argument('--max-stage-results', type=int, help='Checkpoint after1..10000 new durable unit-stage results')
     args = parser.parse_args(argv)
     try:
         config = json.loads(_private_read(args.config))
         receipt = run(args.media, config, recording_id=args.recording_id,
-                      conversation_id=args.conversation_id, existing_transcript=args.existing_transcript)
+                      conversation_id=args.conversation_id, existing_transcript=args.existing_transcript,
+                      max_stage_results=args.max_stage_results)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         print('Managed recording failed: '+str(error), file=sys.stderr)
         return 1

@@ -1184,3 +1184,12 @@ Full application tests need the existing LocalAI qualification checkout via
 checkout is detected when present. Hooks capture the selected interpreter and
 honor `LOCAL_CHECK_PYTHON`. Their dispatcher skips checkouts where this runner
 is absent, since linked worktrees share the Git hook directory.
+
+### Managed diarized recording checkpoints
+
+The [managed recording CLI](docs/managed-recording-cli.md) supports
+`--max-stage-results 1` to return an explicitly unpublished, resumable checkpoint
+after one new durable unit-stage result. Resume with the same source/configuration
+and IDs; completed work is retained and final reconciliation/publication completes
+when all stages exist. The optional execution budget is outside immutable config
+and does not change model/profile identity or external resource limits.
