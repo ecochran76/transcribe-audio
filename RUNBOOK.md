@@ -18727,3 +18727,19 @@ Each ticket has owner, priority, state, dependencies, acceptance and bounded
 verification. AppPlan0096/ROADMAP route to that authority. No remediation code,
 model/production effects or finalreview/TDD consumption; native24/12/10 and
 parent0167/0168 remain open. Project memory queued separately after source commit.
+
+
+## Retrospective fixes delivered | 2026-11-12
+
+Implemented allseven0236–0242: mandatorynewprotectedheartbeat admission,
+sharedCPUfixtureexecutionlock, localcheckrunner+installedhooks, policylinkrepair,
+zeroeffectfixturepreflight/variablechunkexpectations, boundedreceiptsummaries,
+and pinnedcurrentstateprojection. Actual228projection reconciles24/12/10 and
+FAIL_STOP without parentacceptance. Actualhooks caught inheritedGit-environment
+fixturebug; isolatedGitvariables and verifiedsuccessfulcommits afterward.
+
+Corefull420testsOK49skips374.172s; appfull1402PASS4skips228.54s. Initialmissing
+qualificationcheckout/testpackageimportfailures preserved thenfixed. Bothfast
+lanespass; exactlegacyRuffbaselines19core/56app andexistingResourceWarning
+disclosed. No newmodel/provider/nativeeffects, hostedCI orfinalreview/TDD.
+Plan0096/core0016closed; Plan0095/0167/0168 remainOPEN, screenbatchdisabled.

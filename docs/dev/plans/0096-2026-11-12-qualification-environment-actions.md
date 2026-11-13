@@ -1,6 +1,6 @@
 # Qualification environment follow-up
 
-State: PLANNED
+State: CLOSED
 Owner: Plan0095 integration coordinator
 Scope: Transcribe Audio side of the adopted retrospective backlog
 
@@ -31,3 +31,14 @@ other acceptance gates unmet. Final broadreview/post-reviewTDD remain0/0.
 This pointer is discoverable from ROADMAP and RUNBOOK; canonical tickets have
 stable locators, owners, priorities, dependencies and negative/positive checks.
 Delivery is proved by each ticket's code/integration receipt, not this plan.
+
+## Delivered | 2026-11-12
+
+CanonicalLocalAI tickets0236–0242 DONE/Plan0016 CLOSED. Apppolicyreferences
+corrected53→26existingtargets, checkerandnegativefixtureadded. Localfast/full
+runner andcheckout-awareprecommithookinstalled; actualhookcommitsPASS. Full
+app1402PASS/4skips228.54s; core420OK/49skips374.172s. Initialimportfailures
+were fixedwith explicitqualificationroot and unambiguousapplicationtestpackage.
+Exactlegacylintbaseline remainsvisible(56app/19core), no newfindings.
+No sourcequalification/modelacceptanceclaim beyondguardrailworkflowlevel2;
+Plan0095/parent0167/0168 stayOPEN, finalreview/TDD0/0, no productionactivation.

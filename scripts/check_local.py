@@ -119,9 +119,12 @@ def main():
                 raise RuntimeError('Full app tests require --qualification-root EXISTING_LOCALAI/qualification or LOCALAI_QUALIFICATION_ROOT')
             qualification = qualification.resolve()
             environment['PYTHONPATH'] = str(qualification) + os.pathsep + environment.get('PYTHONPATH', '')
+        source_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        dirty_start = bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True))
         result = run_checks(commands, ROOT, environment)
         result['qualification_root'] = str(qualification) if qualification else None
-        result.update(source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+        result.update(source_commit=source_commit, dirty_at_start=dirty_start,
+                      source_commit_at_finish=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                       python=sys.version, tier='full' if args.full else 'fast',
                       hosted_environment_difference='Local Linux/Python; optional live/protocol skips remain skips; no hosted Actions')
         if args.receipt:
