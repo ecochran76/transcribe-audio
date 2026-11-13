@@ -168,6 +168,7 @@ def backend_script_path(backend: str) -> Path:
         "assembly": "assembly_transcribe.py",
         "faster_whisper": "faster_whisper_transcribe.py",
         "parakeet": "parakeet_transcribe.py",
+        "managed_recording": "managed_recording_transcribe.py",
     }[backend]
     return SCRIPT_DIR / script_name
 
@@ -483,9 +484,9 @@ def parse_backends(raw_job: dict[str, Any]) -> list[str]:
 
     normalized: list[str] = []
     for backend in backends:
-        if backend not in {"assembly", "faster_whisper", "parakeet"}:
+        if backend not in {"assembly", "faster_whisper", "parakeet", "managed_recording"}:
             raise WatcherError(
-                f"Unsupported backend '{backend}'. Use 'assembly', 'parakeet', or 'faster_whisper'."
+                f"Unsupported backend '{backend}'. Use 'assembly', 'parakeet', 'faster_whisper', or 'managed_recording'."
             )
         if backend not in normalized:
             normalized.append(backend)
@@ -493,6 +494,8 @@ def parse_backends(raw_job: dict[str, Any]) -> list[str]:
 
 
 def parse_cli_args_by_backend(raw_job: dict[str, Any], backends: list[str]) -> dict[str, list[str]]:
+    if "managed_recording" in backends and backends != ["managed_recording"]:
+        raise WatcherError("Managed recording requires a managed_recording-only job; cross-route fallback is disabled.")
     shared_args = [*parse_calendar_cli_args(raw_job), *normalize_cli_args(raw_job.get("cli_args"))]
     backend_specific = raw_job.get("cli_args_by_backend") or {}
     if backend_specific and not isinstance(backend_specific, dict):
