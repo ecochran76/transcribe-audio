@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/check_local.py'
@@ -20,7 +21,14 @@ class LocalCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subprocess.run(['git', 'init', '-q', str(root)], check=True, env={k: v for k, v in os.environ.items() if not k.startswith('GIT_')})
-            hook = module.install_hook(root)
+            foreign = root / 'foreign'
+            clean_env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+            subprocess.run(['git', 'init', '-q', str(foreign)], check=True, env=clean_env)
+            with patch.dict(os.environ, {'GIT_DIR': str(foreign / '.git')}):
+                hook = module.install_hook(root)
+            self.assertEqual(hook, root / '.git/hooks/pre-commit')
+            self.assertFalse((foreign / '.git/hooks/pre-commit').exists())
+            self.assertEqual(subprocess.check_output(['git', '-C', str(foreign), 'config', '--get', 'core.bare'], env=clean_env, text=True).strip(), 'false')
             self.assertIn('check_local.py', hook.read_text())
             (root / 'scripts').mkdir()
             (root / 'scripts/check_local.py').write_text('raise SystemExit(7)\n')

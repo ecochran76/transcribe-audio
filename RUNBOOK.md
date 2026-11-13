@@ -18757,3 +18757,10 @@ Ticket0244 prepares a separately source-bound realTTS1-versus2headroom compariso
 under unchanged4CPU/12GiB/1Hz/1sgate; no execution/admission or oldheadroom reuse.
 Actual native24/12/10, ASR15 and finalreview/TDD0/0 persist. No model loads or
 production changes from this diagnosis. Private source/proofs: diagnosis0243.
+
+Corrective readback0245: earlier temporarygitinit hookfixture had persisted
+core.bare=true in bothmainrepositories before the already-fixedGitenvironment
+isolation. Restoredonlycore.bare=false; originalmainHEADs unchanged, appclean,
+corepre-existinguntracked0161 retained. AddedforeignGIT_DIR regression to both
+local-check tests; targethookcreated/foreignhookabsent/foreignbareflagunchanged.
+Privateevidence diagnosis0243/git-config-restoration.json. No history rewrites.
