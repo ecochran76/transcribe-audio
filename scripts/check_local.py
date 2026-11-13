@@ -47,12 +47,12 @@ def lint(root):
     return 1 if new else 0
 
 
-def run_checks(commands, cwd):
+def run_checks(commands, cwd, env=None):
     rows = []
     for command in commands:
         started = time.monotonic()
         try:
-            result = subprocess.run(command, cwd=cwd, timeout=900)
+            result = subprocess.run(command, cwd=cwd, env=env, timeout=900)
             code = result.returncode
         except subprocess.TimeoutExpired:
             code = 124
@@ -66,14 +66,15 @@ def run_checks(commands, cwd):
 def install_hook(root):
     """Opt in without replacing another hook or altering hooksPath."""
     root = Path(root)
-    raw = subprocess.check_output(['git', '-C', str(root), 'rev-parse', '--git-path', 'hooks/pre-commit'], text=True).strip()
+    git_environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    raw = subprocess.check_output(['git', '-C', str(root), 'rev-parse', '--git-path', 'hooks/pre-commit'], text=True, env=git_environment).strip()
     hook = Path(raw)
     if not hook.is_absolute():
         hook = root / hook
     hook.parent.mkdir(parents=True, exist_ok=True)
     with hook.open('x') as stream:
-        stream.write('#!/bin/sh\nset -eu\nroot=$(git rev-parse --show-toplevel)\n'
-                     'if [ -f "$root/qualification/scripts/check_local.py" ]; then base="$root/qualification"; else base="$root"; fi\n'
+        stream.write('#!/bin/sh\nset -eu\nunset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX\nroot=$(git rev-parse --show-toplevel)\n'
+                     'if [ -f "$root/qualification/scripts/check_local.py" ]; then base="$root/qualification"; elif [ -f "$root/scripts/check_local.py" ]; then base="$root"; else exit 0; fi\n'
                      'python=' + shlex.quote(sys.executable) + '\n'
                      'exec "${LOCAL_CHECK_PYTHON:-$python}" "$base/scripts/check_local.py" --fast\n')
     hook.chmod(0o755)
@@ -88,6 +89,7 @@ def main():
     parser.add_argument('--install-hook', action='store_true')
     parser.add_argument('--lint-only', action='store_true')
     parser.add_argument('--receipt', type=Path)
+    parser.add_argument('--qualification-root', type=Path, help='Existing LocalAI qualification checkout for app integration tests')
     args = parser.parse_args()
     if sys.version_info < (3, 12):
         parser.error('Python >=3.12 required; select the existing environment with LOCAL_CHECK_PYTHON')
@@ -108,7 +110,17 @@ def main():
         else:
             commands.append([sys.executable, str(ROOT / 'scripts/check_policy_pointers.py')])
             commands.append([sys.executable, '-m', 'pytest', '-q'] + ([] if args.full else ['tests/test_policy_pointers.py', 'tests/test_local_checks.py']))
-        result = run_checks(commands, ROOT)
+        environment = dict(os.environ)
+        qualification = None
+        if args.full and not (ROOT / 'inference_manager').is_dir():
+            configured = args.qualification_root or environment.get('LOCALAI_QUALIFICATION_ROOT')
+            qualification = Path(configured) if configured else ROOT.parent / 'localai' / 'qualification'
+            if not (qualification / 'inference_manager/__init__.py').is_file():
+                raise RuntimeError('Full app tests require --qualification-root EXISTING_LOCALAI/qualification or LOCALAI_QUALIFICATION_ROOT')
+            qualification = qualification.resolve()
+            environment['PYTHONPATH'] = str(qualification) + os.pathsep + environment.get('PYTHONPATH', '')
+        result = run_checks(commands, ROOT, environment)
+        result['qualification_root'] = str(qualification) if qualification else None
         result.update(source_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                       python=sys.version, tier='full' if args.full else 'fast',
                       hosted_environment_difference='Local Linux/Python; optional live/protocol skips remain skips; no hosted Actions')

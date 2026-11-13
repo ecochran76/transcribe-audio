@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from acoustic_verification import FakeVerificationAdapter
 from speaker_match_bridge import ComparisonBridge
-from test_speaker_enrollment_bridge import fixture, request
+from tests.test_speaker_enrollment_bridge import fixture, request
 
 
 def prepared(tmp_path):

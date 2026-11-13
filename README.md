@@ -1162,7 +1162,7 @@ Run the repository-local guardrail with Python 3.12+:
 
 ```sh
 python scripts/check_local.py --fast
-python scripts/check_local.py --full --receipt /private/new-validation.json
+python scripts/check_local.py --full --qualification-root /existing/localai/qualification --receipt /private/new-validation.json
 python scripts/check_local.py --install-hook
 ```
 
@@ -1178,3 +1178,9 @@ adopting the guardrail. New diagnostics fail; resolved entries are reported as
 unused and should be removed when touched. This baseline is not a clean-lint
 claim. Validation receipts include command, commit, interpreter and material
 local/hosted differences. Hosted Actions are not required or purchased.
+
+Full application tests need the existing LocalAI qualification checkout via
+`--qualification-root` or `LOCALAI_QUALIFICATION_ROOT`; the conventional sibling
+checkout is detected when present. Hooks capture the selected interpreter and
+honor `LOCAL_CHECK_PYTHON`. Their dispatcher skips checkouts where this runner
+is absent, since linked worktrees share the Git hook directory.

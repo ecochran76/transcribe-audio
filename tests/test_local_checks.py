@@ -1,6 +1,7 @@
 """Local check failures must propagate through the same hook entry point."""
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,7 @@ class LocalCheckTests(unittest.TestCase):
         self.assertNotEqual(module.run_checks([[sys.executable, '-c', 'raise SystemExit(7)']], Path.cwd())['exit_code'], 0)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True, env={k: v for k, v in os.environ.items() if not k.startswith('GIT_')})
             hook = module.install_hook(root)
             self.assertIn('check_local.py', hook.read_text())
             (root / 'scripts').mkdir()
