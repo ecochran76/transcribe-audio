@@ -1,5 +1,6 @@
 """Public CLI over real authenticated HTTP and owned scripted CPU workers."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -257,3 +258,87 @@ def test_unknown_submission_is_observed_without_replay_across_cli_restarts(tmp_p
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+def test_real_cli_budget_checkpoints_before_dia_and_same_ids_finish(recording_service):
+    from transcript_artifact_access import ResolvedTranscriptArtifact, read_resolved_transcript
+    source, settings, root = recording_service
+    config_bytes = settings.read_bytes()
+    first = invoke(source, settings, '--max-stage-results', '1')
+    assert first.returncode == 0, first.stderr
+    partial = json.loads(first.stdout)
+    assert partial['state'] == 'partial'
+    assert partial['published'] is False and partial['resumable'] is True
+    assert partial['new_stage_results'] == 1
+    assert 'output_paths' not in partial
+    assert (root/'starts').read_text().splitlines() == ['fixture/recording/' + partial['completed_stage_results'][0]['request_id']]
+    assert partial['completed_stage_results'][0]['stage'] == 'asr'
+    assert not (root/'worker-diarization/custody.json').exists()
+    checkpoint = json.loads(Path(partial['checkpoint_path']).read_text())
+    asr = checkpoint['units'][0]['stages']['asr']
+    frozen_asr = json.loads(json.dumps(asr))
+    assert checkpoint['units'][0]['stages']['diarization']['state'] == 'pending'
+    second = invoke(source, settings, '--max-stage-results', '1')
+    assert second.returncode == 0, second.stderr
+    receipt = json.loads(second.stdout)
+    assert receipt['generation'] == partial['processor_key']
+    assert 'output_paths' in receipt and 'state' not in receipt
+    final = json.loads(Path(partial['checkpoint_path']).read_text())
+    assert final['units'][0]['stages']['asr'] == frozen_asr
+    assert len((root/'starts').read_text().splitlines()) == 2
+    assert settings.read_bytes() == config_bytes
+    artifact = json.loads(Path(receipt['output_paths']['json']).read_text())
+    txt = Path(receipt['output_paths']['txt']).read_text()
+    docx = '\n'.join(p.text for p in Document(receipt['output_paths']['docx']).paragraphs)
+    for row in artifact['utterances']:
+        assert row['text'] in txt and row['text'] in docx
+    public = read_resolved_transcript(ResolvedTranscriptArtifact(
+        path=Path(receipt['output_paths']['json']), location='source',
+        expected_sha256=receipt['sha256']['json'],
+        actual_sha256=hashlib.sha256(Path(receipt['output_paths']['json']).read_bytes()).hexdigest()))
+    assert public == artifact
+    repeated = invoke(source, settings, '--max-stage-results', '1')
+    assert repeated.returncode == 0 and json.loads(repeated.stdout) == receipt
+    assert len((root/'starts').read_text().splitlines()) == 2
+
+
+def test_budget_counts_only_new_results_across_multi_unit_resumption(recording_service):
+    source, settings, root = recording_service
+    with wave.open(str(source), 'wb') as out:
+        out.setparams((2, 2, 22050, 0, 'NONE', ''))
+        out.writeframes(b'\0\0\0\0' * (22050*2))
+    first = invoke(source, settings, '--max-stage-results', '2')
+    assert first.returncode == 0, first.stderr
+    initial = json.loads(first.stdout)
+    assert initial['new_stage_results'] == 2
+    assert [x['stage'] for x in initial['completed_stage_results']] == ['asr', 'asr']
+    assert not (root/'worker-diarization/custody.json').exists()
+    second = invoke(source, settings, '--max-stage-results', '1')
+    assert second.returncode == 0, second.stderr
+    partial = json.loads(second.stdout)
+    assert partial['processor_key'] == initial['processor_key']
+    assert partial['new_stage_results'] == 1
+    assert len(partial['completed_stage_results']) == 3
+    assert len((root/'starts').read_text().splitlines()) == 3
+    third = invoke(source, settings, '--max-stage-results', '1')
+    assert third.returncode == 0, third.stderr
+    assert json.loads(third.stdout)['generation'] == initial['processor_key']
+    assert len((root/'starts').read_text().splitlines()) == 4
+
+
+def test_invalid_stage_result_budgets_refuse_api_and_cli_before_effects(recording_service):
+    from managed_recording_cli import run
+    source, settings, root = recording_service
+    config = json.loads(settings.read_text())
+    for value in (0, -1, True, 1.0, '1', 10001):
+        with pytest.raises(ValueError, match='max_stage_results'):
+            run(source, config, recording_id='recording-1', conversation_id='conversation-1',
+                max_stage_results=value)
+    for value in ('0', '-1', '10001', 'not-an-int'):
+        result = invoke(source, settings, '--max-stage-results', value)
+        assert result.returncode != 0
+    assert not (root/'starts').exists()
+    assert not (root/'state').exists()
+    assert not (root/'exports').exists()
+    assert not (root/'worker-asr/custody.json').exists()
+    assert not (root/'worker-diarization/custody.json').exists()
