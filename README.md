@@ -1193,3 +1193,63 @@ after one new durable unit-stage result. Resume with the same source/configurati
 and IDs; completed work is retained and final reconciliation/publication completes
 when all stages exist. The optional execution budget is outside immutable config
 and does not change model/profile identity or external resource limits.
+
+### Diarized recordings through the existing managed pilot
+
+Use the opt-in `managed_recording` watcher backend to send Parakeet ASR and
+Pyannote diarization to the existing LocalAI shared manager. The watcher and CLI
+prepare bounded PCM units and transcript artifacts; the manager owns model
+admission, residency, automatic eviction and retirement. Operators do not load
+or unload models between stages. Normal AssemblyAI voice jobs retain their
+existing backend; enable a separate pilot job rather than changing that routing
+or releasing a historical bulk queue.
+
+Create a private client config using the complete
+[managed recording configuration template](docs/managed-recording-cli.md).
+Set the existing manager endpoint, token file and CA file, its actual registered
+ASR/diarization profile fingerprints, and private state/spool/output directories.
+The spool must be inside the manager's authorized input root. Keep the endpoint,
+profile identities, source and processor settings stable when resuming; example
+speaker thresholds and unit sizes are not automatic production defaults.
+
+A private watcher config can contain this separate job:
+
+```json
+{
+  "jobs": [{
+    "name": "managed-recording-pilot",
+    "watch_dir": "/PRIVATE/pilot-dropfolder",
+    "glob": "*.wav",
+    "backend": "managed_recording",
+    "settle_seconds": 120,
+    "scan_interval": 30,
+    "cli_args": ["--config", "/PRIVATE/managed-recording.json"],
+    "readout": false,
+    "store": false
+  }]
+}
+```
+
+Run the existing watcher with that config, or process one explicit file:
+
+```bash
+python watch_transcriptions.py --config /PRIVATE/pilot-watch.json
+python managed_recording_transcribe.py /PRIVATE/pilot-dropfolder/recording.wav \
+  --config /PRIVATE/managed-recording.json
+```
+
+The watcher persists recording/conversation IDs before requests and accepts
+success only after DOCX, TXT and transcript JSON publication. Repeat the same
+file/config to resume its checkpoint or retrieve its completed receipt; do not
+delete state to retry uncertain work. Versioned exports retain earlier artifacts
+and the original source is not renamed. A managed job cannot silently fall back
+to an unmanaged GPU or paid-provider backend.
+
+Recording stages currently request `historical` work (priority 3), below
+protected foreground work (priority 1); `recent-voice` is separately authorized
+at priority 2. They share the existing manager budget and configured desktop
+headroom. An unavailable capacity observer or uncertain owned-process exit
+blocks admission or retains reservation; it is not permission to bypass the
+manager. The pilot's optional startup reconciliation releases only ownership
+proven exited. The optional existing-observer bootstrap preserves a running
+observer and refuses uncertain same-boot records.

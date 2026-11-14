@@ -18764,3 +18764,37 @@ isolation. Restoredonlycore.bare=false; originalmainHEADs unchanged, appclean,
 corepre-existinguntracked0161 retained. AddedforeignGIT_DIR regression to both
 local-check tests; targethookcreated/foreignhookabsent/foreignbareflagunchanged.
 Privateevidence diagnosis0243/git-config-restoration.json. No history rewrites.
+
+## Managed recording pilot onboarding | 2026-11-13
+
+Delivered the application connection to the existing LocalAI-managed pilot,
+replacing the qualification-campaign prerequisite for this operational slice.
+App source4c99e91ac456a8455f39a26cc2f712a23b2e8b22 provides an explicit
+managed_recording-only watcher job and stable ingress identity around the existing
+recording CLI. Core source5eb106aa334f175dcbc4873129ca50af943da8c4 registers the
+Parakeet/diarization pair in the same manager, retains legacy clients, and supports
+configured desktop headroom, existing-observer bootstrap and proof-only startup
+reconciliation. Private installation/configuration and runtime receipts remain
+in operator user state, outside Git.
+
+Primary runtime verification confirms actual ASR and DIA
+succeeded through the same manager, with 21 reconciled utterances labeled
+speaker1/speaker2/speaker3 or UNKNOWN and nonempty DOCX/TXT/JSON exports.
+Automatic ASR retirement recorded numeric exit -9. A same-input replay exited
+0; primary status comparison proves zero new jobs, with stable IDs and all 21
+utterance texts present in DOCX and TXT alongside JSON. The dedicated pilot
+watcher is active and enabled for incoming pilot WAV files. This
+is operational onboarding evidence, not completion of broader qualification. Existing AssemblyAI voice routing
+is unchanged and historical screen bulk remains paused. The README now gives
+the generic separate dropfolder/client-config path and residency/replay rules.
+No tests, model executions, service changes or benchmark work were performed by
+this documentation update. Source fixtures and prior failed measurements retain
+their original scope. Memory disposition for the documentation worker: forbidden by its scoped task;
+primary closeout is recorded separately.
+
+Reserved onboarding review/TDD: one review found Standards0 and Spec1 blocking
+(export integrity on replay). One red/green remediation at app eb8081792915499b91b190a1eeda4ad8bee60815
+checks all three durable export hashes before watcher success. The corruption
+regression failed before the fix; 21 affected tests passed afterward. The fixed
+app release is installed for the dedicated watcher, and replay of the actual
+pilot artifacts succeeds without new manager jobs. No second broad review.
