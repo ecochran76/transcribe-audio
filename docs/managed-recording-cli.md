@@ -186,3 +186,9 @@ When the final stage result reaches the budget, offline reconciliation and norma
 DOCX/TXT/JSON publication finish in that invocation; an extra empty run is not
 required. Existing case deadlines and external resource/admission controls remain
 in force. An interrupted or failed operation retains its ordinary recovery rules.
+
+Explicit `queue_full` (HTTP429) and `retention_full` (HTTP503) rejections leave
+the exact chunk request pending, with its original ID and attempt. They prove
+that admission did not occur. Other transport errors remain unknown and are
+observed without resubmission. This allows a paused chunk stream to resume when
+manager admission becomes available without replaying completed work.

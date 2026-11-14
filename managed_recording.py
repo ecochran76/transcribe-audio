@@ -193,7 +193,8 @@ class RecordingProcessor:
                         try:
                             view = self.client.submit(entry['request'])
                         except Exception as error:
-                            entry['state'] = 'pending' if getattr(error, 'code', None) == 'queue_full' and getattr(error, 'status', None) == 429 else 'unknown'
+                            known_rejection = (getattr(error, 'code', None), getattr(error, 'status', None)) in {('queue_full', 429), ('retention_full', 503)}
+                            entry['state'] = 'pending' if known_rejection else 'unknown'
                             self._save(key, record)
                             raise RecordingProcessingError('submission retained; retry only known rejection') from None
                     else:

@@ -195,3 +195,27 @@ def test_restart_finishes_asr_cohort_before_loading_diarization(tmp_path):
     assert [request['profile'] for request in client.requests] == ['asr', 'asr', 'diar', 'diar']
     assert final['units'][0]['stages']['asr'] == first_asr
     assert final['state'] == 'ready'
+
+
+def test_explicit_retention_rejection_waits_with_same_request_id(tmp_path):
+    class RetentionFull(Exception):
+        code='retention_full'
+        status=503
+    class RejectedOnce(Client):
+        def __init__(self):
+            super().__init__();self.lost=False;self.rejected=False
+        def submit(self,request):
+            if not self.rejected:
+                self.rejected=True;self.requests.append(request)
+                raise RetentionFull()
+            return super().submit(request)
+    client=RejectedOnce();processor=RecordingProcessor(config(tmp_path),client=client)
+    key=processor.prepare(audio(tmp_path/'source.wav'),recording_id='r',conversation_id='c')
+    with pytest.raises(RecordingProcessingError):processor.advance(key)
+    entry=processor.snapshot(key)['units'][0]['stages']['asr']
+    assert entry['state']=='pending'
+    snapshot=processor.advance(key)
+    assert snapshot['units'][0]['stages']['asr']['state']=='succeeded'
+    assert len(client.requests)==2
+    assert client.requests[0]['id']==client.requests[1]['id']
+    assert snapshot['units'][0]['stages']['asr']['attempt']==0
