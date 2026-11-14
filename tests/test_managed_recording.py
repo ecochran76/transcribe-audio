@@ -219,3 +219,17 @@ def test_explicit_retention_rejection_waits_with_same_request_id(tmp_path):
     assert len(client.requests)==2
     assert client.requests[0]['id']==client.requests[1]['id']
     assert snapshot['units'][0]['stages']['asr']['attempt']==0
+
+
+def test_explicit_concurrency_is_frozen_in_managed_submission(tmp_path):
+    settings = config(tmp_path)
+    settings['max_workers'] = 2
+    client = Client()
+    client.lost = False
+    processor = RecordingProcessor(settings, client=client)
+    key = processor.prepare(audio(tmp_path/'input.wav'), recording_id='r', conversation_id='c')
+    processor.advance(key)
+    assert client.requests[0].get('max_workers') == 2
+    settings['max_workers'] = 1
+    with pytest.raises(RecordingProcessingError, match='configuration conflict'):
+        RecordingProcessor(settings, client=client).snapshot(key)

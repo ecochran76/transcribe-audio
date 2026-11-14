@@ -1253,3 +1253,9 @@ blocks admission or retains reservation; it is not permission to bypass the
 manager. The pilot's optional startup reconciliation releases only ownership
 proven exited. The optional existing-observer bootstrap preserves a running
 observer and refuses uncertain same-boot records.
+
+Managed recording processor settings may explicitly set `max_workers: 2` to
+request two concurrent manager workers. The setting is frozen into new recording
+generations and their requests. Omit it to preserve existing request bytes and
+single-worker behavior. The manager still enforces its historical ceiling,
+consumer limits, model reservations, GPU headroom and foreground priorities.

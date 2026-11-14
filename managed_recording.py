@@ -44,6 +44,8 @@ class RecordingProcessor:
             path.mkdir(mode=0o700, parents=True, exist_ok=True)
             if path.is_symlink() or path.stat().st_mode & 0o077:
                 raise ValueError('private managed directory required')
+        if 'max_workers' in config and (type(config['max_workers']) is not int or not 1 <= config['max_workers'] <= 64):
+            raise ValueError('bounded requested concurrency required')
         if set(config['profiles']) != {'asr', 'diarization'}:
             raise ValueError('exactly ASR and diarization profiles required')
         for stage in ('asr', 'diarization'):
@@ -156,6 +158,8 @@ class RecordingProcessor:
                         request = dict(id=request_id, **profile, workload_class='historical',
                                        payload=dict(artifact_id=artifact, sha256=sha,
                                                     options=identity['options']))
+                        if 'max_workers' in self.config:
+                            request['max_workers'] = self.config['max_workers']
                         unit['stages'][stage] = dict(state='pending', attempt=0, request=request, history=[])
                     units.append(unit)
                     offset += len(frames)//2
