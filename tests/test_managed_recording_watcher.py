@@ -141,3 +141,19 @@ def test_existing_transcript_identity_and_metadata_are_preserved(recording_servi
     assert rejected.returncode==1
     assert extract_artifact_paths(rejected.stdout)==[]
     assert len((root/'starts').read_text().splitlines())==2
+
+
+def test_corrupt_export_replay_cannot_emit_success_or_repeat_stage_work(recording_service):
+    source,settings,root=recording_service
+    first=invoke(source,settings)
+    assert first.returncode==0,first.stderr
+    artifact_path=Path(extract_artifact_paths(first.stdout)[0])
+    artifact=json.loads(artifact_path.read_text())
+    jobs_before=(root/'starts').read_text()
+    text_path=Path(artifact['output_paths']['txt'])
+    text_path.chmod(0o600)
+    text_path.write_text('corrupt retained export',encoding='utf-8')
+    replay=invoke(source,settings)
+    assert replay.returncode==1
+    assert extract_artifact_paths(replay.stdout)==[]
+    assert (root/'starts').read_text()==jobs_before

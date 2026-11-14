@@ -76,6 +76,11 @@ def run(source, config, *, ingress_directory=None, recording_id=None,
                 or any(not isinstance(paths.get(kind), str) or not Path(paths[kind]).is_file()
                        for kind in ('docx','txt','json'))):
             raise RuntimeError('managed recording has not published complete artifacts')
+        hashes = receipt.get('sha256')
+        if (not isinstance(hashes, dict)
+                or any(managed._hash_file(Path(paths[kind])) != hashes.get(kind)
+                       for kind in ('docx', 'txt', 'json'))):
+            raise RuntimeError('managed recording export digest mismatch')
         artifact = json.loads(Path(paths['json']).read_text())
         if (any(artifact.get(name) != ingress[name] for name in supplied)
                 or artifact.get('output_paths') != paths
