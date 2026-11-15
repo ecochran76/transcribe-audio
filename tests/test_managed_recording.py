@@ -233,3 +233,28 @@ def test_explicit_concurrency_is_frozen_in_managed_submission(tmp_path):
     settings['max_workers'] = 1
     with pytest.raises(RecordingProcessingError, match='configuration conflict'):
         RecordingProcessor(settings, client=client).snapshot(key)
+
+
+def test_explicit_profile_repair_preserves_results_and_blocks_uncertain_retry(tmp_path):
+    client = Client()
+    client.lost = False
+    processor = RecordingProcessor(config(tmp_path), client=client)
+    key = processor.prepare(audio(tmp_path/'source.wav'), recording_id='r', conversation_id='c')
+    processor.advance(key)  # One durable ASR result must survive the repair.
+    before = processor.snapshot(key)
+    replacement = dict(profile='diar-fixed', identity='c'*64)
+    client.observe = lambda request_id: dict(state='unknown')
+    with pytest.raises(RecordingProcessingError, match='confirmed'):
+        processor.retry_stage(key, 0, 'diarization', replacement_profile=replacement)
+    assert processor.snapshot(key) == before
+    client.observe = lambda request_id: dict(state='failed')
+    repaired = processor.retry_stage(key, 0, 'diarization', replacement_profile=replacement)
+    entry = repaired['units'][0]['stages']['diarization']
+    assert repaired['units'][0]['stages']['asr'] == before['units'][0]['stages']['asr']
+    assert entry['history'][-1]['request'] == before['units'][0]['stages']['diarization']['request']
+    assert entry['request']['profile'] == replacement['profile']
+    assert entry['request']['identity'] == replacement['identity']
+    assert entry['request']['payload'] == before['units'][0]['stages']['diarization']['request']['payload']
+    assert entry['request']['id'] != entry['history'][-1]['request']['id']
+    resumed = RecordingProcessor(config(tmp_path), client=client)
+    assert resumed.snapshot(key)['units'][0]['stages']['diarization'] == entry

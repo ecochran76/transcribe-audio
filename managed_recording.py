@@ -236,8 +236,21 @@ class RecordingProcessor:
             if not vector or any(type(v) not in (int, float) or not math.isfinite(v) for v in vector) or sum(v*v for v in vector) == 0:
                 raise RecordingProcessingError('invalid speaker evidence')
 
-    def retry_stage(self, key, unit_index, stage):
-        """Create explicit attempt lineage only for observed terminal failure/cancel."""
+    def retry_stage(self, key, unit_index, stage, *, replacement_profile=None):
+        """Retry a confirmed terminal attempt, optionally on an explicit pinned repair.
+
+        Completed results and original frozen configuration remain unchanged.
+        The attempt history retains the original request/profile; only this new
+        attempt uses the replacement. Unknown outcomes never permit replacement.
+        """
+        if replacement_profile is not None:
+            if (not isinstance(replacement_profile, dict)
+                    or set(replacement_profile) != {'profile', 'identity'}
+                    or not isinstance(replacement_profile['profile'], str)
+                    or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', replacement_profile['profile'])
+                    or not isinstance(replacement_profile['identity'], str)
+                    or not re.fullmatch(r'[a-f0-9]{64}', replacement_profile['identity'])):
+                raise ValueError('explicit pinned replacement profile required')
         with self._locked(key):
             record = self._load(key)
             entry = record['units'][unit_index]['stages'][stage]
@@ -248,6 +261,8 @@ class RecordingProcessor:
             entry['attempt'] += 1
             entry['request'] = copy.deepcopy(entry['request'])
             entry['request']['id'] = stage+'-'+_digest(_json([key, unit_index, stage, entry['attempt']]).encode())
+            if replacement_profile is not None:
+                entry['request'].update(copy.deepcopy(replacement_profile))
             entry['state'] = 'pending'
             self._save(key, record)
             return record

@@ -192,3 +192,15 @@ the exact chunk request pending, with its original ID and attempt. They prove
 that admission did not occur. Other transport errors remain unknown and are
 observed without resubmission. This allows a paused chunk stream to resume when
 manager admission becomes available without replaying completed work.
+
+### Explicit repaired-profile retry
+
+`RecordingProcessor.retry_stage(key, unit_index, stage,
+replacement_profile={"profile": "registered-repair", "identity": "<64-hex fingerprint>"})`
+creates a new attempt only after observing the old request as failed/cancelled.
+The replacement must be explicit and pinned. Original request/profile evidence
+stays in attempt history; completed results and initial frozen configuration
+are unchanged. Results are validated against the new attempt's fingerprint.
+This does not permit replay of an unknown outcome, automatic retry, or changing
+an existing registered profile. Consumers must retain the attempt lineage when
+reporting mixed-profile recovery.
