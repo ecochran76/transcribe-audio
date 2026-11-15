@@ -342,3 +342,38 @@ def test_invalid_stage_result_budgets_refuse_api_and_cli_before_effects(recordin
     assert not (root/'exports').exists()
     assert not (root/'worker-asr/custody.json').exists()
     assert not (root/'worker-diarization/custody.json').exists()
+
+
+def test_source_hash_resumes_exact_offset_after_transient_enomem():
+    import io
+    import errno
+    from managed_recording_cli import _hash_file
+    payload = b'a' * (1024*1024) + b'last block'
+    class Interrupted(io.BytesIO):
+        interrupted = False
+        def read(self, size=-1):
+            if self.tell() == 1024*1024 and not self.interrupted:
+                self.interrupted = True
+                super().read(3)  # A buffered read can consume data before failing.
+                raise OSError(errno.ENOMEM, 'transient filesystem read')
+            return super().read(size)
+    class Source:
+        def open(self, mode): return Interrupted(payload)
+    assert _hash_file(Source()) == hashlib.sha256(payload).hexdigest()
+
+
+def test_source_hash_stops_on_persistent_enomem():
+    import io
+    import errno
+    from managed_recording_cli import _hash_file
+    calls = []
+    class Broken(io.BytesIO):
+        def read(self, size=-1):
+            calls.append(size)
+            raise OSError(errno.ENOMEM, 'persistent filesystem read')
+    class Source:
+        def open(self, mode): return Broken()
+    with pytest.raises(OSError) as caught:
+        _hash_file(Source())
+    assert caught.value.errno == errno.ENOMEM
+    assert len(calls) == 3

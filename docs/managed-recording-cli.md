@@ -204,3 +204,9 @@ are unchanged. Results are validated against the new attempt's fingerprint.
 This does not permit replay of an unknown outcome, automatic retry, or changing
 an existing registered profile. Consumers must retain the attempt lineage when
 reporting mixed-profile recovery.
+
+Source hashing retries an `ENOMEM` filesystem read at the same byte offset,
+with at most three attempts per block. It preserves the full source SHA-256
+check and stops on persistent errors or other error codes. This is a bounded
+read-only transport recovery, not a GPU/provider submission retry or a claim
+that the underlying filesystem allocation defect is repaired.

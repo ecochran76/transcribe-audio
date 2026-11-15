@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 import fcntl
+import errno
 import hashlib
 import json
 import math
@@ -28,8 +29,22 @@ def _json(value):
 def _hash_file(path):
     digest = hashlib.sha256()
     with path.open('rb') as stream:
-        for block in iter(lambda: stream.read(1024*1024), b''):
+        offset = 0
+        while True:
+            for attempt in range(3):
+                try:
+                    stream.seek(offset)
+                    block = stream.read(1024*1024)
+                    break
+                except OSError as error:
+                    # A transient filesystem ENOMEM is not a GPU retry. Reset to
+                    # the last hashed offset: failed buffered reads can advance.
+                    if error.errno != errno.ENOMEM or attempt == 2:
+                        raise
+            if not block:
+                break
             digest.update(block)
+            offset += len(block)
     return digest.hexdigest()
 
 
