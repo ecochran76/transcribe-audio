@@ -105,7 +105,13 @@ def main(argv=None):
                       recording_id=args.recording_id, conversation_id=args.conversation_id,
                       existing_transcript=args.existing_transcript)
     except (OSError, ValueError, RuntimeError, KeyError, subprocess.TimeoutExpired) as error:
-        print('Managed recording failed: '+str(error), file=sys.stderr)
+        from managed_operations import failure_receipt
+        receipt = failure_receipt(error, operation='recording')
+        # The configured private state root owns diagnostics; never echo messages.
+        if 'config' in locals():
+            root = managed._private_directory(Path(config['processor']['state_directory'])/'failures')
+            managed._save(root/(str(uuid4())+'.json'), receipt)
+        print(managed._json(receipt), file=sys.stderr)
         return 1
     print(managed._json(receipt))
     print('TRANSCRIPT_ARTIFACT_JSON='+receipt['output_paths']['json'])
