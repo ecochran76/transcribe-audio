@@ -18798,3 +18798,29 @@ checks all three durable export hashes before watcher success. The corruption
 regression failed before the fix; 21 affected tests passed afterward. The fixed
 app release is installed for the dedicated watcher, and replay of the actual
 pilot artifacts succeeds without new manager jobs. No second broad review.
+
+## Turn 444 | 2026-11-16 | Consolidate pilot worktrees on main
+
+Operator requested worktree consolidation and canonical root main. Main was
+fast-forwarded from ac65dad97fc256bb7dd898381bb6e1bda26d1bf7 to the reviewed
+pilot reliability application6397bd3034b909d10c28cc6c193fb06ac1dec39d. No
+source conflict resolution or runtime redeployment was needed. The canonical
+checkout is /home/ecochran76/workspace.local/transcribe-audio on main.
+
+Existing focused38-test application evidence remains valid for identical source.
+At the root, .venv/bin/python scripts/check_local.py --fast passed lint,26policy
+pointers and2local guardrail checks on6397bd3. Local Linux/Python differs from
+hosted CI; no hosted Actions were requested. Consolidation commit uses skip-ci.
+
+All13 linked-worktree branch tips were preserved under matching local/remote
+refs/archive/consolidation-20261116/ refs on origin. A verified all-ref Git bundle
+and private inventory/readback receipts are under the user-scoped Git consolidation
+state. Historical experiments remain archived; source integration follows the
+reviewed pilot lineage. Clean linked checkouts can now be removed and missing
+checkout registrations pruned without deleting their branches/history.
+
+LocalAI canonical root is /home/ecochran76/workspace.local/localai on main,
+with the matching reviewed manager/tracker lineage4696a0773. Spec0006 and its
+closed-ticket ledger live there under qualification. Private service configs were
+checked for references to retiring worktrees; none found. Installed releases,
+405verified outputs,7held cases,resource limits and paused Speech remain unchanged.
