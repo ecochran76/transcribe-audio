@@ -82,3 +82,19 @@ def test_resume_observes_last_stage_after_transport_failure_without_resubmitting
     assert result['state']=='ready'
     assert len(client.requests)==2
     assert len(observations)==2
+
+
+def test_additive_sidecars_reuse_equal_bytes_and_hold_conflicts(tmp_path):
+    from managed_operations import publish_sidecars
+    paths={}
+    for kind in ('docx','txt','json'):
+        p=tmp_path/('canonical.'+kind);p.write_bytes(b'kept');paths[kind]=str(p)
+    receipt=dict(output_paths=paths,sha256={k:hashlib.sha256(b'kept').hexdigest()for k in paths})
+    prior=tmp_path/'old.transcript.json';prior.write_bytes(b'original')
+    copies=publish_sidecars(receipt,prior)
+    assert publish_sidecars(receipt,prior)==copies
+    assert prior.read_bytes()==b'original'
+    from pathlib import Path
+    Path(copies['txt']).write_bytes(b'conflict')
+    with pytest.raises(ValueError,match='conflict'):
+        publish_sidecars(receipt,prior)

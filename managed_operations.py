@@ -161,5 +161,42 @@ def main(argv=None):
     return code
 
 
+
+
+def publish_sidecars(receipt, prior_artifact):
+    """Publish additive immutable named copies; existing conflicting bytes hold."""
+    prior=Path(prior_artifact)
+    paths=receipt['output_paths']
+    copies={}
+    stem=prior.name.removesuffix('.transcript.json')+' LocalAI Diarized'
+    for kind,extension in (('docx','.docx'),('txt','.txt'),('json','.transcript.json')):
+        source=Path(paths[kind])
+        if recording._hash_file(source)!=receipt['sha256'][kind]:
+            raise ValueError('published output digest conflict')
+        dest=prior.with_name(stem+extension)
+        if dest.exists():
+            if recording._hash_file(dest)!=receipt['sha256'][kind]:
+                raise ValueError('existing diarized sidecar conflict')
+        else:
+            import tempfile
+            fd,name=tempfile.mkstemp(dir=dest.parent,prefix='.diarized-')
+            temporary=Path(name)
+            try:
+                with os.fdopen(fd,'wb') as out, source.open('rb') as inp:
+                    shutil.copyfileobj(inp,out);out.flush();os.fsync(out.fileno())
+                if recording._hash_file(temporary)!=receipt['sha256'][kind]:
+                    raise ValueError('sidecar copy digest conflict')
+                try:
+                    os.link(temporary,dest)
+                except FileExistsError:
+                    if recording._hash_file(dest)!=receipt['sha256'][kind]:
+                        raise ValueError('existing diarized sidecar conflict') from None
+                recording._sync_directory(dest.parent)
+            finally:
+                temporary.unlink(missing_ok=True)
+        copies[kind]=str(dest)
+    return copies
+
+
 if __name__ == '__main__':
     raise SystemExit(main())
