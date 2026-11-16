@@ -222,3 +222,14 @@ ceilings (workers, gpu_budget_bytes, headroom_bytes, system_ram_bytes).
 applies the existing pinned Ruff F check without importing/executing that script.
 Failure receipts contain only exception class, errno and bounded code locations;
 raw exception messages, environment and transcript content are excluded.
+
+## Durable service intent
+
+`managed_service_intent.save_intent` records explicit batch continuation and paused
+service names in private operator state. The `managed_service_intent.py --intent
+PRIVATE_INTENT --receipt PRIVATE_RECEIPT` entrypoint stops and confirms paused
+services before starting the existing checkpoint-aware batch controller. Unknown
+service state holds continuation. It submits no inference requests and does not
+clear processor uncertainty. Install a user startup/periodic reconciliation unit
+with the pinned application and intent paths; after terminal completion persist
+continue_batch=false. Speech stays paused until an explicit operator override.

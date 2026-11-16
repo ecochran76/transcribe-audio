@@ -34,3 +34,22 @@ def test_publication_only_reuses_complete_receipt_without_inference(tmp_path):
     key='c'*64;cp=state/(key+'.json');cp.write_text(json.dumps(dict(key=key,identity=dict(config=cfg,recording_id='r',conversation_id='c'),state='ready',units=[dict(stages={s:dict(result={})for s in ('asr','diarization')})],publication_state='complete',publication_receipt=receipt)))
     plan=dict(schema_version=1,mode='publication',source=str(source),source_sha256=hashlib.sha256(b'audio').hexdigest(),checkpoint=str(cp),required_commands=[],resources=dict(workers=2,gpu_budget_bytes=12*1024**3,headroom_bytes=2*1024**3,system_ram_bytes=12*1024**3))
     assert execute(plan)==receipt
+
+
+def test_private_script_preflight_catches_missing_name_without_execution(tmp_path):
+    from managed_operations import check_script
+    path=tmp_path/'operation.py'
+    path.write_text('print(undefined_name)\n')
+    r=check_script(path)
+    assert not r['passed']
+    assert r['findings'][0]['code']=='F821'
+
+
+def test_failure_receipt_excludes_message_and_locals():
+    from managed_operations import failure_receipt
+    try:
+        raise OSError(12,'PRIVATE-SECRET-TRANSCRIPT')
+    except OSError as error:
+        receipt=failure_receipt(error,operation='publication')
+    assert 'PRIVATE-SECRET' not in json.dumps(receipt)
+    assert receipt['diagnostic']['errno']==12

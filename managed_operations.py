@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import traceback
 
 import managed_recording_cli as recording
 from managed_recording import RecordingProcessor
@@ -19,11 +18,10 @@ class PublicationOnly:
 
 
 def failure_receipt(error, *, operation):
-    """Metadata only: never serialize messages, locals, paths or environment."""
-    return dict(schema_version=1, state='failed', operation=operation,
-                exception_type=type(error).__name__, errno=getattr(error, 'errno', None),
-                frames=[dict(module=Path(f.filename).name, function=f.name, line=f.lineno)
-                        for f in traceback.extract_tb(error.__traceback__)[-8:]])
+    """Use the manager's shared allowlist, never arbitrary exception strings."""
+    from inference_manager.failure_receipts import exception_receipt
+    return dict(state='failed', operation=operation,
+                diagnostic=exception_receipt(error, code='cpu_operation_failed'))
 
 
 def preflight(plan):
@@ -60,6 +58,17 @@ def preflight(plan):
     config = value['identity']['config']
     if Path(config['state_directory']).resolve() != cp.parent:
         raise ValueError('checkpoint state directory conflict')
+    if value.get('publication_state') is None:
+        manifest = json.loads(Path(plan['cli_manifest']).read_text())
+        frozen = manifest['frozen']
+        if (manifest.get('processor_key') != cp.stem
+                or frozen['config']['processor'] != config
+                or frozen['identity']['source'] != str(source)
+                or frozen['identity']['sha256'] != plan['source_sha256']):
+            raise ValueError('CLI manifest identity conflict')
+        generation = Path(frozen['config']['output_directory'])/('recording-'+cp.stem)
+        if generation.exists():
+            raise ValueError('unreceipted output generation requires reconciliation')
     # No tokens are opened and no network client is constructed.
     return dict(source=source, checkpoint=cp, record=value)
 
