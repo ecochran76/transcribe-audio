@@ -233,3 +233,11 @@ service state holds continuation. It submits no inference requests and does not
 clear processor uncertainty. Install a user startup/periodic reconciliation unit
 with the pinned application and intent paths; after terminal completion persist
 continue_batch=false. Speech stays paused until an explicit operator override.
+
+A version1 operation with mode=resume observes/advances the existing checkpoint
+under a bounded wait (default300seconds). It holds failed/cancelled/unknown attempts
+for explicit reconciliation and retries only observation of existing active IDs
+after transient transport failures. It does not create replacement attempts.
+Provide the existing connection settings for the managed client. With a verified
+CLI manifest, completion publishes through the same guarded publication callback;
+without one it returns a ready checkpoint. Completed results are always reused.

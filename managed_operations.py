@@ -7,9 +7,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import ssl
+import time
 
 import managed_recording_cli as recording
-from managed_recording import RecordingProcessor
+from managed_recording import RecordingProcessor, RecordingProcessingError
 
 
 class PublicationOnly:
@@ -25,8 +27,8 @@ def failure_receipt(error, *, operation):
 
 
 def preflight(plan):
-    if plan.get('schema_version') != 1 or plan.get('mode') != 'publication':
-        raise ValueError('explicit publication operation required')
+    if plan.get('schema_version') != 1 or plan.get('mode') not in ('publication','resume'):
+        raise ValueError('explicit checkpoint operation required')
     source = Path(plan['source']).expanduser().resolve(strict=True)
     if recording._hash_file(source) != plan['source_sha256']:
         raise ValueError('source identity conflict')
@@ -48,17 +50,17 @@ def preflight(plan):
     if cp.is_symlink() or cp.stat().st_uid != os.getuid():
         raise ValueError('owned checkpoint required')
     value = json.loads(cp.read_text())
-    if cp.stem != value['key'] or value['state'] != 'ready':
+    if cp.stem != value['key'] or value['state'] not in ('ready','processing'):
         raise ValueError('ready checkpoint identity required')
     if value.get('publication_state') not in (None, 'complete'):
         raise ValueError('publication uncertain; reconcile first')
-    if not value.get('units') or not all('result' in entry for unit in value['units']
-                                      for entry in unit['stages'].values()):
+    if plan['mode']=='publication' and (value['state']!='ready' or not value.get('units')
+            or not all('result' in entry for unit in value['units'] for entry in unit['stages'].values())):
         raise ValueError('all GPU results must already be durable')
     config = value['identity']['config']
     if Path(config['state_directory']).resolve() != cp.parent:
         raise ValueError('checkpoint state directory conflict')
-    if value.get('publication_state') is None:
+    if value.get('publication_state') is None and (plan['mode']=='publication' or plan.get('cli_manifest')):
         manifest = json.loads(Path(plan['cli_manifest']).read_text())
         frozen = manifest['frozen']
         if (manifest.get('processor_key') != cp.stem
@@ -85,10 +87,40 @@ def check_script(path):
                                               for f in findings])
 
 
-def execute(plan):
+def execute(plan, *, client=None):
     prepared = preflight(plan)
     cp, value = prepared['checkpoint'], prepared['record']
-    processor = RecordingProcessor(value['identity']['config'], client=PublicationOnly())
+    if plan['mode']=='resume':
+        wait=recording._bounded(plan,'wait_seconds',300,.01,86400)
+        poll=recording._bounded(plan,'poll_seconds',.25,.01,60)
+        if client is None:
+            from inference_manager.service_client import ManagedClient
+            connection=plan['connection']
+            client=ManagedClient(connection['endpoint'],recording._private_read(
+                Path(connection['token_file']),4096).decode().strip(),
+                ssl_context=ssl.create_default_context(cafile=connection['ca_file']))
+        processor=RecordingProcessor(value['identity']['config'],client=client)
+        deadline=time.monotonic()+wait
+        while time.monotonic()<deadline:
+            value=processor.snapshot(cp.stem)
+            if value['state']=='ready':
+                break
+            unfinished=[e for u in value['units'] for e in u['stages'].values() if 'result'not in e]
+            if any(e['state']in('failed','cancelled','unknown','submitting') for e in unfinished):
+                raise RecordingProcessingError('held checkpoint requires explicit reconciliation')
+            try:
+                processor.advance(cp.stem)
+            except RecordingProcessingError:
+                # Observe the same admitted IDs after a transient read failure.
+                # snapshot on the next iteration holds terminal/uncertain states.
+                pass
+            time.sleep(min(poll,max(0,deadline-time.monotonic())))
+        else:
+            raise RecordingProcessingError('bounded observation deadline; identities retained')
+        if not plan.get('cli_manifest'):
+            return dict(state='ready',checkpoint=str(cp),recording_id=value['identity']['recording_id'])
+    else:
+        processor = RecordingProcessor(value['identity']['config'], client=PublicationOnly())
     def publish(output):
         frozen = json.loads(Path(plan['cli_manifest']).read_text())['frozen']
         if (frozen['identity']['source'] != str(prepared['source'])
