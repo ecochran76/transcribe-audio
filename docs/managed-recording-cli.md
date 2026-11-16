@@ -210,3 +210,15 @@ with at most three attempts per block. It preserves the full source SHA-256
 check and stops on persistent errors or other error codes. This is a bounded
 read-only transport recovery, not a GPU/provider submission retry or a claim
 that the underlying filesystem allocation defect is repaired.
+
+## Checked publication operations
+
+`python managed_operations.py --plan PRIVATE_PLAN --receipt PRIVATE_RECEIPT`
+reuses ready processor checkpoints without constructing an inference client.
+The version1 plan selects publication, source and SHA-256, checkpoint, optional
+CLI manifest for unpublished output, required command names, and approved resource
+ceilings (workers, gpu_budget_bytes, headroom_bytes, system_ram_bytes).
+`--preflight-only` validates without publication. `--check-script PRIVATE_SCRIPT`
+applies the existing pinned Ruff F check without importing/executing that script.
+Failure receipts contain only exception class, errno and bounded code locations;
+raw exception messages, environment and transcript content are excluded.
