@@ -241,3 +241,10 @@ after transient transport failures. It does not create replacement attempts.
 Provide the existing connection settings for the managed client. With a verified
 CLI manifest, completion publishes through the same guarded publication callback;
 without one it returns a ready checkpoint. Completed results are always reused.
+
+Failure reporting remains safe when configuration is incomplete or receipt storage
+fails: the CLI returns controlled safe JSON and marks diagnostic_persisted=false.
+Pause reconciliation runs before reading queue evidence; missing/malformed queue
+state holds batch continuation while the explicit pause is still enforced.
+Resume preflight binds the selected source/hash to the checkpoint's original
+source metadata (or its direct source identity) before constructing a client.

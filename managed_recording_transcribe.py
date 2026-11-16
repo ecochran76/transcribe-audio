@@ -104,13 +104,21 @@ def main(argv=None):
         receipt = run(args.media, config, ingress_directory=args.ingress_directory,
                       recording_id=args.recording_id, conversation_id=args.conversation_id,
                       existing_transcript=args.existing_transcript)
-    except (OSError, ValueError, RuntimeError, KeyError, subprocess.TimeoutExpired) as error:
-        from managed_operations import failure_receipt
-        receipt = failure_receipt(error, operation='recording')
-        # The configured private state root owns diagnostics; never echo messages.
-        if 'config' in locals():
+    except (OSError, ValueError, RuntimeError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
+        try:
+            from managed_operations import failure_receipt
+            receipt = failure_receipt(error, operation='recording')
+        except Exception:
+            receipt = dict(state='failed', operation='recording', code='diagnostic_unavailable')
+        # Receipt storage is best effort: its failure must not expose the original
+        # exception chain, even when configuration is incomplete or storage fails.
+        receipt['diagnostic_persisted'] = False
+        try:
             root = managed._private_directory(Path(config['processor']['state_directory'])/'failures')
+            receipt['diagnostic_persisted'] = True
             managed._save(root/(str(uuid4())+'.json'), receipt)
+        except Exception:
+            receipt['diagnostic_persisted'] = False
         print(managed._json(receipt), file=sys.stderr)
         return 1
     print(managed._json(receipt))

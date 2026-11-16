@@ -57,6 +57,10 @@ def preflight(plan):
     if plan['mode']=='publication' and (value['state']!='ready' or not value.get('units')
             or not all('result' in entry for unit in value['units'] for entry in unit['stages'].values())):
         raise ValueError('all GPU results must already be durable')
+    reference=value['identity'].get('metadata',{}).get('original_source',value['identity'])
+    if (Path(reference['source']).expanduser().resolve()!=source
+            or reference['sha256']!=plan['source_sha256']):
+        raise ValueError('checkpoint source identity conflict')
     config = value['identity']['config']
     if Path(config['state_directory']).resolve() != cp.parent:
         raise ValueError('checkpoint state directory conflict')

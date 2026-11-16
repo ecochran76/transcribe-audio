@@ -47,15 +47,6 @@ def system_control(action,unit):
 
 def reconcile(path, *, observe=system_state, control=system_control):
     intent=_validate(json.loads(_private_read(Path(path))))
-    if intent['continue_batch'] and intent['queue_file']:
-        queue=json.loads(_private_read(Path(intent['queue_file']),64*1024*1024))
-        items=queue['items']
-        if (not isinstance(items,list) or not items
-                or any(item.get('status') not in ('succeeded','failed','pending','running') for item in items)):
-            raise ValueError('bounded known queue states required')
-        if all(item['status'] in ('succeeded','failed') for item in items):
-            intent['continue_batch']=False
-            _save(Path(path),intent)
     actions=[]
     for unit in intent['paused_services']:
         state=observe(unit)
@@ -65,6 +56,19 @@ def reconcile(path, *, observe=system_state, control=system_control):
             control('stop',unit);actions.append(dict(action='stop',unit=unit))
             if observe(unit)!='inactive':
                 return dict(state='held',reason='pause_not_confirmed',actions=actions)
+    if intent['continue_batch'] and intent['queue_file']:
+        try:
+            queue=json.loads(_private_read(Path(intent['queue_file']),64*1024*1024))
+            items=queue['items']
+            if (not isinstance(items,list) or not items
+                    or any(not isinstance(item,dict) or item.get('status') not in
+                           ('succeeded','failed','pending','running') for item in items)):
+                raise ValueError('bounded known queue states required')
+            if all(item['status'] in ('succeeded','failed') for item in items):
+                intent['continue_batch']=False
+                _save(Path(path),intent)
+        except (OSError,ValueError,KeyError,TypeError):
+            return dict(state='held',reason='queue_unavailable',actions=actions)
     batch=intent['batch_service'];state=observe(batch)
     if intent['continue_batch']:
         if state in ('inactive','failed'):
