@@ -20,9 +20,10 @@ lossy source replacement.
 
 After bounded acceptance, a versioned policy may perform migrations and eligible
 cleanup unattended within its agreed scope, with per-item receipts. Stable logical
-location, exact reconstruction versus cold-copy recovery, durations, quotas, backup
-requirements and rollout details remain open in Plan0097; this ADR does not claim
-those decisions are settled or deployed.
+location and independent source recovery are specified by
+[ADR0007](0007-separate-media-identity-placement-and-source-replica-protection.md).
+Plan0097 Q6-Q11 also accepts grace periods and quotas. Migration protocol, backup
+history and rollout remain open; no installed behavior is claimed.
 
 Source: operator acceptance of Plan0097 interview Q1-Q5 on 2026-11-19, explicitly
 reserving Speech Receipts for a separate spec.

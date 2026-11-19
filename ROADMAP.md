@@ -1477,8 +1477,8 @@ State: PLANNED
 
 Current State: The operator requested a grill-with-docs design for intentional
 initial migration, storage placement and future automated retention. Foundation
-choices Q1-Q5 are accepted in Plan0097/ADR0006; recovery and operating choices
-remain pending. Speech Receipts is reserved for a separate spec. This remains a
+choices Q1-Q11 are accepted in Plan0097/ADR0006/ADR0007; migration protocol,
+backup history and rollout choices remain pending. Speech Receipts is reserved for a separate spec. This remains a
 documentation-only interview lane;
 no runtime effect or reprioritization of other lanes is implied. Advance VISION
 evidence integrity, grounded retrieval, replay and autonomy through a bounded

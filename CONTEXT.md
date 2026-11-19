@@ -27,6 +27,31 @@ publication and recovery obligations are verified, while its source and provenan
 remain retained.
 _Avoid_: Source erasure, checkpoint reset
 
+**Recording Media Placement**:
+The location of one retained copy of a recording source or processing derivative.
+A different placement does not establish a different recording or media identity.
+_Avoid_: Recording, source affinity
+
+**Independent Recording Replica**:
+A verified durable copy of a canonical recording source whose failure domain is
+separate from the destination holding another retained copy.
+_Avoid_: Unverified source path, same-device duplicate
+
+**Cold-Copy Recovery**:
+Recovery of a processing derivative from its retained exact bytes in the historical
+media store.
+_Avoid_: Derivative reconstruction, retranscription
+
+**Derivative Reconstruction**:
+Recreation of a processing derivative from its retained canonical source and
+preparation recipe, verified against the expected byte identity.
+_Avoid_: Retranscription, inference replay
+
+**Unclassified Recording Media**:
+Media whose ownership, retained role or reference relationships have not been
+reconciled and therefore do not establish disposal eligibility.
+_Avoid_: Garbage, expired recording
+
 ## Upload Preparation
 
 **Upload Audio Derivative**:

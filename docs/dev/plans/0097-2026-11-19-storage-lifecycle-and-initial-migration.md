@@ -4,8 +4,8 @@ State: PLANNED
 Owner: primary design interviewer
 Scope: resolve and document initial storage migration and future automated tiering and retention for Transcribe Audio
 Lane: P11
-Design version: 2
-Interview state: foundations accepted; recovery and operating frontier pending
+Design version: 3
+Interview state: Q1-Q11 accepted; migration and rollout frontier pending
 Execution authority: documentation and read-only discovery only until shared understanding is confirmed
 
 ## Objective and vision
@@ -90,19 +90,19 @@ proposals until answered.
   with per-item receipts. Foundation acceptance is not final confirmation of the
   unresolved design and does not start runtime execution.
 
-## Recovery and operating frontier
+## Accepted recovery and operating decisions
 
-| Node | Prerequisites | Decision | Proposed recommendation | State |
+| Node | Prerequisites | Decision | Accepted decision | State |
 | --- | --- | --- | --- | --- |
-| Q6 | Q2/Q4 | Object identity and placement | Stable media identity/hash plus an application-owned location catalog and configurable roots; explicit legacy compatibility | pending |
-| Q7 | Q1/Q3 | Derivative recovery | Initial cold-copy recovery; later reconstruction only after byte-exact hash qualification with retained decoder provenance | pending |
-| Q8 | Q3/Q5 | Scratch retention | Completed eligible scratch: 48-hour grace; inactive failed/uncertain payloads may cold-move after 7 days while state remains protected | pending |
-| Q9 | Q2/Q5 | Resource budget | 20 GiB aggregate transient media cache/staging budget; 100 GiB root-free reserve for background admission; no eviction of pinned work | pending |
-| Q10 | Q1/Q2/Q3 | Unclassified media | HDD quarantine with inventory and references retained; no age-based automatic source disposal | pending |
-| Q11 | Q1/Q4 | Independent source recovery | Require another verified durable copy in a separate failure domain before the last NVMe canonical-source replica retires | pending |
+| Q6 | Q2/Q4 | Object identity and placement | Stable media identity/hash plus an application-owned location catalog and configurable roots; explicit legacy compatibility | accepted |
+| Q7 | Q1/Q3 | Derivative recovery | Initial cold-copy recovery; later reconstruction only after byte-exact hash qualification with retained decoder provenance | accepted |
+| Q8 | Q3/Q5 | Scratch retention | Completed eligible scratch: 48-hour grace; inactive failed/uncertain payloads may cold-move after 7 days while state remains protected | accepted |
+| Q9 | Q2/Q5 | Resource budget | 20 GiB aggregate transient media cache/staging budget; 100 GiB root-free reserve for background admission; no eviction of pinned work | accepted |
+| Q10 | Q1/Q2/Q3 | Unclassified media | HDD quarantine with inventory and references retained; no age-based automatic source disposal | accepted |
+| Q11 | Q1/Q4 | Independent source recovery | Require another verified durable copy in a separate failure domain before the last NVMe canonical-source replica retires | accepted |
 
-These recommendations are not defaults already installed or authority to mutate
-runtime state. Grace periods require the existing StableTime authority; unreliable
+The operator accepted Q6-Q11 on 2026-11-19 ("yes all"). These are design
+decisions, not defaults already installed or authority to begin runtime mutation. Grace periods require the existing StableTime authority; unreliable
 or unavailable trusted time cannot establish age-based eligibility.
 
 ## Bounded discovery for the next decisions
@@ -120,27 +120,73 @@ or unavailable trusted time cannot establish age-based eligibility.
   acceptance from the existing bounded small-file protocol. Original source
   erasure remains a separate authorized effect from replica retirement.
 
-Remaining dependent branches:
+## Accepted operating contract
 
-- Q1/Q3: canonical formats, derivative identity, exact replay requirements,
-  reconstruction versus cold-copy recovery, snapshots, orphan reachability and
-  independent backup policy.
-- Q2/Q4: logical object location versus physical placement, compatibility paths,
-  migration ownership/fencing, erasure coverage, mount identity and availability,
-  cross-device copy/verify/publish/retire and crash recovery.
-- Q3/Q5: active-reader/writer pins, pending/failed/uncertain jobs, terminal outcomes,
-  eligibility proofs, grace periods, reliable time, budgets, concurrency and quotas.
-- Q4/Q5: scheduling, inventory/reconciliation, pause/resume, receipts, metrics,
-  dry-run/canary activation, rollback, mount-outage behavior and recovery drills.
-- All foundations: bounded first migration batches, policy exceptions, acceptance
-  evidence, integration/deployment ownership and final shared-understanding check.
+- Media identity and expected hashes remain stable while an application-owned
+  catalog resolves physical placements under configured owned roots. Legacy path
+  compatibility must be explicit; historical provenance is not rewritten to hide
+  earlier locations.
+- The initial migration preserves exact decoded WAV bytes on HDD. Reconstruction
+  may replace cold-copy recovery only after byte-exact qualification with retained
+  canonical sources and decoder provenance; this qualification does not yet exist.
+- Completed scratch becomes eligible after a 48-hour grace period and all recovery,
+  publication and ownership predicates pass. Inactive failed/uncertain payloads
+  may cold-move after seven days only without active reader/worker ownership;
+  checkpoints/results remain protected and no retry is triggered.
+- Transient media staging/caches share a 20 GiB budget; new background admission
+  requires a 100 GiB filesystem-free reserve. Capacity pressure does not revoke
+  pins, cancel unrelated work or authorize unclassified disposal.
+- Unclassified media belongs in inventoried HDD quarantine until ownership and
+  references are reconciled. Age alone never authorizes its source disposal.
+- Before the last NVMe replica of a canonical source retires, require a verified
+  HDD destination and another verified durable replica in a separate failure
+  domain. An existing source can qualify only with verified identity and durable
+  custody. Missing proof holds that object's NVMe replica; migration of independent
+  eligible objects may continue. This rule does not require duplicate permanent
+  replicas of every disposable cache or reconstructed derivative.
+
+## Migration and rollout frontier
+
+| Node | Prerequisites | Decision | Proposed recommendation | State |
+| --- | --- | --- | --- | --- |
+| Q12 | Q6/Q7/Q11 | Migration commit/recovery | Per-object durable journal: own/pin, copy, verify, publish catalog, then retire eligible old replica; resume interrupted work without guessing | pending |
+| Q13 | Q4/Q5/Q6/Q9 | Missing/changed HDD and corruption | Block dependent writes/retirement, preserve text operations, revalidate identity/content before unattended resume; quarantine disagreements | pending |
+| Q14 | Q1/Q4/Q11 | Backup history and restore cadence | Hourly DB snapshots retained 24h, seven daily and four weekly restore points; compressed HDD copies; monthly restore drill; original media replica proofs remain separate | pending |
+| Q15 | Q5/Q8/Q9 | Scheduler and work bounds | Hourly reconciliation, one background migration worker, 16 GiB or 30 min per pass with safe checkpoints and independent time availability handling | pending |
+| Q16 | Q7/Q9/Q11 | Initial rollout | Synthetic/fault tests, three representative native canaries with a 24h NVMe rollback hold, then inactive scratch/caches before original-media batches; scheduler after canary acceptance | pending |
+| Q17 | Q1/Q3/Q7 | Format scope | Preserve current bytes/formats in the first rollout; qualify lossless derivative format optimization separately | pending |
+
+Recommended protocol invariants (engineering consequences of accepted decisions,
+not independently granted mutation authority):
+
+- An active reader/writer/processing pin, uncertain owner release, erasure fence,
+  changed payload identity or unresolved policy classification excludes retirement.
+- No mutation falls back to an empty mountpoint directory on NVMe. Text operations
+  remain independent of missing media; invalid reliable time pauses age-dependent
+  actions without inventing guest-clock eligibility.
+- Placement-copy retirement is distinct from erasing a recording. Migration and
+  recovery respect existing source-erasure fences/tombstones and cannot resurrect
+  erased content. Large-file compatibility is separately proven within Transcribe
+  ownership; work requiring Speech changes remains in its separate spec.
+- Private inventory, replica proofs, policy versions and per-item receipts stay
+  user-scoped. Repository fixtures remain synthetic or explicitly redacted.
+- Transcribe-owned qualification payloads may consolidate equal bytes while
+  retaining distinct experiment configurations and outcomes; no shared model
+  owner boundary is crossed.
+
+After Q12-Q17, consolidate the complete contract, turn remaining routine choices
+into explicit engineering defaults, and present the shared-understanding check.
+A new material tradeoff discovered during validation must be surfaced rather than
+silently assumed; it is not a reason to reopen already accepted decisions.
 
 ## Documentation decisions
 
 CONTEXT.md records accepted recording-source, processing-derivative, placement
 migration and retirement terms. ADR0006 records the accepted foundations and
-partially qualifies ADR0005 only for terminal intermediate retention. Remaining
-recovery, location, budget and rollout choices remain explicitly pending. Extend
+partially qualifies ADR0005 only for terminal intermediate retention. ADR0007
+records accepted placement/identity and independent-replica tradeoffs. Q6-Q11
+recovery, grace periods and budgets are accepted; Q12-Q17 protocol, backup history
+and rollout remain pending. Extend
 this plan, ROADMAP and RUNBOOK as answers settle.
 
 ## Acceptance Criteria
@@ -170,9 +216,9 @@ thresholds and permitted effects remain dependent interview decisions.
 
 ## Current checkpoint
 
-State: awaiting recovery and operating answers (Q6-Q11).
+State: awaiting migration and rollout answers (Q12-Q17).
 Progress classification: outcome_progress for design acceptance, not runtime maturity.
-Q1-Q5 are accepted; ADR0006 and domain terms record the tradeoff. Speech Receipts
-is excluded into a separate spec. Next action: settle the complete Q6-Q11 frontier,
-then resolve dependent protocol, backup, scheduling and rollout choices. No media,
-service, model or installed policy has changed.
+Q1-Q11 are accepted. The catalog, recovery, grace periods, resource budgets,
+quarantine and independent-source-replica rules are recorded. Speech Receipts
+remains excluded. Next action: settle Q12-Q17, then present the consolidated
+shared-understanding check. No media, service, model or installed policy changed.
