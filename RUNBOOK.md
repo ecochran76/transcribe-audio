@@ -18824,3 +18824,32 @@ with the matching reviewed manager/tracker lineage4696a0773. Spec0006 and its
 closed-ticket ledger live there under qualification. Private service configs were
 checked for references to retiring worktrees; none found. Installed releases,
 405verified outputs,7held cases,resource limits and paused Speech remain unchanged.
+
+## Turn 444 | 2026-11-19
+
+Started the operator-requested grill-with-docs interview for intentional initial
+migration and future automated storage lifecycle. Plan0097/P11 is PLANNED with five
+pending foundation decisions and an explicit dependent design tree. Existing
+CONTEXT.md remains the domain glossary; no ADR has been accepted by implication.
+
+Read-only discovery identified ADR0005 intermediate-evidence preservation and
+Plan0089 recording-source erasure as contracts to reconcile. Isolated documentation
+custody on design/transcribe-storage-lifecycle-20261119 preserves unrelated dirty
+frontend and research work in the original checkout. No migration, deletion,
+service/model operation or failed-recording retry occurred. Progress:
+blocker_reduction; awaiting foundation answers. Graph-memory disposition:
+forbidden, because no memory update was requested.
+
+## Turn 445 | 2026-11-19
+
+The operator accepted Plan0097 Q1-Q5 ("yes all") and explicitly reserved Speech
+Receipts for a separate spec. Added accepted lifecycle terms to CONTEXT.md and
+ADR0006, qualifying ADR0005 only for terminal intermediate retention with verified
+publication/recovery and retained canonical sources/provenance. P11 remains PLANNED;
+Q6-Q11 recovery and operating decisions are pending. No runtime action occurred.
+
+Bounded read-only discovery found SQLite-only implemented backups and retained-byte
+replay rather than reconstruction, plus a bounded source-owner size contract that
+must not be misrepresented as general large-media erasure acceptance. These findings
+inform the next frontier, not an implementation claim. Progress: outcome_progress
+for design acceptance. Memory disposition: forbidden; no memory update requested.

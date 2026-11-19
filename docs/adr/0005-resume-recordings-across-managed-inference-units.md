@@ -18,3 +18,9 @@ GPU operation. It does not authorize cross-recording person identification.
 
 Source: accepted interview decisions Q8, Q9 and Q12 in
 [design notes](../dev/notes/0062-2026-11-10-managed-transcription-design-interview.md).
+
+Terminal intermediate retention is qualified by
+[ADR0006](0006-own-tiered-recording-storage-and-terminal-derivative-retirement.md).
+Active/uncertain work retains its evidence; terminal derivative retirement requires
+verified publication and recovery, with canonical sources and provenance retained.
+This clarification does not change managed-unit admission or replay authority.

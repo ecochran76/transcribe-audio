@@ -4,6 +4,29 @@ This context defines the language used to identify anonymous speakers from
 transcript clues and source-attributed information before interpreting the
 conversation as a whole.
 
+## Recording Storage Lifecycle
+
+**Canonical Recording Source**:
+The retained original captured media for a recording, including its original video
+when present. Its identity is preserved when its storage location changes.
+_Avoid_: Processing audio derivative, playback cache
+
+**Processing Audio Derivative**:
+An audio representation prepared from a recording for transcription or diarization.
+It belongs to the source recording and does not establish a new recording identity.
+_Avoid_: Canonical recording source, upload audio derivative
+
+**Recording Placement Migration**:
+A change in where retained recording media resides while its byte identity,
+recording identity and retention obligation remain unchanged.
+_Avoid_: Source erasure, recording replacement
+
+**Derivative Retirement**:
+The end of persistent retention for a completed processing derivative after its
+publication and recovery obligations are verified, while its source and provenance
+remain retained.
+_Avoid_: Source erasure, checkpoint reset
+
 ## Upload Preparation
 
 **Upload Audio Derivative**:

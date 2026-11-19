@@ -1470,3 +1470,29 @@ Qualification environment actions delivered | 2026-11-12: Plan0096 and LocalAI
 Plan0016 CLOSED; tickets0236–0242 DONE locally. Fullapp1402PASS/4skips and
 core420OK/49skips. These guardrails support the stillOPEN Plan0095 qualification;
 TTS/modelacceptance and backlogactivation remain separate.
+
+## P11 | Storage Lifecycle And Initial Migration
+
+State: PLANNED
+
+Current State: The operator requested a grill-with-docs design for intentional
+initial migration, storage placement and future automated retention. Foundation
+choices Q1-Q5 are accepted in Plan0097/ADR0006; recovery and operating choices
+remain pending. Speech Receipts is reserved for a separate spec. This remains a
+documentation-only interview lane;
+no runtime effect or reprioritization of other lanes is implied. Advance VISION
+evidence integrity, grounded retrieval, replay and autonomy through a bounded
+verified migration (target level2), then qualified unattended policy (target
+level3); these are targets, not current acceptance claims.
+
+Plans:
+
+- `docs/dev/plans/0097-2026-11-19-storage-lifecycle-and-initial-migration.md`
+
+Definition of Done:
+
+- Storage ownership, canonical-source retention, derivative lifecycle, tier access
+  and unattended authority are explicit accepted decisions.
+- Initial migration and recurring automation have independent bounded acceptance
+  criteria, recovery paths and observable storage budgets.
+- Replay and source-erasure contracts remain coherent across storage tiers.
