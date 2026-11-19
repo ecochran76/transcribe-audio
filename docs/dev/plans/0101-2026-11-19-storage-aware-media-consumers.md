@@ -1,7 +1,7 @@
 # 0101: Preserve playback and processing across tier migration
 
-State: OPEN
-Status: in-progress
+State: CLOSED
+Status: complete
 Owner: /root/storage_consumers_0101
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
@@ -15,14 +15,14 @@ Preserve playback and processing across tier migration, as a complete operator-v
 
 ## Acceptance Criteria
 
-- [ ] Integrate catalog resolution into ingest/playback, corpus/derivative access and managed recording resume.
-- [ ] Preserve original recording IDs, expected hashes and frozen checkpoint/provenance semantics.
-- [ ] HDD absence permits text/index operations; no symlink bypass or erasure resurrection.
-- [ ] Existing public consumer tests and cross-tier access/resume behavior pass without inference.
+- [x] Integrate catalog resolution into ingest/playback, corpus/derivative access and managed recording resume.
+- [x] Preserve original recording IDs, expected hashes and frozen checkpoint/provenance semantics.
+- [x] HDD absence permits text/index operations; no symlink bypass or erasure resurrection.
+- [x] Existing public consumer tests and cross-tier access/resume behavior pass without inference.
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Integrated at04a320a;44 focused integrated checks passed. Existing consumer selection67passed with one excluded opt-in Speech check. Runtime activation remains ticket0103; managed consumers require explicit storage_root separate from frozen config.
 
 ## Scope and Non-Goals
 

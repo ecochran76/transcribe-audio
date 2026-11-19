@@ -95,8 +95,8 @@
       "blockers": [
         "0098"
       ],
-      "state": "running",
-      "tracker_state": "in-progress",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "transcript_store.py",
         "transcript_api.py",
@@ -111,8 +111,22 @@
       "worker": "/root/storage_consumers_0101",
       "worktree": "/home/ecochran76/worktrees/transcribe-storage-consumers-0101",
       "base": "4bda2a099d990f03673d850d43c66e68eec0085a",
-      "result_sha": null,
-      "validation": []
+      "result_sha": "7d3909807839ec70c27aafb22e5e711305a62942",
+      "validation": [
+        {
+          "command": "installed qualification PYTHONPATH; main .venv/bin/python -m pytest -q tests/test_storage_catalog.py tests/test_storage_policy.py tests/test_storage_backups.py tests/test_storage_consumers.py",
+          "result": "44 passed in18.68s"
+        },
+        {
+          "command": "worker relevant existing consumer selection",
+          "result": "67 passed,1existing opt-in Speech skip; outside scope"
+        },
+        {
+          "command": "commit fast checks",
+          "result": "passed"
+        }
+      ],
+      "integration_tip": "04a320ad83659229bffe0de9beca5b2ffd5f99b9"
     },
     {
       "id": "0102",
@@ -161,7 +175,7 @@
       "validation": []
     }
   ],
-  "tip": "7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd",
+  "tip": "04a320ad83659229bffe0de9beca5b2ffd5f99b9",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
   "review_fixed_point_status": "proposed_to_user_pending_reply"
 }
