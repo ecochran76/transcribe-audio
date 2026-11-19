@@ -1,8 +1,8 @@
 # 0101: Preserve playback and processing across tier migration
 
 State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+Status: in-progress
+Owner: /root/storage_consumers_0101
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
