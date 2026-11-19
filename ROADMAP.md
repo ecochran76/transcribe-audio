@@ -1473,12 +1473,12 @@ TTS/modelacceptance and backlogactivation remain separate.
 
 ## P11 | Storage Lifecycle And Initial Migration
 
-State: PLANNED
+State: OPEN
 
 Current State: Plan0097 Q1-Q17 are accepted, including the Q16 override removing
 native canaries and a 24-hour hold. The consolidated recording-storage lifecycle
 contract, ADR0006 and ADR0007 preserve source identity, recovery and ownership.
-Final shared-understanding confirmation and implementation remain pending. Speech
+The operator confirmed shared understanding; implementation tickets0098-0103 are active. Speech
 Receipts remains a separate spec. No migration, timer installation or reprioritization
 of other lanes has occurred. Advance VISION evidence integrity, grounded retrieval,
 replay and autonomy through verified initial migration (target level2), then qualified

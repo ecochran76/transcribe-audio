@@ -1,12 +1,12 @@
 # Storage lifecycle and initial migration
 
-State: PLANNED
+State: OPEN
 Owner: primary design interviewer
 Scope: resolve and document initial storage migration and future automated tiering and retention for Transcribe Audio
 Lane: P11
 Design version: 4
-Interview state: Q1-Q17 accepted with Q16 override; consolidated confirmation pending
-Execution authority: documentation and read-only discovery only until shared understanding is confirmed
+Interview state: confirmed; implementation ticket DAG active
+Execution authority: accepted spec implementation and scoped direct initial migration; no canary/hold
 
 ## Objective and vision
 
@@ -222,12 +222,9 @@ hold. Accepted thresholds and limits are in the consolidated lifecycle contract.
 
 ## Current checkpoint
 
-State: awaiting consolidated shared-understanding confirmation.
-Progress classification: outcome_progress for design acceptance, not runtime maturity.
-Q1-Q17 are accepted, with Q16 explicitly removing the proposed canary and 24-hour
-hold. The design tree has no remaining policy frontier; deployment paths/replica
-availability are facts to verify within implementation, not choices to guess.
-[The consolidated contract](../../recording-storage-lifecycle.md) is the review
-surface. No runtime migration or deletion has occurred. Next action: obtain the
-skill-required shared-understanding confirmation, then implement, validate and
-execute direct bounded migration within this contract.
+The operator confirmed shared understanding and explicitly invoked to-spec,
+to-tickets and implement-spec with parallel ticket ownership. The repo-native spec,
+one artifact per ticket0098-0103, and execution ledger govern readiness. The primary
+owns one ready ticket; workers each own one other unblocked ticket. Run exactly one
+broad final code review and one bounded post-review TDD remediation pass. Existing
+public seam tests are required; do not create a separate fixture/harness project.

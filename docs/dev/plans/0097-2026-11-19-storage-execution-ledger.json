@@ -1,0 +1,134 @@
+{
+  "spec": "docs/dev/plans/0097-2026-11-19-recording-storage-spec.md",
+  "contract": "docs/recording-storage-lifecycle.md",
+  "integration_branch": "implement/storage-lifecycle-0097",
+  "base": "d325e60abde054d2b0e201288422e1b83d8efa36",
+  "review_fixed_point_proposal": "d325e60abde054d2b0e201288422e1b83d8efa36",
+  "review_runs": 0,
+  "post_review_tdd_runs": 0,
+  "tickets": [
+    {
+      "id": "0098",
+      "path": "docs/dev/plans/0098-2026-11-19-journaled-media-placement.md",
+      "title": "Journaled media placement and verified migration",
+      "blockers": [],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "storage_catalog.py",
+        "tests/test_storage_catalog.py"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    },
+    {
+      "id": "0099",
+      "path": "docs/dev/plans/0099-2026-11-19-retention-policy-and-budgets.md",
+      "title": "Classify retention eligibility and reserve bounded scratch",
+      "blockers": [],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "storage_policy.py",
+        "tests/test_storage_policy.py"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    },
+    {
+      "id": "0100",
+      "path": "docs/dev/plans/0100-2026-11-19-verified-snapshots-and-restore.md",
+      "title": "Verified compressed snapshots, rotation and isolated restore",
+      "blockers": [],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "storage_backups.py",
+        "tests/test_storage_backups.py"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    },
+    {
+      "id": "0101",
+      "path": "docs/dev/plans/0101-2026-11-19-storage-aware-media-consumers.md",
+      "title": "Preserve playback and processing across tier migration",
+      "blockers": [
+        "0098"
+      ],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "transcript_store.py",
+        "transcript_api.py",
+        "managed_recording_cli.py",
+        "managed_recording.py",
+        "acoustic_evaluation_corpus.py",
+        "acoustic_audio_derivatives.py",
+        "speech_source_erasure.py",
+        "recording_source_guard.py",
+        "tests/test_storage_consumers.py"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    },
+    {
+      "id": "0102",
+      "path": "docs/dev/plans/0102-2026-11-19-bounded-storage-maintenance.md",
+      "title": "Operator CLI and bounded recurring storage maintenance",
+      "blockers": [
+        "0098",
+        "0099",
+        "0100",
+        "0101"
+      ],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "storage_maintenance.py",
+        "scripts/storage_maintenance.py",
+        "scripts/install_storage_maintenance.py",
+        "systemd/transcribe-storage-maintenance.service",
+        "systemd/transcribe-storage-maintenance.timer",
+        "tests/test_storage_maintenance.py"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    },
+    {
+      "id": "0103",
+      "path": "docs/dev/plans/0103-2026-11-19-initial-storage-migration.md",
+      "title": "Install and account for direct initial migration",
+      "blockers": [
+        "0102"
+      ],
+      "state": "pending",
+      "tracker_state": "ready-for-agent",
+      "owned_paths": [
+        "scripts/initial_storage_migration.py",
+        "tests/test_initial_storage_migration.py",
+        "docs/storage-operations.md"
+      ],
+      "worker": null,
+      "worktree": null,
+      "base": null,
+      "result_sha": null,
+      "validation": []
+    }
+  ]
+}
