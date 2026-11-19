@@ -1,8 +1,8 @@
 # 0100: Verified compressed snapshots, rotation and isolated restore
 
-State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+State: CLOSED
+Status: complete
+Owner: /root/storage_backups_0100
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
@@ -15,14 +15,14 @@ None (can start immediately)
 
 ## Acceptance Criteria
 
-- [ ] Back up real SQLite consistently, verify integrity and compressed content, and restore to an isolated destination.
-- [ ] Implement 24 hourly, seven daily and four weekly recovery-point selection, without confusing frozen evidence snapshots.
-- [ ] Expose a monthly restore-drill public interface with private receipts and tombstone/recovery awareness.
-- [ ] Wrong mount, corruption and untrusted rotation time preserve the live store and last good restore points.
+- [x] Back up real SQLite consistently, verify integrity and compressed content, and restore to an isolated destination.
+- [x] Implement 24 hourly, seven daily and four weekly recovery-point selection, without confusing frozen evidence snapshots.
+- [x] Expose a monthly restore-drill public interface with private receipts and tombstone/recovery awareness.
+- [x] Wrong mount, corruption and untrusted rotation time preserve the live store and last good restore points.
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Implemented and integrated at 7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd; all 38 focused storage checks passed. Native installation/migration remains ticket0103.
 
 ## Scope and Non-Goals
 

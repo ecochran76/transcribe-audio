@@ -1,8 +1,8 @@
 # 0098: Journaled media placement and verified migration
 
-State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+State: CLOSED
+Status: complete
+Owner: primary
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
@@ -15,14 +15,14 @@ None (can start immediately)
 
 ## Acceptance Criteria
 
-- [ ] Register and resolve stable media identities in the existing store without changing source provenance.
-- [ ] Copy, fully verify, publish and retire per-object placements with resumable durable states.
-- [ ] Changed source, destination conflicts, source erasure, pins, hardlinks and missing independent source proof prevent retirement.
-- [ ] Public API tests prove actual bytes/access and restart behavior.
+- [x] Register and resolve stable media identities in the existing store without changing source provenance.
+- [x] Copy, fully verify, publish and retire per-object placements with resumable durable states.
+- [x] Changed source, destination conflicts, source erasure, pins, hardlinks and missing independent source proof prevent retirement.
+- [x] Public API tests prove actual bytes/access and restart behavior.
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Implemented and integrated at 7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd; all 38 focused storage checks passed. Native installation/migration remains ticket0103.
 
 ## Scope and Non-Goals
 

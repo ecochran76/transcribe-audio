@@ -12,51 +12,81 @@
       "path": "docs/dev/plans/0098-2026-11-19-journaled-media-placement.md",
       "title": "Journaled media placement and verified migration",
       "blockers": [],
-      "state": "pending",
-      "tracker_state": "ready-for-agent",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "storage_catalog.py",
         "tests/test_storage_catalog.py"
       ],
-      "worker": null,
-      "worktree": null,
-      "base": null,
-      "result_sha": null,
-      "validation": []
+      "worker": "primary",
+      "worktree": "/home/ecochran76/worktrees/transcribe-storage-design-20261119",
+      "base": "ebb648b9096afd318d1e4c2b9efc6625eedb0009",
+      "result_sha": "737d17c",
+      "validation": [
+        {
+          "command": "existing .venv/bin/python -m pytest -q tests/test_storage_catalog.py tests/test_storage_policy.py tests/test_storage_backups.py",
+          "result": "38 passed"
+        },
+        {
+          "command": "commit fast checks: lint-only, policy pointers, two local-check tests",
+          "result": "passed"
+        }
+      ],
+      "integration_tip": "7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd"
     },
     {
       "id": "0099",
       "path": "docs/dev/plans/0099-2026-11-19-retention-policy-and-budgets.md",
       "title": "Classify retention eligibility and reserve bounded scratch",
       "blockers": [],
-      "state": "pending",
-      "tracker_state": "ready-for-agent",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "storage_policy.py",
         "tests/test_storage_policy.py"
       ],
-      "worker": null,
-      "worktree": null,
-      "base": null,
-      "result_sha": null,
-      "validation": []
+      "worker": "/root/storage_policy_0099",
+      "worktree": "/home/ecochran76/worktrees/transcribe-storage-policy-0099",
+      "base": "ebb648b9096afd318d1e4c2b9efc6625eedb0009",
+      "result_sha": "b406026",
+      "validation": [
+        {
+          "command": "existing .venv/bin/python -m pytest -q tests/test_storage_catalog.py tests/test_storage_policy.py tests/test_storage_backups.py",
+          "result": "38 passed"
+        },
+        {
+          "command": "commit fast checks: lint-only, policy pointers, two local-check tests",
+          "result": "passed"
+        }
+      ],
+      "integration_tip": "7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd"
     },
     {
       "id": "0100",
       "path": "docs/dev/plans/0100-2026-11-19-verified-snapshots-and-restore.md",
       "title": "Verified compressed snapshots, rotation and isolated restore",
       "blockers": [],
-      "state": "pending",
-      "tracker_state": "ready-for-agent",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "storage_backups.py",
         "tests/test_storage_backups.py"
       ],
-      "worker": null,
-      "worktree": null,
-      "base": null,
-      "result_sha": null,
-      "validation": []
+      "worker": "/root/storage_backups_0100",
+      "worktree": "/home/ecochran76/worktrees/transcribe-storage-backups-0100",
+      "base": "ebb648b9096afd318d1e4c2b9efc6625eedb0009",
+      "result_sha": "2954253",
+      "validation": [
+        {
+          "command": "existing .venv/bin/python -m pytest -q tests/test_storage_catalog.py tests/test_storage_policy.py tests/test_storage_backups.py",
+          "result": "38 passed"
+        },
+        {
+          "command": "commit fast checks: lint-only, policy pointers, two local-check tests",
+          "result": "passed"
+        }
+      ],
+      "integration_tip": "7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd"
     },
     {
       "id": "0101",
@@ -130,5 +160,8 @@
       "result_sha": null,
       "validation": []
     }
-  ]
+  ],
+  "tip": "7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd",
+  "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
+  "review_fixed_point_status": "proposed_to_user_pending_reply"
 }

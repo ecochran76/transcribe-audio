@@ -1,8 +1,8 @@
 # 0099: Classify retention eligibility and reserve bounded scratch
 
-State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+State: CLOSED
+Status: complete
+Owner: /root/storage_policy_0099
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
@@ -15,14 +15,14 @@ None (can start immediately)
 
 ## Acceptance Criteria
 
-- [ ] Expose a public versioned policy decision/reservation interface for all accepted storage classes.
-- [ ] Enforce 48h completed grace, 7d inactive unresolved cold movement, pins and quarantine without source deletion or retries.
-- [ ] Apply 20GiB transient and 100GiB background reserve plus 16GiB/30minute pass limits.
-- [ ] Trusted external time observations qualify age; missing/unreliable time holds age actions.
+- [x] Expose a public versioned policy decision/reservation interface for all accepted storage classes.
+- [x] Enforce 48h completed grace, 7d inactive unresolved cold movement, pins and quarantine without source deletion or retries.
+- [x] Apply 20GiB transient and 100GiB background reserve plus 16GiB/30minute pass limits.
+- [x] Trusted external time observations qualify age; missing/unreliable time holds age actions.
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Implemented and integrated at 7043574b5f776d92eb2ceb58f89ceb5ae30b4fdd; all 38 focused storage checks passed. Native installation/migration remains ticket0103.
 
 ## Scope and Non-Goals
 
