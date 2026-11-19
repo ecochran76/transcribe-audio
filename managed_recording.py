@@ -14,6 +14,9 @@ import re
 import tempfile
 import wave
 
+from recording_source_guard import guard_media
+from storage_access import resolve_media, logical_media_path
+
 
 class RecordingProcessingError(RuntimeError):
     """Work remains pending, uncertain, or requires explicit reconciliation."""
@@ -35,7 +38,8 @@ class RecordingProcessor:
     speaker_margin. Thresholds must be reviewed by the caller, not inferred here.
     """
 
-    def __init__(self, config, *, client):
+    def __init__(self, config, *, client, storage_root=None):
+        self.source_store_root = storage_root
         self.config = copy.deepcopy(config)
         self.client = client
         self.state = Path(config['state_directory'])
@@ -105,15 +109,17 @@ class RecordingProcessor:
         with self._locked(key):
             return self._load(key)
 
+    @guard_media
     def prepare(self, source, *, recording_id, conversation_id, metadata=None,
                 options=None, prior_artifacts=None):
         """Stage bounded immutable PCM16 mono16k WAV units without model effects."""
-        source = Path(source).resolve()
+        logical_source = logical_media_path(self.source_store_root, source)
+        source = resolve_media(self.source_store_root, source)
         source_hash = hashlib.sha256()
         with source.open('rb') as stream:
             for block in iter(lambda: stream.read(1024*1024), b''):
                 source_hash.update(block)
-        identity = dict(source=str(source), sha256=source_hash.hexdigest(),
+        identity = dict(source=str(logical_source), sha256=source_hash.hexdigest(),
                         recording_id=recording_id, conversation_id=conversation_id,
                         metadata=metadata or {}, options=options or {},
                         prior_artifacts=prior_artifacts or [], config=self.config)
@@ -175,6 +181,7 @@ class RecordingProcessor:
                                  state='processing', units=units))
         return key
 
+    @guard_media
     def advance(self, key):
         """Submit once or observe one unfinished stage; never replay unknown custody."""
         with self._locked(key):
@@ -188,7 +195,7 @@ class RecordingProcessor:
                         continue
                     if entry['state'] in ('failed', 'cancelled'):
                         raise RecordingProcessingError('explicit new attempt required')
-                    artifact = self.spool/unit['artifact_id']
+                    artifact = resolve_media(self.source_store_root, self.spool/unit['artifact_id'])
                     if artifact.is_symlink() or _digest(artifact.read_bytes()) != unit['sha256']:
                         raise RecordingProcessingError('staged artifact changed')
                     if entry['state'] == 'pending':

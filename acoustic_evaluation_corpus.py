@@ -23,6 +23,9 @@ import transcript_store
 CORPUS_SCHEMA_VERSION = "transcribe-audio.acoustic-evaluation-corpus.v1"
 FREEZE_TOKEN = "FREEZE_ACOUSTIC_EVALUATION_CORPUS"
 HARDEN_TOKEN = "HARDEN_ACOUSTIC_EVALUATION_SOURCES"
+from storage_access import storage_scoped, resolve_media, access_root
+
+
 DEFAULT_RUNTIME_ROOT = Path("~/.local/state/transcribe-audio/plan-0037")
 DEFAULT_CAMPAIGN_ROOT = Path(
     "~/.local/state/transcribe-audio/speaker-evaluation-campaigns"
@@ -195,9 +198,11 @@ def _duration_band(duration_seconds: float) -> str:
 
 def _store_bounded_blob_path(path: Path, store_root: Path) -> Path:
     try:
-        resolved = path.expanduser().resolve(strict=True)
+        from storage_access import logical_media_path, resolve_media
+        logical = logical_media_path(store_root, path)
         blob_root = (store_root.expanduser().resolve(strict=True) / "blobs")
-        resolved.relative_to(blob_root)
+        logical.relative_to(blob_root)
+        resolved = resolve_media(store_root, path)
     except (OSError, ValueError) as exc:
         raise CorpusError(
             f"Selected source blob escapes the transcript blob store: {path}"
@@ -243,6 +248,7 @@ def _speaker_truth(gold: dict[str, Any]) -> list[dict[str, str]]:
     return result
 
 
+@storage_scoped
 def collect_candidates(
     campaign_id: str,
     *,
@@ -366,6 +372,12 @@ def collect_candidates(
                 excluded["missing_source_blob"] += 1
                 continue
             raw_blob_path = Path(str(blob["stored_path"])).expanduser()
+            from storage_access import resolve_media
+            try:
+                raw_blob_path = resolve_media(selected_store_root, raw_blob_path)
+            except FileNotFoundError:
+                excluded["source_blob_unavailable"] += 1
+                continue
             if not raw_blob_path.is_file():
                 excluded["source_blob_unavailable"] += 1
                 continue
@@ -448,6 +460,7 @@ def collect_candidates(
     return candidates, metadata
 
 
+@storage_scoped
 def harden_candidate_sources(
     candidates: Iterable[dict[str, Any]],
     *,
@@ -467,7 +480,11 @@ def harden_candidate_sources(
         expected_hash = str(source.get("sha256") or "")
         if _sha256_file(path) != expected_hash:
             raise CorpusError(f"Selected source changed before hardening: {path}")
-        os.chmod(path, 0o600)
+        if stat.S_IMODE(path.stat().st_mode) != 0o600:
+            from storage_access import media_record
+            if media_record(selected_store_root, path):
+                raise CorpusError("Catalog placement mode requires owner reconciliation")
+            os.chmod(path, 0o600)
         if stat.S_IMODE(path.stat().st_mode) != 0o600:
             raise CorpusError(f"Selected source mode is not 0600: {path}")
         paths.append(str(path))
@@ -591,7 +608,7 @@ def _successor_authority(
             str(transcript_lineage.get("current_artifact_path") or "")
         ).expanduser()
         source = candidate.get("source_blob") or {}
-        source_path = Path(str(source.get("stored_path") or "")).expanduser()
+        source_path = resolve_media(access_root(), str(source.get("stored_path") or ""))
         try:
             transcript_sha256 = _sha256_file(transcript_path.resolve(strict=True))
             source_sha256 = _sha256_file(source_path.resolve(strict=True))
@@ -728,6 +745,7 @@ def _successor_authority(
     }
 
 
+@storage_scoped
 def freeze_corpus(
     candidates: list[dict[str, Any]],
     metadata: dict[str, Any],
@@ -750,7 +768,7 @@ def freeze_corpus(
     _validate_split_integrity(candidates)
     for candidate in candidates:
         source = candidate["source_blob"]
-        path = Path(str(source["stored_path"]))
+        path = resolve_media(access_root(), str(source["stored_path"]))
         actual_mode = stat.S_IMODE(path.stat().st_mode)
         if actual_mode & 0o077:
             raise CorpusError(
@@ -1031,6 +1049,7 @@ def _successor_inputs(
     return assigned, authority
 
 
+@storage_scoped
 def preview_successor_corpus(
     candidates: list[dict[str, Any]],
     metadata: dict[str, Any],
@@ -1065,6 +1084,7 @@ def preview_successor_corpus(
     )
 
 
+@storage_scoped
 def freeze_successor_corpus(
     candidates: list[dict[str, Any]],
     metadata: dict[str, Any],
@@ -1122,6 +1142,7 @@ def freeze_successor_corpus(
     return receipt
 
 
+@storage_scoped
 def replay_successor_corpus(
     manifest_path: Path,
     candidates: list[dict[str, Any]],
