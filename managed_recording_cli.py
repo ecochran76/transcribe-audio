@@ -147,7 +147,8 @@ def _decode(source, destination, timeout):
             os.unlink(temporary)
 
 
-def _publish(output, key, source, config, old):
+def _publish(output, key, source, config, old, *, storage_root=None, logical_source=None):
+    from storage_access import resolve_media
     from docx import Document
 
     root = _private_directory(Path(config['output_directory']).expanduser().resolve())
@@ -158,16 +159,23 @@ def _publish(output, key, source, config, old):
     duration = max(turn['end_seconds'] for turn in output['turns']) if output['turns'] else 0
     duration = max(duration, max((word['end_seconds'] for word in output['words']), default=0))
     # The complete WAV duration includes leading/trailing silence and gaps.
-    with wave.open(output['source'], 'rb') as audio:
+    with wave.open(str(resolve_media(storage_root, output['source'])), 'rb') as audio:
         duration = audio.getnframes()/audio.getframerate()
-    end = old.get('recording_end') or datetime.fromtimestamp(source.stat().st_mtime, timezone.utc).isoformat()
+    source_mtime = source.stat().st_mtime
+    from storage_access import media_record, catalog_for
+    placement = media_record(storage_root, source)
+    if placement and str(source) != placement['logical_path']:
+        migration = catalog_for(storage_root).migration(placement['id'])
+        if migration:
+            source_mtime = json.loads(migration['source_identity'])[3] / 1_000_000_000
+    end = old.get('recording_end') or datetime.fromtimestamp(source_mtime, timezone.utc).isoformat()
     start = old.get('recording_start') or (datetime.fromisoformat(end)-timedelta(seconds=duration)).isoformat()
     artifact = dict(schema_version=2, recording_id=output['recording_id'], conversation_id=output['conversation_id'],
-                    source_media_path=str(source), working_media_path=output['source'],
+                    source_media_path=str(logical_source or source), working_media_path=output['source'],
                     backend='managed-recording', duration_seconds=duration,
                     recording_start=start, recording_end=end,
                     transcript_window_start_seconds=0, transcript_window_end_seconds=duration,
-                    transcript_title=old.get('transcript_title') or source.stem,
+                    transcript_title=old.get('transcript_title') or (logical_source or source).stem,
                     event=old.get('event'), utterance_count=len(utterances), utterances=utterances,
                     transcript_text='\n'.join(row['text'] for row in utterances), output_paths=paths,
                     prior_artifacts=output['prior_artifacts'], managed_recording=output)
@@ -175,7 +183,7 @@ def _publish(output, key, source, config, old):
     document.add_heading(artifact['transcript_title'], 0)
     document.add_paragraph('Recording: '+artifact['recording_id'])
     document.add_paragraph('Conversation: '+artifact['conversation_id'])
-    document.add_paragraph('Source: '+str(source))
+    document.add_paragraph('Source: '+str(logical_source or source))
     if artifact['event']:
         document.add_paragraph('Calendar: '+_json(artifact['event']))
     lines = []
@@ -204,13 +212,25 @@ def _publish(output, key, source, config, old):
 
 
 def run(source, config, *, recording_id=None, conversation_id=None, existing_transcript=None,
-        max_stage_results=None):
+        max_stage_results=None, storage_root=None):
+    """Keep storage scope outside frozen configuration and checkpoint identity."""
+    from recording_source_guard import media_access
+    with media_access(storage_root):
+        return _run(source, config, recording_id=recording_id,
+                    conversation_id=conversation_id, existing_transcript=existing_transcript,
+                    max_stage_results=max_stage_results, storage_root=storage_root)
+
+
+def _run(source, config, *, recording_id=None, conversation_id=None, existing_transcript=None,
+         max_stage_results=None, storage_root=None):
     """Execute explicit media through actual ManagedClient; return guarded receipt."""
     if max_stage_results is not None and (type(max_stage_results) is not int or not 1 <= max_stage_results <= 10000):
         raise ValueError('max_stage_results must be an integer1..10000')
     from inference_manager.service_client import ManagedClient
 
-    source = Path(source).expanduser().resolve(strict=True)
+    from storage_access import resolve_media, logical_media_path
+    logical_source = logical_media_path(storage_root, source)
+    source = resolve_media(storage_root, source)
     if not source.is_file():
         raise ValueError('explicit media file required')
     old_raw = _private_read(Path(existing_transcript).expanduser()) if existing_transcript else b'{}'
@@ -238,11 +258,11 @@ def run(source, config, *, recording_id=None, conversation_id=None, existing_tra
     client = ManagedClient(config['endpoint'], token, ssl_context=tls,
                            timeout_seconds=config.get('request_timeout_seconds', 10),
                            allow_insecure_loopback=config.get('allow_insecure_loopback', False))
-    processor = RecordingProcessor(config['processor'], client=client)
+    processor = RecordingProcessor(config['processor'], client=client, storage_root=storage_root)
     manifests = _private_directory(processor.state/'cli')
     decoded = _private_directory(manifests/'media')
     source_hash = _hash_file(source)
-    identity = dict(source=str(source), sha256=source_hash, recording_id=recording_id,
+    identity = dict(source=str(logical_source), sha256=source_hash, recording_id=recording_id,
                     conversation_id=conversation_id)
     key = hashlib.sha256(_json(identity).encode()).hexdigest()
     frozen = dict(identity=identity, config=config, existing_transcript=old,
@@ -268,10 +288,12 @@ def run(source, config, *, recording_id=None, conversation_id=None, existing_tra
                 raise RecordingProcessingError('original source changed during CPU decode')
             manifest['decoded_sha256'] = _hash_file(derivative)
             _save(manifest_path, manifest)
+        derivative_reference = derivative
+        derivative = resolve_media(storage_root, derivative)
         if derivative.is_symlink() or _hash_file(derivative) != manifest['decoded_sha256']:
             raise RecordingProcessingError('immutable decoded media conflict')
         processor_key = processor.prepare(
-            derivative, recording_id=recording_id, conversation_id=conversation_id,
+            derivative_reference, recording_id=recording_id, conversation_id=conversation_id,
             metadata=dict(original_source=identity, existing_transcript=old),
             options=config.get('options', {}),
             prior_artifacts=list((old.get('output_paths') or {}).values()),
@@ -323,7 +345,7 @@ def run(source, config, *, recording_id=None, conversation_id=None, existing_tra
             if checkpoint['state'] == 'ready':
                 if _hash_file(source) != source_hash:
                     raise RecordingProcessingError('original source changed before publication')
-                return processor.publish(processor_key, lambda output: _publish(output, processor_key, source, config, old))
+                return processor.publish(processor_key, lambda output: _publish(output, processor_key, source, config, old, storage_root=storage_root, logical_source=logical_source))
             time.sleep(min(poll, max(0, deadline-time.monotonic())))
         raise RecordingProcessingError('bounded wait expired; checkpoint retained without replay')
 
@@ -335,13 +357,14 @@ def main(argv=None):
     parser.add_argument('--recording-id')
     parser.add_argument('--conversation-id')
     parser.add_argument('--existing-transcript', type=Path)
+    parser.add_argument('--storage-root', type=Path, help='Existing catalog root; separate from frozen work configuration')
     parser.add_argument('--max-stage-results', type=int, help='Checkpoint after1..10000 new durable unit-stage results')
     args = parser.parse_args(argv)
     try:
         config = json.loads(_private_read(args.config))
         receipt = run(args.media, config, recording_id=args.recording_id,
                       conversation_id=args.conversation_id, existing_transcript=args.existing_transcript,
-                      max_stage_results=args.max_stage_results)
+                      max_stage_results=args.max_stage_results, storage_root=args.storage_root)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         print('Managed recording failed: '+str(error), file=sys.stderr)
         return 1

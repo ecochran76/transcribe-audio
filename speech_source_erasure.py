@@ -142,17 +142,32 @@ class RecordingSourceOwner:
         identifier(source.get("id"))
         return source
 
+    def _catalog_owns(self, path):
+        from storage_access import catalog_for, erasure_catalog_paths
+        catalog = catalog_for(self.root)
+        if catalog is None:
+            return False
+        for record in catalog.objects():
+            if record['active_path'] == str(path):
+                paths, _ = erasure_catalog_paths(self.root, record['sha256'])
+                return str(path) in paths
+            migration = catalog.migration(record['id'])
+            if migration and str(path) in (migration['destination'], migration['temporary']):
+                paths, _ = erasure_catalog_paths(self.root, record['sha256'])
+                return str(path) in paths
+        return False
+
     def _file(self, path, *, quarantined=False):
         # Reject symlink components, hardlinks and changed ownership, not just the
         # final filename. Only explicitly owned roots participate in deletion.
         path = Path(path)
-        if not path.is_absolute() or not any(
+        if not path.is_absolute() or not (self._catalog_owns(path) or any(
             path.is_relative_to(root)
             for root in [
                 *self.roots,
                 *([self.directory.resolve()] if quarantined else []),
             ]
-        ):
+        )):
             raise ValueError("speech_owner_original_unavailable")
         current = path
         while current != current.parent:
@@ -233,6 +248,11 @@ class RecordingSourceOwner:
                 paths.update(
                     str(p) for p in (self.root / "playback-cache").glob(pattern)
                 )
+        from storage_access import erasure_catalog_paths
+        cold_paths, retired_aliases = erasure_catalog_paths(self.root, source["sha256"])
+        paths.difference_update(retired_aliases)
+        paths.update(cold_paths)
+        canonical_copies.update(cold_paths)
         if len(paths) > 256:
             raise ValueError("speech_owner_inventory_limit")
         if sum(Path(path).lstat().st_size for path in paths) > 128_000_000:
@@ -304,6 +324,7 @@ class RecordingSourceOwner:
                     ValueError,
                     OSError,
                     transcript_store.TranscriptStoreError,
+                    RuntimeError,
                 ) as error:
                     inventory = {
                         "available": False,
@@ -311,7 +332,7 @@ class RecordingSourceOwner:
                         "items": [],
                         "operations": [],
                         "mayDeleteOriginal": False,
-                        "reason": "Original owner inventory is unavailable or source copies changed",
+                        "reason": str(error),
                     }
                 return {"owner": self.owner, "source": source, "inventory": inventory}
             request_id = identifier(submitted.get("requestId"))

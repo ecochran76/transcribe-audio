@@ -3527,7 +3527,9 @@ def get_blob(blob_id: str, *, root: Optional[Path] = None) -> dict[str, Any]:
             raise TranscriptStoreError(f"No blob found with id {blob_id}")
     from speech_source_erasure import source_available
     source_available(store_dir(root), row["sha256"])
-    path = Path(row["stored_path"])
+    from storage_access import media_record, resolve_media
+    reference = blob_id if media_record(store_dir(root), blob_id) else row["stored_path"]
+    path = resolve_media(store_dir(root), reference)
     if not path.exists() or not path.is_file():
         raise TranscriptStoreError(f"Blob file is missing for id {blob_id}")
     return {

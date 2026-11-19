@@ -31,6 +31,9 @@ from acoustic_identity_contracts import (
 )
 
 
+from storage_access import storage_scoped, resolve_media, logical_media_path, access_root
+
+
 DRY_RUN_SCHEMA = "transcribe-audio.audio-derivative-dry-run.v1"
 RUN_MANIFEST_SCHEMA = "transcribe-audio.audio-derivative-run.v1"
 APPLY_RECEIPT_SCHEMA = "transcribe-audio.audio-derivative-apply-receipt.v1"
@@ -82,6 +85,7 @@ def _canonical_hash(value: Any) -> str:
 
 
 def _sha256_file(path: Path) -> str:
+    path = resolve_media(access_root(), path)
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -133,9 +137,10 @@ def _ensure_private_tree(root: Path, leaf: Path) -> None:
 
 def _require_private_file(path: Path, root: Path) -> None:
     absolute_root = root.expanduser().absolute()
-    absolute_path = path.expanduser().absolute()
+    absolute_path = resolve_media(access_root(), path)
+    logical_path = logical_media_path(access_root(), path)
     try:
-        relative = absolute_path.relative_to(absolute_root)
+        relative = logical_path.relative_to(absolute_root)
     except ValueError as exc:
         raise AudioDerivativeError(
             f"Private artifact escapes its runtime root: {absolute_path}"
@@ -297,7 +302,7 @@ def _source_identity(source_audio: Path, ffprobe_path: str) -> dict[str, Any]:
     if source_audio.expanduser().is_symlink():
         raise AudioDerivativeError("Source audio must not be a symlink.")
     try:
-        source_path = source_audio.expanduser().resolve(strict=True)
+        source_path = resolve_media(access_root(), source_audio)
     except OSError as exc:
         raise AudioDerivativeError(f"Source audio is unavailable: {source_audio}") from exc
     if not source_path.is_file():
@@ -306,7 +311,7 @@ def _source_identity(source_audio: Path, ffprobe_path: str) -> dict[str, Any]:
     if source_stat.st_size <= 0:
         raise AudioDerivativeError("Source audio is empty.")
     identity = {
-        "path": str(source_path),
+        "path": str(logical_media_path(access_root(), source_audio)),
         "sha256": _sha256_file(source_path),
         "bytes": source_stat.st_size,
         "mode": stat.S_IMODE(source_stat.st_mode),
@@ -494,6 +499,7 @@ def _build_plan(
     return plan, paths
 
 
+@storage_scoped
 def dry_run(
     source_audio: Path,
     *,
@@ -519,6 +525,7 @@ def dry_run(
 
 
 def _decode(source_path: Path, output_path: Path, recipe: Mapping[str, Any]) -> None:
+    source_path = resolve_media(access_root(), source_path)
     parameters = recipe["parameters"]
     arguments = [
         str(source_path)
@@ -535,6 +542,7 @@ def _decode(source_path: Path, output_path: Path, recipe: Mapping[str, Any]) -> 
 
 
 def _pcm_metrics(path: Path) -> dict[str, Any]:
+    path = resolve_media(access_root(), path)
     try:
         with wave.open(str(path), "rb") as audio:
             channels = audio.getnchannels()
@@ -623,17 +631,28 @@ def _quality_payload(
 
 
 def _source_unchanged(before: Mapping[str, Any]) -> None:
-    path = Path(str(before["path"]))
+    path = resolve_media(access_root(), before["path"])
     current = path.stat()
+    expected_mode = stat.S_IMODE(current.st_mode)
+    expected_mtime = current.st_mtime_ns
+    from storage_access import media_record, catalog_for
+    record = media_record(access_root(), before["path"])
+    if record and str(path) != str(before["path"]):
+        migration = catalog_for(access_root()).migration(record['id'])
+        if not migration:
+            raise AudioDerivativeError("Source placement has no migration evidence.")
+        original = json.loads(migration['source_identity'])
+        expected_mode, expected_mtime = original[5], original[3]
     if (
         current.st_size != int(before["bytes"])
-        or stat.S_IMODE(current.st_mode) != int(before["mode"])
-        or current.st_mtime_ns != int(before["mtime_ns"])
+        or expected_mode != int(before["mode"])
+        or expected_mtime != int(before["mtime_ns"])
         or _sha256_file(path) != before["sha256"]
     ):
         raise AudioDerivativeError("Source audio changed during derivative processing.")
 
 
+@storage_scoped
 def apply_derivative(
     source_audio: Path,
     *,
@@ -832,6 +851,7 @@ def apply_derivative(
             pass
 
 
+@storage_scoped
 def replay_derivative(
     run_id: str,
     *,
@@ -940,6 +960,7 @@ def replay_derivative(
     return result
 
 
+@storage_scoped
 def derivative_is_active(
     run_id: str, *, runtime_root: Optional[Path] = None
 ) -> bool:
@@ -947,6 +968,7 @@ def derivative_is_active(
     return bool(replay_derivative(run_id, runtime_root=runtime_root)["active"])
 
 
+@storage_scoped
 def resolve_active_derivative(
     run_id: str, *, runtime_root: Optional[Path] = None
 ) -> dict[str, Any]:
@@ -966,7 +988,7 @@ def resolve_active_derivative(
         "manifest_sha256": replay["manifest_sha256"],
         "source_blob_id": manifest["source"]["source_blob_id"],
         "source_sha256": manifest["source"]["sha256"],
-        "artifact_path": manifest["artifact_path"],
+        "artifact_path": str(resolve_media(access_root(), manifest["artifact_path"])),
         "artifact_sha256": manifest["derived_audio"]["output_sha256"],
         "derived_audio": manifest["derived_audio"],
         "audio_quality": manifest["audio_quality"],
@@ -977,6 +999,7 @@ def resolve_active_derivative(
     }
 
 
+@storage_scoped
 def resolve_derivative_lineage_receipt(
     run_id: str,
     *,
@@ -1085,6 +1108,7 @@ def write_immutable_private_json(
     )
 
 
+@storage_scoped
 def rollback_derivative(
     run_id: str,
     *,

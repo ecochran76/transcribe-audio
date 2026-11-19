@@ -662,15 +662,26 @@ from recording_source_guard import guard_media
 def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recording") -> dict[str, Any]:
     if not source_path_text:
         return {}
+    from storage_access import resolve_media, media_record
     source_path = Path(source_path_text).expanduser()
-    if not source_path.exists() or not source_path.is_file():
+    try:
+        resolved = resolve_media(root, source_path)
+    except FileNotFoundError:
         return {}
-    resolved = source_path.resolve()
     artifact_hash = sha256_file(resolved)
     from speech_source_erasure import source_available
     source_available(root, artifact_hash)
     blob_id = stable_id(role, artifact_hash)
     stored_path = blob_store_path(root, blob_id, resolved)
+    existing = media_record(root, blob_id)
+    if existing:
+        if existing['sha256'] != artifact_hash:
+            raise TranscriptStoreError("Catalog blob identity conflict")
+        stored_path = resolve_media(root, blob_id)
+        return {"id": blob_id, "role": role, "original_path": str(source_path),
+                "stored_path": str(stored_path), "sha256": artifact_hash,
+                "mime_type": mimetypes.guess_type(source_path.name)[0] or "application/octet-stream",
+                "bytes": stored_path.stat().st_size}
     blob_root = root / "blobs"
     blob_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(blob_root, 0o700)
