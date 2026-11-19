@@ -1475,15 +1475,14 @@ TTS/modelacceptance and backlogactivation remain separate.
 
 State: PLANNED
 
-Current State: The operator requested a grill-with-docs design for intentional
-initial migration, storage placement and future automated retention. Foundation
-choices Q1-Q11 are accepted in Plan0097/ADR0006/ADR0007; migration protocol,
-backup history and rollout choices remain pending. Speech Receipts is reserved for a separate spec. This remains a
-documentation-only interview lane;
-no runtime effect or reprioritization of other lanes is implied. Advance VISION
-evidence integrity, grounded retrieval, replay and autonomy through a bounded
-verified migration (target level2), then qualified unattended policy (target
-level3); these are targets, not current acceptance claims.
+Current State: Plan0097 Q1-Q17 are accepted, including the Q16 override removing
+native canaries and a 24-hour hold. The consolidated recording-storage lifecycle
+contract, ADR0006 and ADR0007 preserve source identity, recovery and ownership.
+Final shared-understanding confirmation and implementation remain pending. Speech
+Receipts remains a separate spec. No migration, timer installation or reprioritization
+of other lanes has occurred. Advance VISION evidence integrity, grounded retrieval,
+replay and autonomy through verified initial migration (target level2), then qualified
+unattended policy (target level3); these are targets, not current acceptance claims.
 
 Plans:
 

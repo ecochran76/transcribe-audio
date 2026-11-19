@@ -4,8 +4,8 @@ State: PLANNED
 Owner: primary design interviewer
 Scope: resolve and document initial storage migration and future automated tiering and retention for Transcribe Audio
 Lane: P11
-Design version: 3
-Interview state: Q1-Q11 accepted; migration and rollout frontier pending
+Design version: 4
+Interview state: Q1-Q17 accepted with Q16 override; consolidated confirmation pending
 Execution authority: documentation and read-only discovery only until shared understanding is confirmed
 
 ## Objective and vision
@@ -145,19 +145,23 @@ or unavailable trusted time cannot establish age-based eligibility.
   eligible objects may continue. This rule does not require duplicate permanent
   replicas of every disposable cache or reconstructed derivative.
 
-## Migration and rollout frontier
+## Accepted migration and rollout decisions
 
-| Node | Prerequisites | Decision | Proposed recommendation | State |
+| Node | Prerequisites | Decision | Accepted decision | State |
 | --- | --- | --- | --- | --- |
-| Q12 | Q6/Q7/Q11 | Migration commit/recovery | Per-object durable journal: own/pin, copy, verify, publish catalog, then retire eligible old replica; resume interrupted work without guessing | pending |
-| Q13 | Q4/Q5/Q6/Q9 | Missing/changed HDD and corruption | Block dependent writes/retirement, preserve text operations, revalidate identity/content before unattended resume; quarantine disagreements | pending |
-| Q14 | Q1/Q4/Q11 | Backup history and restore cadence | Hourly DB snapshots retained 24h, seven daily and four weekly restore points; compressed HDD copies; monthly restore drill; original media replica proofs remain separate | pending |
-| Q15 | Q5/Q8/Q9 | Scheduler and work bounds | Hourly reconciliation, one background migration worker, 16 GiB or 30 min per pass with safe checkpoints and independent time availability handling | pending |
-| Q16 | Q7/Q9/Q11 | Initial rollout | Synthetic/fault tests, three representative native canaries with a 24h NVMe rollback hold, then inactive scratch/caches before original-media batches; scheduler after canary acceptance | pending |
-| Q17 | Q1/Q3/Q7 | Format scope | Preserve current bytes/formats in the first rollout; qualify lossless derivative format optimization separately | pending |
+| Q12 | Q6/Q7/Q11 | Migration commit/recovery | Per-object durable journal: own/pin, copy, verify, publish catalog, then retire eligible old replica; resume interrupted work without guessing | accepted |
+| Q13 | Q4/Q5/Q6/Q9 | Missing/changed HDD and corruption | Block dependent writes/retirement, preserve text operations, revalidate identity/content before unattended resume; quarantine disagreements | accepted |
+| Q14 | Q1/Q4/Q11 | Backup history and restore cadence | Hourly DB snapshots retained 24h, seven daily and four weekly restore points; compressed HDD copies; monthly restore drill; original media replica proofs remain separate | accepted |
+| Q15 | Q5/Q8/Q9 | Scheduler and work bounds | Hourly reconciliation, one background migration worker, 16 GiB or 30 min per pass with safe checkpoints and independent time availability handling | accepted |
+| Q16 | Q7/Q9/Q11 | Initial rollout | Local/synthetic validation then direct bounded migration; no canary or 24h hold; verify each object before old-copy retirement | accepted |
+| Q17 | Q1/Q3/Q7 | Format scope | Preserve current bytes/formats in the first rollout; qualify lossless derivative format optimization separately | accepted |
 
-Recommended protocol invariants (engineering consequences of accepted decisions,
-not independently granted mutation authority):
+Q12-Q17 were accepted on 2026-11-19 with an explicit Q16 override: no native
+canary and no 24-hour NVMe rollback hold. This changes rollout staging only;
+per-file copy/hash verification, catalog publication, ownership checks and Q11
+independent canonical-source replica protection remain accepted requirements.
+
+Protocol invariants (engineering consequences of accepted decisions):
 
 - An active reader/writer/processing pin, uncertain owner release, erasure fence,
   changed payload identity or unresolved policy classification excludes retirement.
@@ -174,19 +178,20 @@ not independently granted mutation authority):
   retaining distinct experiment configurations and outcomes; no shared model
   owner boundary is crossed.
 
-After Q12-Q17, consolidate the complete contract, turn remaining routine choices
-into explicit engineering defaults, and present the shared-understanding check.
-A new material tradeoff discovered during validation must be surfaced rather than
-silently assumed; it is not a reason to reopen already accepted decisions.
+The complete contract is consolidated in
+[recording storage lifecycle](../../recording-storage-lifecycle.md). Routine
+engineering defaults are explicit there; no accepted decision requires a new
+per-item approval. A material departure discovered during implementation must be
+surfaced rather than silently assumed.
 
 ## Documentation decisions
 
 CONTEXT.md records accepted recording-source, processing-derivative, placement
 migration and retirement terms. ADR0006 records the accepted foundations and
 partially qualifies ADR0005 only for terminal intermediate retention. ADR0007
-records accepted placement/identity and independent-replica tradeoffs. Q6-Q11
-recovery, grace periods and budgets are accepted; Q12-Q17 protocol, backup history
-and rollout remain pending. Extend
+records accepted placement/identity and independent-replica tradeoffs. Q6-Q17
+recovery, grace periods, budgets, protocol, backup history and rollout are accepted,
+including removal of the proposed canary/hold. Extend
 this plan, ROADMAP and RUNBOOK as answers settle.
 
 ## Acceptance Criteria
@@ -211,14 +216,18 @@ smoke is warranted for documentation changes.
 Before runtime rollout: synthetic migration and lifecycle tests, fault injection at
 copy/publication/retirement boundaries, reader/writer/erasure concurrency, mount
 outage and return, path containment, hashes/counts/reference reconciliation,
-recovery drills, bounded native canary and exclusive-block measurements. Exact
-thresholds and permitted effects remain dependent interview decisions.
+recovery drills and exclusive-block measurements. Native migration verifies each
+actual file directly; the operator removed the separate native canary and timed
+hold. Accepted thresholds and limits are in the consolidated lifecycle contract.
 
 ## Current checkpoint
 
-State: awaiting migration and rollout answers (Q12-Q17).
+State: awaiting consolidated shared-understanding confirmation.
 Progress classification: outcome_progress for design acceptance, not runtime maturity.
-Q1-Q11 are accepted. The catalog, recovery, grace periods, resource budgets,
-quarantine and independent-source-replica rules are recorded. Speech Receipts
-remains excluded. Next action: settle Q12-Q17, then present the consolidated
-shared-understanding check. No media, service, model or installed policy changed.
+Q1-Q17 are accepted, with Q16 explicitly removing the proposed canary and 24-hour
+hold. The design tree has no remaining policy frontier; deployment paths/replica
+availability are facts to verify within implementation, not choices to guess.
+[The consolidated contract](../../recording-storage-lifecycle.md) is the review
+surface. No runtime migration or deletion has occurred. Next action: obtain the
+skill-required shared-understanding confirmation, then implement, validate and
+execute direct bounded migration within this contract.

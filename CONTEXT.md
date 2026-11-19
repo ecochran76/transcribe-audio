@@ -21,6 +21,12 @@ A change in where retained recording media resides while its byte identity,
 recording identity and retention obligation remain unchanged.
 _Avoid_: Source erasure, recording replacement
 
+**Media Placement Retirement**:
+Removal of one media copy after the recording's placement and recovery obligations
+remain satisfied elsewhere. It does not erase the recording or end retention of
+its processing derivative.
+_Avoid_: Source erasure, derivative retirement
+
 **Derivative Retirement**:
 The end of persistent retention for a completed processing derivative after its
 publication and recovery obligations are verified, while its source and provenance

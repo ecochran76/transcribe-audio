@@ -18867,3 +18867,23 @@ P11 remains PLANNED. Q12-Q17 migration protocol, outage recovery, backup history
 scheduling, bounded rollout and format scope remain pending. No media, service,
 model or installed policy changed. Progress: outcome_progress for design acceptance;
 memory disposition: forbidden, no memory update requested.
+
+## Turn 447 | 2026-11-19
+
+The operator accepted Q12-Q17 with an explicit Q16 override: no native canary and
+no 24-hour NVMe rollback hold. Updated accepted decisions and consolidated
+recording-storage-lifecycle.md: direct journaled migration after local validation,
+per-object copy/hash/catalog/recovery/ownership checks, protected source replicas,
+24hourly/7daily/4weekly metadata backups, monthly restore drill, hourly single-worker
+16GiB/30minute passes, and byte-preserving initial formats. Q11 was not revoked.
+
+No policy frontier remains. Final shared-understanding confirmation is pending
+under the invoked grilling workflow. P11 remains PLANNED; no runtime data, service
+or installed policy changed. Progress: outcome_progress for design acceptance;
+memory disposition: forbidden, no memory update requested.
+
+The bounded final source-fact/decision check found no critical contradiction. It
+confirmed Q16 removes the rollout canary/hold while Q11 and class-specific retention
+rules remain intact. Clarified placement retirement versus derivative retirement
+so successful cold placement does not acquire a new artificial NVMe hold. Manual
+documentation checks passed, including all 17 accepted ledger rows and local links.

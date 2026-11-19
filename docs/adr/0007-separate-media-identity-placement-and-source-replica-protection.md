@@ -1,6 +1,6 @@
 # Separate media identity, placement and source replica protection
 
-Status: accepted design; implementation and protocol qualification pending.
+Status: accepted design; implementation qualification pending.
 
 A recording media object's stable identity and expected content hash are distinct
 from the locations of its retained copies. Transcribe Audio owns a location
@@ -23,7 +23,10 @@ slower space recovery to preserve independent source recovery. It does not requi
 multiple permanent replicas of every disposable derived cache.
 
 Operational grace periods, budgets and quarantine rules are accepted in Plan0097
-Q8-Q10. Copy/publication crash recovery, backup rotation, scheduling and rollout
-remain pending Q12-Q17; no installed storage state is changed by this decision.
+Q8-Q10. Q12-Q17 accepts per-object recovery, backup rotation and bounded hourly
+automation. The Q16 override removes the proposed native canary and 24-hour hold;
+verification/publication and independent-replica requirements still govern old-copy
+retirement. See [the lifecycle contract](../recording-storage-lifecycle.md). No
+installed storage state is changed by this decision.
 
 Source: operator acceptance of Plan0097 Q6-Q11 on 2026-11-19.

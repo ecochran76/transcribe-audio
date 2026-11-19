@@ -1,6 +1,6 @@
 # Own recording placement and terminal derivative retirement
 
-Status: accepted foundations; implementation and remaining policy choices pending.
+Status: accepted lifecycle design; implementation qualification pending.
 
 Transcribe Audio owns placement and retention for its recording sources, processing
 derivatives, checkpoints, exports and private qualification artifacts. Canonical
@@ -22,8 +22,10 @@ After bounded acceptance, a versioned policy may perform migrations and eligible
 cleanup unattended within its agreed scope, with per-item receipts. Stable logical
 location and independent source recovery are specified by
 [ADR0007](0007-separate-media-identity-placement-and-source-replica-protection.md).
-Plan0097 Q6-Q11 also accepts grace periods and quotas. Migration protocol, backup
-history and rollout remain open; no installed behavior is claimed.
+Plan0097 Q6-Q17 accepts grace periods, quotas, migration protocol, backup history
+and rollout, with no native canary or timed hold under the explicit Q16 override.
+The [lifecycle contract](../recording-storage-lifecycle.md) consolidates the design;
+no installed behavior is claimed.
 
 Source: operator acceptance of Plan0097 interview Q1-Q5 on 2026-11-19, explicitly
 reserving Speech Receipts for a separate spec.

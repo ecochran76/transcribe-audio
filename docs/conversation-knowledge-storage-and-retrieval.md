@@ -62,6 +62,14 @@ Source transcript/sidecar ──> SQLite knowledge store ──> Evidence bundle
           └──── authority during migration <──── review/evaluation history
 ```
 
+## Recording placement and retention
+
+[Recording storage lifecycle](recording-storage-lifecycle.md) records the accepted
+Plan0097 tiering, recovery, ownership and automated-retention design. It separates
+retained media identity from physical placement while preserving recording source
+provenance and erasure boundaries. Implementation qualification remains pending;
+this reference does not claim a completed authority or runtime cutover.
+
 ## Storage layers
 
 ### Immutable payload layer
