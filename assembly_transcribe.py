@@ -22,13 +22,14 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import math
 import os
 import subprocess
 import sys
 import tempfile
 import textwrap
 import time
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
@@ -98,6 +99,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         help="Audio/video file(s) or glob patterns to transcribe (quote globs on Windows shells).",
     )
 
+    parser.add_argument("--storage-root", type=Path, default=os.environ.get("TRANSCRIBE_STORAGE_ROOT"),
+                        help="Explicit installed storage policy scope (or TRANSCRIBE_STORAGE_ROOT).")
     api_key_group = parser.add_mutually_exclusive_group()
     api_key_group.add_argument(
         "--api-key-env",
@@ -351,48 +354,95 @@ def stream_file(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE):
             yield chunk
 
 
+def flac_output_bound(source_path: Path) -> int:
+    """Reserve lossless source-rate audio without changing its channels or bytes."""
+    probe = subprocess.run([
+        'ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries',
+        'stream=duration,sample_rate,channels:format=duration', '-of', 'json', str(source_path),
+    ], check=True, capture_output=True, text=True, timeout=30)
+    payload = json.loads(probe.stdout)
+    streams = payload.get('streams', [])
+    if not streams:
+        raise TranscriptionError('Video audio extraction failed: no bounded audio stream.')
+    stream = streams[0]
+    rate, channels = int(stream['sample_rate']), int(stream['channels'])
+    durations = []
+    for value in (stream.get('duration'), payload.get('format', {}).get('duration')):
+        try:
+            duration = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(duration) and duration > 0:
+            durations.append(duration)
+    if not durations or not 0 < rate <= 768000 or not 0 < channels <= 64:
+        raise TranscriptionError('Video audio extraction failed: unbounded audio dimensions.')
+    # Worst-case32-bit PCM plus lossless framing/padding. Kernel and ffmpeg
+    # limits enforce this bound even when container metadata is incorrect.
+    return math.ceil(max(durations) * rate * channels * 4 * 1.02) + 4 * 1024 * 1024
+
+
 @contextmanager
-def prepared_upload_path(source_path: Path) -> Iterator[Path]:
-    """Keep a private audio derivative alive only for a video upload."""
+def prepared_upload_path(source_path: Path, *, storage_root: Path | None = None) -> Iterator[Path]:
+    """Keep private, admitted lossless audio alive only for a video upload."""
     if source_path.suffix.lower() not in VIDEO_EXTENSIONS:
         yield source_path
         return
 
+    reservation, staging = nullcontext(None), None
+    storage_errors = ()
     try:
-        with tempfile.TemporaryDirectory(prefix="assembly-audio-") as directory:
-            audio_path = Path(directory) / "audio.flac"
-            print(f"Extracting audio from {source_path.name} for upload...", flush=True)
-            try:
-                subprocess.run(
-                    [
-                        "ffmpeg", "-nostdin", "-v", "error", "-xerror",
-                        "-i", str(source_path), "-map", "0:a:0", "-vn",
-                        "-map_metadata", "-1", "-c:a", "flac", str(audio_path),
-                    ],
-                    check=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                    timeout=AUDIO_EXTRACTION_TIMEOUT_SECONDS,
-                )
-            except FileNotFoundError as exc:
-                raise TranscriptionError(
-                    "ffmpeg is required to extract audio before uploading video."
-                ) from exc
-            except subprocess.TimeoutExpired as exc:
-                raise TranscriptionError("Video audio extraction timed out.") from exc
-            except subprocess.CalledProcessError as exc:
-                detail = (exc.stderr or b"").decode("utf-8", errors="replace")
-                detail = detail[-2000:].strip()
-                raise TranscriptionError(f"Video audio extraction failed: {detail}") from exc
-            if not audio_path.is_file() or audio_path.stat().st_size == 0:
-                raise TranscriptionError("Video audio extraction produced no audio.")
-            yield audio_path
+        scope = storage_root if storage_root is not None else os.environ.get('TRANSCRIBE_STORAGE_ROOT')
+        if scope:
+            from storage_catalog import StorageError
+            from storage_maintenance import MaintenanceHeld
+            storage_errors = (StorageError, MaintenanceHeld)
+            from storage_admission import admit_media_write, storage_policy_path
+            root = Path(scope).expanduser()
+            if storage_policy_path(root) is not None:
+                staging = root / 'upload-staging'
+                maximum = flac_output_bound(source_path)
+                reservation = admit_media_write(root, 'assembly-upload', maximum, transient_path=staging)
+        with reservation as lease:
+            if staging is not None:
+                staging.mkdir(mode=0o700, parents=True, exist_ok=True)
+                if staging.stat().st_uid != os.getuid() or staging.stat().st_mode & 0o077:
+                    raise TranscriptionError('Private owned upload staging required.')
+            with tempfile.TemporaryDirectory(prefix='assembly-audio-', dir=staging) as directory:
+                audio_path = Path(directory) / 'audio.flac'
+                print(f'Extracting audio from {source_path.name} for upload...', flush=True)
+                command = [
+                    'ffmpeg', '-nostdin', '-v', 'error', '-xerror',
+                    '-i', str(source_path), '-map', '0:a:0', '-vn',
+                    '-map_metadata', '-1', '-c:a', 'flac',
+                ]
+                if lease:
+                    lease.checkpoint(write_bytes=lease.limit)
+                    command = ['prlimit', f'--fsize={lease.limit}:{lease.limit}', '--',
+                               *command, '-fs', str(lease.limit - 65536)]
+                try:
+                    subprocess.run([*command, str(audio_path)], check=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                   timeout=AUDIO_EXTRACTION_TIMEOUT_SECONDS)
+                except FileNotFoundError as exc:
+                    raise TranscriptionError('ffmpeg is required to extract audio before uploading video.') from exc
+                except subprocess.TimeoutExpired as exc:
+                    raise TranscriptionError('Video audio extraction timed out.') from exc
+                except subprocess.CalledProcessError as exc:
+                    detail = (exc.stderr or b'').decode('utf-8', errors='replace')[-2000:].strip()
+                    raise TranscriptionError(f'Video audio extraction failed: {detail}') from exc
+                if not audio_path.is_file() or audio_path.stat().st_size == 0:
+                    raise TranscriptionError('Video audio extraction produced no audio.')
+                if lease and audio_path.stat().st_size >= lease.limit - 65536:
+                    raise TranscriptionError('Video audio extraction exceeded its storage reservation.')
+                yield audio_path
+    except storage_errors as exc:
+        raise TranscriptionError('Storage admission held: ' + str(exc)) from exc
     except OSError as exc:
-        raise TranscriptionError(f"Cannot prepare or upload video audio: {exc}") from exc
+        raise TranscriptionError(f'Cannot prepare or upload video audio: {exc}') from exc
 
 
-def upload_audio(session: requests.Session, audio_path: Path) -> str:
-    with prepared_upload_path(audio_path) as upload_path:
+def upload_audio(session: requests.Session, audio_path: Path, *, storage_root: Path | None = None) -> str:
+    with prepared_upload_path(audio_path, storage_root=storage_root) as upload_path:
         with closing(stream_file(upload_path)) as chunks:
             response = session.post(f"{DEFAULT_BASE_URL}/v2/upload", data=chunks)
         raise_for_status_with_details(response, context="Upload")
@@ -473,7 +523,8 @@ def process_audio_file(
 
     print(f"Uploading {audio_path} to AssemblyAI...", flush=True)
     try:
-        audio_url = upload_audio(session, audio_path)
+        scope = getattr(args, "storage_root", None)
+        audio_url = upload_audio(session, audio_path, **({"storage_root": scope} if scope is not None else {}))
     except (requests.RequestException, TranscriptionError) as exc:
         print(f"Upload failed: {exc}", file=sys.stderr)
         return False

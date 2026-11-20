@@ -31,6 +31,34 @@ def owned(path, config):
     return path
 
 
+def completed_registrations(db, policy):
+    """Published transcript links qualify custody, never an arbitrary directory."""
+    tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    columns = {row[1] for row in db.execute('PRAGMA table_info(blobs)')}
+    if not {'documents', 'document_blobs'} <= tables or 'original_path' not in columns:
+        return {}
+    result = {}
+    for identity, original, stored, document, raw in db.execute(
+            "SELECT b.id,b.original_path,b.stored_path,d.id,d.json_payload "
+            "FROM blobs b JOIN document_blobs l ON l.blob_id=b.id "
+            "JOIN documents d ON d.id=l.document_id "
+            "WHERE b.role='source_recording' AND d.kind='transcript'"):
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict) or not all(
+                isinstance(payload.get(key), str) and 0 < len(payload[key]) <= 256
+                for key in ('recording_id', 'conversation_id', 'backend')):
+            continue
+        aliases = [payload.get('source_media_path'), payload.get('working_media_path')]
+        if not ({original, stored} & {value for value in aliases if isinstance(value, str) and value}):
+            continue
+        result[identity] = {'custody_evidence': policy['custody_evidence'],
+                            'publication_document_id': document, 'active': False}
+    return result
+
+
 def refresh(config_path, adoption_path):
     """Reconcile current registered blobs and exact completed frozen derivatives.
 
@@ -43,9 +71,16 @@ def refresh(config_path, adoption_path):
     if adoption.get('version') != 1 or adoption.get('scope_roots') != config['source_roots']:
         raise ValueError('reviewed_adoption_scope_mismatch')
     objects, held = {}, []
-    catalog = Maintenance(config, config_path=config_path).catalog
+    controller = Maintenance(config, config_path=config_path)
+    catalog = controller.catalog
+    policy = adoption.get('completed_transcript_registration', {})
+    automatic = (isinstance(policy, dict) and bool(policy.get('custody_evidence'))
+                 and policy.get('root') == config['store_root']
+                 and policy.get('source_generation') == config['source_generation']
+                 and controller.qualified())
     approved = {entry['id']: entry for entry in adoption.get('objects', [])}
     with closing(sqlite3.connect(Path(config['live_database']).as_uri() + '?mode=ro', uri=True)) as db:
+        published = completed_registrations(db, policy) if automatic else {}
         for identity, path, digest in db.execute('SELECT id,stored_path,sha256 FROM blobs'):
             try:
                 path = catalog.object(identity)['logical_path']
@@ -53,6 +88,8 @@ def refresh(config_path, adoption_path):
                 pass
             path = owned(path, config)
             item = approved.get(identity, {})
+            if not item and identity in published:
+                item = {'id': identity, 'path': str(path), 'sha256': digest, **published[identity]}
             if (item.get('path') != str(path) or item.get('sha256') != digest
                     or not item.get('custody_evidence') or type(item.get('active')) is not bool):
                 held.append({'id': identity, 'path': str(path), 'reason': 'registered_blob_custody_unqualified'})
@@ -166,6 +203,10 @@ def account(config_path):
                 items[identity].update(state='retired', reason='')
             elif migration['phase'] == 'retirement-pending' and migration.get('reason') == 'copy_only':
                 items[identity].update(state='copy-only', reason=state.get('reason', 'copy_only'))
+        elif (item.get('classification') in ('canonical_source', 'source_recording')
+              and identity not in config.get('replica_proofs', {})
+              and identity not in config.get('copy_only_ids', [])):
+            items[identity].update(state='held', reason='independent_replica_custody_unqualified')
         elif not state:
             items[identity].update(state='held', reason='not_yet_migrated')
     # Each retirement is counted once from its original durable pass receipt.

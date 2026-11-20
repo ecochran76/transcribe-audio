@@ -3556,7 +3556,8 @@ def get_browser_playback_blob(
         return source
     store_root = store_dir(root)
     bounded_end_ms = max(1_000, min(int(end_ms or 86_400_000), 86_400_000))
-    cache_root = store_root / "playback-cache"
+    from storage_maintenance import plain
+    cache_root = plain(store_root / "playback-cache")
     cache_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(cache_root, 0o700)
     target = cache_root / f"{blob_id}-{bounded_end_ms}.mp3"
@@ -3577,39 +3578,33 @@ def get_browser_playback_blob(
     with PLAYBACK_CACHE_LOCK:
         if not target.is_file() or target.stat().st_size == 0:
             temporary = cache_root / f".{blob_id}-{bounded_end_ms}-{uuid.uuid4().hex}.mp3"
-            result = subprocess.run(
-                [
-                    ffmpeg_bin,
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-i",
-                    str(source["path"]),
-                    "-t",
-                    f"{bounded_end_ms / 1000:.3f}",
-                    "-vn",
-                    "-ac",
-                    "1",
-                    "-ar",
-                    "24000",
-                    "-codec:a",
-                    "libmp3lame",
-                    "-b:a",
-                    "48k",
-                    str(temporary),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=900,
-            )
-            if result.returncode != 0 or not temporary.is_file() or temporary.stat().st_size == 0:
+            from storage_admission import admit_media_write
+            from storage_catalog import StorageError
+            from storage_maintenance import MaintenanceHeld
+            maximum_bytes = bounded_end_ms * 6 + 1024 * 1024  # 48kbps plus bounded framing.
+            try:
+                with admit_media_write(store_root, 'playback-' + blob_id, maximum_bytes,
+                                       transient_path=cache_root) as lease:
+                    command = [ffmpeg_bin, '-hide_banner', '-loglevel', 'error', '-y',
+                        '-i', str(source['path']), '-t', f'{bounded_end_ms / 1000:.3f}',
+                        '-vn', '-ac', '1', '-ar', '24000', '-codec:a', 'libmp3lame', '-b:a', '48k']
+                    if lease:
+                        lease.checkpoint(write_bytes=lease.limit)
+                        command = ['prlimit', f'--fsize={lease.limit}:{lease.limit}', '--',
+                                   *command, '-fs', str(lease.limit - 65536)]
+                    result = subprocess.run([*command, str(temporary)], capture_output=True,
+                                            text=True, timeout=900)
+                    if (result.returncode != 0 or not temporary.is_file() or temporary.stat().st_size == 0
+                            or (lease and temporary.stat().st_size >= lease.limit - 65536)):
+                        raise TranscriptStoreError(
+                            f'Browser playback conversion failed for blob {blob_id}: {result.stderr[-500:]}')
+                    os.chmod(temporary, 0o600)
+                    os.replace(temporary, target)
+            except (StorageError, MaintenanceHeld) as error:
+                raise TranscriptStoreError('Browser playback storage held: ' + str(error)) from error
+            finally:
                 temporary.unlink(missing_ok=True)
-                raise TranscriptStoreError(
-                    f"Browser playback conversion failed for blob {blob_id}: {result.stderr[-500:]}"
-                )
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, target)
+
     return {
         **source,
         "path": target,
