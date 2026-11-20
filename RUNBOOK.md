@@ -19017,3 +19017,21 @@ preserve302 retirements and7 unmatched originals. PlanOPEN; source/runtime7aa875
 No additional sourcefix, review or tests; no provider/Speech/sharedLocalAI/memory
 writes. Memory disposition forbidden by explicit wake boundary. Private checkpoint
 and unique time-resume terminal marker record continuation separately from success.
+
+
+## Plan0104 authenticated-time recovery checkpoint
+
+The next terminal run retired344/826 cumulative matched originals,
+66,597,264,045 logical bytes; cumulative exclusive recovery105,111,683,072 bytes
+(incremental original66,599,198,720).482 matched originals remain, plus7 unmatched.
+Three30s recovery attempts preserved the same time hold. Actual captured supported
+StableTime response now establishes bound=unbounded, reason=cache_age_exceeded,
+netnod acquisition_timeout, awaiting_fresh_acquisition, evidence age300.166s beyond
+300s. This is unavailable qualified service evidence, not a malformed-client or
+proof of unrelated provider failure. Do not weaken time validation or substitute
+WSL time. Native continuation uses a bounded qualified-time recovery window before
+resuming the same per-pass limits; no service configuration or source change.
+API206/exact WAV/all896 frozen identities passed; timer restored enabled/active,
+service success/inactive. Plan staysOPEN; preserve every retired journal and the
+recorded failure. No new tests/review/inference/shared-owner/memory effects.
+Memory disposition forbidden by explicit wake boundary.
