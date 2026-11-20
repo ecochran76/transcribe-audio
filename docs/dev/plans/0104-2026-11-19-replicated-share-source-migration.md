@@ -62,3 +62,23 @@ maintenance/catalog/initial selection46passed in19.44s with the existing qualifi
 PYTHONPATH. Read-only actual share qualification passed. Resume uses all existing
 registrations/journals; per-file full content and identity checks remain mandatory.
 Native successor acceptance is pending.
+
+
+## Four-pass native checkpoint
+
+Successor on7aa8757 retired302 of826 matched canonical originals across four
+bounded passes,54,626,726,502 logical bytes. Durable cumulative exclusive block
+recovery is93,140,905,984 bytes including the earlier38,512,484,352 derivative
+recovery; incremental canonical recovery54,628,421,632 bytes. The fourth pass
+held on stable_time_client_invalid_evidence. Its original response was not retained,
+so the exception alone does not establish a StableTime service outage or exact
+field failure. Fresh authenticated supported responses subsequently qualified at
+both primary and native worker. Resume remaining524 using unchanged trusted-time
+validation and existing catalog/journal. One published placement can reconcile;
+never copy already retired objects again. Seven unmatched originals stay protected.
+Cold API206, exact WAV and all896 frozen identities passed. Hourly timer restored
+enabled/active after the held run; another native resume pauses it only while the
+single controller owns consecutive passes and restores it on finalization.
+Plan remains OPEN until terminal native acceptance of all eligible candidates or
+explicit final holds. No code change or repeated broad review/testing is needed
+for fresh qualified time observations.

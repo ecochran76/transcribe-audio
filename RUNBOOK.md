@@ -19000,3 +19000,20 @@ checkpoint retain evidence. Terminal wake retained on unique successor done mark
 monitor ready but currently held for prior-wake history reconciliation, so automatic
 delivery is not yet qualified. Plan stays OPEN. No new broad review/tests/provider
 calls. Memory disposition forbidden by explicit wake boundary; no memory write.
+
+
+## Plan0104 four-pass wake reconciliation
+
+Terminal successor receipt:302/826 matched canonical originals retired,
+54,626,726,502 logical bytes; cumulativeexclusive93,140,905,984 bytes (incremental
+canonical54,628,421,632). Four passes honored16GiB writes/30min external-time limits.
+Fourth held stable_time_client_invalid_evidence; no bad response retained, so no
+outage/exact-field claim. Fresh real supportedHTTPS/v1/time responses200 finite
+qualified_live NTS2operators decoded successfully at primary/native worker.
+Cold API206/WAV and896 frozen identities passed; zero provider validation requests.
+Hourly restored active/enabled, service success/inactive on readback. Resume524
+remaining candidates under unchanged policy, reconcile one published object,
+preserve302 retirements and7 unmatched originals. PlanOPEN; source/runtime7aa8757.
+No additional sourcefix, review or tests; no provider/Speech/sharedLocalAI/memory
+writes. Memory disposition forbidden by explicit wake boundary. Private checkpoint
+and unique time-resume terminal marker record continuation separately from success.
