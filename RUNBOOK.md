@@ -18988,3 +18988,15 @@ the same public regression with stacked autofs/CIFS: observed red. Read-only liv
 check now accepts the actual CIFS replica with current consumer qualification.
 Historical run/proofs remain intact. Successor migration will reuse registrations
 and journal, preserving all prior retirement receipts. No provider operations.
+
+
+Plan0104 successor7aa8757 installed and runtime-qualified; actual replicated CIFS
+proof accepted. Durable successor parent2193706/pass2193780, invocation recorded
+privately. First4 canonical old placements genuinely retired (99,868,990 logical
+bytes), exact replica verification/custody journaled, old NVMe paths absent and
+cold copies present. Migration continues toward826 candidates; this is not terminal
+acceptance or a full recovery claim. Private first-retirements receipt and restart
+checkpoint retain evidence. Terminal wake retained on unique successor done marker;
+monitor ready but currently held for prior-wake history reconciliation, so automatic
+delivery is not yet qualified. Plan stays OPEN. No new broad review/tests/provider
+calls. Memory disposition forbidden by explicit wake boundary; no memory write.
