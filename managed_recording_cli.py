@@ -126,18 +126,25 @@ def attribute_words(words, turns):
     return utterances
 
 
-def _decode(source, destination, timeout):
+def _decode(source, destination, timeout, *, maximum_bytes=None):
     if destination.exists():
         raise RecordingProcessingError('uncheckpointed decoded artifact requires reconciliation')
     fd, temporary = tempfile.mkstemp(dir=destination.parent, suffix='.wav')
     os.close(fd)
     try:
-        result = subprocess.run([
+        command = [
             'ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
             '-i', str(source), '-map', '0:a:0', '-vn', '-ac', '1', '-ar', '16000',
-            '-c:a', 'pcm_s16le', '-bitexact', '-f', 'wav', temporary,
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=timeout)
-        if result.returncode:
+            '-c:a', 'pcm_s16le', '-bitexact', '-f', 'wav',
+        ]
+        if maximum_bytes is not None:
+            # prlimit execs ffmpeg with a kernel hard bound; -fs alone may overshoot.
+            command = ['prlimit', '--fsize=' + str(maximum_bytes) + ':' + str(maximum_bytes), '--',
+                       *command, '-fs', str(maximum_bytes - 65536)]
+        result = subprocess.run([*command, temporary], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, timeout=timeout)
+        if result.returncode or (maximum_bytes is not None
+                                 and Path(temporary).stat().st_size >= maximum_bytes - 65536):
             raise RecordingProcessingError('CPU media decode failed')
         os.chmod(temporary, 0o400)
         os.replace(temporary, destination)
@@ -145,6 +152,28 @@ def _decode(source, destination, timeout):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def _decoded_byte_bound(source, timeout):
+    probe = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                            '-show_entries', 'stream=duration:format=duration', '-of', 'json', str(source)],
+                           capture_output=True, text=True, timeout=min(timeout, 30), check=True)
+    result = json.loads(probe.stdout)
+    values = [item.get('duration') for item in result.get('streams', [])]
+    values.append(result.get('format', {}).get('duration'))
+    durations = []
+    for value in values:
+        try:
+            duration = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(duration) and duration > 0:
+            durations.append(duration)
+    if not durations:
+        raise RecordingProcessingError('bounded audio duration required for storage admission')
+    # PCM payload plus bounded container/decoder padding. Hitting either output
+    # limit is a failed decode, never an accepted truncated recording.
+    return math.ceil(max(durations) * 32000) + 2 * 1024 * 1024
 
 
 def _publish(output, key, source, config, old, *, storage_root=None, logical_source=None):
@@ -283,7 +312,14 @@ def _run(source, config, *, recording_id=None, conversation_id=None, existing_tr
             _save(manifest_path, manifest)
         derivative = decoded/(key+'.wav')
         if 'decoded_sha256' not in manifest:
-            _decode(source, derivative, decode_timeout)
+            from storage_admission import admit_media_write, storage_policy_path
+            if storage_policy_path(storage_root) is None:
+                _decode(source, derivative, decode_timeout)
+            else:
+                bound = _decoded_byte_bound(source, decode_timeout)
+                with admit_media_write(storage_root, 'decode-' + key, bound) as lease:
+                    lease.checkpoint(write_bytes=bound)
+                    _decode(source, derivative, decode_timeout, maximum_bytes=lease.limit)
             if _hash_file(source) != source_hash:
                 raise RecordingProcessingError('original source changed during CPU decode')
             manifest['decoded_sha256'] = _hash_file(derivative)

@@ -134,41 +134,49 @@ class RecordingProcessor:
                 frames_per_unit = int(self.config['unit_seconds']*16000)
                 if frames_per_unit < 1:
                     raise ValueError('unit must include a frame')
-                offset = 0
-                while True:
-                    frames = audio.readframes(frames_per_unit)
-                    if not frames:
-                        break
-                    data = io.BytesIO()
-                    with wave.open(data, 'wb') as output:
-                        output.setparams((1, 2, 16000, 0, 'NONE', ''))
-                        output.writeframes(frames)
-                    content = data.getvalue()
-                    sha = _digest(content)
-                    artifact = sha+'.wav'
-                    path = self.spool/artifact
-                    try:
-                        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
-                    except FileExistsError:
-                        if path.is_symlink() or _digest(path.read_bytes()) != sha:
-                            raise RecordingProcessingError('staged artifact conflict')
-                    else:
-                        with os.fdopen(fd, 'wb') as out:
-                            out.write(content)
-                            out.flush()
-                            os.fsync(out.fileno())
-                    unit = dict(offset_seconds=offset/16000, duration_seconds=len(frames)/32000,
-                                artifact_id=artifact, sha256=sha, stages={})
-                    for stage, profile in self.config['profiles'].items():
-                        request_id = stage+'-'+_digest(_json([key, len(units), stage, 0]).encode())
-                        request = dict(id=request_id, **profile, workload_class='historical',
-                                       payload=dict(artifact_id=artifact, sha256=sha,
-                                                    options=identity['options']))
-                        if 'max_workers' in self.config:
-                            request['max_workers'] = self.config['max_workers']
-                        unit['stages'][stage] = dict(state='pending', attempt=0, request=request, history=[])
-                    units.append(unit)
-                    offset += len(frames)//2
+                from storage_admission import admit_media_write
+                frame_count = audio.getnframes()
+                if frame_count < 1:
+                    raise ValueError('empty recording')
+                maximum_bytes = 2 * frame_count + 44 * ((frame_count + frames_per_unit - 1) // frames_per_unit)
+                with admit_media_write(self.source_store_root, 'stage-' + key, maximum_bytes) as lease:
+                    offset = 0
+                    while True:
+                        frames = audio.readframes(frames_per_unit)
+                        if not frames:
+                            break
+                        data = io.BytesIO()
+                        with wave.open(data, 'wb') as output:
+                            output.setparams((1, 2, 16000, 0, 'NONE', ''))
+                            output.writeframes(frames)
+                        content = data.getvalue()
+                        sha = _digest(content)
+                        artifact = sha+'.wav'
+                        path = self.spool/artifact
+                        try:
+                            if lease:
+                                lease.checkpoint(write_bytes=len(content))
+                            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
+                        except FileExistsError:
+                            if path.is_symlink() or _digest(path.read_bytes()) != sha:
+                                raise RecordingProcessingError('staged artifact conflict')
+                        else:
+                            with os.fdopen(fd, 'wb') as out:
+                                out.write(content)
+                                out.flush()
+                                os.fsync(out.fileno())
+                        unit = dict(offset_seconds=offset/16000, duration_seconds=len(frames)/32000,
+                                    artifact_id=artifact, sha256=sha, stages={})
+                        for stage, profile in self.config['profiles'].items():
+                            request_id = stage+'-'+_digest(_json([key, len(units), stage, 0]).encode())
+                            request = dict(id=request_id, **profile, workload_class='historical',
+                                           payload=dict(artifact_id=artifact, sha256=sha,
+                                                        options=identity['options']))
+                            if 'max_workers' in self.config:
+                                request['max_workers'] = self.config['max_workers']
+                            unit['stages'][stage] = dict(state='pending', attempt=0, request=request, history=[])
+                        units.append(unit)
+                        offset += len(frames)//2
             verification = hashlib.sha256()
             with source.open('rb') as stream:
                 for block in iter(lambda: stream.read(1024*1024), b''):

@@ -688,7 +688,8 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
     stored_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(stored_path.parent, 0o700)
     if not stored_path.exists() or sha256_file(stored_path) != artifact_hash:
-        shutil.copy2(resolved, stored_path)
+        from storage_admission import copy_admitted_media
+        copy_admitted_media(root, resolved, stored_path, owner="blob-" + blob_id, sha256=artifact_hash)
     os.chmod(stored_path, 0o600)
     return {
         "id": blob_id,
