@@ -1,8 +1,8 @@
 # 0103: Install and account for direct initial migration
 
 State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+Status: in-progress
+Owner: /root/storage_initial_0103
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build

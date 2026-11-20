@@ -193,21 +193,22 @@
       "blockers": [
         "0102"
       ],
-      "state": "pending",
-      "tracker_state": "ready-for-agent",
+      "state": "running",
+      "tracker_state": "in-progress",
       "owned_paths": [
         "scripts/initial_storage_migration.py",
         "tests/test_initial_storage_migration.py",
         "docs/storage-operations.md"
       ],
-      "worker": null,
-      "worktree": null,
-      "base": null,
+      "worker": "/root/storage_initial_0103",
+      "worktree": "/home/ecochran76/worktrees/transcribe-storage-initial-0103",
+      "base": "88e42cbf6919afc711457999c274e5497d56f167",
       "result_sha": null,
-      "validation": []
+      "validation": [],
+      "phase": "source_candidate_before_native"
     }
   ],
-  "tip": "5f08a65",
+  "tip": "88e42cbf6919afc711457999c274e5497d56f167",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
   "review_fixed_point_status": "proposed_to_user_pending_reply"
 }
