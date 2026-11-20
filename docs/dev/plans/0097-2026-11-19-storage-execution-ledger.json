@@ -138,21 +138,53 @@
         "0100",
         "0101"
       ],
-      "state": "running",
-      "tracker_state": "in-progress",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "storage_maintenance.py",
         "scripts/storage_maintenance.py",
         "scripts/install_storage_maintenance.py",
         "systemd/transcribe-storage-maintenance.service",
         "systemd/transcribe-storage-maintenance.timer",
-        "tests/test_storage_maintenance.py"
+        "tests/test_storage_maintenance.py",
+        "storage_catalog.py",
+        "storage_backups.py",
+        "storage_access.py",
+        "managed_recording.py",
+        "managed_recording_cli.py",
+        "transcript_store.py",
+        "storage_admission.py",
+        "tests/test_storage_admission.py"
       ],
       "worker": "/root/storage_maintenance_0102",
       "worktree": "/home/ecochran76/worktrees/transcribe-storage-maintenance-0102",
       "base": "b54d69f57c83167e24e95c69571104bfe3e82561",
-      "result_sha": null,
-      "validation": []
+      "result_sha": "b436cd3f7b9a1c0185a42394f672c87308f75ba3",
+      "validation": [
+        {
+          "command": "installed qualification PYTHONPATH; main .venv/bin/python -m pytest -q tests/test_storage_catalog.py tests/test_storage_policy.py tests/test_storage_backups.py tests/test_storage_consumers.py tests/test_storage_maintenance.py tests/test_storage_admission.py tests/test_managed_recording.py",
+          "source": "b879664",
+          "result": "75passed in17.90s"
+        },
+        {
+          "command": "same interpreter/PYTHONPATH -m pytest -q tests/test_storage_admission.py",
+          "source": "5f08a65",
+          "result": "4passed in2.78s; actual bounded CPU decode/staging+synthetic local service publication/resume"
+        },
+        {
+          "command": "producer vertical red tests for blob,staging,decode admission",
+          "result": "each failed before corresponding hook; nowgreen"
+        },
+        {
+          "command": "commit fast checks and git diff --check",
+          "result": "passed"
+        }
+      ],
+      "integration_tip": "5f08a65",
+      "coordinator_commits": [
+        "1ceaec0",
+        "5f08a65"
+      ]
     },
     {
       "id": "0103",
@@ -175,7 +207,7 @@
       "validation": []
     }
   ],
-  "tip": "04a320ad83659229bffe0de9beca5b2ffd5f99b9",
+  "tip": "5f08a65",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
   "review_fixed_point_status": "proposed_to_user_pending_reply"
 }

@@ -1,7 +1,7 @@
 # 0102: Operator CLI and bounded recurring storage maintenance
 
-State: OPEN
-Status: in-progress
+State: CLOSED
+Status: complete
 Owner: /root/storage_maintenance_0102
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
@@ -18,14 +18,14 @@ Operator CLI and bounded recurring storage maintenance, as a complete operator-v
 
 ## Acceptance Criteria
 
-- [ ] Provide inventory, plan, migrate/reconcile, status, backup/restore and maintenance commands with private configuration/receipts.
-- [ ] Use StableTime supported client/API and validated mount metadata, without fallback to guest time or absent mountpoint directory.
-- [ ] Run one hourly worker with scope, bytes/time, retries, reservations, pins and per-item held states.
-- [ ] Provide installable user service/timer and source-generation/config identity without activating private stores in tests.
+- [x] Provide inventory, plan, migrate/reconcile, status, backup/restore and maintenance commands with private configuration/receipts.
+- [x] Use StableTime supported client/API and validated mount metadata, without fallback to guest time or absent mountpoint directory.
+- [x] Run one hourly worker with scope, bytes/time, retries, reservations, pins and per-item held states.
+- [x] Provide installable user service/timer and source-generation/config identity without activating private stores in tests.
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Validated integrated controller, hourly units and producer admission at5f08a65.75focused checks passed atb879664;4producer checks passed after final path guard, including actual bounded CPU publication and unchanged resume. Native installation and migration remain0103. Producer policy is explicit store_root/storage-maintenance.json outside frozen processing config.
 
 ## Scope and Non-Goals
 
