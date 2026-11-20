@@ -99,7 +99,7 @@ def erasure_catalog_paths(root, digest):
         return set(), set()
     paths, retired_aliases = set(), set()
     for record in catalog.objects():
-        if record['sha256'] != digest:
+        if record['sha256'] != digest and catalog.origin(record['id']) != digest:
             continue
         if catalog.is_pinned(record['id']):
             raise ValueError('speech_owner_storage_reader_active')

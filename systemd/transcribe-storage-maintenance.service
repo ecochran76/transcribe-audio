@@ -1,0 +1,14 @@
+[Unit]
+Description=Bounded Transcribe Audio storage reconciliation
+
+[Service]
+Type=oneshot
+ExecStart=@PYTHON@ @SCRIPT@ --config @CONFIG@ maintenance
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+Nice=10
+IOSchedulingClass=idle
+# OS timeout is a final containment backstop, not the trusted elapsed authority.
+TimeoutStartSec=35min
+KillMode=control-group
