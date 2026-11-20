@@ -1473,7 +1473,11 @@ TTS/modelacceptance and backlogactivation remain separate.
 
 ## P11 | Storage Lifecycle And Initial Migration
 
-State: CLOSED
+State: OPEN
+
+Follow-up: Plan0104 adopts operator-confirmed replicated-share custody and migrates
+eligible canonical originals. Plan0097 and tickets0098-0103 remain CLOSED.
+The same catalog/content/ownership gates apply; unmatched sources stay held.
 
 Current State: Plan0097 Q1-Q17 are accepted, including the Q16 override removing
 native canaries and a 24-hour hold. The consolidated recording-storage lifecycle
@@ -1491,6 +1495,7 @@ new managed profile remains unqualified/disabled at its shared-owner boundary.
 Plans:
 
 - `docs/dev/plans/0097-2026-11-19-storage-lifecycle-and-initial-migration.md`
+- `docs/dev/plans/0104-2026-11-19-replicated-share-source-migration.md`
 
 Definition of Done:
 

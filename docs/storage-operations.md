@@ -81,6 +81,18 @@ on subsequent passes. Independent replicas must pass physical disk identity,
 content and durable custody checks; another pathname on the HDD backing disk is
 insufficient. Never provision recovery copies on another volume without authority.
 
+An operator-confirmed peer-replicated network share can supply the independent
+replica without provisioning another backup. A private per-object proof uses
+`kind: replicated_share`, `path`, `identity` (the complete file_identity tuple),
+`sha256`, nonempty reviewed `custody`, and `share_mount` containing `mount_point`,
+`filesystem` and `source`. The controller checks the actual longest covering
+mount against that exact identity and permits CIFS, NFS/NFS4 or SSHFS; a local
+fallback directory or changed mount does not qualify. Topology attestation does
+not establish file coverage. The catalog still checks each exact replica's full
+content and stable identity and journals/rechecks the proof before unlinking NVMe.
+Missing or conflicting matches remain held; the replicated share is read-only
+for this migration and must not receive propagated source deletions.
+
 Initial passes may run consecutively. Each remains bounded to 16 GiB payload
 writes including retries and 30 minutes using fresh StableTime observations.
 Byte accounting applies to every chunk; time observations occur at safe I/O

@@ -390,6 +390,31 @@ class Maintenance:
             return None, '', 'independent_replica_custody_unqualified'
         try:
             path = plain(proof['path'])
+            if proof.get('kind') == 'replicated_share':
+                # Peer redundancy is operator-reviewed custody evidence. Bind it
+                # to the actual remote mount, never a local fallback directory.
+                expected = proof['share_mount']
+                mount = plain(expected['mount_point'])
+                if (mount == Path('/') or not path.is_relative_to(mount)
+                        or not isinstance(proof['custody'], str) or not proof['custody'].strip()
+                        or proof['sha256'] != item['sha256']
+                        or file_identity(path) != proof['identity']):
+                    raise ValueError()
+                observed = []
+                for line in Path('/proc/self/mountinfo').read_text().splitlines():
+                    parts = line.split()
+                    unescape = lambda value: re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), value)
+                    point = Path(unescape(parts[4]))
+                    if path == point or path.is_relative_to(point):
+                        separator = parts.index('-')
+                        observed.append((point, parts[separator + 1], unescape(parts[separator + 2])))
+                point, filesystem, remote = max(observed, key=lambda row: len(row[0].parts))
+                if (point != mount or filesystem not in {'cifs', 'nfs', 'nfs4', 'fuse.sshfs'}
+                        or filesystem != expected['filesystem'] or remote != expected['source']):
+                    raise ValueError()
+                # StorageCatalog verifies the replica's full content and stable
+                # identity, journals this custody and rechecks before unlink.
+                return path, 'remote-share:' + filesystem + ':' + remote, ''
             cold = proof['cold_backing_drive'].upper()
             drive = proof['replica_drive'].upper()
             if (not re.fullmatch('[A-Z]', cold) or not re.fullmatch('[A-Z]', drive)

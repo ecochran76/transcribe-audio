@@ -6,6 +6,12 @@ conversation as a whole.
 
 ## Recording Storage Lifecycle
 
+**Independent Recording Replica**:
+A verified exact source copy with reviewed durable custody outside the cold
+archive's failure domain. An operator-confirmed peer-replicated share can qualify
+when its actual remote mount and the particular file's bytes/identity are verified.
+_Avoid_: A second pathname alone, unverified replication coverage
+
 **Canonical Recording Source**:
 The retained original captured media for a recording, including its original video
 when present. Its identity is preserved when its storage location changes.

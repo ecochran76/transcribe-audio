@@ -18959,3 +18959,20 @@ published; monthly drill not_due. Unit success/inactive/MainPID0; timer stays
 enabled/active. Fresh NVMe free353,097,248,768 bytes (91%used). Private proof:
 first-scheduled-run-verification.json. Earlier pending observation is superseded;
 no extra backup, review or TDD pass was started.
+
+
+## Replicated-share source migration follow-up (Plan0104)
+
+Operator confirmed Syncthing/backups peer redundancy and authorized proceeding.
+Added explicit replicated_share replica proof support: exact actual remote mount
+point/filesystem/source, reviewed custody, file identity and registered hash bind
+qualification. Existing catalog still performs full replica hashes and durable
+proof/recheck before NVMe retirement. No Syncthing configuration/deletions, new
+backup provisioning, inference or shared-owner mutation. Private native worker
+found787/833 name/size/identity candidates; content verification remains pending.
+Focused public replica test observed1failure before fix, then1pass. Affected
+maintenance/catalog/initial adapter selection:46passed in10.27s with existing main
+venv and installed qualification PYTHONPATH. First invocation lacked that required
+PYTHONPATH and had45pass/1ModuleNotFoundError; corrected environment, no source fix.
+No hosted CI; no new broad review or Plan0097 remediation cycle. Runtime installation
+and per-object migration acceptance remain pending, not implied by passing tests.

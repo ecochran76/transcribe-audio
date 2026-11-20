@@ -96,6 +96,37 @@ def qualify_operator(tmp_path, config):
 from pathlib import Path
 
 
+def test_replicated_share_qualifies_exact_mount_and_fails_closed(tmp_path, monkeypatch):
+    from storage_catalog import file_identity
+    config, catalog, source = setup_operator(tmp_path)
+    share = tmp_path / 'share'
+    share.mkdir()
+    replica = share / 'original.wav'
+    replica.write_bytes(b'exact bytes')
+    proof = {'kind': 'replicated_share', 'path': str(replica),
+             'identity': file_identity(replica), 'sha256': hashlib.sha256(b'exact bytes').hexdigest(),
+             'custody': 'operator-confirmed peer redundancy; private exact-match receipt',
+             'share_mount': {'mount_point': str(share), 'filesystem': 'cifs',
+                             'source': '//backup-host/recordings'}}
+    config['replica_proofs'] = {'one': proof}
+    runner = Maintenance(config, catalog=catalog, clock=lambda: TimeObservation(100))
+    original_read = Path.read_text
+    mountinfo = [f'1 0 8:1 / / rw - ext4 /dev/root rw\n'
+                 f'2 1 0:99 / {share} rw - cifs //backup-host/recordings rw\n']
+    monkeypatch.setattr(Path, 'read_text', lambda path, *args, **kwargs:
+        mountinfo[0] if str(path) == '/proc/self/mountinfo' else original_read(path, *args, **kwargs))
+    item = {'id': 'one', 'sha256': proof['sha256']}
+    assert runner.replica(item) == (replica, 'remote-share:cifs://backup-host/recordings', '')
+    # An absent/replaced mount must not qualify an ordinary local directory.
+    mountinfo[0] = '1 0 8:1 / / rw - ext4 /dev/root rw\n'
+    assert runner.replica(item)[0] is None
+    mountinfo[0] += f'2 1 0:99 / {share} rw - cifs //different-host/recordings rw\n'
+    assert runner.replica(item)[0] is None
+    mountinfo[0] = mountinfo[0].replace('//different-host', '//backup-host')
+    proof['custody'] = ''
+    assert runner.replica(item)[0] is None
+
+
 def test_qualified_inventory_migrates_derivative_and_origin_fence_blocks_access(tmp_path):
     from storage_catalog import StorageError
     config, catalog, source = setup_operator(tmp_path)
