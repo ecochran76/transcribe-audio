@@ -254,7 +254,20 @@ class Maintenance:
             return False
 
     def discover(self):
+        self.metadata, self.deferred = {}, {}
         qualified = self.qualified()
+
+        def defer(item, reason):
+            path = plain(item['path'])
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = 0
+            self.deferred[item['id']] = {'id': item['id'], 'sha256': item['sha256'],
+                'classification': item.get('classification', 'unclassified'), 'size': size,
+                'logical_path': str(path), 'active_path': str(path), 'guard': '{}',
+                'deferred_reason': reason, 'content_verified': False}
+
         for filename in self.config.get('inventories', []):
             inventory = private_json(filename)
             if (not qualified or inventory.get('version') != 1
@@ -263,6 +276,11 @@ class Maintenance:
                 continue
             for item in inventory['objects']:
                 self.metadata[item['id']] = item
+                if (item.get('classification') in ('canonical_source', 'source_recording')
+                        and item['id'] not in self.config.get('replica_proofs', {})
+                        and item['id'] not in self.config.get('copy_only_ids', [])):
+                    defer(item, 'independent_replica_custody_unqualified')
+                    continue
                 try:
                     existing = self.catalog.object(item['id'])
                     origin = item.get('source_sha256', item.get('related_source_sha256'))
@@ -280,12 +298,19 @@ class Maintenance:
                 for identity, path, digest, role in db.execute('SELECT id,stored_path,sha256,role FROM blobs'):
                     if not any(plain(path).is_relative_to(plain(p)) for p in self.config['source_roots']):
                         continue
+                    if identity in self.deferred:
+                        continue
                     try:
                         self.catalog.object(identity)
                     except LookupError:
-                        # Blob roles alone do not establish active worker custody.
-                        self.catalog.register(identity, Path(path), classification='unclassified', expected_sha256=digest)
-        return self.catalog.objects()
+                        # Preserve a visible hold without hashing/copying bytes
+                        # whose publication/custody has not been qualified.
+                        defer({'id': identity, 'path': path, 'sha256': digest},
+                              'registered_blob_custody_unqualified')
+        records = {item['id']: item for item in self.catalog.objects()}
+        for identity, item in self.deferred.items():
+            records.setdefault(identity, item)
+        return list(records.values())
 
     def plan(self):
         try:
@@ -294,6 +319,9 @@ class Maintenance:
             now = None
         result = []
         for item in self.discover():
+            if item['id'] in self.deferred:
+                result.append({**item, 'action': 'hold', 'reason': self.deferred[item['id']]['deferred_reason']})
+                continue
             metadata = self.metadata.get(item['id'], {})
             def observation(key):
                 value = metadata.get(key)

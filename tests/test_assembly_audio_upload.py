@@ -64,11 +64,25 @@ class LocalProvider:
                                                  "end": 500, "text": "Synthetic test."}]})
 
 
+@pytest.mark.parametrize("scoped", [False, True])
 def test_video_processing_uploads_audio_and_keeps_original_outputs(
-    tmp_path, monkeypatch,
+    tmp_path, monkeypatch, scoped,
 ):
     source = tmp_path / "meeting.mkv"
     make_video(source)
+    if scoped:
+        import shutil
+        from storage_catalog import StorageCatalog
+        root = tmp_path / 'store'
+        StorageCatalog(root)
+        policy = {'store_root': str(root), 'source_roots': [str(tmp_path)],
+                  'transient_roots': [str(root / 'upload-staging')],
+                  'state_root': str(root / 'admission')}
+        config = root / 'storage-maintenance.json'
+        config.write_text(json.dumps(policy))
+        config.chmod(0o600)
+        monkeypatch.setenv('TRANSCRIBE_STORAGE_ROOT', str(root))
+        monkeypatch.setattr(shutil, 'disk_usage', lambda _: type('Usage', (), {'free': 200 * 1024 ** 3})())
     before = source.read_bytes()
     os.utime(source, (1700000000, 1700000000))
     work = tmp_path / "work"
@@ -225,3 +239,30 @@ def test_calendar_association_and_rename_use_original_recording(tmp_path, monkey
     assert "Synthetic meeting" in working.name
     assert working.read_bytes() == before
     assert not source.exists()  # existing calendar rename retains video bytes
+
+
+def test_scoped_video_extraction_requires_storage_policy_before_writing(tmp_path, monkeypatch):
+    from storage_catalog import StorageCatalog
+    source = tmp_path / 'meeting.mkv'
+    make_video(source)
+    root = tmp_path / 'store'
+    StorageCatalog(root)
+    monkeypatch.setenv('TRANSCRIBE_STORAGE_ROOT', str(root))
+    with pytest.raises(assembly.TranscriptionError, match='storage_configuration_required'):
+        with assembly.prepared_upload_path(source):
+            pytest.fail('unadmitted expanded audio was produced')
+    assert not list(root.rglob('*.flac'))
+
+
+def test_explicit_storage_scope_overrides_environment_before_upload(tmp_path, monkeypatch, capsys):
+    from storage_catalog import StorageCatalog
+    source = tmp_path / 'meeting.mkv'
+    make_video(source)
+    root = tmp_path / 'store'
+    StorageCatalog(root)
+    monkeypatch.setenv('TRANSCRIBE_STORAGE_ROOT', str(tmp_path / 'other-store'))
+    uploaded = tmp_path / 'upload.flac'
+    monkeypatch.setattr(assembly.requests, 'Session', lambda: LocalProvider(uploaded))
+    assert assembly.main([str(source), '--api-key', 'unused', '--storage-root', str(root)]) == 1
+    assert 'storage_configuration_required' in capsys.readouterr().err
+    assert not uploaded.exists()

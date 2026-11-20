@@ -79,3 +79,35 @@ def test_configured_cpu_decode_and_staging_publish_without_changing_generation(r
     # A completed resume needs no new reservation and must retain its generation.
     path.unlink()
     assert run(source, config, recording_id='recording', conversation_id='conversation', storage_root=root) == result
+
+
+def test_browser_cache_obeys_policy_and_reuses_existing_audio(tmp_path, monkeypatch):
+    import json
+    import shutil
+    from transcript_api import get_browser_playback_blob
+    from transcript_store import TranscriptStoreError
+    from tests.test_managed_recording import audio
+    from transcript_store import ingest_artifact, prepare_blob
+    root = tmp_path / 'store'
+    original = audio(tmp_path / 'source.wav')
+    artifact = tmp_path / 'transcript.json'
+    artifact.write_text(json.dumps({'source_media_path': str(original), 'transcript_text': 'clip',
+                                    'backend': 'synthetic', 'utterances': []}))
+    ingest_artifact(artifact, root=root, embedding_provider='debug-hash', embedding_model='debug-hash')
+    blob = prepare_blob(root, str(original))
+    StorageCatalog(root)
+    before = original.read_bytes()
+    with pytest.raises(TranscriptStoreError, match='storage_configuration_required'):
+        get_browser_playback_blob(blob['id'], root=root, end_ms=1000)
+    assert not list((root / 'playback-cache').glob('*.mp3'))
+    policy = root / 'storage-maintenance.json'
+    policy.write_text(json.dumps({'store_root': str(root), 'source_roots': [str(root)],
+        'transient_roots': [str(root / 'playback-cache')], 'state_root': str(root / 'admission')}))
+    policy.chmod(0o600)
+    monkeypatch.setattr(shutil, 'disk_usage', lambda _: type('Usage', (), {'free': 200 * 1024 ** 3})())
+    result = get_browser_playback_blob(blob['id'], root=root, end_ms=1000)
+    assert result['mime_type'] == 'audio/mpeg'
+    assert result['bytes'] > 0
+    policy.unlink()
+    assert get_browser_playback_blob(blob['id'], root=root, end_ms=1000) == result
+    assert original.read_bytes() == before

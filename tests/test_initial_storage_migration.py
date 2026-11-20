@@ -91,22 +91,31 @@ def test_full_tracked_install_ignores_checkout_dirt_and_rejects_changed_release(
         install_product(source, tmp_path / 'releases', commit)
 
 
-def test_canonical_without_replica_held_before_any_payload_write(tmp_path):
+@pytest.mark.parametrize("registered", [True, False])
+def test_canonical_without_replica_held_before_any_payload_write(tmp_path, registered):
     config, path = environment(tmp_path)
     blob = Path(config['store_root']) / 'source.mp4'
     blob.write_bytes(b'original')
     catalog = StorageCatalog(Path(config['store_root']), cold_root=Path(config['cold_root']),
         validate_cold=lambda _: {'identity': 'cold', 'failure_domain': 'disk-b'})
-    catalog.register('source', blob, classification='canonical_source')
+    digest = config_digest(blob)
+    if registered:
+        catalog.register('source', blob, classification='canonical_source')
+    else:
+        with sqlite3.connect(config['live_database']) as db:
+            db.execute('INSERT INTO blobs VALUES(?,?,?,?)', ('source', str(blob), digest, 'source_recording'))
     write_receipt(config['initial_inventory'], {'version': 1, 'source_generation': 'test',
         'ownership_inventory': 'transcribe-owned-v1', 'objects': [{'id': 'source', 'path': str(blob),
-        'sha256': config_digest(blob), 'ownership_known': True, 'active': False}]})
+        'sha256': digest, 'classification': 'canonical_source', 'ownership_known': True, 'active': False}]})
     write_receipt(config['consumer_receipt'], {'version': 1, 'status': 'qualified', 'source_generation': 'test',
         'config_sha256': config_digest(path), 'scope_roots': config['source_roots'],
         'ownership_inventory': 'transcribe-owned-v1', 'files': {str(path): config_digest(path)}})
     runner = Maintenance(config, config_path=path, catalog=catalog,
         clock=lambda: TimeObservation(100), free_bytes=lambda _: 200 * 1024**3)
+    blob.chmod(0)  # A policy-held source must not need any payload read.
+    assert account(path)['items'][0]['reason'] == 'independent_replica_custody_unqualified'
     result = runner.run('migrate')
+    assert result['read_bytes'] == 0
     assert result['items'][0]['reason'] == 'independent_replica_custody_unqualified'
     assert result['written_bytes'] == 0
     assert catalog.migration('source') is None
@@ -190,3 +199,33 @@ def test_watcher_adapter_requires_policy_before_decode_or_provider(tmp_path):
             conversation_id='conversation', storage_root=root)
     assert not list((tmp_path / 'state' / 'cli' / 'media').glob('*.wav'))
     assert source.read_bytes() == original
+
+
+def test_new_completed_registration_uses_reviewed_producer_custody(tmp_path):
+    config, path = environment(tmp_path)
+    source = Path(config['store_root']) / 'new.mp4'
+    source.write_bytes(b'original recording')
+    digest = config_digest(source)
+    payload = {'recording_id': 'recording', 'conversation_id': 'conversation',
+               'source_media_path': str(source), 'backend': 'assemblyai'}
+    with sqlite3.connect(config['live_database']) as db:
+        db.execute('ALTER TABLE blobs ADD COLUMN original_path TEXT')
+        db.execute('CREATE TABLE documents(id TEXT,kind TEXT,json_payload TEXT)')
+        db.execute('CREATE TABLE document_blobs(document_id TEXT,blob_id TEXT)')
+        db.execute('INSERT INTO blobs VALUES(?,?,?,?,?)', ('new', str(source), digest, 'source_recording', str(source)))
+        db.execute('INSERT INTO documents VALUES(?,?,?)', ('doc', 'transcript', json.dumps(payload)))
+        db.execute('INSERT INTO document_blobs VALUES(?,?)', ('doc', 'new'))
+    write_receipt(config['consumer_receipt'], {'version': 1, 'status': 'qualified', 'source_generation': 'test',
+        'config_sha256': config_digest(path), 'scope_roots': config['source_roots'],
+        'ownership_inventory': 'transcribe-owned-v1', 'files': {str(path): config_digest(path)}})
+    adoption = Path(config['state_root']) / 'adoption.json'
+    write_receipt(adoption, {'version': 1, 'scope_roots': config['source_roots'],
+        'completed_transcript_registration': {'root': config['store_root'], 'source_generation': 'test',
+            'custody_evidence': 'reviewed installed producer and completed artifact publication'}})
+    result = refresh(path, adoption)
+    assert [item['id'] for item in result['objects']] == ['new']
+    assert result['objects'][0]['classification'] == 'canonical_source'
+    with sqlite3.connect(config['live_database']) as db:
+        db.execute('DELETE FROM document_blobs')
+    assert refresh(path, adoption)['held'][0]['reason'] == 'registered_blob_custody_unqualified'
+    assert source.read_bytes() == b'original recording'

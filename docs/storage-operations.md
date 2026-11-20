@@ -48,7 +48,15 @@ snapshots, unresolved checkpoints and missing frozen identities remain held;
 never infer disposal eligibility from historical guest mtime.
 
 The refresh adapter reads current SQLite blob registration every invocation. New
-registrations without reviewed custody are reported held. It also discovers new
+registrations without reviewed custody are reported held. An optional private
+`completed_transcript_registration` adoption entry binds `root` to `store_root`,
+`source_generation` to the qualified installed generation and `custody_evidence`
+to reviewed producer provenance. It qualifies new canonical custody only from
+an authoritative completed transcript link with matching source paths, recording
+and conversation IDs. Missing links, changed generation or absent qualification
+hold that registration. It supplies no independent-backup proof.
+Known canonical holds are reported before reading their payloads, so discovery
+can reach eligible derivatives without hashing originals that cannot retire. It also discovers new
 CLI manifests in reviewed processor roots and joins them to completed processor
 publication by logical WAV path, recording ID and conversation ID. Exact decoded
 hash and original source hash remain separate. Only that qualified completion
@@ -100,3 +108,13 @@ object's maximum durable exclusive-block retirement receipt once, alongside fres
 filesystem free space. Logical bytes and multiply linked bytes are not exclusive
 recovery. Preserve all receipts and report policy holds separately from bounded
 pass deferrals. Source-only checks do not establish native acceptance.
+
+Active producer admission covers managed decode/staging, Assembly's temporary
+lossless audio, browser playback conversion/cache and new source-blob copies.
+Assembly preserves source sample rate/channels and its existing lossless format;
+storage limits never authorize truncation or a different inference backend.
+`TRANSCRIBE_STORAGE_ROOT` is an explicit profile selector; managed and Assembly
+CLI `--storage-root` overrides it. Include all actual owned staging/cache roots,
+including `store_root/upload-staging` and `store_root/playback-cache`, in private
+`transient_roots`. Shared LocalAI spools are not Transcribe migration roots. New
+managed profiles use an owned spool; historical frozen configurations stay intact.
