@@ -444,9 +444,27 @@ class Maintenance:
                 self.catalog.checkpoint = self.budget.checkpoint
                 planned = []
                 if command in ('migrate', 'reconcile', 'maintenance'):
-                    planned = self.plan()
+                    planned = sorted(self.plan(), key=lambda item: (
+                        item['classification'] != 'historical_derivative', item['id']))
                     for item in planned:
                         outcome = {'object_id': item['id'], 'state': 'held', 'reason': item['reason']}
+                        previous_migration = self.catalog.migration(item['id'])
+                        if previous_migration and previous_migration['phase'] == 'retired':
+                            # resolve checks the recorded destination identity;
+                            # do not recopy or rehash a completed retirement.
+                            self.catalog.resolve(item['id'])
+                            result['items'].append({'object_id': item['id'], 'state': 'retired', 'reason': 'already_retired'})
+                            continue
+                        canonical = item['classification'] in ('canonical_source', 'source_recording')
+                        if canonical:
+                            replica, domain, replica_reason = self.replica(item)
+                            if replica is None and item['id'] not in self.config.get('copy_only_ids', []):
+                                result['items'].append({**outcome, 'reason': replica_reason})
+                                continue
+                            if replica is None and previous_migration and previous_migration['phase'] in ('published', 'retirement-pending'):
+                                self.catalog.resolve(item['id'])
+                                result['items'].append({'object_id': item['id'], 'state': 'copy-only', 'reason': replica_reason})
+                                continue
                         if item['action'] not in ('cold_move', 'quarantine', 'evict_cache', 'evict_scratch'):
                             result['items'].append(outcome)
                             continue
