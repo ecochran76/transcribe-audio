@@ -75,6 +75,10 @@ insufficient. Never provision recovery copies on another volume without authorit
 
 Initial passes may run consecutively. Each remains bounded to 16 GiB payload
 writes including retries and 30 minutes using fresh StableTime observations.
+Byte accounting applies to every chunk; time observations occur at safe I/O
+checkpoints of at most64MiB and explicit admission/publication/retirement phase
+boundaries. Observations remain service measurement instants; no guest-clock
+projection or extra counter helper is used.
 Stop when no eligible work progresses; holds are outcomes, not infinite retries.
 No canary or timed rollout hold applies. Source replica obligations and scratch
 retention rules still apply. Never simulate an outage by unmounting the real HDD.

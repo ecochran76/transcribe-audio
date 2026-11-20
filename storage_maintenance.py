@@ -161,23 +161,35 @@ class StableTimeClock:
 
 
 class PassBudget:
-    def __init__(self, clock, *, write_limit=16 * GIB, account=None):
+    def __init__(self, clock, *, write_limit=16 * GIB, account=None, clock_quantum_bytes=0):
+        if type(clock_quantum_bytes) is not int or not 0 <= clock_quantum_bytes <= 64 * 1024 * 1024:
+            raise ValueError('invalid_time_checkpoint_quantum')
         self.clock, self.limit, self.account = clock, write_limit, account
+        self.clock_quantum_bytes, self.unobserved_io = clock_quantum_bytes, 0
         self.written = self.read = 0
         self.started = clock()
         if self.started is None or not self.started.valid:
             raise MaintenanceHeld('trusted_time_unavailable')
+        self.last_observation = self.started
 
     def checkpoint(self, *, write_bytes=0, read_bytes=0):
-        now = self.clock()
+        if write_bytes < 0 or read_bytes < 0 or self.written + write_bytes > self.limit:
+            raise MaintenanceHeld('pass_write_budget')
+        io_bytes = write_bytes + read_bytes
+        # Byte limits and durable accounting apply to every chunk. Time is read
+        # at bounded I/O checkpoints and every explicit phase boundary, never
+        # projected with a guest clock or represented as receipt-time UTC.
+        observe = (not io_bytes or not self.clock_quantum_bytes
+                   or self.unobserved_io + io_bytes >= self.clock_quantum_bytes)
+        now = self.clock() if observe else self.last_observation
         if now is None or not now.valid:
             raise MaintenanceHeld('trusted_time_unavailable')
         if now.utc_seconds + now.uncertainty_seconds - self.started.utc_seconds + self.started.uncertainty_seconds >= 1800:
             raise MaintenanceHeld('pass_time_budget')
         if now.utc_seconds + now.uncertainty_seconds < self.started.utc_seconds - self.started.uncertainty_seconds:
             raise MaintenanceHeld('qualified_time_regressed')
-        if write_bytes < 0 or read_bytes < 0 or self.written + write_bytes > self.limit:
-            raise MaintenanceHeld('pass_write_budget')
+        self.last_observation = now
+        self.unobserved_io = 0 if observe else self.unobserved_io + io_bytes
         self.written += write_bytes
         self.read += read_bytes
         if self.account:
@@ -440,7 +452,7 @@ class Maintenance:
                       'config_sha256': config_digest(self.config_path) if self.config_path else None,
                       'items': [], 'status': 'running'}
             try:
-                self.budget = PassBudget(self.clock, account=self.account)
+                self.budget = PassBudget(self.clock, account=self.account, clock_quantum_bytes=64 * 1024 * 1024)
                 self.catalog.checkpoint = self.budget.checkpoint
                 planned = []
                 if command in ('migrate', 'reconcile', 'maintenance'):

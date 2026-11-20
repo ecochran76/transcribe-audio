@@ -304,3 +304,14 @@ def test_shared_admission_preserves_nvme_reserve(tmp_path, monkeypatch):
     with pytest.raises(MaintenanceHeld, match='nvme_reserve'):
         with reserve_transient(config_path, 'stage', 1):
             pytest.fail('NVMe reserve was spent')
+
+
+def test_coalesced_time_check_stops_at_io_boundary_and_forced_phase():
+    for force_phase in (False, True):
+        observations = iter([TimeObservation(0), TimeObservation(1800)])
+        budget = PassBudget(lambda: next(observations), clock_quantum_bytes=64)
+        budget.checkpoint(write_bytes=32)
+        with pytest.raises(MaintenanceHeld, match='pass_time_budget'):
+            budget.checkpoint(**({} if force_phase else {'read_bytes': 32}))
+        assert budget.written == 32
+        assert budget.read == 0
