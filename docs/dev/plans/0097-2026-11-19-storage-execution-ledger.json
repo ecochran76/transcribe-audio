@@ -200,15 +200,25 @@
         "tests/test_initial_storage_migration.py",
         "docs/storage-operations.md"
       ],
-      "worker": "/root/storage_initial_0103",
+      "worker": "/root/storage_native_recovery",
       "worktree": "/home/ecochran76/worktrees/transcribe-storage-initial-0103",
       "base": "88e42cbf6919afc711457999c274e5497d56f167",
-      "result_sha": null,
-      "validation": [],
-      "phase": "source_candidate_before_native"
+      "result_sha": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
+      "validation": [
+        {
+          "command": "existing main .venv Python, installed qualification PYTHONPATH; focused storage/catalog/policy/backup/consumer/maintenance/admission/initial/managed/Assembly selection",
+          "source": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
+          "result": "105 passed in 28.56s; prior coordinator evidence; native acceptance remains pending"
+        }
+      ],
+      "phase": "native_acceptance_in_progress"
     }
   ],
-  "tip": "88e42cbf6919afc711457999c274e5497d56f167",
+  "tip": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
-  "review_fixed_point_status": "proposed_to_user_pending_reply"
+  "review_fixed_point_status": "proposed_to_user_pending_reply",
+  "worker_custody": {
+    "status": "five_completed_worker_checkouts_removed",
+    "evidence": "Matching local and remote archive/storage-{0099,0100,0101,0102,admission}-20261119 refs verified; five checkouts clean and no /proc references; normal git worktree remove. Integration and active initial-migration checkouts retained."
+  }
 }

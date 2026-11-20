@@ -2,7 +2,7 @@
 
 State: OPEN
 Status: in-progress
-Owner: /root/storage_initial_0103
+Owner: /root/storage_native_recovery (native); storage_finish (integration)
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
@@ -22,7 +22,13 @@ Install and account for direct initial migration, as a complete operator-visible
 
 ## Current State
 
-Pending implementation. Source acceptance, integration validation and native effects remain distinct.
+Integrated source fcb0338f198bddd22f47200cc822a07e2e437f1e is installed.
+The focused local selection passed 105 tests. Two bounded native passes retired
+347 of 405 qualified WAV placements, recovering 34,194,436,096 exclusive NVMe
+bytes. The remaining pass, native API access, backup/restore and hourly timer
+acceptance remain in progress. Canonical sources without independent durable
+replica proof remain held; no new recovery volume was provisioned. Private native
+receipts are outside Git. This is not final native acceptance.
 
 ## Scope and Non-Goals
 
