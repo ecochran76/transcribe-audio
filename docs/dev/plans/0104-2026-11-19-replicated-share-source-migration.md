@@ -1,6 +1,6 @@
 # Replicated-share canonical source migration
 
-State: OPEN
+State: CLOSED
 Lane: P11
 Scope: recognize the operator-confirmed peer-replicated backups share as canonical
 replica custody, match exact retained bytes, and migrate eligible originals using
@@ -16,12 +16,18 @@ contextualization vision or long-term backup reliability from one migration.
 
 ## Current State
 
-The operator confirms Syncthing/backups is redundant across its peers. This is
-reviewed topology/custody evidence, not proof that every registered recording is
-present there. Existing replica validation only accepts local Windows drive
-letters. Add an explicit replicated_share variant bound to the actual remote
-mount identity; retain exact content/identity verification before retirement.
+Complete on installed runtime7aa87572dc491c1c8686e0d25400846d28b5745c.
+All826 matched canonical originals retired from NVMe after exact HDD publication
+and full replicated-share proof verification. Original-media exclusive recovery:
+163,138,289,664 bytes (151.9GiB); cumulative recovery with earlier405 WAVs:
+201,650,774,016 bytes (187.8GiB). Seven unmatched originals remain on NVMe.
+Actual API range206 and exact cold WAV access passed; all896 frozen identities
+are unchanged. API and both watcher processes use the installed generation and
+current consumer qualification passes. Hourly timer is enabled/active, including
+its automatic catch-up after explicit passes. Final private acceptance and primary
+verification distinguish this completed migration from ongoing scheduled work.
 Plan0097 and its one review/one remediation pass remain closed and unchanged.
+Historical checkpoints below are retained as superseded observations.
 
 ## Non-Goals
 
@@ -61,10 +67,10 @@ covering path. Extended existing public mount regression red, then affected
 maintenance/catalog/initial selection46passed in19.44s with the existing qualification
 PYTHONPATH. Read-only actual share qualification passed. Resume uses all existing
 registrations/journals; per-file full content and identity checks remain mandatory.
-Native successor acceptance is pending.
+Native successor acceptance was pending at this checkpoint; final acceptance below supersedes it.
 
 
-## Four-pass native checkpoint
+## Historical four-pass native checkpoint (superseded)
 
 Successor on7aa8757 retired302 of826 matched canonical originals across four
 bounded passes,54,626,726,502 logical bytes. Durable cumulative exclusive block
@@ -79,6 +85,37 @@ never copy already retired objects again. Seven unmatched originals stay protect
 Cold API206, exact WAV and all896 frozen identities passed. Hourly timer restored
 enabled/active after the held run; another native resume pauses it only while the
 single controller owns consecutive passes and restores it on finalization.
-Plan remains OPEN until terminal native acceptance of all eligible candidates or
-explicit final holds. No code change or repeated broad review/testing is needed
+At this checkpoint the plan remained OPEN pending terminal native acceptance. No code change or repeated broad review/testing is needed
 for fresh qualified time observations.
+
+
+## Final native acceptance
+
+The qualified-time recovery run completed six additional bounded passes and
+reported826/826 matched originals retired,163,133,768,609 logical bytes. Primary
+independently reconciled every candidate journal: retired phase, durable verified
+replica hash/custody/nonlocal domain, old NVMe path absent and cold file present.
+All7 unmatched files still exist locally. Full hashes were checked during each
+migration; closeout does not claim an additional full-corpus rehash or a new restore
+drill. Cold API206, exact WAV/checkpoint/origin access and896 frozen identity hashes
+were rechecked. Installed consumer qualification and actual API/two watcher process
+commands passed. Fresh NVMe free space was approximately450GiB (87%used); net free
+space differs from exclusive retirement receipts because other workloads continue.
+
+The earlier time holds remain recorded. The captured unbounded response correctly
+paused work; no trusted-time predicate was relaxed. Native continuation used fresh
+qualified observations and bounded ordinary polling, not WSL UTC extrapolation.
+Hourly backup checks remained between passes, using the same payload/time budget.
+Timer enabled/active and scheduled catch-up running are verified; that separate
+ordinary run is not required to duplicate migration acceptance.
+
+Private evidence: canonical-migration-qualified-time-recovery.acceptance.json,
+canonical-primary-closeout-verification.json, native-access-verification.json,
+controller accounting and per-object journals. Host paths and media names remain
+outside Git. Focused code validation46passed; commit checks passed locally; no
+hosted CI, inference/provider validation, Speech/shared LocalAI or memory writes.
+Memory disposition: forbidden by the explicit wake instruction.
+
+This closes the bounded migration and operational placement capability (level3).
+It does not establish long-term replication reliability, full product maturity,
+or qualification/archival of the separate historical evidence bundles.

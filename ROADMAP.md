@@ -1473,24 +1473,24 @@ TTS/modelacceptance and backlogactivation remain separate.
 
 ## P11 | Storage Lifecycle And Initial Migration
 
-State: OPEN
+State: CLOSED
 
-Follow-up: Plan0104 adopts operator-confirmed replicated-share custody and migrates
-eligible canonical originals. Plan0097 and tickets0098-0103 remain CLOSED.
-The same catalog/content/ownership gates apply; unmatched sources stay held.
-
-Current State: Plan0097 Q1-Q17 are accepted, including the Q16 override removing
-native canaries and a 24-hour hold. The consolidated recording-storage lifecycle
-contract, ADR0006 and ADR0007 preserve source identity, recovery and ownership.
-All six implementation tickets0098-0103 are CLOSED; one review and one bounded TDD
-pass resolved accepted blockers. Runtime fe71dc0 is installed/qualified;405 WAV
-placements retired recovered38,512,484,352 exclusive NVMe bytes, with896 frozen
-identities unchanged. Native cold access, backup and isolated restore passed (level2
-migration/recovery evidence). Hourly enforcement is enabled/active and its first
-scheduled catch-up completed successfully; sustained footprint measurement remains
-operational follow-up rather than a claim of dependable long-term operation. Canonical replica holds and
-unqualified placements remain protected. Speech Receipts is a separate spec; the
-new managed profile remains unqualified/disabled at its shared-owner boundary.
+Current State: Plan0097 and tickets0098-0103 are CLOSED; Plan0104 is now CLOSED.
+The accepted lifecycle contract, ADR0006/0007 and replicated-share proof support
+preserve byte identity, recovery, ownership and source-erasure fences. Installed
+runtime7aa8757 is qualified at the actual API and both watchers.405 historical WAVs
+and826 matched canonical originals retired from NVMe after verified HDD publication;
+all896 frozen identities are unchanged. Original-media exclusive recovery is
+163,138,289,664 bytes (151.9GiB); cumulative201,650,774,016 bytes (187.8GiB).
+Seven unmatched originals and unqualified derivative placements remain protected.
+Actual cold range playback and exact WAV/checkpoint access passed. Hourly backup,
+rotation and maintenance are enabled/active with prior verified isolated restore
+and first scheduled-run evidence. StableTime qualification losses paused dependent
+work; bounded fresh-evidence recovery completed migration without relaxing policy.
+This is operational placement/retention (level3); sustained long-term footprint and
+replication dependability remain ongoing evidence rather than a completed vision.
+Speech Receipts and historical evaluation-bundle archival remain separate scope;
+the unqualified managed profile stays disabled at the shared-owner boundary.
 
 Plans:
 

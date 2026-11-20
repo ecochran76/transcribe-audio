@@ -19035,3 +19035,25 @@ API206/exact WAV/all896 frozen identities passed; timer restored enabled/active,
 service success/inactive. Plan staysOPEN; preserve every retired journal and the
 recorded failure. No new tests/review/inference/shared-owner/memory effects.
 Memory disposition forbidden by explicit wake boundary.
+
+
+## Plan0104 CLOSED: all matched canonical originals migrated
+
+Qualified-time recovery terminal receipt complete:826/826 matched originals
+retired,163,133,768,609 logical bytes. Original exclusive recovery163,138,289,664
+bytes (151.9GiB); cumulative with405 earlier WAVs201,650,774,016 bytes (187.8GiB).
+Six final bounded passes completed. Primary independently reconciled all826
+candidate journals/proofs and source absence/cold presence; all7 unmatched originals
+remain files on NVMe. Rechecked actual cold API206, exact WAV/hash/checkpoint/origin,
+all896 frozen identity hashes, live installed consumer qualification and actual API
+plus both watcher generation commands. No whole-corpus rehash or new restore-drill
+claim. Native runtime7aa8757; source/code tests46passed plus local commit checks.
+
+Hourly timer enabled/active and catch-up running after finalization. Fresh free
+space approximately450GiB,87%used; exclusive recovery is distinct from changing
+filesystem totals. Previous invalid-time/mount holds preserved; no predicate was
+weakened. Private final acceptance, canonical-primary-closeout-verification.json,
+native-access-verification.json and per-object catalog/accounting carry proof.
+Plan0104/P11 CLOSED; unrelated dirty main preserved. Historical evidence-bundle
+archival and Speech/shared assets remain outside this completed migration.
+Memory disposition forbidden by explicit wake instructions; zero memory writes.
