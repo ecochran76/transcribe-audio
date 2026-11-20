@@ -25,8 +25,9 @@ Design, spec, six tickets, one review and one bounded TDD pass are complete.
 Runtime source fe71dc0ff95685b6af0e6536ef91d64da7229fee is installed and qualified.
 Initial migration/recovery reached level2:405 exact WAV placements retired,
 38,512,484,352 exclusive bytes recovered,896 frozen identities preserved. Hourly
-enforcement is installed/active; first catch-up completion and sustained footprint
-measurement remain future operational evidence, not a claim of dependable autonomy.
+enforcement is installed/active and its first scheduled run completed successfully;
+sustained footprint measurement remains future operational evidence, not a claim
+of dependable autonomy.
 All canonical-source backup holds and unqualified placements remain protected.
 Speech/shared assets and disabled unqualified managed-profile activation stay outside
 this completed slice. Execution ledger and final review report carry acceptance.
@@ -243,6 +244,6 @@ public seam tests are required; do not create a separate fixture/harness project
 
 
 Final checkpoint: all tickets CLOSED; review_runs=1/post_review_tdd_runs=1; no second
-broad review. Source and native acceptance passed, with explicit first scheduled
-catch-up completion pending. S2 identity decoding and B1 time-order admission are
+broad review. Source and native acceptance passed, with observed first scheduled
+catch-up completion. S2 identity decoding and B1 time-order admission are
 nonblocking backlog. Main's unrelated dirty frontend/research work was preserved.

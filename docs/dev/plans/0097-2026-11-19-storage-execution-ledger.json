@@ -305,10 +305,20 @@
     "frozen_files_unchanged": 896,
     "exclusive_blocks_recovered_bytes": 38512484352,
     "filesystem_free_bytes_at_upgrade": 350433570816,
-    "timer": "enabled_active_first_persistent_catchup_running_completion_pending",
+    "timer": "enabled_active_first_scheduled_maintenance_complete",
     "backup_restore": "prior_verified_snapshot_and_drill_preserved_no_forced_repeat",
     "private_evidence": "operator storage runtime native-review-upgrade-verification.json/native-acceptance.json and linked receipts",
-    "primary_verification": "actual API200/current fe71 cmdline;20consumerhashes/configSHA match;timerenabledactive readback"
+    "primary_verification": "actual API200/current fe71 cmdline;20consumerhashes/configSHA match;timerenabledactive readback",
+    "first_scheduled_run": {
+      "receipt_id": "adfd66da7af44ebf83aed6c7182d19a4",
+      "written_bytes": 2617421824,
+      "read_bytes": 4655071447,
+      "backup_snapshot": "af2a9c8dbe8149f19e1ad9ae30eca6ca",
+      "monthly_drill": "not_due",
+      "item_count": 1238,
+      "private_evidence": "operator storage runtime first-scheduled-run-verification.json"
+    },
+    "filesystem_free_bytes_after_first_run": 353097248768
   },
   "memory_disposition": {
     "disposition": "forbidden",

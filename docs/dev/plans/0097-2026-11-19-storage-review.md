@@ -164,3 +164,13 @@ No runtime change:7 passed,1 opt-in actual Speech integration skipped in6.39s. T
 is accepted-finding verification, not renewed broad discovery. S1 README pointer is
 complete; S2 and B1 remain nonblocking backlog. All six worker checkouts were closed
 after verified remote archival custody; original dirty main is unchanged.
+
+
+Final scheduled-run readback: while the closeout commit was publishing, the first
+real timer run completed successfully. Controller receiptadfd66da7af44ebf83aed6c7182d19a4
+binds current generation/configuration:maintenance complete,1238 reconciled items,
+2,617,421,824 payload-write bytes and4,655,071,447 read bytes. Verified backup
+af2a9c8dbe8149f19e1ad9ae30eca6ca published; monthly drill not_due. Service returned
+success/inactive/MainPID0; timer remains enabled/active. Private contemporaneous
+readback:first-scheduled-run-verification.json. This supersedes the earlier pending
+observation without repeating a backup or changing runtime source.

@@ -101,7 +101,7 @@ installation, cold access, exact WAV recovery, backup and isolated restore passe
 405 WAV placements retired recovered38,512,484,352 exclusive NVMe bytes; all896
 frozen identities unchanged. Current833 canonical NVMe paths and48 unqualified WAV
 placements remain held by policy (one canonical arrived during live operation).
-Hourly maintenance is enabled/active; its first catch-up run started, completion
-pending at closeout. Long-term unattended footprint is not yet measured. Future
+Hourly maintenance is enabled/active; its first scheduled catch-up completed,
+publishing a verified backup and reporting the monthly drill not due. Long-term unattended footprint is not yet measured. Future
 managed-profile activation remains unqualified/disabled at the shared-owner boundary.
 See execution ledger and review report; private evidence remains outside Git.

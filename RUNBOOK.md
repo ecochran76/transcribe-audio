@@ -18949,3 +18949,13 @@ native-review-upgrade-verification.json and linked acceptance/access/backup/rest
 repair/hourly receipts. Progress:outcome_progress, requested bounded work complete.
 Memory disposition:forbidden; developer permits capture only on explicit request,
 and none was given. The private non-write receipt is memory-disposition.json.
+
+
+Turn449 final readback: the first real scheduled maintenance completed during
+closeout publication. Receiptadfd66da7af44ebf83aed6c7182d19a4 reports complete on
+current controller generation/configuration:1238 reconciled items,2,617,421,824
+payload-write and4,655,071,447 read bytes. Verified backupaf2a9c8dbe8149f19e1ad9ae30eca6ca
+published; monthly drill not_due. Unit success/inactive/MainPID0; timer stays
+enabled/active. Fresh NVMe free353,097,248,768 bytes (91%used). Private proof:
+first-scheduled-run-verification.json. Earlier pending observation is superseded;
+no extra backup, review or TDD pass was started.

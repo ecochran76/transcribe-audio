@@ -1483,8 +1483,8 @@ pass resolved accepted blockers. Runtime fe71dc0 is installed/qualified;405 WAV
 placements retired recovered38,512,484,352 exclusive NVMe bytes, with896 frozen
 identities unchanged. Native cold access, backup and isolated restore passed (level2
 migration/recovery evidence). Hourly enforcement is enabled/active and its first
-catch-up started; completion and sustained level3 footprint measurement remain
-operational follow-up, not current acceptance claims. Canonical replica holds and
+scheduled catch-up completed successfully; sustained footprint measurement remains
+operational follow-up rather than a claim of dependable long-term operation. Canonical replica holds and
 unqualified placements remain protected. Speech Receipts is a separate spec; the
 new managed profile remains unqualified/disabled at its shared-owner boundary.
 
