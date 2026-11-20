@@ -394,7 +394,9 @@ def main(argv=None):
     parser.add_argument('--recording-id')
     parser.add_argument('--conversation-id')
     parser.add_argument('--existing-transcript', type=Path)
-    parser.add_argument('--storage-root', type=Path, help='Existing catalog root; separate from frozen work configuration')
+    parser.add_argument('--storage-root', type=Path,
+                        default=os.environ.get('TRANSCRIBE_STORAGE_ROOT') or None,
+                        help='Existing catalog root; defaults to TRANSCRIBE_STORAGE_ROOT outside frozen configuration')
     parser.add_argument('--max-stage-results', type=int, help='Checkpoint after1..10000 new durable unit-stage results')
     args = parser.parse_args(argv)
     try:
