@@ -49,3 +49,16 @@ only mocked boundary. Observed red before implementation, then green.
 Run affected storage maintenance/catalog/initial adapter tests locally; no provider
 requests or hosted CI. Native full hashes and actual cold access are separate proof.
 Private host paths and recording inventories remain outside Git.
+
+
+## Native reconciliation and mount repair
+
+The first pass registered canonical bytes but retired none: the active CIFS share
+and autofs placeholder share a mount point, and equal-depth selection chose the
+placeholder. Preserve that held run as evidence; no invalid retirement occurred.
+Replica mount selection now matches the file device before selecting the longest
+covering path. Extended existing public mount regression red, then affected
+maintenance/catalog/initial selection46passed in19.44s with the existing qualification
+PYTHONPATH. Read-only actual share qualification passed. Resume uses all existing
+registrations/journals; per-file full content and identity checks remain mandatory.
+Native successor acceptance is pending.

@@ -18976,3 +18976,15 @@ venv and installed qualification PYTHONPATH. First invocation lacked that requir
 PYTHONPATH and had45pass/1ModuleNotFoundError; corrected environment, no source fix.
 No hosted CI; no new broad review or Plan0097 remediation cycle. Runtime installation
 and per-object migration acceptance remain pending, not implied by passing tests.
+
+
+Plan0104 wake reconciliation: first durable run ended held with zero canonical
+retirements,98,206,772,202 read bytes and zero writes. All833 canonical outcomes
+reported independent_replica_custody_unqualified. Native access and896 frozen
+identities passed; timer restored. Root/native worker reproduced equal-depth
+autofs and CIFS mount entries selecting the autofs placeholder. Changed replica
+selection to match the actual file device before longest-path selection. Extended
+the same public regression with stacked autofs/CIFS: observed red. Read-only live
+check now accepts the actual CIFS replica with current consumer qualification.
+Historical run/proofs remain intact. Successor migration will reuse registrations
+and journal, preserving all prior retirement receipts. No provider operations.

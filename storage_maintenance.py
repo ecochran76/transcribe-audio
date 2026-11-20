@@ -401,11 +401,16 @@ class Maintenance:
                         or file_identity(path) != proof['identity']):
                     raise ValueError()
                 observed = []
+                device = path.stat().st_dev
+                mounted_device = f'{os.major(device)}:{os.minor(device)}'
                 for line in Path('/proc/self/mountinfo').read_text().splitlines():
                     parts = line.split()
                     unescape = lambda value: re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), value)
                     point = Path(unescape(parts[4]))
-                    if path == point or path.is_relative_to(point):
+                    # An automount placeholder and its active filesystem share
+                    # a mount point. Select the file's actual device, not the
+                    # first equal-depth mountinfo entry (often autofs).
+                    if parts[2] == mounted_device and (path == point or path.is_relative_to(point)):
                         separator = parts.index('-')
                         observed.append((point, parts[separator + 1], unescape(parts[separator + 2])))
                 point, filesystem, remote = max(observed, key=lambda row: len(row[0].parts))
