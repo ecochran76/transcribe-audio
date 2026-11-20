@@ -1,8 +1,8 @@
 # 0102: Operator CLI and bounded recurring storage maintenance
 
 State: OPEN
-Status: ready-for-agent
-Owner: unassigned
+Status: in-progress
+Owner: /root/storage_maintenance_0102
 Spec: 0097-2026-11-19-recording-storage-spec.md
 
 ## What to build
