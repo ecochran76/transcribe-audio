@@ -1,7 +1,9 @@
 # Recording storage lifecycle
 
-Status: accepted interview decisions Q1-Q17; consolidated shared-understanding
-confirmation pending. Implementation and native migration have not begun.
+Status: accepted Q1-Q17 and confirmed shared understanding; implementation is
+integrated on the storage lifecycle branch. Initial native migration and recovery acceptance
+passed; final review/remediation remains. The execution ledger distinguishes source,
+installation and rollout.
 
 Authority: [Plan0097](dev/plans/0097-2026-11-19-storage-lifecycle-and-initial-migration.md),
 [ADR0006](adr/0006-own-tiered-recording-storage-and-terminal-derivative-retirement.md),
@@ -21,8 +23,9 @@ storage lifecycle is a separate spec. Shared LocalAI/Speech assets, environments
 GPU admission and model residency remain under their existing owners.
 
 This contract authorizes no source erasure, inference retry, GPU/model operation,
-provider fallback, lossy source replacement or unrelated service cleanup. Future
-runtime activation follows final shared understanding and implementation validation.
+provider fallback, lossy source replacement or unrelated service cleanup. Runtime
+activation follows the accepted shared understanding and implementation validation,
+with installed and native evidence recorded separately.
 
 ## Placement and retention classes
 

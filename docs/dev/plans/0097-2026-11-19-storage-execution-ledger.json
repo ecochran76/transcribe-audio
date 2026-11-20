@@ -193,8 +193,8 @@
       "blockers": [
         "0102"
       ],
-      "state": "running",
-      "tracker_state": "in-progress",
+      "state": "validated",
+      "tracker_state": "complete",
       "owned_paths": [
         "scripts/initial_storage_migration.py",
         "tests/test_initial_storage_migration.py",
@@ -209,16 +209,37 @@
           "command": "existing main .venv Python, installed qualification PYTHONPATH; focused storage/catalog/policy/backup/consumer/maintenance/admission/initial/managed/Assembly selection",
           "source": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
           "result": "105 passed in 28.56s; prior coordinator evidence; native acceptance remains pending"
+        },
+        {
+          "command": "native direct three bounded passes; installed API range and exact WAV recovery; strict snapshot plus isolated restore; timer/service readback",
+          "source": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
+          "result": "405/405 eligible WAV placements retired; 38512484352 exclusive bytes recovered; 896 frozen files unchanged; 48 unqualified WAV placements and 832 canonical NVMe paths retained; backup and 2/2 sampled-media drill passed; hourly enabled/active, first calendar run pending",
+          "evidence": "private operator storage runtime native-acceptance.json and linked receipts; finishing coordinator independently checked acceptance/access/backup/drill/orphan custody/timer readbacks"
         }
       ],
-      "phase": "native_acceptance_in_progress"
+      "phase": "native_accepted"
     }
   ],
   "tip": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
-  "review_fixed_point_status": "proposed_to_user_pending_reply",
+  "review_fixed_point_status": "assumed_design_baseline_after_unanswered_optional_question_not_user_approved",
   "worker_custody": {
     "status": "five_completed_worker_checkouts_removed",
     "evidence": "Matching local and remote archive/storage-{0099,0100,0101,0102,admission}-20261119 refs verified; five checkouts clean and no /proc references; normal git worktree remove. Integration and active initial-migration checkouts retained."
+  },
+  "native_acceptance": {
+    "status": "passed",
+    "source_commit": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
+    "retired_completed_wav_count": 405,
+    "retired_completed_wav_logical_bytes": 38510170984,
+    "exclusive_blocks_recovered_bytes": 38512484352,
+    "filesystem_free_bytes_at_acceptance": 353962602496,
+    "held_wav_placements": 48,
+    "canonical_nvme_paths_retained": 832,
+    "frozen_files_unchanged": 896,
+    "timer": "enabled_active_first_calendar_run_pending",
+    "backup_restore": "passed_864_catalog_references_832_canonical_paths_2_media_hash_samples",
+    "managed_future_profile": "prepared_unqualified_disabled",
+    "private_evidence": "operator storage runtime native-acceptance.json and linked per-file receipts"
   }
 }
