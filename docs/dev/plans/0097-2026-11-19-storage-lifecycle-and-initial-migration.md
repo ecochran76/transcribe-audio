@@ -1,11 +1,11 @@
 # Storage lifecycle and initial migration
 
-State: OPEN
-Owner: primary design interviewer
+State: CLOSED
+Owner: storage lifecycle integration coordinator
 Scope: resolve and document initial storage migration and future automated tiering and retention for Transcribe Audio
 Lane: P11
 Design version: 4
-Interview state: confirmed; implementation ticket DAG active
+Interview state: confirmed; six implementation tickets closed
 Execution authority: accepted spec implementation and scoped direct initial migration; no canary/hold
 
 ## Objective and vision
@@ -20,6 +20,18 @@ policy enforcement with observable recovery and bounded NVMe use. This does not
 claim end-to-end transcription or contextual-readout acceptance.
 
 ## Current State
+
+Design, spec, six tickets, one review and one bounded TDD pass are complete.
+Runtime source fe71dc0ff95685b6af0e6536ef91d64da7229fee is installed and qualified.
+Initial migration/recovery reached level2:405 exact WAV placements retired,
+38,512,484,352 exclusive bytes recovered,896 frozen identities preserved. Hourly
+enforcement is installed/active; first catch-up completion and sustained footprint
+measurement remain future operational evidence, not a claim of dependable autonomy.
+All canonical-source backup holds and unqualified placements remain protected.
+Speech/shared assets and disabled unqualified managed-profile activation stay outside
+this completed slice. Execution ledger and final review report carry acceptance.
+
+The following bullets retain the design-time baseline:
 
 - Transcript SQLite, artifacts and original-media blobs share the user-scoped store.
   Blob paths are also embedded in durable metadata. Source ingestion copies media.
@@ -228,3 +240,9 @@ one artifact per ticket0098-0103, and execution ledger govern readiness. The pri
 owns one ready ticket; workers each own one other unblocked ticket. Run exactly one
 broad final code review and one bounded post-review TDD remediation pass. Existing
 public seam tests are required; do not create a separate fixture/harness project.
+
+
+Final checkpoint: all tickets CLOSED; review_runs=1/post_review_tdd_runs=1; no second
+broad review. Source and native acceptance passed, with explicit first scheduled
+catch-up completion pending. S2 identity decoding and B1 time-order admission are
+nonblocking backlog. Main's unrelated dirty frontend/research work was preserved.

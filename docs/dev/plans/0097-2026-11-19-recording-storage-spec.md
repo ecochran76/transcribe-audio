@@ -1,7 +1,7 @@
 # Recording storage lifecycle specification
 
-State: OPEN
-Triage: ready-for-agent
+State: CLOSED
+Triage: complete
 Owner: storage lifecycle integration coordinator
 Source: accepted Plan0097 Q1-Q17; Q16 explicitly removes canary and timed hold
 
@@ -89,3 +89,19 @@ source erasure authority, transcoding, inference retry/fallback and OpenClaw wor
 All policy choices were accepted by the operator. Implementation details and the
 frozen policy thresholds are in the consolidated lifecycle contract. Native actions
 require actual file verification and scope checks; no sample/canary gate exists.
+
+
+## Completion evidence
+
+Tickets0098-0103 are CLOSED. One Standards/Spec review and one bounded post-review
+TDD remediation pass completed; all nine accepted blockers resolved. Final runtime
+source fe71dc0ff95685b6af0e6536ef91d64da7229fee passed113 focused tests; affected
+SourceOwner checks passed7 with one opt-in Speech skip outside scope. Native
+installation, cold access, exact WAV recovery, backup and isolated restore passed.
+405 WAV placements retired recovered38,512,484,352 exclusive NVMe bytes; all896
+frozen identities unchanged. Current833 canonical NVMe paths and48 unqualified WAV
+placements remain held by policy (one canonical arrived during live operation).
+Hourly maintenance is enabled/active; its first catch-up run started, completion
+pending at closeout. Long-term unattended footprint is not yet measured. Future
+managed-profile activation remains unqualified/disabled at the shared-owner boundary.
+See execution ledger and review report; private evidence remains outside Git.

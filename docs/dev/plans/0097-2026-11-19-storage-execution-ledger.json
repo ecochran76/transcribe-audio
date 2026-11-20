@@ -220,12 +220,12 @@
       "phase": "native_accepted"
     }
   ],
-  "tip": "fcb0338f198bddd22f47200cc822a07e2e437f1e",
+  "tip": "fe71dc0ff95685b6af0e6536ef91d64da7229fee",
   "review_fixed_point": "d325e60abde054d2b0e201288422e1b83d8efa36",
   "review_fixed_point_status": "assumed_design_baseline_after_unanswered_optional_question_not_user_approved",
   "worker_custody": {
-    "status": "five_completed_worker_checkouts_removed",
-    "evidence": "Matching local and remote archive/storage-{0099,0100,0101,0102,admission}-20261119 refs verified; five checkouts clean and no /proc references; normal git worktree remove. Integration and active initial-migration checkouts retained."
+    "status": "all_six_completed_worker_checkouts_removed",
+    "evidence": "Matching local and remote archive/storage-{0099,0100,0101,0102,admission}-20261119 refs verified; five checkouts clean and no /proc references; normal git worktree remove. Integration and active initial-migration checkouts retained. Initial0103 branch c7beaf06b343ef02b5f80fc8fed2538c986023fb archived locally/remotely as archive/storage-0103-20261119; clean/no /proc references; checkout removed normally. Only integration and unrelated dirty main remain."
   },
   "native_acceptance": {
     "status": "passed",
@@ -245,7 +245,7 @@
   "review_mode": "one_broad_two_axis_pass",
   "review_target": "876fb12d5b1d9fee17a1cc45c323e0e752ae656f",
   "review_report": "docs/dev/plans/0097-2026-11-19-storage-review.md",
-  "review_stage": "remediated_source_validated_native_refresh_pending",
+  "review_stage": "complete",
   "review_findings": {
     "standards_blocking": 0,
     "standards_nonblocking": 2,
@@ -282,6 +282,37 @@
     "validated_code_sha256": "bdf961783e1b4d33d8ec0d8c08b8109edd7e35e9f6050288dcc1b8d62d5a4df2",
     "lint": "zero new;56 accepted legacy",
     "hosted_ci": "not run; local Linux/Python checks satisfy operator policy",
-    "review_mode": "closed_world_accepted_findings_and_immediate_regressions"
+    "review_mode": "closed_world_accepted_findings_and_immediate_regressions",
+    "source_commit": "fe71dc0ff95685b6af0e6536ef91d64da7229fee",
+    "additional_affected_check": {
+      "command": ".venv/bin/python -m pytest -q tests/test_speech_source_erasure.py",
+      "first_result": "6 passed,1 skipped,1 failed: existing test intercepted removed shutil.copy2 seam",
+      "resolution": "existing test now pauses actual external atomic-publish filesystem boundary; runtime code unchanged",
+      "result": "7 passed,1 skipped in6.39s; optional actual Speech integration outside scope"
+    }
+  },
+  "native_upgrade": {
+    "status": "passed",
+    "source_commit": "fe71dc0ff95685b6af0e6536ef91d64da7229fee",
+    "controller_generation": "721f289c3132bd32a0b1d9c456f96c0d55fb56ad1b8e22072488848d79cdce93",
+    "product_files_verified": 700,
+    "consumer_files_reverified": 20,
+    "retired_wav_count": 405,
+    "held_wav_placements": 48,
+    "canonical_paths_current": 833,
+    "original_832_canonical_paths_preserved": true,
+    "new_live_canonical_bytes": 65951489,
+    "frozen_files_unchanged": 896,
+    "exclusive_blocks_recovered_bytes": 38512484352,
+    "filesystem_free_bytes_at_upgrade": 350433570816,
+    "timer": "enabled_active_first_persistent_catchup_running_completion_pending",
+    "backup_restore": "prior_verified_snapshot_and_drill_preserved_no_forced_repeat",
+    "private_evidence": "operator storage runtime native-review-upgrade-verification.json/native-acceptance.json and linked receipts",
+    "primary_verification": "actual API200/current fe71 cmdline;20consumerhashes/configSHA match;timerenabledactive readback"
+  },
+  "memory_disposition": {
+    "disposition": "forbidden",
+    "reason": "Developer instruction permits memory capture only on explicit request; none was given",
+    "receipt": "private operator storage runtime memory-disposition.json"
   }
 }

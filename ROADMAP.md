@@ -1473,16 +1473,20 @@ TTS/modelacceptance and backlogactivation remain separate.
 
 ## P11 | Storage Lifecycle And Initial Migration
 
-State: OPEN
+State: CLOSED
 
 Current State: Plan0097 Q1-Q17 are accepted, including the Q16 override removing
 native canaries and a 24-hour hold. The consolidated recording-storage lifecycle
 contract, ADR0006 and ADR0007 preserve source identity, recovery and ownership.
-The operator confirmed shared understanding; implementation tickets0098-0103 are active. Speech
-Receipts remains a separate spec. No migration, timer installation or reprioritization
-of other lanes has occurred. Advance VISION evidence integrity, grounded retrieval,
-replay and autonomy through verified initial migration (target level2), then qualified
-unattended policy (target level3); these are targets, not current acceptance claims.
+All six implementation tickets0098-0103 are CLOSED; one review and one bounded TDD
+pass resolved accepted blockers. Runtime fe71dc0 is installed/qualified;405 WAV
+placements retired recovered38,512,484,352 exclusive NVMe bytes, with896 frozen
+identities unchanged. Native cold access, backup and isolated restore passed (level2
+migration/recovery evidence). Hourly enforcement is enabled/active and its first
+catch-up started; completion and sustained level3 footprint measurement remain
+operational follow-up, not current acceptance claims. Canonical replica holds and
+unqualified placements remain protected. Speech Receipts is a separate spec; the
+new managed profile remains unqualified/disabled at its shared-owner boundary.
 
 Plans:
 

@@ -145,3 +145,22 @@ S1 README pointer is addressed during closeout; S2 identity-decoder refactor and
 wide-uncertainty admission remain explicit nonblocking backlog.
 
 Validated Python/systemd source digest: `bdf961783e1b4d33d8ec0d8c08b8109edd7e35e9f6050288dcc1b8d62d5a4df2` (ordered tracked path/NUL/content/NUL SHA256).
+
+
+### Native closeout
+
+Installed runtime fe71dc0ff95685b6af0e6536ef91d64da7229fee:700 tracked product
+files verified,20 actual consumer hashes and8 controller-file generation verified.
+Actual API200/cold206/WAV recovery and896 frozen identities passed. Hourly timer
+reenabled; first persistent catch-up started, completion pending at closeout. The
+previous verified backup/monthly drill remain historical evidence; no forced repeat
+was run just to change generations.405 retired and48 held placements unchanged;
+833 canonical paths now protected because one legitimate new recording arrived.
+
+A targeted existing SourceOwner file run (directly affected by R4) initially found
+an obsolete test interceptor for shutil.copy2, replaced earlier by admitted streamed
+copy. The same test now pauses the actual external os.replace publication boundary.
+No runtime change:7 passed,1 opt-in actual Speech integration skipped in6.39s. This
+is accepted-finding verification, not renewed broad discovery. S1 README pointer is
+complete; S2 and B1 remain nonblocking backlog. All six worker checkouts were closed
+after verified remote archival custody; original dirty main is unchanged.

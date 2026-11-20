@@ -2,8 +2,8 @@
 
 Status: accepted Q1-Q17 and confirmed shared understanding; implementation is
 integrated on the storage lifecycle branch. Initial native migration and recovery acceptance
-passed; final review/remediation remains. The execution ledger distinguishes source,
-installation and rollout.
+passed; the single final review/remediation is complete. The execution ledger
+distinguishes source, installation, rollout and pending scheduled-run completion.
 
 Authority: [Plan0097](dev/plans/0097-2026-11-19-storage-lifecycle-and-initial-migration.md),
 [ADR0006](adr/0006-own-tiered-recording-storage-and-terminal-derivative-retirement.md),

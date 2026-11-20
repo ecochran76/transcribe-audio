@@ -404,19 +404,21 @@ def test_owner_fence_waits_for_supported_ingest_copy_in_another_process(tmp_path
     }
     ready, release = tmp_path / "copy-ready", tmp_path / "copy-release"
     script = r"""
-import sys,time
+import os,sys,time
 from pathlib import Path
 import transcript_store
 root,source,ready,release=map(Path,sys.argv[1:])
-native=transcript_store.shutil.copy2
-def delayed(*args,**kwargs):
-    ready.write_text("copy reached")
+native=os.replace
+def delayed(temporary,destination,*args,**kwargs):
+    if not Path(destination).is_relative_to(root / "blobs"):
+        return native(temporary,destination,*args,**kwargs)
+    ready.write_text("copy publication reached")
     deadline=time.monotonic()+5
     while not release.exists():
         if time.monotonic()>deadline: raise RuntimeError("bounded copy deadline")
         time.sleep(.01)
-    return native(*args,**kwargs)
-transcript_store.shutil.copy2=delayed
+    return native(temporary,destination,*args,**kwargs)
+os.replace=delayed
 transcript_store.prepare_blob(root,str(source))
 """
     worker = subprocess.Popen(
