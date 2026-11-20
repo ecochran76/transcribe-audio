@@ -28,6 +28,14 @@ change frozen processing configuration. Installed executable search paths need
 consumer hashes and current owned roots. Reinstallation/requalification after a
 code fix does not reset the catalog, checkpoints, manifests or placement journal.
 
+For managed watcher production, set `TRANSCRIBE_STORAGE_ROOT` explicitly in the
+installed watcher unit environment. Both managed command entrypoints accept this
+selector; an explicit `--storage-root` takes precedence. The watcher adapter
+passes the selected root into the same managed public run path. With no selector
+legacy callers retain their existing behavior; installing new code alone does
+not activate bounded admission. Verify the running process environment and
+installed backend path. Keep this selector outside immutable processing config.
+
 The configuration adds `initial_inventory` to the existing maintenance schema;
 include this filename in `inventories`. The private adoption document has version
 1, exact `scope_roots`, optional `objects` and optional `processors`. Each object

@@ -16,7 +16,7 @@ import managed_recording_cli as managed
 
 
 def run(source, config, *, ingress_directory=None, recording_id=None,
-        conversation_id=None, existing_transcript=None):
+        conversation_id=None, existing_transcript=None, storage_root=None):
     """Persist ingress identity before submitting; resume the same CLI generation."""
     source = Path(source).expanduser().resolve(strict=True)
     if not source.is_file():
@@ -69,7 +69,8 @@ def run(source, config, *, ingress_directory=None, recording_id=None,
             raise RuntimeError('source changed before managed submission')
         receipt = managed.run(source, config, recording_id=ingress['recording_id'],
                               conversation_id=ingress['conversation_id'],
-                              existing_transcript=existing_transcript)
+                              existing_transcript=existing_transcript,
+                              storage_root=storage_root)
         paths = receipt.get('output_paths', {})
         if (receipt.get('published') is False or receipt.get('state') not in (None, 'complete')
                 or not receipt.get('generation')
@@ -97,13 +98,16 @@ def main(argv=None):
     parser.add_argument('--recording-id')
     parser.add_argument('--conversation-id')
     parser.add_argument('--existing-transcript', type=Path)
+    parser.add_argument('--storage-root', type=Path,
+                        default=os.environ.get('TRANSCRIBE_STORAGE_ROOT') or None,
+                        help='Catalog root; defaults to TRANSCRIBE_STORAGE_ROOT outside frozen configuration')
     parser.add_argument('--text-output', action='store_true', help='Compatible flag; managed publication always includes TXT')
     args = parser.parse_args(argv)
     try:
         config = json.loads(managed._private_read(args.config))
         receipt = run(args.media, config, ingress_directory=args.ingress_directory,
                       recording_id=args.recording_id, conversation_id=args.conversation_id,
-                      existing_transcript=args.existing_transcript)
+                      existing_transcript=args.existing_transcript, storage_root=args.storage_root)
     except (OSError, ValueError, RuntimeError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         try:
             from managed_operations import failure_receipt

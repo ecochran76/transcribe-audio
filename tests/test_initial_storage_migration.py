@@ -141,3 +141,52 @@ def test_retirement_and_cumulative_accounting_are_idempotent(tmp_path):
     assert measured > 0
     assert account(path)['exclusive_blocks_recovered_bytes'] == measured
     assert account(path)['exclusive_blocks_recovered_bytes'] == measured
+
+
+@pytest.mark.parametrize('module_name', ['managed_recording_cli', 'managed_recording_transcribe'])
+@pytest.mark.parametrize('selection', ['environment', 'explicit', 'unset'])
+def test_managed_entrypoints_forward_storage_selector_outside_frozen_config(tmp_path, monkeypatch, module_name, selection):
+    import importlib
+    module = importlib.import_module(module_name)
+    config = tmp_path / 'processing.json'
+    write_receipt(config, {'frozen_processing': 'unchanged'})
+    before = config.read_bytes()
+    captured = {}
+    def run(media, processing, **options):
+        captured.update(options)
+        assert processing == {'frozen_processing': 'unchanged'}
+        return {'output_paths': {'json': 'unused.json'}}
+    monkeypatch.setattr(module, 'run', run)
+    monkeypatch.delenv('TRANSCRIBE_STORAGE_ROOT', raising=False)
+    argv = [str(tmp_path / 'media.wav'), '--config', str(config)]
+    expected = None
+    if selection != 'unset':
+        monkeypatch.setenv('TRANSCRIBE_STORAGE_ROOT', str(tmp_path / 'env-store'))
+        expected = tmp_path / 'env-store'
+    if selection == 'explicit':
+        expected = tmp_path / 'explicit-store'
+        argv += ['--storage-root', str(expected)]
+    assert module.main(argv) == 0
+    assert captured['storage_root'] == expected
+    assert config.read_bytes() == before
+
+
+def test_watcher_adapter_requires_policy_before_decode_or_provider(tmp_path):
+    from managed_recording_transcribe import run
+    from storage_catalog import StorageError
+    from tests.test_managed_recording import audio, config
+    root = tmp_path / 'store'
+    StorageCatalog(root)
+    token = tmp_path / 'token'
+    token.write_text('unused-local-test-token')
+    token.chmod(0o600)
+    settings = dict(processor=config(tmp_path), token_file=str(token),
+                    endpoint='http://127.0.0.1:1', allow_insecure_loopback=True,
+                    output_directory=str(tmp_path / 'exports'))
+    source = audio(tmp_path / 'source.wav')
+    original = source.read_bytes()
+    with pytest.raises(StorageError, match='storage_configuration_required'):
+        run(source, settings, recording_id='recording',
+            conversation_id='conversation', storage_root=root)
+    assert not list((tmp_path / 'state' / 'cli' / 'media').glob('*.wav'))
+    assert source.read_bytes() == original
