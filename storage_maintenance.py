@@ -243,6 +243,16 @@ class Maintenance:
     def qualified(self):
         try:
             receipt = private_json(self.config['consumer_receipt'])
+            if 'api_pid' in receipt:
+                pid = receipt['api_pid']
+                if type(pid) is not int or pid <= 0:
+                    return False
+                process = Path('/proc') / str(pid)
+                start = (process / 'stat').read_text().split(') ', 1)[1].split()[19]
+                if (start != receipt['api_process_start_ticks']
+                        or receipt['qualified_consumer'].encode() not in (process / 'cmdline').read_bytes().split(b'\0')
+                        or (process / 'stat').read_text().split(') ', 1)[1].split()[19] != start):
+                    return False
             return (receipt['version'] == 1 and receipt['status'] == 'qualified'
                     and receipt['source_generation'] == self.config['source_generation']
                     and receipt['config_sha256'] == config_digest(self.config_path)
@@ -250,7 +260,7 @@ class Maintenance:
                     and receipt['ownership_inventory'] == 'transcribe-owned-v1'
                     and bool(receipt['files'])
                     and all(config_digest(p) == digest for p, digest in receipt['files'].items()))
-        except (KeyError, OSError, TypeError, MaintenanceHeld):
+        except (KeyError, OSError, TypeError, ValueError, IndexError, MaintenanceHeld):
             return False
 
     def discover(self):
@@ -347,6 +357,11 @@ class Maintenance:
             'written_bytes': budget.written, 'read_bytes': budget.read,
             'reservations': self.reservations, 'started_at': budget.started.utc_seconds})
 
+    def _pause_attempt(self, identity, attempt, reason, states_path):
+        if self.item_states.get(identity, {}).get('state') == 'attempting':
+            self.item_states[identity] = {'state': 'held', 'attempts': attempt - 1, 'reason': reason}
+            write_receipt(states_path, self.item_states)
+
     def admit(self, identity, payload, transient=0):
         if identity in self.reservations:
             raise MaintenanceHeld('reservation_already_owned')
@@ -438,8 +453,12 @@ class Maintenance:
 
     def check_references(self, db):
         failures = []
-        for identity, digest in db.execute('SELECT id,sha256 FROM storage_objects'):
+        for identity, digest, classification in db.execute('SELECT id,sha256,classification FROM storage_objects'):
             self.budget.checkpoint()
+            migration = self.catalog.migration(identity)
+            if (classification in ('private_cache', 'completed_scratch')
+                    and migration and migration['phase'] == 'evicted'):
+                continue
             origin = self.catalog.origin(identity)
             if db.execute('SELECT 1 FROM recording_source_erasures WHERE sha256 IN (?,?)', (digest, origin or digest)).fetchone():
                 continue
@@ -482,89 +501,6 @@ class Maintenance:
             try:
                 self.budget = PassBudget(self.clock, account=self.account, clock_quantum_bytes=64 * 1024 * 1024)
                 self.catalog.checkpoint = self.budget.checkpoint
-                planned = []
-                if command in ('migrate', 'reconcile', 'maintenance'):
-                    planned = sorted(self.plan(), key=lambda item: (
-                        item['classification'] != 'historical_derivative', item['id']))
-                    for item in planned:
-                        outcome = {'object_id': item['id'], 'state': 'held', 'reason': item['reason']}
-                        previous_migration = self.catalog.migration(item['id'])
-                        if previous_migration and previous_migration['phase'] == 'retired':
-                            # resolve checks the recorded destination identity;
-                            # do not recopy or rehash a completed retirement.
-                            self.catalog.resolve(item['id'])
-                            result['items'].append({'object_id': item['id'], 'state': 'retired', 'reason': 'already_retired'})
-                            continue
-                        canonical = item['classification'] in ('canonical_source', 'source_recording')
-                        if canonical:
-                            replica, domain, replica_reason = self.replica(item)
-                            if replica is None and item['id'] not in self.config.get('copy_only_ids', []):
-                                result['items'].append({**outcome, 'reason': replica_reason})
-                                continue
-                            if replica is None and previous_migration and previous_migration['phase'] in ('published', 'retirement-pending'):
-                                self.catalog.resolve(item['id'])
-                                result['items'].append({'object_id': item['id'], 'state': 'copy-only', 'reason': replica_reason})
-                                continue
-                        if item['action'] not in ('cold_move', 'quarantine', 'evict_cache', 'evict_scratch'):
-                            result['items'].append(outcome)
-                            continue
-                        if item['size'] > self.budget.limit:
-                            result['items'].append({'object_id': item['id'], 'state': 'held', 'reason': 'individual_object_exceeds_pass_bound'})
-                            continue
-                        previous = self.item_states.get(item['id'], {})
-                        if previous.get('state') == 'quarantined' or previous.get('attempts', 0) >= 3:
-                            result['items'].append({'object_id': item['id'], 'state': previous.get('state', 'held'),
-                                'reason': previous.get('reason', 'object_retry_exhausted'), 'attempts': previous.get('attempts', 0)})
-                            continue
-                        # Unknown media can be copied to quarantine, never retired.
-                        for attempt in range(previous.get('attempts', 0) + 1, 4):
-                            try:
-                                self.admit(item['id'], item['size'], 0)
-                                self.catalog._guard(self.catalog.cold_root)
-                                old_source = Path(item['logical_path'])
-                                before = old_source.stat() if old_source.exists() else None
-                                if self.free_bytes(self.catalog.cold_root) < item['size'] + 1024 * 1024:
-                                    raise MaintenanceHeld('cold_destination_capacity')
-                                # Native independent replica proofs are separate
-                                # evidence, never an arbitrary configured domain.
-                                retire = item['classification'] not in ('canonical_source', 'source_recording', 'unclassified') and item['action'] != 'quarantine'
-                                self.item_states[item['id']] = {'state': 'attempting', 'attempts': attempt, 'reason': 'interrupted_attempt'}
-                                write_receipt(states_path, self.item_states)
-                                replica, domain, replica_reason = (None, '', '')
-                                if item['classification'] in ('canonical_source', 'source_recording'):
-                                    replica, domain, replica_reason = self.replica(item)
-                                    retire = replica is not None and item['action'] != 'quarantine'
-                                outcome = self.catalog.migrate(item['id'], consumers_qualified=self.qualified(), retire=retire,
-                                    independent_replica=replica, replica_failure_domain=domain)
-                                if item['action'] == 'quarantine':
-                                    outcome.update(state='quarantined', reason=item['reason'])
-                                if replica_reason and outcome['state'] != 'retired':
-                                    outcome['reason'] = replica_reason
-                                outcome['attempts'] = attempt
-                                outcome['exclusive_blocks_recovered_bytes'] = (before.st_blocks * 512
-                                    if before and before.st_nlink == 1 and not old_source.exists() and outcome['state'] == 'retired' else 0)
-                                break
-                            except MaintenanceHeld as error:
-                                outcome.update(reason=str(error), attempts=attempt)
-                                result['items'].append(outcome)
-                                raise
-                            except OSError as error:
-                                if error.errno in (errno.EIO, errno.ENODEV, errno.ESTALE, errno.ENOENT):
-                                    raise MaintenanceHeld('systemic_storage_outage') from error
-                                outcome['reason'] = 'object_transient_' + type(error).__name__
-                                outcome['attempts'] = attempt
-                            except StorageError as error:
-                                reason = str(error)
-                                if any(word in reason for word in ('mount', 'native_cold', 'storage_identity')):
-                                    raise MaintenanceHeld(reason) from error
-                                outcome.update(state='quarantined' if any(w in reason for w in ('conflict', 'changed', 'hash')) else 'held', reason=reason)
-                                break
-                            finally:
-                                self.reservations.pop(item['id'], None)
-                                self.account(self.budget)
-                        self.item_states[item['id']] = {**outcome, 'attempts': outcome.get('attempts', 0) if outcome.get('reason', '').startswith('object_transient_') else 0}
-                        write_receipt(states_path, self.item_states)
-                        result['items'].append(outcome)
                 if command in ('backup', 'maintenance', 'restore'):
                     manager = self.backup_manager()
                     size = Path(self.config['live_database']).stat().st_size
@@ -583,11 +519,108 @@ class Maintenance:
                         result['rotation'] = manager.rotate()
                         if command == 'maintenance':
                             samples = [{'media_id': p['id'], 'sha256': p['sha256']}
-                                       for p in self.catalog.objects() if 0 < p['size'] <= 4 * 1024 * 1024][:16]
+                                       for p in self.catalog.objects() if p['active_path'] and 0 < p['size'] <= 4 * 1024 * 1024][:16]
                             result['drill'] = manager.monthly_restore_drill(result['backup']['snapshot_id'],
                                 Path(self.config['backup_root']) / ('isolated-' + uuid4().hex),
                                 reconcile_erasure=self.reconcile_erasure, check_references=self.check_references,
                                 recover_media=self.recover_media, samples=samples)
+                    self.reservations.pop('database', None)
+                planned = []
+                if command in ('migrate', 'reconcile', 'maintenance'):
+                    planned = sorted(self.plan(), key=lambda item: (
+                        item['classification'] != 'historical_derivative', item['id']))
+                    for item in planned:
+                        outcome = {'object_id': item['id'], 'state': 'held', 'reason': item['reason']}
+                        previous_migration = self.catalog.migration(item['id'])
+                        if previous_migration and previous_migration['phase'] == 'retired':
+                            # resolve checks the recorded destination identity;
+                            # do not recopy or rehash a completed retirement.
+                            self.catalog.resolve(item['id'])
+                            result['items'].append({'object_id': item['id'], 'state': 'retired', 'reason': 'already_retired'})
+                            continue
+                        if previous_migration and previous_migration['phase'] == 'evicted':
+                            result['items'].append({'object_id': item['id'], 'state': 'evicted', 'reason': 'already_evicted'})
+                            continue
+                        disposal = item['action'] in ('evict_cache', 'evict_scratch')
+                        canonical = item['classification'] in ('canonical_source', 'source_recording')
+                        if canonical:
+                            replica, domain, replica_reason = self.replica(item)
+                            if replica is None and item['id'] not in self.config.get('copy_only_ids', []):
+                                result['items'].append({**outcome, 'reason': replica_reason})
+                                continue
+                            if replica is None and previous_migration and previous_migration['phase'] in ('published', 'retirement-pending'):
+                                self.catalog.resolve(item['id'])
+                                result['items'].append({'object_id': item['id'], 'state': 'copy-only', 'reason': replica_reason})
+                                continue
+                        if item['action'] not in ('cold_move', 'quarantine', 'evict_cache', 'evict_scratch'):
+                            result['items'].append(outcome)
+                            continue
+                        if not disposal and item['size'] > self.budget.limit:
+                            result['items'].append({'object_id': item['id'], 'state': 'held', 'reason': 'individual_object_exceeds_pass_bound'})
+                            continue
+                        previous = self.item_states.get(item['id'], {})
+                        if previous.get('state') == 'quarantined' or previous.get('attempts', 0) >= 3:
+                            result['items'].append({'object_id': item['id'], 'state': previous.get('state', 'held'),
+                                'reason': previous.get('reason', 'object_retry_exhausted'), 'attempts': previous.get('attempts', 0)})
+                            continue
+                        # Unknown media can be copied to quarantine, never retired.
+                        for attempt in range(previous.get('attempts', 0) + 1, 4):
+                            try:
+                                self.admit(item['id'], 0 if disposal else item['size'], 0)
+                                if not disposal:
+                                    self.catalog._guard(self.catalog.cold_root)
+                                old_source = Path(item['logical_path'])
+                                before = old_source.stat() if old_source.exists() else None
+                                if not disposal and self.free_bytes(self.catalog.cold_root) < item['size'] + 1024 * 1024:
+                                    raise MaintenanceHeld('cold_destination_capacity')
+                                # Native independent replica proofs are separate
+                                # evidence, never an arbitrary configured domain.
+                                retire = item['classification'] not in ('canonical_source', 'source_recording', 'unclassified') and item['action'] != 'quarantine'
+                                self.item_states[item['id']] = {'state': 'attempting', 'attempts': attempt, 'reason': 'interrupted_attempt'}
+                                write_receipt(states_path, self.item_states)
+                                replica, domain, replica_reason = (None, '', '')
+                                if item['classification'] in ('canonical_source', 'source_recording'):
+                                    replica, domain, replica_reason = self.replica(item)
+                                    retire = replica is not None and item['action'] != 'quarantine'
+                                if disposal:
+                                    outcome = self.catalog.evict(item['id'], consumers_qualified=self.qualified(),
+                                        eligibility_verified=True)
+                                else:
+                                    custody = self.config.get('replica_proofs', {}).get(item['id'], {}).get('custody', '')
+                                    outcome = self.catalog.migrate(item['id'], consumers_qualified=self.qualified(), retire=retire,
+                                        independent_replica=replica, replica_failure_domain=domain, replica_custody=custody)
+                                if item['action'] == 'quarantine':
+                                    outcome.update(state='quarantined', reason=item['reason'])
+                                if replica_reason and outcome['state'] != 'retired':
+                                    outcome['reason'] = replica_reason
+                                outcome['attempts'] = attempt
+                                outcome['exclusive_blocks_recovered_bytes'] = (before.st_blocks * 512
+                                    if before and before.st_nlink == 1 and not old_source.exists() and outcome['state'] in ('retired', 'evicted') else 0)
+                                break
+                            except MaintenanceHeld as error:
+                                self._pause_attempt(item['id'], attempt, str(error), states_path)
+                                outcome.update(reason=str(error), attempts=attempt)
+                                result['items'].append(outcome)
+                                raise
+                            except OSError as error:
+                                if error.errno in (errno.EIO, errno.ENODEV, errno.ESTALE, errno.ENOENT):
+                                    self._pause_attempt(item['id'], attempt, 'systemic_storage_outage', states_path)
+                                    raise MaintenanceHeld('systemic_storage_outage') from error
+                                outcome['reason'] = 'object_transient_' + type(error).__name__
+                                outcome['attempts'] = attempt
+                            except StorageError as error:
+                                reason = str(error)
+                                if any(word in reason for word in ('mount', 'native_cold', 'storage_identity')):
+                                    self._pause_attempt(item['id'], attempt, reason, states_path)
+                                    raise MaintenanceHeld(reason) from error
+                                outcome.update(state='quarantined' if any(w in reason for w in ('conflict', 'changed', 'hash')) else 'held', reason=reason)
+                                break
+                            finally:
+                                self.reservations.pop(item['id'], None)
+                                self.account(self.budget)
+                        self.item_states[item['id']] = {**outcome, 'attempts': outcome.get('attempts', 0) if outcome.get('reason', '').startswith('object_transient_') else 0}
+                        write_receipt(states_path, self.item_states)
+                        result['items'].append(outcome)
                 result['status'] = 'complete'
             except (MaintenanceHeld, StorageError, BackupError, OSError, sqlite3.Error, KeyError, ValueError, TypeError, LookupError) as error:
                 result.update(status='held', reason=str(error) if isinstance(error, (MaintenanceHeld, StorageError, BackupError)) else type(error).__name__)

@@ -252,7 +252,8 @@ class RecordingSourceOwner:
         cold_paths, retired_aliases = erasure_catalog_paths(self.root, source["sha256"])
         paths.difference_update(retired_aliases)
         paths.update(cold_paths)
-        canonical_copies.update(cold_paths)
+        expected.update(cold_paths)
+        canonical_copies.update(path for path, sha in cold_paths.items() if sha == source['sha256'])
         if len(paths) > 256:
             raise ValueError("speech_owner_inventory_limit")
         if sum(Path(path).lstat().st_size for path in paths) > 128_000_000:

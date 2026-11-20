@@ -118,3 +118,26 @@ CLI `--storage-root` overrides it. Include all actual owned staging/cache roots,
 including `store_root/upload-staging` and `store_root/playback-cache`, in private
 `transient_roots`. Shared LocalAI spools are not Transcribe migration roots. New
 managed profiles use an owned spool; historical frozen configurations stay intact.
+
+
+The catalog defaults new registrations to unclassified. Direct retirement requires
+an explicit eligible retained-media role; unknown/live roles cannot confer disposal
+authority. Disposable private caches and qualified completed scratch use a separate
+journaled `evicted` transition after policy eligibility, consumer, pin, ownership and
+full-hash checks; no cold copy is created. Evicted disposable references are omitted
+from restore media checks. Retained media continue through exact cold migration.
+Canonical retirement also records the verified independent replica's identity,
+content, failure domain and custody in its durable journal before unlink.
+
+Runtime-bound consumer receipts revalidate the recorded API PID, process start
+identity and installed command. API qualification checks the healthy store/database
+against private configuration. Requalify after replacing a process or generation.
+A systemic storage/time/budget pause preserves object-local retry allowance.
+Accounting reports ID plus logical path so held and retired placements sharing one
+logical ID remain separate outcomes.
+
+Hourly maintenance publishes its consistent metadata backup before media migration,
+so migration debt cannot starve backups. Rotation verifies the manifest, compressed
+size and full compressed checksum of already fully verified published snapshots
+without rewriting every historical database. Explicit verify/restore and monthly
+drills retain full SQLite integrity checks. Read I/O remains timed and accounted.

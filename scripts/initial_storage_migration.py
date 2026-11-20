@@ -190,25 +190,27 @@ def account(config_path):
         for item in private_json(latest_path).get('items', []):
             states[item['object_id']] = item
     inventory = private_json(config['initial_inventory'])
-    items = {item['id']: {'object_id': item['id'], 'state': 'held', 'reason': item['reason']}
+    items = {(item['id'], item['path']): {'object_id': item['id'],
+             'logical_path': item['path'], 'state': 'held', 'reason': item['reason']}
              for item in inventory.get('held', [])}
     for item in inventory['objects']:
         identity = item['id']
+        placement = (identity, item['path'])
         migration = runner.catalog.migration(identity)
         state = states.get(identity, {})
-        items[identity] = {'object_id': identity, **state}
+        items[placement] = {'object_id': identity, **state, 'logical_path': item['path']}
         if migration:
-            items[identity]['journal_phase'] = migration['phase']
+            items[placement]['journal_phase'] = migration['phase']
             if migration['phase'] == 'retired':
-                items[identity].update(state='retired', reason='')
+                items[placement].update(state='retired', reason='')
             elif migration['phase'] == 'retirement-pending' and migration.get('reason') == 'copy_only':
-                items[identity].update(state='copy-only', reason=state.get('reason', 'copy_only'))
+                items[placement].update(state='copy-only', reason=state.get('reason', 'copy_only'))
         elif (item.get('classification') in ('canonical_source', 'source_recording')
               and identity not in config.get('replica_proofs', {})
               and identity not in config.get('copy_only_ids', [])):
-            items[identity].update(state='held', reason='independent_replica_custody_unqualified')
+            items[placement].update(state='held', reason='independent_replica_custody_unqualified')
         elif not state:
-            items[identity].update(state='held', reason='not_yet_migrated')
+            items[placement].update(state='held', reason='not_yet_migrated')
     # Each retirement is counted once from its original durable pass receipt.
     recovered = {}
     for path in runner.state.glob('*.json'):
@@ -244,7 +246,11 @@ def qualify_api(config_path, installation_receipt, pid, health_url):
     with urlopen(health_url, timeout=10) as response:
         if response.status != 200:
             raise ValueError('api_health_failed')
-        response.read(65536)
+        health = json.loads(response.read(65536))
+        if (health.get('status') != 'ok'
+                or health.get('db_path') != config['live_database']
+                or health.get('store_dir') != config['store_root']):
+            raise ValueError('api_health_store_mismatch')
     if before.read_text().split(') ', 1)[1].split()[19] != process_identity:
         raise ValueError('api_process_changed_during_qualification')
     receipt = {'version': 1, 'status': 'qualified',

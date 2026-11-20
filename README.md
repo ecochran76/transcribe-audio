@@ -1259,3 +1259,11 @@ request two concurrent manager workers. The setting is frozen into new recording
 generations and their requests. Omit it to preserve existing request bytes and
 single-worker behavior. The manager still enforces its historical ceiling,
 consumer limits, model reservations, GPU headroom and foreground priorities.
+
+
+### Recording storage lifecycle
+
+See [storage operations](docs/storage-operations.md) for HDD migration, retention,
+backups and installed qualification. Catalog-enabled producers use the explicit
+`--storage-root` selector or `TRANSCRIBE_STORAGE_ROOT`; the CLI flag takes precedence.
+Storage paths and device identity belong in private operator configuration.

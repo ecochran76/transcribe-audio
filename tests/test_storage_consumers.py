@@ -17,12 +17,13 @@ def test_ingest_reuses_published_blob_without_rehydrating_nvme(tmp_path, monkeyp
         init_db(con)
     blob = prepare_blob(root, str(source))
     catalog = StorageCatalog(root)
-    catalog.register(blob['id'], Path(blob['stored_path']), expected_sha256=blob['sha256'])
+    catalog.register(blob['id'], Path(blob['stored_path']), classification='canonical_source', expected_sha256=blob['sha256'])
     cold = tmp_path / 'cold'
     cold.mkdir(mode=0o700)
     catalog = StorageCatalog(root, cold_root=cold,
                              validate_cold=lambda p: {'identity': 'disk', 'failure_domain': 'disk'})
-    catalog.migrate(blob['id'], consumers_qualified=True)
+    assert catalog.migrate(blob['id'], consumers_qualified=True, independent_replica=source,
+        replica_failure_domain='independent-test-disk', replica_custody='retained original fixture')['state'] == 'retired'
     assert not Path(blob['stored_path']).exists()
     # The production resolver still qualifies the saved device at the external boundary.
     monkeypatch.setattr('storage_catalog.native_storage_identity', lambda *a: {'identity': 'disk', 'failure_domain': 'disk'})
@@ -46,13 +47,13 @@ def test_managed_resume_keeps_generation_after_source_and_unit_move(tmp_path, mo
     cold.mkdir(mode=0o700)
     catalog = StorageCatalog(root, source_roots=[tmp_path], cold_root=cold,
                              validate_cold=lambda p: {'identity': 'disk', 'failure_domain': 'disk'})
-    catalog.register('source', source)
-    catalog.migrate('source', consumers_qualified=True)
+    catalog.register('source', source, classification='processing_derivative')
+    assert catalog.migrate('source', consumers_qualified=True)['state'] == 'retired'
     for unit in frozen['units']:
         path = processor.spool / unit['artifact_id']
         if path.exists():
-            catalog.register(unit['artifact_id'], path, expected_sha256=unit['sha256'])
-            catalog.migrate(unit['artifact_id'], consumers_qualified=True)
+            catalog.register(unit['artifact_id'], path, classification='processing_derivative', expected_sha256=unit['sha256'])
+            assert catalog.migrate(unit['artifact_id'], consumers_qualified=True)['state'] == 'retired'
     monkeypatch.setattr('storage_catalog.native_storage_identity', lambda *a: {'identity': 'disk', 'failure_domain': 'disk'})
     assert processor.prepare(source, recording_id='recording', conversation_id='conversation') == key
     assert processor.snapshot(key) == frozen
@@ -69,8 +70,9 @@ def test_playback_and_corpus_resolve_cold_blob_with_mount_fail_closed(tmp_path, 
     cold.mkdir(mode=0o700)
     catalog = StorageCatalog(root, cold_root=cold,
                              validate_cold=lambda p: {'identity': 'disk', 'failure_domain': 'disk'})
-    catalog.register(blob['id'], Path(blob['stored_path']))
-    catalog.migrate(blob['id'], consumers_qualified=True)
+    catalog.register(blob['id'], Path(blob['stored_path']), classification='canonical_source')
+    assert catalog.migrate(blob['id'], consumers_qualified=True, independent_replica=original,
+        replica_failure_domain='independent-test-disk', replica_custody='retained original fixture')['state'] == 'retired'
     monkeypatch.setattr('storage_catalog.native_storage_identity', lambda *a: {'identity': 'disk', 'failure_domain': 'disk'})
     assert get_blob(blob['id'], root=root)['path'] == catalog.resolve(blob['id'])
     receipt = harden_candidate_sources([{'source_blob': blob}], store_root=root, approval_token=HARDEN_TOKEN)
@@ -100,8 +102,8 @@ def test_derivative_replay_preserves_evidence_after_media_move(tmp_path, monkeyp
     catalog = StorageCatalog(root, source_roots=[tmp_path], cold_root=cold,
                              validate_cold=lambda p: {'identity': 'disk', 'failure_domain': 'disk'})
     for identifier, path in [('source', source), ('artifact', Path(reference['artifact_path']))]:
-        catalog.register(identifier, path)
-        catalog.migrate(identifier, consumers_qualified=True)
+        catalog.register(identifier, path, classification='processing_derivative')
+        assert catalog.migrate(identifier, consumers_qualified=True)['state'] == 'retired'
     monkeypatch.setattr('storage_catalog.native_storage_identity', lambda *a: {'identity': 'disk', 'failure_domain': 'disk'})
     assert replay_derivative(plan['run_id'], runtime_root=runtime, storage_root=root) == before
     after = resolve_active_derivative(plan['run_id'], runtime_root=runtime, storage_root=root)
@@ -117,8 +119,9 @@ def test_erasure_retains_owner_binding_and_purges_exact_catalog_cold_copy(tmp_pa
     cold.mkdir(mode=0o700)
     catalog = StorageCatalog(root, cold_root=cold,
                              validate_cold=lambda p: {'identity': 'disk', 'failure_domain': 'disk'})
-    catalog.register(blob['id'], Path(blob['stored_path']))
-    catalog.migrate(blob['id'], consumers_qualified=True)
+    catalog.register(blob['id'], Path(blob['stored_path']), classification='canonical_source')
+    assert catalog.migrate(blob['id'], consumers_qualified=True, independent_replica=original,
+        replica_failure_domain='independent-test-disk', replica_custody='retained original fixture')['state'] == 'retired'
     destination = catalog.resolve(blob['id'])
     monkeypatch.setattr('storage_catalog.native_storage_identity', lambda *a: {'identity': 'disk', 'failure_domain': 'disk'})
     service = RecordingSourceOwner(store_root=root, directory=tmp_path/'owner', owner=OWNER,
@@ -143,7 +146,7 @@ def test_erasure_cannot_fence_an_active_catalog_reader(tmp_path):
     from speech_source_erasure import RecordingSourceOwner
     root, original, blob, source = fixture(tmp_path)
     catalog = StorageCatalog(root)
-    catalog.register(blob['id'], Path(blob['stored_path']))
+    catalog.register(blob['id'], Path(blob['stored_path']), classification='canonical_source')
     owner = RecordingSourceOwner(store_root=root, directory=tmp_path/'owner', owner=OWNER,
                                  token='independent', principals=[PRINCIPAL], original_roots=[original.parent])
     try:
@@ -153,3 +156,34 @@ def test_erasure_cannot_fence_an_active_catalog_reader(tmp_path):
             assert inventory['reason'] == 'speech_owner_storage_reader_active'
     finally:
         owner.close()
+
+
+def test_erasure_inventory_preserves_distinct_origin_linked_derivative_hash(tmp_path, monkeypatch):
+    from tests.test_speech_source_erasure import fixture, OWNER, PRINCIPAL
+    from speech_source_erasure import RecordingSourceOwner
+    root, original, blob, source = fixture(tmp_path)
+    derivative = root / 'derived.wav'
+    derivative.write_bytes(b'different exact derived bytes')
+    cold = tmp_path / 'cold'
+    cold.mkdir(mode=0o700)
+    catalog = StorageCatalog(root, cold_root=cold,
+        validate_cold=lambda _: {'identity': 'disk', 'failure_domain': 'disk'})
+    catalog.register('derived', derivative, classification='historical_derivative',
+                     source_sha256=blob['sha256'])
+    catalog.migrate('derived', consumers_qualified=True)
+    destination = catalog.resolve('derived')
+    monkeypatch.setattr('storage_catalog.native_storage_identity',
+                        lambda *args: {'identity': 'disk', 'failure_domain': 'disk'})
+    service = RecordingSourceOwner(store_root=root, directory=tmp_path / 'owner', owner=OWNER,
+        token='independent', principals=[PRINCIPAL], original_roots=[original.parent])
+    try:
+        inventory = service.request('inventory', {'principal': PRINCIPAL, 'source': source},
+                                    'Bearer independent')['inventory']
+        assert inventory['available'] is True
+        intent = {'principal': PRINCIPAL, 'requestId': 'erase-origin-and-derived',
+                  'source': source, 'expectedFingerprint': inventory['fingerprint']}
+        service.request('fence', intent, 'Bearer independent')
+        service.request('purge', intent, 'Bearer independent')
+        assert not destination.exists() and not original.exists()
+    finally:
+        service.close()

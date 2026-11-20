@@ -196,9 +196,10 @@ def test_systemic_mount_failure_pauses_queue_without_object_retries(tmp_path):
     # existing immutable object classification.
     second = source.parent / 'two.bin'
     second.write_bytes(b'cache')
-    catalog.register('two', second, classification='private_cache')
+    catalog.register('two', second, classification='historical_derivative', source_sha256=hashlib.sha256(b'original').hexdigest())
     data = json.loads(inventory.read_text())
-    data['objects'][0].update(id='two', path=str(second), sha256=hashlib.sha256(b'cache').hexdigest())
+    data['objects'][0].update(id='two', path=str(second), sha256=hashlib.sha256(b'cache').hexdigest(), classification='historical_derivative',
+        source_sha256=hashlib.sha256(b'original').hexdigest())
     inventory.write_text(json.dumps(data))
     config_file = qualify_operator(tmp_path, config)
     from storage_catalog import StorageError
@@ -315,3 +316,99 @@ def test_coalesced_time_check_stops_at_io_boundary_and_forced_phase():
             budget.checkpoint(**({} if force_phase else {'read_bytes': 32}))
         assert budget.written == 32
         assert budget.read == 0
+
+
+def test_consumer_receipt_holds_when_recorded_api_process_identity_changed(tmp_path):
+    import os
+    config, catalog, _ = setup_operator(tmp_path)
+    config_file = qualify_operator(tmp_path, config)
+    receipt = private_json(config['consumer_receipt'])
+    receipt.update(api_pid=os.getpid(), api_process_start_ticks='not-current-start',
+                   qualified_consumer=str(tmp_path / 'consumer.py'))
+    Path(config['consumer_receipt']).write_text(json.dumps(receipt))
+    runner = Maintenance(config, config_path=config_file, catalog=catalog)
+    assert runner.qualified() is False
+
+
+def test_outage_during_copy_preserves_retry_allowance_and_resumes(tmp_path, monkeypatch):
+    import errno
+    import os
+    config, catalog, source = setup_operator(tmp_path)
+    origin = hashlib.sha256(b'retained canonical').hexdigest()
+    catalog.register('one', source, classification='historical_derivative', source_sha256=origin)
+    inventory = tmp_path / 'inventory.json'
+    config['inventories'] = [str(inventory)]
+    inventory.write_text(json.dumps({'version': 1, 'source_generation': 'synthetic',
+        'ownership_inventory': 'transcribe-owned-v1', 'objects': [{
+            'id': 'one', 'path': str(source), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+            'source_sha256': origin, 'classification': 'historical_derivative',
+            'ownership_known': True, 'active': False}]}))
+    inventory.chmod(0o600)
+    config_file = qualify_operator(tmp_path, config)
+    runner = Maintenance(config, config_path=config_file, catalog=catalog,
+        clock=lambda: TimeObservation(100), free_bytes=lambda _: 200 * 1024 ** 3)
+    original_open = os.open
+    def unavailable_source(path, flags, *args, **kwargs):
+        if Path(path) == source:
+            raise OSError(errno.EIO, 'simulated device outage')
+        return original_open(path, flags, *args, **kwargs)
+    with monkeypatch.context() as boundary:
+        boundary.setattr(os, 'open', unavailable_source)
+        for _ in range(3):
+            result = runner.run('migrate')
+            assert result['reason'] == 'systemic_storage_outage'
+            assert runner.item_states['one']['attempts'] == 0
+    assert runner.run('migrate')['items'][0]['state'] == 'retired'
+    assert not source.exists()
+
+
+def test_maintenance_evicts_eligible_cache_without_cold_copy(tmp_path, monkeypatch):
+    config, catalog, _ = setup_operator(tmp_path)
+    cache = Path(config['store_root']) / 'playback.mp3'
+    cache.write_bytes(b'regenerable playback')
+    catalog.register('cache', cache, classification='private_cache')
+    inventory = tmp_path / 'inventory.json'
+    config['inventories'] = [str(inventory)]
+    inventory.write_text(json.dumps({'version': 1, 'source_generation': 'synthetic',
+        'ownership_inventory': 'transcribe-owned-v1', 'objects': [{
+            'id': 'cache', 'path': str(cache), 'sha256': hashlib.sha256(cache.read_bytes()).hexdigest(),
+            'classification': 'private_cache', 'ownership_known': True, 'active': False}]}))
+    inventory.chmod(0o600)
+    config['erasure_authority'] = config['live_database']
+    config_file = qualify_operator(tmp_path, config)
+    monkeypatch.setattr('storage_maintenance.native_storage_identity',
+        lambda *args: {'identity': 'cold', 'failure_domain': 'disk-b'})
+    runner = Maintenance(config, config_path=config_file, catalog=catalog,
+        clock=lambda: TimeObservation(100), free_bytes=lambda _: 200 * 1024 ** 3)
+    result = runner.run('migrate')
+    assert next(item for item in result['items'] if item['object_id'] == 'cache')['state'] == 'evicted'
+    assert not cache.exists() and list(Path(config['cold_root']).iterdir()) == []
+    assert result['written_bytes'] == 0
+
+    assert runner.run('maintenance')['drill']['status'] == 'passed'
+
+
+def test_hourly_backup_is_published_before_migration_can_exhaust_deadline(tmp_path, monkeypatch):
+    config, catalog, source = setup_operator(tmp_path)
+    config['erasure_authority'] = config['live_database']
+    origin = hashlib.sha256(b'retained canonical').hexdigest()
+    catalog.register('one', source, classification='historical_derivative', source_sha256=origin)
+    inventory = tmp_path / 'inventory.json'
+    config['inventories'] = [str(inventory)]
+    inventory.write_text(json.dumps({'version': 1, 'source_generation': 'synthetic',
+        'ownership_inventory': 'transcribe-owned-v1', 'objects': [{
+            'id': 'one', 'path': str(source), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+            'source_sha256': origin, 'classification': 'historical_derivative',
+            'ownership_known': True, 'active': False}]}))
+    inventory.chmod(0o600)
+    config_file = qualify_operator(tmp_path, config)
+    monkeypatch.setattr('storage_maintenance.native_storage_identity',
+        lambda *args: {'identity': 'cold', 'failure_domain': 'disk-b'})
+    runner = Maintenance(config, config_path=config_file, catalog=catalog,
+        clock=lambda: TimeObservation(100 if source.exists() else 1901),
+        free_bytes=lambda _: 200 * 1024 ** 3)
+    result = runner.run('maintenance')
+    assert 'backup' in result, result
+    snapshot = Path(config['backup_root']) / result['backup']['snapshot_id']
+    assert (snapshot / 'database.sqlite.gz').is_file()
+    assert result['drill']['status'] == 'passed'

@@ -229,3 +229,53 @@ def test_new_completed_registration_uses_reviewed_producer_custody(tmp_path):
         db.execute('DELETE FROM document_blobs')
     assert refresh(path, adoption)['held'][0]['reason'] == 'registered_blob_custody_unqualified'
     assert source.read_bytes() == b'original recording'
+
+
+def test_account_preserves_held_placement_when_logical_id_also_retired(tmp_path):
+    config, path = environment(tmp_path)
+    store = Path(config['store_root'])
+    qualified, unresolved = store / 'qualified.wav', store / 'unresolved.wav'
+    qualified.write_bytes(b'exact completed derivative')
+    unresolved.write_bytes(b'unqualified distinct placement')
+    catalog = StorageCatalog(store, cold_root=Path(config['cold_root']),
+        validate_cold=lambda _: {'identity': 'cold', 'failure_domain': 'disk-b'})
+    catalog.register('shared', qualified, classification='historical_derivative')
+    catalog.migrate('shared', consumers_qualified=True)
+    write_receipt(config['initial_inventory'], {'objects': [
+        {'id': 'shared', 'path': str(qualified), 'classification': 'historical_derivative'}],
+        'held': [{'id': 'shared', 'path': str(unresolved), 'reason': 'lineage_unqualified'}]})
+    result = account(path)
+    assert {item['logical_path']: (item['state'], item['reason']) for item in result['items']} == {
+        str(qualified): ('retired', ''), str(unresolved): ('held', 'lineage_unqualified')}
+    assert unresolved.read_bytes() == b'unqualified distinct placement'
+
+
+def test_api_qualification_rejects_health_from_another_store(tmp_path):
+    from scripts.initial_storage_migration import qualify_api
+    import sys
+    config, path = environment(tmp_path)
+    release = tmp_path / 'release'
+    release.mkdir()
+    script = release / 'transcript_api.py'
+    script.write_text("""from http.server import BaseHTTPRequestHandler, HTTPServer
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok","db_path":"/other/database","store_dir":"/other"}')
+    def log_message(self, *args): pass
+server = HTTPServer(('127.0.0.1', 0), Handler)
+print(server.server_port, flush=True)
+server.serve_forever()
+""")
+    installation = tmp_path / 'installation.json'
+    write_receipt(installation, {'release': str(release), 'files': {str(script): config_digest(script)}})
+    process = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True)
+    try:
+        port = int(process.stdout.readline())
+        with pytest.raises(ValueError, match='api_health_store_mismatch'):
+            qualify_api(path, installation, process.pid, f'http://127.0.0.1:{port}/api/health')
+        assert not Path(config['consumer_receipt']).exists()
+    finally:
+        process.terminate()
+        process.wait(timeout=5)

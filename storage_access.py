@@ -96,8 +96,8 @@ def erasure_catalog_paths(root, digest):
     import storage_catalog
     catalog = catalog_for(root)
     if catalog is None:
-        return set(), set()
-    paths, retired_aliases = set(), set()
+        return {}, set()
+    paths, retired_aliases = {}, set()
     for record in catalog.objects():
         if record['sha256'] != digest and catalog.origin(record['id']) != digest:
             continue
@@ -105,6 +105,12 @@ def erasure_catalog_paths(root, digest):
             raise ValueError('speech_owner_storage_reader_active')
         migration = catalog.migration(record['id'])
         if not migration:
+            continue
+        if migration['phase'] == 'evicted' and record['classification'] in ('private_cache', 'completed_scratch'):
+            old = Path(migration['source'])
+            if old.exists() or old.is_symlink():
+                raise ValueError('speech_owner_storage_evicted_copy_changed')
+            retired_aliases.add(str(old))
             continue
         if migration['phase'] in ('inventoried', 'copying'):
             raise ValueError('speech_owner_storage_copy_active')
@@ -120,7 +126,7 @@ def erasure_catalog_paths(root, digest):
             if path.parent != destination.parent or any(p.is_symlink() for p in (path, *path.parents)):
                 raise ValueError('speech_owner_storage_path_unavailable')
             if path.exists():
-                paths.add(str(path))
+                paths[str(path)] = record['sha256']
         old = Path(migration['source'])
         if not old.exists() and not old.is_symlink() and migration['phase'] == 'retired':
             retired_aliases.add(str(old))

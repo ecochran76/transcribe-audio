@@ -208,16 +208,24 @@ class BackupManager:
         with closing(sqlite3.connect(destination)) as db:
             _integrity(db, self.checkpoint)
 
-    def verify(self, snapshot_id):
-        """Verify compressed checksum, exact SQLite bytes and database integrity."""
-        self._guard()
+    def _manifest(self, snapshot_id):
         point = self._point(snapshot_id)
         manifest = json.loads((point / 'manifest.json').read_text())
         if (manifest.get('version') != 1 or manifest.get('kind') != 'operational_sqlite'
                 or manifest.get('snapshot_id') != snapshot_id
-                or not isinstance(manifest.get('database_size'), int)
-                or manifest['database_size'] <= 0):
+                or any(type(manifest.get(key)) is not int or manifest[key] <= 0
+                       for key in ('database_size', 'compressed_size'))
+                or any(not isinstance(manifest.get(key), str)
+                       or not re.fullmatch(r'[0-9a-f]{64}', manifest[key])
+                       for key in ('database_sha256', 'compressed_sha256'))):
             raise BackupError('invalid operational snapshot manifest')
+        return manifest
+
+    def verify(self, snapshot_id):
+        """Verify compressed checksum, exact SQLite bytes and database integrity."""
+        self._guard()
+        manifest = self._manifest(snapshot_id)
+        point = self._point(snapshot_id)
         with tempfile.TemporaryDirectory(prefix='.verify-', dir=self.backup_root) as temp:
             self._unpack(point / 'database.sqlite.gz', Path(temp) / 'database.sqlite', manifest)
         return manifest
@@ -275,7 +283,14 @@ class BackupManager:
         result['retained'] = [point.name for point in points]
         for point in points:
             try:
-                manifest = self.verify(point.name)
+                # snapshot() fully verified SQLite and compressed readback before
+                # publication. Rotation checks that published compressed custody
+                # is unchanged, without rewriting every historical database.
+                manifest = self._manifest(point.name)
+                compressed = point / 'database.sqlite.gz'
+                if (compressed.stat().st_size != manifest['compressed_size']
+                        or _hash(compressed, self.checkpoint) != manifest['compressed_sha256']):
+                    raise BackupError('compressed checksum mismatch')
             except (BackupError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
                 result['held'][point.name] = 'corrupt restore point: ' + str(error)
                 result['reason'] = 'corruption pauses expiry'

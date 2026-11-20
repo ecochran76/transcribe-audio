@@ -4,8 +4,8 @@
   "integration_branch": "implement/storage-lifecycle-0097",
   "base": "d325e60abde054d2b0e201288422e1b83d8efa36",
   "review_fixed_point_proposal": "d325e60abde054d2b0e201288422e1b83d8efa36",
-  "review_runs": 0,
-  "post_review_tdd_runs": 0,
+  "review_runs": 1,
+  "post_review_tdd_runs": 1,
   "tickets": [
     {
       "id": "0098",
@@ -241,5 +241,47 @@
     "backup_restore": "passed_864_catalog_references_832_canonical_paths_2_media_hash_samples",
     "managed_future_profile": "prepared_unqualified_disabled",
     "private_evidence": "operator storage runtime native-acceptance.json and linked per-file receipts"
+  },
+  "review_mode": "one_broad_two_axis_pass",
+  "review_target": "876fb12d5b1d9fee17a1cc45c323e0e752ae656f",
+  "review_report": "docs/dev/plans/0097-2026-11-19-storage-review.md",
+  "review_stage": "remediated_source_validated_native_refresh_pending",
+  "review_findings": {
+    "standards_blocking": 0,
+    "standards_nonblocking": 2,
+    "spec_blocking": [
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7",
+      "R8",
+      "R9"
+    ],
+    "spec_nonblocking": [
+      "B1"
+    ],
+    "resolved_spec_blocking": [
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7",
+      "R8",
+      "R9"
+    ],
+    "open_spec_blocking": []
+  },
+  "post_review_validation": {
+    "tier": "focused",
+    "result": "113 passed in25.58s",
+    "validated_code_sha256": "bdf961783e1b4d33d8ec0d8c08b8109edd7e35e9f6050288dcc1b8d62d5a4df2",
+    "lint": "zero new;56 accepted legacy",
+    "hosted_ci": "not run; local Linux/Python checks satisfy operator policy",
+    "review_mode": "closed_world_accepted_findings_and_immediate_regressions"
   }
 }

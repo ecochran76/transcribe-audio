@@ -162,7 +162,7 @@ class StorageCatalog:
     def _digest(self, path, **kwargs):
         return file_digest(path, checkpoint=self.checkpoint, **kwargs)
 
-    def register(self, object_id: str, source: Path, *, classification='processing_derivative',
+    def register(self, object_id: str, source: Path, *, classification='unclassified',
                  expected_sha256: str | None = None, source_sha256: str | None = None) -> dict:
         if not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', object_id):
             raise StorageError('invalid_object_id')
@@ -214,6 +214,8 @@ class StorageCatalog:
 
     def resolve(self, reference: str | Path) -> Path:
         record = self.object(reference)
+        if not record['active_path']:
+            raise StorageError('media_placement_unavailable')
         path = _plain_path(Path(record['active_path']))
         guard = json.loads(record['guard'])
         if guard:
@@ -271,14 +273,72 @@ class StorageCatalog:
         finally:
             os.close(fd)
 
+    def evict(self, object_id: str, *, consumers_qualified=False,
+              eligibility_verified=False) -> dict:
+        """Dispose only policy-qualified private cache or completed scratch."""
+        with self._operation_lock(object_id), media_access(self.root):
+            record = self.object(object_id)
+            prior = self.migration(object_id)
+            if prior and prior['phase'] == 'evicted':
+                return {'state': 'evicted', 'object_id': object_id, 'idempotent': True}
+            reason = ''
+            if record['classification'] not in {'private_cache', 'completed_scratch'}:
+                reason = 'classification_eviction_unqualified'
+            elif not consumers_qualified:
+                reason = 'consumer_compatibility_unqualified'
+            elif not eligibility_verified:
+                reason = 'policy_eligibility_unverified'
+            if reason:
+                return {'state': 'held', 'reason': reason, 'object_id': object_id}
+            source = _plain_path(Path(record['active_path']))
+            if not any(source.is_relative_to(root) for root in self.source_roots):
+                raise StorageError('source_outside_owned_roots')
+            if prior and prior['phase'] != 'evicting':
+                raise StorageError('migration_configuration_changed')
+            identity = json.loads(prior['source_identity']) if prior else file_identity(source)
+            if identity[6] != os.getuid():
+                raise StorageError('unowned_source')
+            with self._db() as con:
+                self._object_available(con, record)
+                if con.execute('SELECT 1 FROM storage_pins WHERE object_id=?', (object_id,)).fetchone():
+                    return {'state': 'held', 'reason': 'active_pin', 'object_id': object_id}
+            if source.exists():
+                if file_identity(source) != identity or self._digest(source) != record['sha256'] or file_identity(source) != identity:
+                    raise StorageError('source_changed')
+            elif not prior:
+                raise StorageError('media_placement_unavailable')
+            operation = hashlib.sha256(('evict:' + object_id + str(source)).encode()).hexdigest()
+            if not prior:
+                with self._db() as con:
+                    con.execute('INSERT INTO storage_migrations(id,object_id,source,destination,temporary,phase,source_identity,guard) VALUES(?,?,?,?,?,?,?,?)',
+                                (operation, object_id, str(source), '', '', 'evicting', json.dumps(identity), '{}'))
+            if self.checkpoint:
+                self.checkpoint()
+            with self._db() as con:
+                self._object_available(con, record)
+                if con.execute('SELECT 1 FROM storage_pins WHERE object_id=?', (object_id,)).fetchone():
+                    return {'state': 'held', 'reason': 'active_pin', 'object_id': object_id}
+                if source.exists():
+                    if file_identity(source) != identity or self._digest(source) != record['sha256'] or file_identity(source) != identity:
+                        raise StorageError('source_changed')
+                    source.unlink()
+                directory = os.open(source.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+                con.execute("UPDATE storage_objects SET active_path='',guard='{}' WHERE id=?", (object_id,))
+                con.execute("UPDATE storage_migrations SET phase='evicted',reason='' WHERE id=?", (operation,))
+            return {'state': 'evicted', 'object_id': object_id}
+
     def migrate(self, object_id: str, *, independent_replica: Path | None = None,
-                replica_failure_domain: str = '', consumers_qualified=False,
+                replica_failure_domain: str = '', replica_custody: str = '', consumers_qualified=False,
                 retire=True) -> dict:
         with self._operation_lock(object_id):
             return self._migrate(object_id, independent_replica, replica_failure_domain,
-                                 consumers_qualified, retire)
+                                 consumers_qualified, retire, replica_custody)
 
-    def _migrate(self, object_id, independent_replica, replica_domain, consumers_qualified, retire):
+    def _migrate(self, object_id, independent_replica, replica_domain, consumers_qualified, retire, replica_custody):
         record = self.object(object_id)
         prior = self.migration(object_id)
         if prior and prior['phase'] == 'retired':
@@ -387,8 +447,10 @@ class StorageCatalog:
         replica_proof = None
         if not retire or not consumers_qualified:
             reason = 'consumer_compatibility_unqualified' if retire else 'copy_only'
+        elif record['classification'] not in {'canonical_source', 'source_recording', 'processing_derivative', 'historical_derivative', 'closed_evidence', 'qualification_payload', 'unresolved'}:
+            reason = 'classification_retirement_unqualified'
         elif record['classification'] in {'canonical_source', 'source_recording'}:
-            if independent_replica is None or not replica_domain or replica_domain == guard['failure_domain']:
+            if independent_replica is None or not replica_domain or not replica_custody.strip() or replica_domain == guard['failure_domain']:
                 reason = 'independent_replica_required'
             else:
                 replica = _plain_path(Path(independent_replica))
@@ -398,9 +460,18 @@ class StorageCatalog:
                     reason = 'independent_replica_same_filesystem'
                 else:
                     proof = file_identity(replica)
-                    replica_proof = (replica, proof)
                     if (replica.stat().st_dev, replica.stat().st_ino) == tuple(identity[:2]) or self._digest(replica) != record['sha256'] or file_identity(replica) != proof:
                         reason = 'independent_replica_invalid'
+                    else:
+                        replica_proof = {'sha256': record['sha256'], 'size': record['size'],
+                            'path': str(replica), 'file_identity': proof,
+                            'failure_domain': replica_domain, 'custody': replica_custody,
+                            'verification_state': 'verified'}
+                        if prior and prior['replica'] and json.loads(prior['replica']) != replica_proof:
+                            raise StorageError('independent_replica_changed')
+                        with self._db() as con:
+                            con.execute('UPDATE storage_migrations SET replica=? WHERE id=?',
+                                        (json.dumps(replica_proof), operation))
         if reason:
             self._phase(operation, 'retirement-pending', reason=reason)
             return {'state': 'held', 'reason': reason, 'object_id': object_id, 'path': str(destination), 'published': True}
@@ -419,8 +490,12 @@ class StorageCatalog:
                 if source.exists():
                     if file_identity(source) != identity:
                         raise StorageError('source_changed')
-                    if replica_proof and file_identity(replica_proof[0]) != replica_proof[1]:
-                        raise StorageError('independent_replica_changed')
+                    if replica_proof:
+                        replica_path = Path(replica_proof['path'])
+                        if (file_identity(replica_path) != replica_proof['file_identity']
+                                or self._digest(replica_path) != replica_proof['sha256']
+                                or file_identity(replica_path) != replica_proof['file_identity']):
+                            raise StorageError('independent_replica_changed')
                     source.unlink()
                     directory = os.open(source.parent, os.O_RDONLY | os.O_DIRECTORY)
                     try:

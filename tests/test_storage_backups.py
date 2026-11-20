@@ -52,6 +52,10 @@ def test_rotation_keeps_hour_day_week_points_and_holds_unknown_time(tmp_path):
         points.append(manager.snapshot()['snapshot_id'])
     now[0] = None
     unknown = manager.snapshot()['snapshot_id']
+    def read_only_checkpoint(*, write_bytes=0, read_bytes=0):
+        assert write_bytes == 0, 'rotation must not unpack published database history'
+    manager = BackupManager(live, root, lambda path: True, lambda: now[0],
+                            checkpoint=read_only_checkpoint)
     assert manager.rotate()['deleted'] == []
     now[0] = TrustedTime(datetime(2026, 11, 5, tzinfo=timezone.utc))
     result = manager.rotate()
@@ -60,6 +64,7 @@ def test_rotation_keeps_hour_day_week_points_and_holds_unknown_time(tmp_path):
     assert len(result['tiers']['weekly']) == 4
     assert unknown in result['held']
     assert points[0] in result['deleted']
+    manager = BackupManager(live, root, lambda path: True, lambda: now[0])
     assert all(manager.verify(point) for point in result['retained'])
 
 
