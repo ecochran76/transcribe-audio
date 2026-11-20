@@ -20,13 +20,18 @@ def storage_policy_path(root):
 
 
 @contextmanager
-def admit_media_write(root, owner, maximum_bytes):
+def admit_media_write(root, owner, maximum_bytes, *, transient_path=None):
     """Legacy stores remain compatible; a catalog store requires installed policy."""
     config = storage_policy_path(root)
     if config is None:
         yield None
         return
-    from storage_maintenance import reserve_transient
+    from storage_maintenance import plain, private_json, reserve_transient
+    if transient_path is not None:
+        policy = private_json(config)
+        if not any(plain(transient_path).is_relative_to(plain(path))
+                   for path in policy.get('transient_roots', [])):
+            raise StorageError('transient_destination_outside_owned_roots')
     with reserve_transient(config, owner, maximum_bytes) as lease:
         yield lease
 

@@ -317,7 +317,8 @@ def _run(source, config, *, recording_id=None, conversation_id=None, existing_tr
                 _decode(source, derivative, decode_timeout)
             else:
                 bound = _decoded_byte_bound(source, decode_timeout)
-                with admit_media_write(storage_root, 'decode-' + key, bound) as lease:
+                with admit_media_write(storage_root, 'decode-' + key, bound,
+                                       transient_path=derivative) as lease:
                     lease.checkpoint(write_bytes=bound)
                     _decode(source, derivative, decode_timeout, maximum_bytes=lease.limit)
             if _hash_file(source) != source_hash:

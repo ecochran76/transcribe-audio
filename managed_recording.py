@@ -139,7 +139,8 @@ class RecordingProcessor:
                 if frame_count < 1:
                     raise ValueError('empty recording')
                 maximum_bytes = 2 * frame_count + 44 * ((frame_count + frames_per_unit - 1) // frames_per_unit)
-                with admit_media_write(self.source_store_root, 'stage-' + key, maximum_bytes) as lease:
+                with admit_media_write(self.source_store_root, 'stage-' + key, maximum_bytes,
+                                       transient_path=self.spool) as lease:
                     offset = 0
                     while True:
                         frames = audio.readframes(frames_per_unit)
