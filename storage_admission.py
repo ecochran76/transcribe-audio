@@ -16,6 +16,10 @@ def storage_policy_path(root):
     config = Path(root) / 'storage-maintenance.json'
     if not config.exists():
         raise StorageError('storage_configuration_required')
+    from storage_maintenance import plain, private_json
+    policy = private_json(config)
+    if plain(policy.get('store_root', '')) != plain(root):
+        raise StorageError('storage_store_scope_mismatch')
     return config
 
 

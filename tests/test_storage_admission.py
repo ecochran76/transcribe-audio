@@ -14,6 +14,13 @@ def test_new_blob_write_requires_installed_policy_for_catalog_store(tmp_path):
         prepare_blob(root, str(source))
     assert not list((root / 'blobs').rglob('*.wav'))
     assert source.read_bytes() == b'original recording'
+    import json
+    policy = root / 'storage-maintenance.json'
+    policy.write_text(json.dumps({'store_root': str(tmp_path / 'different-store')}))
+    policy.chmod(0o600)
+    with pytest.raises(StorageError, match='storage_store_scope_mismatch'):
+        prepare_blob(root, str(source))
+    assert not list((root / 'blobs').rglob('*.wav'))
 
 
 def test_new_staging_requires_policy_without_contacting_inference(tmp_path):
