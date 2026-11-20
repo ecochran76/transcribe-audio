@@ -53,17 +53,24 @@ class TrustedTime:
         return self.observed_at + timedelta(seconds=self.uncertainty_seconds)
 
 
-def _integrity(db):
+def _integrity(db, checkpoint=None):
+    if checkpoint:
+        def progress():
+            checkpoint()
+            return 0
+        db.set_progress_handler(progress, 10000)
     if db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
         raise BackupError('SQLite integrity check failed')
     if db.execute('PRAGMA foreign_key_check').fetchone() is not None:
         raise BackupError('SQLite foreign key check failed')
 
 
-def _hash(path):
+def _hash(path, checkpoint=None):
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
+            if checkpoint:
+                checkpoint(read_bytes=len(block))
             digest.update(block)
     return digest.hexdigest()
 
@@ -87,13 +94,15 @@ def _sync_dir(path):
 class BackupManager:
     def __init__(self, live_database: Path, backup_root: Path,
                  destination_guard: Callable[[Path], bool],
-                 trusted_clock: Callable[[], TrustedTime | None]):
+                 trusted_clock: Callable[[], TrustedTime | None], checkpoint=None):
         self.live_database = Path(live_database).absolute()
         self.backup_root = Path(backup_root).absolute()
         self.destination_guard = destination_guard
         self.trusted_clock = trusted_clock
+        self.checkpoint = checkpoint or (lambda **kwargs: None)
 
     def _guard(self):
+        self.checkpoint()
         root = self.backup_root
         if any(part.is_symlink() for part in (root, *root.parents)):
             raise BackupError('backup root must not traverse symlinks')
@@ -124,22 +133,37 @@ class BackupManager:
             with closing(sqlite3.connect(self.live_database.as_uri() + '?mode=ro', uri=True)) as source:
                 with closing(sqlite3.connect(raw)) as target:
                     os.chmod(raw, 0o600)
-                    source.backup(target)
-                    _integrity(target)
+                    page_size = source.execute('PRAGMA page_size').fetchone()[0]
+                    page_count = source.execute('PRAGMA page_count').fetchone()[0]
+                    # Debit each next bounded SQLite step BEFORE it writes. A
+                    # concurrent writer may restart backup(); every repeated step
+                    # is still debited and cannot evade the pass ceiling.
+                    self.checkpoint(write_bytes=min(128, page_count) * page_size)
+                    def progress(status, remaining, total):
+                        if remaining:
+                            self.checkpoint(write_bytes=min(128, remaining) * page_size)
+                        else:
+                            self.checkpoint()
+                    source.backup(target, pages=128, progress=progress)
+                    _integrity(target, self.checkpoint)
             compressed = temp / 'database.sqlite.gz'
             with raw.open('rb') as source, compressed.open('xb') as target:
                 os.chmod(compressed, 0o600)
                 with gzip.GzipFile(filename='', mode='wb', fileobj=target, mtime=0) as zipper:
-                    shutil.copyfileobj(source, zipper)
+                    for block in iter(lambda: source.read(1024 * 1024), b''):
+                        # Deflate's worst-case output plus headers is conservatively
+                        # debited before writing; retries never regain this budget.
+                        self.checkpoint(write_bytes=len(block) + 1024, read_bytes=len(block))
+                        zipper.write(block)
                 target.flush()
                 os.fsync(target.fileno())
             manifest = {
                 'version': 1, 'kind': 'operational_sqlite', 'snapshot_id': snapshot_id,
                 'created_at': observation.observed_at.isoformat() if observation else None,
                 'uncertainty_seconds': observation.uncertainty_seconds if observation else None,
-                'database_size': raw.stat().st_size, 'database_sha256': _hash(raw),
+                'database_size': raw.stat().st_size, 'database_sha256': _hash(raw, self.checkpoint),
                 'compressed_size': compressed.stat().st_size,
-                'compressed_sha256': _hash(compressed),
+                'compressed_sha256': _hash(compressed, self.checkpoint),
                 'media_included': False, 'restore_requires_current_erasure': True,
             }
             # Read back compressed bytes before publishing a restore point.
@@ -157,7 +181,10 @@ class BackupManager:
                 shutil.rmtree(temp)
 
     def _unpack(self, compressed, destination, manifest):
-        if compressed.stat().st_size != manifest['compressed_size'] or _hash(compressed) != manifest['compressed_sha256']:
+        self.checkpoint()
+        if shutil.disk_usage(destination.parent).free < manifest['database_size'] + 1024 * 1024:
+            raise BackupError('restore destination capacity unavailable')
+        if compressed.stat().st_size != manifest['compressed_size'] or _hash(compressed, self.checkpoint) != manifest['compressed_sha256']:
             raise BackupError('compressed checksum mismatch')
         try:
             with gzip.open(compressed, 'rb') as source, destination.open('xb') as target:
@@ -167,6 +194,7 @@ class BackupManager:
                     block = source.read(min(remaining, 1024 * 1024))
                     if not block:
                         raise BackupError('truncated database')
+                    self.checkpoint(write_bytes=len(block), read_bytes=len(block))
                     target.write(block)
                     remaining -= len(block)
                 if source.read(1):
@@ -175,10 +203,10 @@ class BackupManager:
                 os.fsync(target.fileno())
         except (OSError, EOFError) as error:
             raise BackupError('compressed snapshot corrupt') from error
-        if _hash(destination) != manifest['database_sha256']:
+        if _hash(destination, self.checkpoint) != manifest['database_sha256']:
             raise BackupError('database checksum mismatch')
         with closing(sqlite3.connect(destination)) as db:
-            _integrity(db)
+            _integrity(db, self.checkpoint)
 
     def verify(self, snapshot_id):
         """Verify compressed checksum, exact SQLite bytes and database integrity."""
@@ -221,7 +249,7 @@ class BackupManager:
                         or not outcome.get('source')):
                     raise BackupError('current source-erasure reconciliation unqualified')
                 db.commit()
-                _integrity(db)
+                _integrity(db, self.checkpoint)
             _write_json(destination / 'restore.json', {'snapshot_id': snapshot_id, 'erasure': outcome})
             _sync_dir(destination)
             return restored
@@ -348,7 +376,7 @@ class BackupManager:
         try:
             restored = self.restore(snapshot_id, destination, reconcile_erasure)
             with closing(sqlite3.connect(restored.as_uri() + '?mode=ro', uri=True)) as db:
-                _integrity(db)
+                _integrity(db, self.checkpoint)
                 receipt['failures'].extend(check_references(db))
             remaining = max_media_bytes
             for sample in samples:

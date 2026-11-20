@@ -35,14 +35,19 @@ def _plain_path(path: Path) -> Path:
     return path
 
 
-def file_digest(path: Path, *, expected_links: int = 1) -> str:
+def file_digest(path: Path, *, expected_links: int = 1, checkpoint=None) -> str:
     path = _plain_path(path)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != expected_links:
             raise StorageError('regular_single_link_file_required')
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        digest = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(4 * 1024 * 1024), b''):
+            if checkpoint:
+                checkpoint(read_bytes=len(chunk))
+            digest.update(chunk)
+        return digest.hexdigest()
 
 
 def native_storage_identity(path: Path, expected_uuid: str) -> dict:
@@ -82,7 +87,7 @@ class StorageCatalog:
 
     def __init__(self, store_root: Path, *, cold_root: Path | None = None,
                  expected_cold_uuid: str = '', source_roots: list[Path] | None = None,
-                 validate_cold: Callable[[Path], dict] | None = None):
+                 validate_cold: Callable[[Path], dict] | None = None, checkpoint=None):
         self.root = _plain_path(Path(store_root))
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if self.root.stat().st_uid != os.getuid():
@@ -94,6 +99,7 @@ class StorageCatalog:
         self.cold_root = _plain_path(Path(cold_root)) if cold_root else None
         self.expected_cold_uuid = expected_cold_uuid
         self.validator = validate_cold
+        self.checkpoint = checkpoint
         self.source_roots = [_plain_path(Path(p)) for p in (source_roots or [self.root])]
         with self._db() as con:
             con.executescript('''
@@ -101,6 +107,8 @@ class StorageCatalog:
                     id TEXT PRIMARY KEY,sha256 TEXT NOT NULL,size INTEGER NOT NULL,
                     classification TEXT NOT NULL,logical_path TEXT NOT NULL,
                     active_path TEXT NOT NULL,guard TEXT NOT NULL DEFAULT '{}');
+                CREATE TABLE IF NOT EXISTS storage_origins(
+                    object_id TEXT PRIMARY KEY,source_sha256 TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS storage_aliases(
                     path TEXT PRIMARY KEY,object_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS storage_pins(
@@ -130,6 +138,17 @@ class StorageCatalog:
         if exists and con.execute('SELECT 1 FROM recording_source_erasures WHERE sha256=?', (digest,)).fetchone():
             raise StorageError('recording_source_erased')
 
+    def _object_available(self, con, record):
+        self._available(con, record['sha256'])
+        origin = con.execute('SELECT source_sha256 FROM storage_origins WHERE object_id=?', (record['id'],)).fetchone()
+        if origin:
+            self._available(con, origin[0])
+
+    def origin(self, object_id):
+        with self._db() as con:
+            row = con.execute('SELECT source_sha256 FROM storage_origins WHERE object_id=?', (object_id,)).fetchone()
+            return row[0] if row else None
+
     def _guard(self, path=None, recorded=None):
         path = Path(path or self.cold_root or '')
         result = (self.validator(path) if self.validator else
@@ -140,15 +159,20 @@ class StorageCatalog:
             raise StorageError('cold_mount_identity_mismatch')
         return result
 
+    def _digest(self, path, **kwargs):
+        return file_digest(path, checkpoint=self.checkpoint, **kwargs)
+
     def register(self, object_id: str, source: Path, *, classification='processing_derivative',
-                 expected_sha256: str | None = None) -> dict:
+                 expected_sha256: str | None = None, source_sha256: str | None = None) -> dict:
         if not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', object_id):
             raise StorageError('invalid_object_id')
+        if source_sha256 is not None and not re.fullmatch(r'[0-9a-f]{64}', source_sha256):
+            raise StorageError('invalid_source_origin')
         source = _plain_path(Path(source))
         if not any(source.is_relative_to(root) for root in self.source_roots):
             raise StorageError('source_outside_owned_roots')
         before = file_identity(source)
-        digest = file_digest(source)
+        digest = self._digest(source)
         if file_identity(source) != before:
             raise StorageError('source_changed')
         if expected_sha256 and expected_sha256 != digest:
@@ -158,6 +182,12 @@ class StorageCatalog:
                 raise StorageError('source_changed')
             with self._db() as con:
                 self._available(con, digest)
+                if source_sha256:
+                    self._available(con, source_sha256)
+                    origin = con.execute('SELECT source_sha256 FROM storage_origins WHERE object_id=?', (object_id,)).fetchone()
+                    if origin and origin[0] != source_sha256:
+                        raise StorageError('source_origin_conflict')
+                    con.execute('INSERT OR IGNORE INTO storage_origins VALUES(?,?)', (object_id, source_sha256))
                 existing = con.execute('SELECT * FROM storage_objects WHERE id=?', (object_id,)).fetchone()
                 if existing and existing['sha256'] != digest:
                     raise StorageError('object_identity_conflict')
@@ -175,7 +205,7 @@ class StorageCatalog:
                               (str(reference), str(reference))).fetchone()
             if row is None:
                 raise LookupError(str(reference))
-            self._available(con, row['sha256'])
+            self._object_available(con, row)
             return dict(row)
 
     def objects(self) -> list[dict]:
@@ -204,7 +234,7 @@ class StorageCatalog:
         token = uuid4().hex
         with media_access(self.root):
             with self._db() as con:
-                self._available(con, record['sha256'])
+                self._object_available(con, record)
                 con.execute('INSERT INTO storage_pins VALUES(?,?,?)', (record['id'], token, owner))
         try:
             yield self.resolve(record['id'])
@@ -269,12 +299,12 @@ class StorageCatalog:
         temporary = destination.with_name('.' + destination.name + '.' + operation + '.partial')
         with media_access(self.root):
             with self._db() as con:
-                self._available(con, record['sha256'])
+                self._object_available(con, record)
                 if con.execute('SELECT 1 FROM storage_pins WHERE object_id=?', (object_id,)).fetchone():
                     return {'state': 'held', 'reason': 'active_pin', 'object_id': object_id}
                 if not prior:
                     identity = file_identity(source)
-                    if file_digest(source) != record['sha256'] or file_identity(source) != identity:
+                    if self._digest(source) != record['sha256'] or file_identity(source) != identity:
                         raise StorageError('source_changed')
                     con.execute('INSERT INTO storage_migrations(id,object_id,source,destination,temporary,phase,source_identity,guard) VALUES(?,?,?,?,?,?,?,?)',
                                 (operation, object_id, str(source), str(destination), str(temporary), 'inventoried', json.dumps(identity), json.dumps(guard)))
@@ -289,7 +319,7 @@ class StorageCatalog:
             left, right = file_identity(destination), file_identity(temporary)
             if left[:2] != right[:2] or left[8] != 2 or left[6] != os.getuid():
                 raise StorageError('conflicting_partial_publication')
-            if file_digest(destination, expected_links=2) != record['sha256']:
+            if self._digest(destination, expected_links=2) != record['sha256']:
                 raise StorageError('destination_hash_conflict')
             if file_identity(destination) != left or file_identity(temporary) != right:
                 raise StorageError('destination_changed')
@@ -311,10 +341,12 @@ class StorageCatalog:
                         if file_identity(source) != identity:
                             raise StorageError('source_changed')
                         for chunk in iter(lambda: original.read(4 * 1024 * 1024), b''):
+                            if self.checkpoint:
+                                self.checkpoint(write_bytes=len(chunk), read_bytes=len(chunk))
                             target.write(chunk)
                     target.flush()
                     os.fsync(target.fileno())
-                if file_identity(source) != identity or file_digest(temporary) != record['sha256']:
+                if file_identity(source) != identity or self._digest(temporary) != record['sha256']:
                     raise StorageError('copy_verification_failed')
                 self._guard(self.cold_root, guard)
                 # The operation lock owns this destination; never overwrite other content.
@@ -330,13 +362,15 @@ class StorageCatalog:
                     temporary.unlink()
                 raise
         destination_identity = file_identity(destination)
-        if file_digest(destination) != record['sha256'] or file_identity(destination) != destination_identity:
+        if self._digest(destination) != record['sha256'] or file_identity(destination) != destination_identity:
             self._phase(operation, 'quarantined', reason='destination_hash_conflict')
             raise StorageError('destination_hash_conflict')
+        if self.checkpoint:
+            self.checkpoint()
         self._phase(operation, 'verified', destination_identity=destination_identity)
         with media_access(self.root):
             with self._db() as con:
-                self._available(con, record['sha256'])
+                self._object_available(con, record)
                 if con.execute('SELECT 1 FROM storage_pins WHERE object_id=?', (object_id,)).fetchone():
                     return {'state': 'held', 'reason': 'active_pin', 'object_id': object_id}
                 self._guard(self.cold_root, guard)
@@ -365,16 +399,18 @@ class StorageCatalog:
                 else:
                     proof = file_identity(replica)
                     replica_proof = (replica, proof)
-                    if (replica.stat().st_dev, replica.stat().st_ino) == tuple(identity[:2]) or file_digest(replica) != record['sha256'] or file_identity(replica) != proof:
+                    if (replica.stat().st_dev, replica.stat().st_ino) == tuple(identity[:2]) or self._digest(replica) != record['sha256'] or file_identity(replica) != proof:
                         reason = 'independent_replica_invalid'
         if reason:
             self._phase(operation, 'retirement-pending', reason=reason)
             return {'state': 'held', 'reason': reason, 'object_id': object_id, 'path': str(destination), 'published': True}
-        if source.exists() and (file_identity(source) != identity or file_digest(source) != record['sha256']):
+        if source.exists() and (file_identity(source) != identity or self._digest(source) != record['sha256']):
             raise StorageError('source_changed')
+        if self.checkpoint:
+            self.checkpoint()
         with media_access(self.root):
             with self._db() as con:
-                self._available(con, record['sha256'])
+                self._object_available(con, record)
                 if con.execute('SELECT 1 FROM storage_pins WHERE object_id=?', (object_id,)).fetchone():
                     return {'state': 'held', 'reason': 'active_pin', 'object_id': object_id}
                 self._guard(self.cold_root, guard)
