@@ -31,6 +31,16 @@ Definition of Done:
 - Watcher state records artifact paths.
 - Tests cover artifact serialization and current output behavior.
 
+### Existing recording registration
+
+[Exact registration](docs/recording-registration.md) extends P01 from the
+native operator import to a reusable, opt-in service contract. It advances
+durable transcripts and replayable original evidence with stable IDs and
+byte-for-byte authoritative readback. Source maturity is local integration
+verified, with private installed operation as the next target. Its installed
+acceptance gate is authenticated admission and independent readback of an
+approved original and transcript pair.
+
 ## P02 | Calendar Provider Configuration
 
 State: CLOSED

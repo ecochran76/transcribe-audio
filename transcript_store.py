@@ -659,7 +659,10 @@ def blob_store_path(root: Path, blob_id: str, source_path: Path) -> Path:
 from recording_source_guard import guard_media
 
 @guard_media
-def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recording") -> dict[str, Any]:
+def prepare_blob(
+    root: Path, source_path_text: str, *, role: str = "source_recording",
+    reuse_registered: bool = False,
+) -> dict[str, Any]:
     if not source_path_text:
         return {}
     source_path = Path(source_path_text).expanduser()
@@ -670,6 +673,14 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
     from speech_source_erasure import source_available
     source_available(root, artifact_hash)
     blob_id = stable_id(role, artifact_hash)
+    if reuse_registered:
+        with connect(root) as con:
+            init_db(con)
+            existing = con.execute("SELECT * FROM blobs WHERE id = ?", (blob_id,)).fetchone()
+        if existing:
+            retained = Path(existing["stored_path"])
+            if retained.is_file() and sha256_file(retained) == artifact_hash:
+                return dict(existing)
     stored_path = blob_store_path(root, blob_id, resolved)
     blob_root = root / "blobs"
     blob_root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -682,7 +693,7 @@ def prepare_blob(root: Path, source_path_text: str, *, role: str = "source_recor
     return {
         "id": blob_id,
         "role": role,
-        "original_path": str(resolved),
+        "original_path": "" if reuse_registered else str(resolved),
         "stored_path": str(stored_path),
         "sha256": artifact_hash,
         "mime_type": mimetypes.guess_type(resolved.name)[0] or "application/octet-stream",
@@ -809,6 +820,8 @@ def synchronize_document_artifact(
         ).fetchone()
         if row is None:
             raise TranscriptStoreError(f"No document found with id {document_id}")
+        if Path(row["source_path"]).parts[:1] == ("recording-registration",):
+            raise TranscriptStoreError("The original registered transcript is immutable.")
         if str(row["kind"]) != "transcript":
             raise TranscriptStoreError(
                 "Only transcript artifacts support durable identity synchronization."
@@ -1075,47 +1088,68 @@ def ingest_artifact(
     root: Optional[Path] = None,
     embedding_provider: str = DEFAULT_EMBEDDING_PROVIDER,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    registered_recording_path: Optional[Path] = None,
 ) -> IngestResult:
     store_root = store_dir(root)
     source_path = path.expanduser().resolve()
     payload = load_json(source_path)
+    input_path = source_path
+    raw = input_path.read_bytes()
+    artifact_hash = sha256_bytes(raw)
+    source_media_fields = ("source_media_path", "working_media_path")
+    if registered_recording_path is not None:
+        from speech_source_erasure import source_available
+
+        if not isinstance(payload.get("transcript_text"), str):
+            raise TranscriptStoreError("A registered transcript requires transcript_text.")
+        recording_hash = sha256_file(registered_recording_path)
+        source_available(store_root, recording_hash)
+        source_path = Path("recording-registration") / recording_hash / f"{artifact_hash}.transcript.json"
+        # Keep original sidecar bytes intact while keeping foreign filesystem
+        # locators out of the locally actionable document projection.
+        payload = {key: value for key, value in payload.items()
+                   if key not in (*source_media_fields, "output_paths")}
+        payload["source_media_sha256"] = recording_hash
+        source_media_fields = ()
     with connect(store_root) as admission:
         has_fences = admission.execute("SELECT 1 FROM sqlite_master WHERE name='recording_source_erasures'").fetchone()
         fences = {row[0] for row in admission.execute("SELECT sha256 FROM recording_source_erasures")} if has_fences else set()
     if fences:
-        for field in ("source_media_path", "working_media_path"):
+        for field in source_media_fields:
             submitted = payload.get(field)
             if isinstance(submitted, str) and submitted:
                 original = Path(submitted).expanduser()
                 if original.is_file() and sha256_file(original) in fences:
                     raise TranscriptStoreError("Recording source erased")
-    raw = source_path.read_bytes()
-    artifact_hash = sha256_bytes(raw)
     kind = artifact_kind(source_path, payload)
-    title = artifact_title(kind, source_path, payload)
+    title = artifact_title(kind, input_path, payload)
     text_content = artifact_text(kind, payload)
     generated_at = artifact_time(payload)
     doc_id = stable_id(kind, str(source_path), artifact_hash)
     stored_path = artifact_store_path(store_root, doc_id, source_path)
-    artifacts_root = store_root / "artifacts"
-    artifacts_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(artifacts_root, 0o700)
-    stored_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(stored_path.parent, 0o700)
-    if not stored_path.exists() or sha256_bytes(stored_path.read_bytes()) != artifact_hash:
-        shutil.copy2(source_path, stored_path)
-    os.chmod(stored_path, 0o600)
-    metadata = metadata_for_artifact(kind, payload)
-    media_blob = prepare_blob(store_root, media_path_for_payload(payload)) if kind == "transcript" else {}
-    if media_blob:
-        metadata["media_blob"] = {
-            "id": media_blob["id"],
-            "role": media_blob["role"],
-            "mime_type": media_blob["mime_type"],
-            "bytes": media_blob["bytes"],
-            "playback_url": f"/api/blobs/{media_blob['id']}",
-            "download_url": f"/api/blobs/{media_blob['id']}?download=1",
-        }
+    if registered_recording_path is not None:
+        with connect(store_root) as con:
+            init_db(con)
+            registered = con.execute(
+                """
+                SELECT documents.artifact_sha256, documents.stored_path,
+                       blobs.sha256 AS recording_sha256, blobs.stored_path AS recording_path
+                FROM documents JOIN document_blobs ON documents.id = document_blobs.document_id
+                JOIN blobs ON blobs.id = document_blobs.blob_id
+                WHERE documents.id = ? AND document_blobs.role = 'source_recording'
+                """,
+                (doc_id,),
+            ).fetchone()
+        if (registered and registered["artifact_sha256"] == artifact_hash
+                and registered["recording_sha256"] == recording_hash):
+            transcript_copy = Path(registered["stored_path"])
+            recording_copy = Path(registered["recording_path"])
+            if (transcript_copy.is_file() and recording_copy.is_file()
+                    and sha256_file(transcript_copy) == artifact_hash
+                    and sha256_file(recording_copy) == recording_hash):
+                return IngestResult(
+                    doc_id, kind, title, str(source_path), str(transcript_copy), "unchanged"
+                )
     now = utcish_now()
     chunk_embeddings = embeddings_for_text_chunks(
         text_content,
@@ -1125,6 +1159,32 @@ def ingest_artifact(
         model_name=embedding_model,
     )
     embedding = average_vectors([vector for _, _, vector, _ in chunk_embeddings])
+
+    artifacts_root = store_root / "artifacts"
+    artifacts_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(artifacts_root, 0o700)
+    stored_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(stored_path.parent, 0o700)
+    if not stored_path.exists() or sha256_bytes(stored_path.read_bytes()) != artifact_hash:
+        shutil.copy2(input_path, stored_path)
+    os.chmod(stored_path, 0o600)
+    metadata = metadata_for_artifact(kind, payload)
+    media_blob = {}
+    if kind == "transcript":
+        media_path = (str(registered_recording_path) if registered_recording_path is not None
+                      else media_path_for_payload(payload))
+        media_blob = prepare_blob(store_root, media_path, reuse_registered=registered_recording_path is not None)
+        if registered_recording_path is not None and not media_blob:
+            raise TranscriptStoreError("Registered recording bytes are unavailable.")
+    if media_blob:
+        metadata["media_blob"] = {
+            "id": media_blob["id"],
+            "role": media_blob["role"],
+            "mime_type": media_blob["mime_type"],
+            "bytes": media_blob["bytes"],
+            "playback_url": f"/api/blobs/{media_blob['id']}",
+            "download_url": f"/api/blobs/{media_blob['id']}?download=1",
+        }
 
     with connect(store_root) as con:
         init_db(con)
@@ -1186,7 +1246,7 @@ def ingest_artifact(
         )
         upsert_document_blob(con, doc_id, media_blob, now=now)
         if media_blob:
-            for field in ("source_media_path", "working_media_path"):
+            for field in source_media_fields:
                 submitted = payload.get(field)
                 if isinstance(submitted, str) and submitted:
                     original = Path(submitted).expanduser().resolve()
