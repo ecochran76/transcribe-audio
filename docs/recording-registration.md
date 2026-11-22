@@ -45,3 +45,25 @@ bytes at `GET /api/recording-registrations/{native_document_id}/transcript`
 using the same registration bearer. Keep derived speaker corrections
 separately from the registered transcript bytes. The native media erasure fence
 continues to apply.
+
+## Correct transcript wording
+
+The same private registration bearer can submit a committed human correction
+at `POST /api/transcript-corrections`. Each JSON payload carries its
+`document_id`, the two original artifact SHA-256 values, and a `target` with
+`start_ms`, `end_ms`, `speaker`, and `machine_text`. The target must match
+one native source-time utterance. Separate working-media timelines require
+alignment review. A correction carries `text`, `workspace_id`,
+`correction_id`, `revision`, `actor_id`, `authored_at`, and `reason`.
+Compute `id` from SHA-256 of the compact UTF-8 JSON array
+`[workspace_id, correction_id, revision]`. Send `previous_id` as null for
+the first correction or the current accepted correction ID for that
+utterance.
+
+A compatible append returns 201. Replaying the same payload returns 200.
+An incompatible target or prior revision returns 409. Retrieve the accepted
+ledger at `GET /api/transcript-corrections?document_id={id}` with the same
+bearer. An optional `target_key` filters to one utterance and adds target
+verification. Compute it as SHA-256 of the compact UTF-8 target JSON
+object with lexicographically sorted keys. Original transcript bytes
+and machine wording remain available.

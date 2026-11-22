@@ -36,6 +36,7 @@ import participant_identity
 import provenance_config
 import recording_registration
 import recording_speaker_projection
+import transcript_corrections
 import speaker_identity_preprocess
 import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
@@ -5677,6 +5678,9 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
+        if parsed.path == transcript_corrections.ROUTE:
+            transcript_corrections.read(self, params)
+            return
         if self.speech_harvest_request("GET", parsed.path):
             return
         try:
@@ -6132,6 +6136,9 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
         speaker = recording_speaker_projection.ROUTE.fullmatch(parsed.path)
         if speaker:
             recording_speaker_projection.handle(self, speaker, write=True)
+            return
+        if parsed.path == transcript_corrections.ROUTE:
+            transcript_corrections.submit(self)
             return
         if self.speech_harvest_request("POST", parsed.path):
             return
@@ -7305,6 +7312,7 @@ class TranscriptApiServer(ThreadingHTTPServer):
         if self.recording_registration_token:
             with connect(store_root) as con:
                 init_db(con)
+                transcript_corrections.initialize(con)
         super().__init__(server_address, handler_class)
         self.store_root = store_root
         self.embedding_provider = embedding_provider
