@@ -50,7 +50,7 @@ def apply(handler, connection, document_id, assignment_id, current):
             raise ValueError("Transcript hash does not match the native document.")
         blob = connection.execute(
             """SELECT 1 FROM document_blobs JOIN blobs ON document_blobs.blob_id = blobs.id
-               WHERE document_id = ? AND role = 'source_recording' AND sha256 = ?""",
+               WHERE document_id = ? AND document_blobs.role = 'source_recording' AND blobs.sha256 = ?""",
             (document_id, payload["recording_sha256"]),
         ).fetchone()
         if not blob:
