@@ -9,7 +9,8 @@ from contacts_receipts_client import ContactsLookupError, ContactsReceiptsLookup
 from recording_registration import authorize
 from transcript_store import connect
 
-ROUTE = re.compile(r"/api/recording-registrations/([0-9a-f]{20})/speaker-assignments/([A-Za-z0-9_-]{1,160})")
+ROUTE = re.compile(r"/api/recording-registrations/([0-9a-f]{20})/speaker-assignments"
+                   r"(?:/([A-Za-z0-9_-]{1,160}))?")
 FIELDS = {"recording_sha256", "transcript_sha256", "start_ms", "end_ms", "revision",
           "previous_revision", "actor", "reason", "identity", "perspective"}
 
@@ -81,6 +82,9 @@ def handle(handler, match, *, write=False):
     if not authorize(handler):
         return
     document_id, assignment_id = match.groups()
+    if write and assignment_id is None:
+        handler.write_error(HTTPStatus.METHOD_NOT_ALLOWED, "Choose an assignment identifier.")
+        return
     try:
         with closing(connect(handler.store_root)) as connection:
             if write:
@@ -94,6 +98,16 @@ def handle(handler, match, *, write=False):
             exists = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workbench_speaker_projections'"
             ).fetchone()
+            if assignment_id is None:
+                assignments = connection.execute(
+                    """SELECT assignment_id, payload FROM workbench_speaker_projections AS p
+                       WHERE document_id = ? AND revision = (
+                           SELECT MAX(revision) FROM workbench_speaker_projections
+                           WHERE document_id = p.document_id AND assignment_id = p.assignment_id
+                       ) ORDER BY assignment_id""", (document_id,)
+                ) if exists else ()
+                handler.write_json({"items": [dict(id=row[0], **json.loads(row[1])) for row in assignments]})
+                return
             current = read(connection, document_id, assignment_id) if exists else None
             if write:
                 apply(handler, connection, document_id, assignment_id, current)
