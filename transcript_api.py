@@ -30,6 +30,7 @@ import acoustic_shadow_evidence
 import codex_app_server_client
 import conversation_identity_policy
 import conversation_processing
+from contacts_receipts_client import ContactsLookupError, ContactsReceiptsLookup
 import identity_review_workflow
 import participant_identity
 import provenance_config
@@ -5684,6 +5685,16 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if registration:
                 recording_registration.download_transcript(self, registration.group(1))
                 return
+            contacts_path = "/api/contacts-receipts/identities"
+            if parsed.path == contacts_path or parsed.path.startswith(contacts_path + "/"):
+                lookup = ContactsReceiptsLookup(self.headers.get("Authorization"))
+                suffix = parsed.path[len(contacts_path):]
+                if suffix:
+                    revision = parse_qs(parsed.query, keep_blank_values=True).get("revision", [None])[0]
+                    self.write_json(lookup.exact(suffix[1:], revision))
+                else:
+                    self.write_json(lookup.search(first(params, "query")))
+                return
             if parsed.path == "/api/health":
                 self.write_json({"status": "ok", "store_dir": str(self.store_root), "db_path": str(db_path(self.store_root))})
                 return
@@ -6095,6 +6106,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if self.write_static(parsed.path):
                 return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+        except ContactsLookupError as exc:
+            self.write_error(exc.status, str(exc))
         except TranscriptStoreError as exc:
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
         except FileNotFoundError as exc:
