@@ -35,6 +35,7 @@ import identity_review_workflow
 import participant_identity
 import provenance_config
 import recording_registration
+import recording_speaker_projection
 import speaker_identity_preprocess
 import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
@@ -5685,6 +5686,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if registration:
                 recording_registration.download_transcript(self, registration.group(1))
                 return
+            speaker = recording_speaker_projection.ROUTE.fullmatch(parsed.path)
+            if speaker:
+                recording_speaker_projection.handle(self, speaker)
+                return
             contacts_path = "/api/contacts-receipts/identities"
             if parsed.path == contacts_path or parsed.path.startswith(contacts_path + "/"):
                 lookup = ContactsReceiptsLookup(self.headers.get("Authorization"))
@@ -6123,6 +6128,10 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == recording_registration.ROUTE:
             recording_registration.submit(self)
+            return
+        speaker = recording_speaker_projection.ROUTE.fullmatch(parsed.path)
+        if speaker:
+            recording_speaker_projection.handle(self, speaker, write=True)
             return
         if self.speech_harvest_request("POST", parsed.path):
             return
