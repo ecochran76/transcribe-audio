@@ -30,9 +30,13 @@ import acoustic_shadow_evidence
 import codex_app_server_client
 import conversation_identity_policy
 import conversation_processing
+from contacts_receipts_client import ContactsLookupError, ContactsReceiptsLookup
 import identity_review_workflow
 import participant_identity
 import provenance_config
+import recording_registration
+import recording_speaker_projection
+import transcript_corrections
 import speaker_identity_preprocess
 import speaker_identity_shadow_review
 import speaker_preprocessing_workflow
@@ -5674,9 +5678,32 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
+        if parsed.path == transcript_corrections.ROUTE:
+            transcript_corrections.read(self, params)
+            return
         if self.speech_harvest_request("GET", parsed.path):
             return
         try:
+            registration = re.fullmatch(
+                recording_registration.ROUTE + r"/([0-9a-f]{20})/transcript", parsed.path
+            )
+            if registration:
+                recording_registration.download_transcript(self, registration.group(1))
+                return
+            speaker = recording_speaker_projection.ROUTE.fullmatch(parsed.path)
+            if speaker:
+                recording_speaker_projection.handle(self, speaker)
+                return
+            contacts_path = "/api/contacts-receipts/identities"
+            if parsed.path == contacts_path or parsed.path.startswith(contacts_path + "/"):
+                lookup = ContactsReceiptsLookup(self.headers.get("Authorization"))
+                suffix = parsed.path[len(contacts_path):]
+                if suffix:
+                    revision = parse_qs(parsed.query, keep_blank_values=True).get("revision", [None])[0]
+                    self.write_json(lookup.exact(suffix[1:], revision))
+                else:
+                    self.write_json(lookup.search(first(params, "query")))
+                return
             if parsed.path == "/api/health":
                 self.write_json({"status": "ok", "store_dir": str(self.store_root), "db_path": str(db_path(self.store_root))})
                 return
@@ -6088,6 +6115,8 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
             if self.write_static(parsed.path):
                 return
             self.write_error(HTTPStatus.NOT_FOUND, "Not found")
+        except ContactsLookupError as exc:
+            self.write_error(exc.status, str(exc))
         except TranscriptStoreError as exc:
             self.write_error(HTTPStatus.NOT_FOUND, str(exc))
         except FileNotFoundError as exc:
@@ -6101,6 +6130,16 @@ class TranscriptApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == recording_registration.ROUTE:
+            recording_registration.submit(self)
+            return
+        speaker = recording_speaker_projection.ROUTE.fullmatch(parsed.path)
+        if speaker:
+            recording_speaker_projection.handle(self, speaker, write=True)
+            return
+        if parsed.path == transcript_corrections.ROUTE:
+            transcript_corrections.submit(self)
+            return
         if self.speech_harvest_request("POST", parsed.path):
             return
         try:
@@ -7264,7 +7303,16 @@ class TranscriptApiServer(ThreadingHTTPServer):
         quiet: bool = False,
         static_dir: Optional[Path] = DEFAULT_STATIC_DIR,
         speech_harvest_config: Optional[Path] = None,
+        recording_registration_token_file: Optional[Path] = None,
     ) -> None:
+        self.recording_registration_token = (
+            recording_registration.load_token(recording_registration_token_file, server_address[0])
+            if recording_registration_token_file else None
+        )
+        if self.recording_registration_token:
+            with connect(store_root) as con:
+                init_db(con)
+                transcript_corrections.initialize(con)
         super().__init__(server_address, handler_class)
         self.store_root = store_root
         self.embedding_provider = embedding_provider
@@ -7318,6 +7366,8 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument("--no-static", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--speech-harvest-config", type=Path, help="Private optional Speech consumer profile; no inference backend is installed")
+    parser.add_argument("--recording-registration-token-file", type=Path,
+                        help="Enable exact recording registration with a private bearer token on loopback")
     return parser.parse_args(argv)
 
 
@@ -7337,6 +7387,7 @@ def serve(args: argparse.Namespace) -> None:
         quiet=bool(args.quiet),
         static_dir=None if args.no_static else args.static_dir,
         speech_harvest_config=getattr(args, "speech_harvest_config", None),
+        recording_registration_token_file=getattr(args, "recording_registration_token_file", None),
     )
     print(f"Serving transcript API on http://{args.host}:{args.port} using {db_path(root)}")
     server.serve_forever()

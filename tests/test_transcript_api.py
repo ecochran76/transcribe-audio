@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from contextlib import nullcontext
 from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.parse import quote
@@ -4068,3 +4069,69 @@ def test_identity_review_and_people_api_are_preview_only_and_stale_safe(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_contacts_receipts_distinguishes_candidates_and_exact_revisions(tmp_path, monkeypatch):
+    native_id = "12345678-1234-4234-8234-123456789abc"
+    native = {"id": native_id, "kind": "entity", "revision": "7"}
+    entity = {"entity_kind": "individual", "name": "Example Person",
+              "state": "accepted", "constituents": [native]}
+    calls = []
+
+    def provider_call(url, **kwargs):
+        calls.append((url, kwargs["json"]))
+        value = (
+            {"entities": [entity]}
+            if url.endswith("/resolve")
+            else dict(entity, requested_anchor=native, projection_state="current")
+        )
+        return nullcontext(SimpleNamespace(
+            status_code=200, iter_content=lambda size: iter([json.dumps(value).encode()]),
+        ))
+
+    monkeypatch.setattr("requests.post", provider_call)
+    monkeypatch.setenv("TRANSCRIBE_CONTACTS_URL", "https://contacts.example")
+    monkeypatch.setenv("TRANSCRIBE_CONTACTS_TOKEN", "provider-token")
+    monkeypatch.setenv("TRANSCRIBE_CONTACTS_PERSPECTIVE", "test-perspective")
+    monkeypatch.setenv("TRANSCRIBE_CONTACTS_ACCESS_TOKEN", "consumer-token")
+    server = transcript_api.TranscriptApiServer(
+        ("127.0.0.1", 0), transcript_api.TranscriptApiHandler,
+        store_root=tmp_path / "store", embedding_provider="debug-hash",
+        embedding_model="debug-hash", state_root=tmp_path / "state", quiet=True,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        base_url = f"http://{host}:{port}/api/contacts-receipts/identities"
+
+        def read(suffix, token="consumer-token"):
+            return json.load(urlopen(Request(base_url + suffix, headers={
+                "Authorization": f"Bearer {token}",
+            }), timeout=5))
+
+        try:
+            read("?query=Example", token="wrong")
+        except HTTPError as error:
+            assert error.code == HTTPStatus.FORBIDDEN
+        else:
+            raise AssertionError("Unauthenticated contact lookup succeeded")
+        assert calls == []
+        hit = read("?query=Example")["items"][0]
+        assert hit["qualification"] == "candidate"
+        assert hit["reference"] == native
+        exact = read(f"/{native_id}?revision=7")
+        assert exact["qualification"] == "exact"
+        assert exact["reference"] == native
+        assert exact["speaker_assignment"] is None
+        try:
+            read(f"/{native_id}?revision=6")
+        except HTTPError as error:
+            assert error.code == HTTPStatus.CONFLICT
+        else:
+            raise AssertionError("Stale contact revision was accepted")
+        assert [call[1]["perspectives"] for call in calls] == [["test-perspective"]] * 3
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
